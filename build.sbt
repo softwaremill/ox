@@ -11,14 +11,14 @@ val logback = "ch.qos.logback" % "logback-classic" % "1.4.5"
 lazy val rootProject = (project in file("."))
   .settings(commonSettings: _*)
   .settings(publishArtifact := false, name := "warp")
-  .aggregate(jdk)
+  .aggregate(core)
 
-lazy val jdk: Project = (project in file("jdk"))
+lazy val core: Project = (project in file("core"))
   .settings(commonSettings: _*)
   .settings(
-    name := "jdk",
+    name := "core",
     libraryDependencies ++= Seq(
-      logback,
+      logback % Test,
       scalaTest
     )
   )
