@@ -58,6 +58,29 @@ class WarpTest extends AnyFlatSpec with Matchers {
     trail.trail shouldBe Vector("main mid", "f1 complete", "f2 complete", "result = 11")
   }
 
+  it should "allow extension method syntax" in {
+    import Warp.syntax.*
+    val trail = Trail()
+    Warp {
+      val f1 = {
+        val f2 = {
+          Thread.sleep(1000)
+          trail.add("f2 complete")
+          6
+        }.fork
+
+        Thread.sleep(500)
+        trail.add("f1 complete")
+        5 + f2.join()
+      }.fork
+
+      trail.add("main mid")
+      trail.add(s"result = ${f1.join()}")
+    }
+
+    trail.trail shouldBe Vector("main mid", "f1 complete", "f2 complete", "result = 11")
+  }
+
   it should "interrupt child fibers when parents complete" in {
     val trail = Trail()
     Warp {

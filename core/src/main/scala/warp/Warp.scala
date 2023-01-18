@@ -110,6 +110,15 @@ object Warp:
 
   //
 
+  object syntax:
+    extension [T](t: => T)
+      def fork: Fiber[T] = Warp.fork(t)
+      def forkWhere[U](fl: FiberLocal[U], u: U) = fl.forkWhere(u)(t)
+      def uninterruptible: T = Warp.uninterruptible(t)
+      def retry(times: Int, sleep: Long): T = Warp.retry(times, sleep)(t)
+
+  //
+
   trait Fiber[T]:
     def join(): T
     def cancel(): Either[Throwable, T]
