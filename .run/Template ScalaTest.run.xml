@@ -1,0 +1,15 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="true" type="ScalaTestRunConfiguration" factoryName="ScalaTest" show_console_on_std_err="false" show_console_on_std_out="false">
+    <option name="allowRunningInParallel" value="false" />
+    <option name="projectPathOnTarget" />
+    <option name="selectedOptions">
+      <list />
+    </option>
+    <option name="testKind" value="Class" />
+    <option name="javaOptions" value="--enable-preview --add-modules jdk.incubator.concurrent" />
+    <option name="shortenClasspath" value="NONE" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

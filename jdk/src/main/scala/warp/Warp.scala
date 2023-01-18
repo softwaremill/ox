@@ -77,7 +77,9 @@ object Warp:
       override def cancel(): Either[Throwable, T] =
         f1.cancel(true) // interrupting the container thread, should interrupt waiting for the result/shutdown and jump to close()
         isDone.get()
-        Try(result.get()).toEither
+        if result.isCompletedExceptionally
+        then Left(result.exceptionNow())
+        else Right(result.get())
 
     newChild
   }
@@ -90,7 +92,10 @@ object Warp:
 
     def joinWhileInterrupted(): T =
       try f.join()
-      catch case _: InterruptedException => joinWhileInterrupted()
+      catch
+        case e: InterruptedException =>
+          joinWhileInterrupted()
+          throw e
 
     joinWhileInterrupted()
 
