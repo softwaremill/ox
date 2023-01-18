@@ -5,6 +5,8 @@ on:
   push:
     branches: ['**']
     tags: [v*]
+env:
+  JAVA_OPTS: "--enable-preview --add-modules jdk.incubator.concurrent"
 jobs:
   ci:
     # run on external PRs, but not on internal PRs since those will be run by push to branch
@@ -13,10 +15,11 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v2
-    - name: Set up JDK 11
-      uses: actions/setup-java@v1
+    - name: Set up JDK 20
+      uses: oracle-actions/setup-java@v1
       with:
-        java-version: 11
+        website: jdk.java.net
+        release: 20
     - name: Cache sbt
       uses: actions/cache@v2
       with:
