@@ -99,6 +99,15 @@ object Warp:
 
     joinWhileInterrupted()
 
+  def retry[T](times: Int, sleep: Long)(t: => T): T =
+    try t
+    catch
+      case e: Exception =>
+        if times == 0 then throw e
+        else
+          Thread.sleep(sleep)
+          retry(times - 1, sleep)(t)
+
   //
 
   trait Fiber[T]:

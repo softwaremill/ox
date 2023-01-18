@@ -6,6 +6,7 @@ import org.scalatest.matchers.should.Matchers
 import org.slf4j.LoggerFactory
 
 import java.time.Clock
+import java.util.concurrent.atomic.AtomicInteger
 
 class WarpTest extends AnyFlatSpec with Matchers {
   class Trail(var trail: Vector[String] = Vector.empty) {
@@ -135,5 +136,23 @@ class WarpTest extends AnyFlatSpec with Matchers {
     }
 
     trail.trail shouldBe Vector("Fork start", "Sleep start", "Cancelling ...", "Sleep done", "Cancel result = Left(java.lang.InterruptedException)")
+  }
+
+  it should "retry the specified number of times" in {
+    val trail = Trail()
+    val counter = new AtomicInteger(2)
+    Warp {
+      val f = Warp.fork {
+        Warp.retry(3, 100L) {
+          trail.add(s"trying")
+          if counter.getAndDecrement() == 0 then "ok" else throw new RuntimeException("boom")
+        }
+      }
+
+      Thread.sleep(100)
+      trail.add(s"result = ${f.join()}")
+    }
+
+    trail.trail shouldBe Vector("trying", "trying", "trying", "result = ok")
   }
 }
