@@ -8,7 +8,7 @@ import org.slf4j.LoggerFactory
 import java.time.Clock
 import java.util.concurrent.atomic.AtomicInteger
 
-class WarpTest extends AnyFlatSpec with Matchers {
+class WarpSupervisedTest extends AnyFlatSpec with Matchers {
   class Trail(var trail: Vector[String] = Vector.empty) {
     def add(s: String): Unit = {
       info(s"[${Clock.systemUTC().instant()}] [${Thread.currentThread().threadId()}] $s")
@@ -18,13 +18,13 @@ class WarpTest extends AnyFlatSpec with Matchers {
 
   it should "run two forks concurrently" in {
     val trail = Trail()
-    Warp {
-      val f1 = Warp.fork {
+    WarpSupervised {
+      val f1 = WarpSupervised.fork {
         Thread.sleep(500)
         trail.add("f1 complete")
         5
       }
-      val f2 = Warp.fork {
+      val f2 = WarpSupervised.fork {
         Thread.sleep(1000)
         trail.add("f2 complete")
         6
@@ -38,9 +38,9 @@ class WarpTest extends AnyFlatSpec with Matchers {
 
   it should "allow nested forks" in {
     val trail = Trail()
-    Warp {
-      val f1 = Warp.fork {
-        val f2 = Warp.fork {
+    WarpSupervised {
+      val f1 = WarpSupervised.fork {
+        val f2 = WarpSupervised.fork {
           Thread.sleep(1000)
           trail.add("f2 complete")
           6
@@ -59,9 +59,9 @@ class WarpTest extends AnyFlatSpec with Matchers {
   }
 
   it should "allow extension method syntax" in {
-    import Warp.syntax.*
+    import WarpSupervised.syntax.*
     val trail = Trail()
-    Warp {
+    WarpSupervised {
       val f1 = {
         val f2 = {
           Thread.sleep(1000)
@@ -83,9 +83,9 @@ class WarpTest extends AnyFlatSpec with Matchers {
 
   it should "interrupt child fibers when parents complete" in {
     val trail = Trail()
-    Warp {
-      val f1 = Warp.fork {
-        Warp.fork {
+    WarpSupervised {
+      val f1 = WarpSupervised.fork {
+        WarpSupervised.fork {
           try
             Thread.sleep(1000)
             trail.add("f2 complete")
@@ -109,9 +109,9 @@ class WarpTest extends AnyFlatSpec with Matchers {
 
   it should "properly propagate fiber local values" in {
     val trail = Trail()
-    val v = Warp.FiberLocal("a")
-    Warp {
-      val f1 = Warp.fork {
+    val v = WarpSupervised.FiberLocal("a")
+    WarpSupervised {
+      val f1 = WarpSupervised.fork {
         v.forkWhere("x") {
           Thread.sleep(100L)
           trail.add(s"In f1 = ${v.get()}")
@@ -119,10 +119,10 @@ class WarpTest extends AnyFlatSpec with Matchers {
         v.get()
       }
 
-      val f3 = Warp.fork {
+      val f3 = WarpSupervised.fork {
         v.forkWhere("z") {
           Thread.sleep(100L)
-          Warp.fork {
+          WarpSupervised.fork {
             Thread.sleep(100L)
             trail.add(s"In f3 = ${v.get()}")
           }.join()
@@ -140,11 +140,11 @@ class WarpTest extends AnyFlatSpec with Matchers {
 
   it should "when interrupted, wait until uninterruptible blocks complete" in {
     val trail = Trail()
-    Warp {
-      val f = Warp.fork {
+    WarpSupervised {
+      val f = WarpSupervised.fork {
         trail.add(s"Fork start")
 
-        Warp.uninterruptible {
+        WarpSupervised.uninterruptible {
           trail.add(s"Sleep start")
           Thread.sleep(2000)
           trail.add("Sleep done")
@@ -164,9 +164,9 @@ class WarpTest extends AnyFlatSpec with Matchers {
   it should "retry the specified number of times" in {
     val trail = Trail()
     val counter = new AtomicInteger(2)
-    Warp {
-      val f = Warp.fork {
-        Warp.retry(3, 100L) {
+    WarpSupervised {
+      val f = WarpSupervised.fork {
+        WarpSupervised.retry(3, 100L) {
           trail.add(s"trying")
           if counter.getAndDecrement() == 0 then "ok" else throw new RuntimeException("boom")
         }

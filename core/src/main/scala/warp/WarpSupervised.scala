@@ -8,7 +8,7 @@ import java.util.function.BinaryOperator
 import scala.concurrent.Future
 import scala.util.Try
 
-object Warp:
+object WarpSupervised:
   // used for scoped values inheritance
   // we can use a simple box as starting a new thread is a memory barrier; anything set in the parent, will be
   // visible to the child (https://stackoverflow.com/questions/7128662/does-a-thread-start-causes-a-memory-barrier-shared-variables-will-be-persisted)
@@ -112,10 +112,10 @@ object Warp:
 
   object syntax:
     extension [T](t: => T)
-      def fork: Fiber[T] = Warp.fork(t)
+      def fork: Fiber[T] = WarpSupervised.fork(t)
       def forkWhere[U](fl: FiberLocal[U], u: U) = fl.forkWhere(u)(t)
-      def uninterruptible: T = Warp.uninterruptible(t)
-      def retry(times: Int, sleep: Long): T = Warp.retry(times, sleep)(t)
+      def uninterruptible: T = WarpSupervised.uninterruptible(t)
+      def retry(times: Int, sleep: Long): T = WarpSupervised.retry(times, sleep)(t)
 
   //
 
