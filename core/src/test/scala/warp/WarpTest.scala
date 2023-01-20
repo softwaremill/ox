@@ -4,11 +4,12 @@ import jdk.incubator.concurrent.ScopedValue
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import org.slf4j.LoggerFactory
-import warp.Warp.{fork, retry, scoped, uninterruptible}
+import warp.Warp.{fork, retry, scoped, timeout, uninterruptible}
 
 import java.time.Clock
 import java.util.concurrent.atomic.AtomicInteger
 import concurrent.duration.DurationInt
+import scala.concurrent.TimeoutException
 
 class WarpTest extends AnyFlatSpec with Matchers {
   class Trail(var trail: Vector[String] = Vector.empty) {
@@ -186,6 +187,24 @@ class WarpTest extends AnyFlatSpec with Matchers {
     }
 
     trail.trail shouldBe Vector("trying", "trying", "trying", "result = ok")
+  }
+
+  it should "timeout a computation" in {
+    val trail = Trail()
+    scoped {
+      try
+        timeout(1.second) {
+          Thread.sleep(2000)
+          trail.add("no timeout")
+        }
+      catch
+        case _: TimeoutException => trail.add("timeout")
+
+      trail.add("done")
+      Thread.sleep(2000)
+    }
+
+    trail.trail shouldBe Vector("timeout", "done")
   }
 }
 

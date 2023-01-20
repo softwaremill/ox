@@ -45,9 +45,10 @@ object Warp:
       override def join(): T = result.get()
       override def cancel(): Either[Throwable, T] =
         forkFuture.cancel(true)
-        try Right(result.get()) catch
+        try Right(result.get())
+        catch
           case e: ExecutionException => Left(e.getCause)
-          case e: Throwable => Left(e)
+          case e: Throwable          => Left(e)
 
   def forkAll[T](fs: Seq[() => T])(using Warp[T]): Fiber[Seq[T]] =
     val fibers = fs.map(f => fork(f()))
@@ -60,7 +61,9 @@ object Warp:
         else Right(results.collect { case Right(t) => t })
 
   def timeout[T](duration: FiniteDuration)(t: => T): T =
-    race(t)({ Thread.sleep(duration.toMillis); throw new TimeoutException() })
+    race(Right(t))({ Thread.sleep(duration.toMillis); Left(()) }) match
+      case Left(_)  => throw new TimeoutException(s"Timed out after $duration")
+      case Right(v) => v
 
   def race[T](fs: Seq[() => T]): T =
     scopedCustom(new StructuredTaskScope.ShutdownOnSuccess[T]()) { scope =>
@@ -77,9 +80,10 @@ object Warp:
 
       def joinDespiteInterrupted: T =
         try fiber.join()
-        catch case e: InterruptedException =>
-          joinDespiteInterrupted
-          throw e
+        catch
+          case e: InterruptedException =>
+            joinDespiteInterrupted
+            throw e
 
       joinDespiteInterrupted
     }
