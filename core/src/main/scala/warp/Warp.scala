@@ -6,6 +6,7 @@ import java.util.concurrent.{Callable, CompletableFuture}
 import scala.concurrent.{ExecutionException, TimeoutException}
 import scala.concurrent.duration.{Duration, FiniteDuration}
 
+// TODO: implicit not found explaining `scoped`
 case class Warp[-T](_scope: StructuredTaskScope[_]) {
   // TODO needed? make _scope private?
   def scope[U <: T]: StructuredTaskScope[U] = _scope.asInstanceOf[StructuredTaskScope[U]]
@@ -72,6 +73,7 @@ object Warp:
       scope.result()
     }
 
+  /** Returns the result of the first successful computation, or one of the errors. */
   def race[T](f1: => T)(f2: => T): T = race(List(() => f1, () => f2))
 
   def uninterruptible[T](f: => T): T =
@@ -97,6 +99,10 @@ object Warp:
           Thread.sleep(sleep.toMillis)
           retry(times - 1, sleep)(f)
         else throw e
+
+  //
+
+  // errors: .either, .orThrow
 
   //
 
