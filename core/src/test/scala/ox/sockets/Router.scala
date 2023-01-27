@@ -8,7 +8,7 @@ import ox.Ox.{Fiber, scoped}
 import java.util.concurrent.{ArrayBlockingQueue, BlockingQueue}
 import scala.annotation.tailrec
 
-object Router {
+object Router:
   private val logger = LoggerFactory.getLogger(this.getClass)
   private val Timeout = 1000L
 
@@ -82,4 +82,4 @@ object Router {
         throw e
       case e => logger.error("Exception when receiving from a socket", e)
   }.forever.fork
-}
+

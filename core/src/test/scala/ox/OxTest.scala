@@ -142,6 +142,28 @@ class OxTest extends AnyFlatSpec with Matchers {
     trail.trail shouldBe Vector("main mid", "In f1 = x", "result = a", "In f3 = z", "result = a")
   }
 
+  it should "propagate fiber local values across multiple scopes" in {
+    val trail = Trail()
+    val v = Ox.FiberLocal("a")
+    scoped {
+      fork {
+        v.scopedWhere("x") {
+          trail.add(s"nested1 = ${v.get()}")
+
+          scoped {
+            fork {
+              trail.add(s"nested2 = ${v.get()}")
+            }.join()
+          }
+        }
+      }.join()
+
+      trail.add(s"outer = ${v.get()}")
+    }
+
+    trail.trail shouldBe Vector("nested1 = x", "nested2 = x", "outer = a")
+  }
+
   it should "when interrupted, wait until uninterruptible blocks complete" in {
     val trail = Trail()
     scoped {
