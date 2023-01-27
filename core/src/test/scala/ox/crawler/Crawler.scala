@@ -1,7 +1,7 @@
-package warp.crawler
+package ox.crawler
 
 import org.slf4j.LoggerFactory
-import warp.Warp.{Fiber, fork, scoped}
+import ox.Ox.{Fiber, fork, scoped}
 
 import java.util.concurrent.{ArrayBlockingQueue, BlockingQueue}
 import scala.annotation.tailrec

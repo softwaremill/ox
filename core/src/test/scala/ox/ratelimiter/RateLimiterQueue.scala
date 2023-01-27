@@ -1,6 +1,6 @@
-package warp.ratelimiter
+package ox.ratelimiter
 
-import warp.ratelimiter.RateLimiterQueue.*
+import ox.ratelimiter.RateLimiterQueue.*
 
 import scala.collection.immutable.Queue
 

@@ -1,6 +1,6 @@
-package warp.crawler.test
+package ox.crawler.test
 
-import warp.crawler.{Host, Url}
+import ox.crawler.{Host, Url}
 
 trait CrawlerTestData:
 

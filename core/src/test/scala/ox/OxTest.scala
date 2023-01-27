@@ -1,17 +1,17 @@
-package warp
+package ox
 
 import jdk.incubator.concurrent.ScopedValue
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import org.slf4j.LoggerFactory
-import warp.Warp.{fork, retry, scoped, timeout, uninterruptible}
+import ox.Ox.{fork, retry, scoped, timeout, uninterruptible}
 
 import java.time.Clock
 import java.util.concurrent.atomic.AtomicInteger
 import concurrent.duration.DurationInt
 import scala.concurrent.TimeoutException
 
-class WarpTest extends AnyFlatSpec with Matchers {
+class OxTest extends AnyFlatSpec with Matchers {
   class Trail(var trail: Vector[String] = Vector.empty) {
     def add(s: String): Unit = {
       info(s"[${Clock.systemUTC().instant()}] [${Thread.currentThread().threadId()}] $s")
@@ -62,7 +62,7 @@ class WarpTest extends AnyFlatSpec with Matchers {
   }
 
   it should "allow extension method syntax" in {
-    import Warp.syntax.*
+    import Ox.syntax.*
     val trail = Trail()
     scoped {
       val f1 = {
@@ -113,7 +113,7 @@ class WarpTest extends AnyFlatSpec with Matchers {
 
   it should "properly propagate fiber local values" in {
     val trail = Trail()
-    val v = Warp.FiberLocal("a")
+    val v = Ox.FiberLocal("a")
     scoped {
       val f1 = fork {
         v.scopedWhere("x") {
@@ -210,7 +210,7 @@ class WarpTest extends AnyFlatSpec with Matchers {
 
 @main def test1 =
   val log = LoggerFactory.getLogger("test1")
-  val r = Warp.scoped {
+  val r = Ox.scoped {
     val f1 = fork {
       Thread.sleep(1000L)
       log.info("f1 done")

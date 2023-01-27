@@ -1,4 +1,4 @@
-package warp.sockets
+package ox.sockets
 
 trait Socket:
   def accept(timeout: Long): ConnectedSocket

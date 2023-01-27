@@ -10,7 +10,7 @@ val logback = "ch.qos.logback" % "logback-classic" % "1.4.5"
 
 lazy val rootProject = (project in file("."))
   .settings(commonSettings: _*)
-  .settings(publishArtifact := false, name := "warp")
+  .settings(publishArtifact := false, name := "ox")
   .aggregate(core)
 
 lazy val core: Project = (project in file("core"))

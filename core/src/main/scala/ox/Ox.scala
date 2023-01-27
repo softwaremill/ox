@@ -1,4 +1,4 @@
-package warp
+package ox
 
 import jdk.incubator.concurrent.{ScopedValue, StructuredTaskScope}
 
@@ -8,36 +8,36 @@ import scala.concurrent.duration.{Duration, FiniteDuration}
 import scala.util.Try
 
 // TODO: implicit not found explaining `scoped`
-case class Warp[-T](_scope: StructuredTaskScope[_]) {
+case class Ox[-T](_scope: StructuredTaskScope[_]) {
   // TODO needed? make _scope private?
   def scope[U <: T]: StructuredTaskScope[U] = _scope.asInstanceOf[StructuredTaskScope[U]]
   def cancel(): Unit = scope.shutdown()
 }
 
-object Warp:
+object Ox:
   private class DoNothingScope[T] extends StructuredTaskScope[T](null, Thread.ofVirtual().factory()) {}
 
   /** Any child fibers are interrupted after `f` completes. */
-  def scoped[T](f: Warp[Any] ?=> T): T = scopedCustom(new DoNothingScope[Any]()) { scope =>
+  def scoped[T](f: Ox[Any] ?=> T): T = scopedCustom(new DoNothingScope[Any]()) { scope =>
     try f
     finally
       scope.shutdown()
       scope.join()
   }
 
-  def scopedCustom[T, S <: StructuredTaskScope[T], U](scope: S)(f: S => Warp[T] ?=> U): U =
-    try f(scope)(using Warp(scope))
+  def scopedCustom[T, S <: StructuredTaskScope[T], U](scope: S)(f: S => Ox[T] ?=> U): U =
+    try f(scope)(using Ox(scope))
     finally scope.close()
 
 //  trait Sink[T]:
 //    def onComplete(r: Either[Throwable, T]): Unit
 //
-//  def scopedWithSink[T](sink: Sink[T])(t: => T)(using Warp[T]): Fiber[T] = ???
+//  def scopedWithSink[T](sink: Sink[T])(t: => T)(using Ox[T]): Fiber[T] = ???
 
   /** Starts a fiber, which is guaranteed to complete before the enclosing [[scoped]] block exits. */
-  def fork[T](f: => T)(using Warp[T]): Fiber[T] =
+  def fork[T](f: => T)(using Ox[T]): Fiber[T] =
     val result = new CompletableFuture[T]()
-    val forkFuture = summon[Warp[T]].scope.fork { () =>
+    val forkFuture = summon[Ox[T]].scope.fork { () =>
       try result.complete(f)
       catch case e: Throwable => result.completeExceptionally(e)
 
@@ -52,7 +52,7 @@ object Warp:
           case e: ExecutionException => Left(e.getCause)
           case e: Throwable          => Left(e)
 
-  def forkAll[T](fs: Seq[() => T])(using Warp[T]): Fiber[Seq[T]] =
+  def forkAll[T](fs: Seq[() => T])(using Ox[T]): Fiber[Seq[T]] =
     val fibers = fs.map(f => fork(f()))
     new Fiber[Seq[T]]:
       override def join(): Seq[T] = fibers.map(_.join())
@@ -120,16 +120,16 @@ object Warp:
 
   object syntax:
     extension [T](f: => T)
-      def forever: Fiber[Nothing] = Warp.forever(f)
-      def retry(times: Int, sleep: FiniteDuration): T = Warp.retry(times, sleep)(f)
+      def forever: Fiber[Nothing] = Ox.forever(f)
+      def retry(times: Int, sleep: FiniteDuration): T = Ox.retry(times, sleep)(f)
 
-    extension [T](f: => T)(using Warp[T])
-      def fork: Fiber[T] = Warp.fork(f)
-      def timeout(duration: FiniteDuration): T = Warp.timeout(duration)(f)
+    extension [T](f: => T)(using Ox[T])
+      def fork: Fiber[T] = Ox.fork(f)
+      def timeout(duration: FiniteDuration): T = Ox.timeout(duration)(f)
       def scopedWhere[U](fl: FiberLocal[U], u: U): T = fl.scopedWhere(u)(f)
-      def uninterruptible: T = Warp.uninterruptible(f)
-      def raceSuccessWith(f2: => T): T = Warp.raceSuccess(f)(f2)
-      def raceResultWith(f2: => T): T = Warp.raceResult(f)(f2)
+      def uninterruptible: T = Ox.uninterruptible(f)
+      def raceSuccessWith(f2: => T): T = Ox.raceSuccess(f)(f2)
+      def raceResultWith(f2: => T): T = Ox.raceResult(f)(f2)
 
   //
 
@@ -146,7 +146,7 @@ object Warp:
   class FiberLocal[T](scopedValue: ScopedValue[T], default: T):
     def get(): T = scopedValue.orElse(default)
 
-    def scopedWhere[U](newValue: T)(f: Warp[Any] ?=> U): U =
+    def scopedWhere[U](newValue: T)(f: Ox[Any] ?=> U): U =
       // the scoped values need to be set inside the thread that's used to create the new scope, but
       // before starting the scope itself, as scoped value bindings can't change after the scope is started
       scopedValueWhere(scopedValue, newValue)(scoped(f))

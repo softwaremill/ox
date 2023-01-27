@@ -1,9 +1,9 @@
-package warp.ratelimiter
+package ox.ratelimiter
 
 import org.slf4j.LoggerFactory
-import warp.Warp
-import warp.Warp.{Fiber, fork, scoped}
-import warp.ratelimiter.RateLimiterQueue.{Run, RunAfter}
+import ox.Ox
+import ox.Ox.{Fiber, fork, scoped}
+import ox.ratelimiter.RateLimiterQueue.{Run, RunAfter}
 
 import java.util.concurrent.{ArrayBlockingQueue, BlockingQueue, CompletableFuture, Future}
 import scala.annotation.tailrec
@@ -31,7 +31,7 @@ object RateLimiter:
   }
 
   @tailrec
-  private def runQueue(data: RateLimiterQueue[() => Unit], queue: BlockingQueue[RateLimiterMsg])(using Warp[Any]): Unit =
+  private def runQueue(data: RateLimiterQueue[() => Unit], queue: BlockingQueue[RateLimiterMsg])(using Ox[Any]): Unit =
     // (1) take a message from the queue (or wait until one is available)
     val msg = queue.take()
 

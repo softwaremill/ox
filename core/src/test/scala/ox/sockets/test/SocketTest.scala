@@ -1,10 +1,10 @@
-package warp.sockets.test
+package ox.sockets.test
 
 import org.scalatest.concurrent.{Eventually, IntegrationPatience}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import warp.Warp.{raceResult, raceSuccess, scoped}
-import warp.sockets.{ConnectedSocket, Router, Socket, SocketTerminatedException}
+import ox.Ox.{raceResult, raceSuccess, scoped}
+import ox.sockets.{ConnectedSocket, Router, Socket, SocketTerminatedException}
 
 import java.util.concurrent.{ArrayBlockingQueue, ConcurrentLinkedQueue, TimeUnit}
 import scala.jdk.CollectionConverters.*

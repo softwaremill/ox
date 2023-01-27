@@ -1,10 +1,10 @@
-package warp.crawler.test
+package ox.crawler.test
 
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{Millis, Seconds, Span}
-import warp.crawler.Crawler
+import ox.crawler.Crawler
 
 class CrawlerTest extends AnyFlatSpec with Matchers with CrawlerTestData with ScalaFutures with IntegrationPatience:
 

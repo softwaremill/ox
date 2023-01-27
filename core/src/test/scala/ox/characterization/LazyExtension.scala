@@ -1,4 +1,4 @@
-package warp
+package ox
 
 @main def lazyExtension(): Unit =
   extension [T](t: => T)

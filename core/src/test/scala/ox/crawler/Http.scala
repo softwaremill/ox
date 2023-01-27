@@ -1,4 +1,4 @@
-package warp.crawler
+package ox.crawler
 
 type Host = String
 case class Url(host: Host, path: String)
