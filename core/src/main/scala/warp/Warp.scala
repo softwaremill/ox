@@ -5,6 +5,7 @@ import jdk.incubator.concurrent.{ScopedValue, StructuredTaskScope}
 import java.util.concurrent.{Callable, CompletableFuture}
 import scala.concurrent.{ExecutionException, TimeoutException}
 import scala.concurrent.duration.{Duration, FiniteDuration}
+import scala.util.Try
 
 // TODO: implicit not found explaining `scoped`
 case class Warp[-T](_scope: StructuredTaskScope[_]) {
@@ -62,19 +63,24 @@ object Warp:
         else Right(results.collect { case Right(t) => t })
 
   def timeout[T](duration: FiniteDuration)(t: => T): T =
-    race(Right(t))({ Thread.sleep(duration.toMillis); Left(()) }) match
+    raceSuccess(Right(t))({ Thread.sleep(duration.toMillis); Left(()) }) match
       case Left(_)  => throw new TimeoutException(s"Timed out after $duration")
       case Right(v) => v
 
-  def race[T](fs: Seq[() => T]): T =
+  def raceSuccess[T](fs: Seq[() => T]): T =
     scopedCustom(new StructuredTaskScope.ShutdownOnSuccess[T]()) { scope =>
       fs.foreach(f => scope.fork(() => f()))
       scope.join()
       scope.result()
     }
 
-  /** Returns the result of the first successful computation, or one of the errors. */
-  def race[T](f1: => T)(f2: => T): T = race(List(() => f1, () => f2))
+  def raceResult[T](fs: Seq[() => T]): T = raceSuccess(fs.map(f => () => Try(f()))).get
+
+  /** Returns the result of the first computation to complete successfully, or if all fail - throws the first exception. */
+  def raceSuccess[T](f1: => T)(f2: => T): T = raceSuccess(List(() => f1, () => f2))
+
+  /** Returns the result of the first computation to complete (either successfully or with an exception). */
+  def raceResult[T](f1: => T)(f2: => T): T = raceResult(List(() => f1, () => f2))
 
   def uninterruptible[T](f: => T): T =
     scoped {
@@ -89,6 +95,12 @@ object Warp:
 
       joinDespiteInterrupted
     }
+
+  //
+
+  def forever(f: => Unit): Nothing =
+    while true do f
+    throw new RuntimeException("can't get here")
 
   def retry[T](times: Int, sleep: FiniteDuration)(f: => T): T =
     try f
@@ -107,13 +119,17 @@ object Warp:
   //
 
   object syntax:
+    extension [T](f: => T)
+      def forever: Fiber[Nothing] = Warp.forever(f)
+      def retry(times: Int, sleep: FiniteDuration): T = Warp.retry(times, sleep)(f)
+
     extension [T](f: => T)(using Warp[T])
       def fork: Fiber[T] = Warp.fork(f)
       def timeout(duration: FiniteDuration): T = Warp.timeout(duration)(f)
       def scopedWhere[U](fl: FiberLocal[U], u: U): T = fl.scopedWhere(u)(f)
       def uninterruptible: T = Warp.uninterruptible(f)
-      def raceWith(f2: => T): T = Warp.race(f)(f2)
-      def retry(times: Int, sleep: FiniteDuration): T = Warp.retry(times, sleep)(f)
+      def raceSuccessWith(f2: => T): T = Warp.raceSuccess(f)(f2)
+      def raceResultWith(f2: => T): T = Warp.raceResult(f)(f2)
 
   //
 
