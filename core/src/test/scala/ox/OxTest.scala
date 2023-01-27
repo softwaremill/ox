@@ -197,8 +197,7 @@ class OxTest extends AnyFlatSpec with Matchers {
           Thread.sleep(2000)
           trail.add("no timeout")
         }
-      catch
-        case _: TimeoutException => trail.add("timeout")
+      catch case _: TimeoutException => trail.add("timeout")
 
       trail.add("done")
       Thread.sleep(2000)

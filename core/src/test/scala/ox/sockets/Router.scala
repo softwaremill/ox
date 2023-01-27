@@ -21,8 +21,8 @@ object Router {
     case class ConnectedSocketData(sendFiber: Fiber[Unit], receiveFiber: Fiber[Unit], sendQueue: BlockingQueue[String])
 
     @tailrec
-    def handleMessage(queue: BlockingQueue[RouterMessage], socketSendQueues: Map[ConnectedSocket, ConnectedSocketData]): Unit = {
-      queue.take match {
+    def handleMessage(queue: BlockingQueue[RouterMessage], socketSendQueues: Map[ConnectedSocket, ConnectedSocketData]): Unit =
+      queue.take match
         case Connected(connectedSocket) =>
           val sendQueue = new ArrayBlockingQueue[String](32)
           val sendFiber = clientSend(connectedSocket, queue, sendQueue)
@@ -30,12 +30,12 @@ object Router {
           handleMessage(queue, socketSendQueues + (connectedSocket -> ConnectedSocketData(sendFiber, receiveFiber, sendQueue)))
 
         case Terminated(connectedSocket) =>
-          socketSendQueues.get(connectedSocket) match {
+          socketSendQueues.get(connectedSocket) match
             case None => ()
             case Some(ConnectedSocketData(sendFiber, receiveFiber, _)) =>
               sendFiber.cancel()
               receiveFiber.cancel()
-          }
+
           handleMessage(queue, socketSendQueues - connectedSocket)
 
         case Received(receivedFrom, msg) =>
@@ -43,8 +43,6 @@ object Router {
             if connectedSocket != receivedFrom then sendQueue.put(msg)
           }
           handleMessage(queue, socketSendQueues)
-      }
-    }
 
     val queue = new ArrayBlockingQueue[RouterMessage](32)
     socketAccept(socket, queue)
@@ -61,7 +59,7 @@ object Router {
   }.forever.fork
 
   private def clientSend(socket: ConnectedSocket, parent: BlockingQueue[RouterMessage], sendQueue: BlockingQueue[String])(using
-                                                                                                                          Ox[Any]
+      Ox[Any]
   ): Fiber[Unit] = {
     val msg = sendQueue.take
     try socket.send(msg)
