@@ -11,9 +11,7 @@ import scala.util.{Failure, Success, Try}
 import scala.util.control.NoStackTrace
 
 // TODO: implicit not found explaining `scoped`
-case class Ox[-T](_scope: StructuredTaskScope[_], scopeThread: Thread, fiberFailureToPropagate: AtomicReference[Throwable]) {
-  // TODO needed? make _scope private?
-  def scope[U <: T]: StructuredTaskScope[U] = _scope.asInstanceOf[StructuredTaskScope[U]]
+case class Ox(scope: StructuredTaskScope[_], scopeThread: Thread, fiberFailureToPropagate: AtomicReference[Throwable]) {
   def cancel(): Unit = scope.shutdown()
 }
 
@@ -21,7 +19,7 @@ object Ox:
   private class DoNothingScope[T] extends StructuredTaskScope[T](null, Thread.ofVirtual().factory()) {}
 
   /** Any child fibers are interrupted after `f` completes. */
-  def scoped[T](f: Ox[Any] ?=> T): T =
+  def scoped[T](f: Ox ?=> T): T =
     val fiberFailure = new AtomicReference[Throwable]()
 
     // only propagating if the main scope thread was interrupted (presumably because of a supervised child fiber failing)
@@ -47,9 +45,9 @@ object Ox:
     * In case an exception is thrown while evaluating `t`, it will be thrown when calling the returned [[Fiber]]'s `.join()` method. The
     * exception is **not** propagated to the enclosing scope's main thread, like in the case of [[fork]].
     */
-  def forkUnsupervised[T](f: => T)(using Ox[T]): Fiber[T] =
+  def forkUnsupervised[T](f: => T)(using Ox): Fiber[T] =
     val result = new CompletableFuture[T]()
-    val forkFuture = summon[Ox[T]].scope.fork { () =>
+    val forkFuture = summon[Ox].scope.fork { () =>
       try result.complete(f)
       catch case e: Throwable => result.completeExceptionally(e)
 
@@ -67,7 +65,7 @@ object Ox:
           case e: ExecutionException => Left(e.getCause)
           case e: Throwable          => Left(e)
 
-  def forkAllUnsupervised[T](fs: Seq[() => T])(using Ox[T]): Fiber[Seq[T]] =
+  def forkAllUnsupervised[T](fs: Seq[() => T])(using Ox): Fiber[Seq[T]] =
     val fibers = fs.map(f => forkUnsupervised(f()))
     new Fiber[Seq[T]]:
       override def join(): Seq[T] = fibers.map(_.join())
@@ -82,14 +80,14 @@ object Ox:
     * In case an exception is thrown while evaluating `t`, the enclosing scope is interrupted and the exception is re-thrown in the scope's
     * main thread.
     */
-  def fork[T](f: => T)(using Ox[T]): Fiber[T] = forkUnsupervised {
+  def fork[T](f: => T)(using Ox): Fiber[T] = forkUnsupervised {
     try f
     catch
       // not propagating interrupts, as these are not failures coming from evaluating `f` itself
       case e: InterruptedException => throw e
       case e: Throwable =>
-        val old = summon[Ox[T]].fiberFailureToPropagate.getAndSet(e) // TODO: only the last failure is propagated
-        if (old == null) summon[Ox[T]].scopeThread.interrupt()
+        val old = summon[Ox].fiberFailureToPropagate.getAndSet(e) // TODO: only the last failure is propagated
+        if (old == null) summon[Ox].scopeThread.interrupt()
         throw e
   }
 
@@ -165,7 +163,7 @@ object Ox:
       def forever: Fiber[Nothing] = Ox.forever(f)
       def retry(times: Int, sleep: FiniteDuration): T = Ox.retry(times, sleep)(f)
 
-    extension [T](f: => T)(using Ox[T])
+    extension [T](f: => T)(using Ox)
       def forkUnsupervised: Fiber[T] = Ox.forkUnsupervised(f)
       def fork: Fiber[T] = Ox.fork(f)
       def timeout(duration: FiniteDuration): T = Ox.timeout(duration)(f)
@@ -189,7 +187,7 @@ object Ox:
   class FiberLocal[T](scopedValue: ScopedValue[T], default: T):
     def get(): T = scopedValue.orElse(default)
 
-    def scopedWhere[U](newValue: T)(f: Ox[Any] ?=> U): U =
+    def scopedWhere[U](newValue: T)(f: Ox ?=> U): U =
       // the scoped values need to be set inside the thread that's used to create the new scope, but
       // before starting the scope itself, as scoped value bindings can't change after the scope is started
       scopedValueWhere(scopedValue, newValue)(scoped(f))

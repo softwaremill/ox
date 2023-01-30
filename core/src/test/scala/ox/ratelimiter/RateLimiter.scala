@@ -31,7 +31,7 @@ object RateLimiter:
   }
 
   @tailrec
-  private def runQueue(data: RateLimiterQueue[() => Unit], queue: BlockingQueue[RateLimiterMsg])(using Ox[Any]): Unit =
+  private def runQueue(data: RateLimiterQueue[() => Unit], queue: BlockingQueue[RateLimiterMsg])(using Ox): Unit =
     // (1) take a message from the queue (or wait until one is available)
     val msg = queue.take()
 

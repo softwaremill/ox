@@ -49,7 +49,7 @@ object Router:
     handleMessage(queue, Map())
   }
 
-  private def socketAccept(socket: Socket, parent: BlockingQueue[RouterMessage])(using Ox[Any]): Fiber[Unit] = {
+  private def socketAccept(socket: Socket, parent: BlockingQueue[RouterMessage])(using Ox): Fiber[Unit] = {
     try
       val connectedSocket = socket.accept(Timeout)
       if connectedSocket != null then parent.put(Connected(connectedSocket))
@@ -59,7 +59,7 @@ object Router:
   }.forever.fork
 
   private def clientSend(socket: ConnectedSocket, parent: BlockingQueue[RouterMessage], sendQueue: BlockingQueue[String])(using
-      Ox[Any]
+      Ox
   ): Fiber[Unit] = {
     val msg = sendQueue.take
     try socket.send(msg)
@@ -71,7 +71,7 @@ object Router:
       case e => logger.error(s"Exception when sending to socket", e)
   }.forever.fork
 
-  private def clientReceive(socket: ConnectedSocket, parent: BlockingQueue[RouterMessage])(using Ox[Any]): Fiber[Unit] = {
+  private def clientReceive(socket: ConnectedSocket, parent: BlockingQueue[RouterMessage])(using Ox): Fiber[Unit] = {
     try
       val msg = socket.receive(Timeout)
       if msg != null then parent.put(Received(socket, msg))
@@ -82,4 +82,3 @@ object Router:
         throw e
       case e => logger.error("Exception when receiving from a socket", e)
   }.forever.fork
-
