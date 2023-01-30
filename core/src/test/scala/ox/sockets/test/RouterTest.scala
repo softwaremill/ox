@@ -9,7 +9,7 @@ import ox.sockets.{ConnectedSocket, Router, Socket, SocketTerminatedException}
 import java.util.concurrent.{ArrayBlockingQueue, ConcurrentLinkedQueue, TimeUnit}
 import scala.jdk.CollectionConverters.*
 
-class SocketTest extends AnyFlatSpec with Matchers with Eventually with IntegrationPatience {
+class RouterTest extends AnyFlatSpec with Matchers with Eventually with IntegrationPatience {
 
   it should "distribute message and connect new clients" in {
     val acceptQueue = new ArrayBlockingQueue[ConnectedSocket](1024)

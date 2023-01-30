@@ -2,7 +2,7 @@ package ox.sockets
 
 import org.slf4j.LoggerFactory
 import ox.Ox
-import ox.Ox.syntax.{forever, fork}
+import ox.Ox.syntax.{forever, forkSupervised}
 import ox.Ox.{Fiber, scoped}
 
 import java.util.concurrent.{ArrayBlockingQueue, BlockingQueue}
@@ -56,7 +56,7 @@ object Router:
     catch
       case e: InterruptedException => throw e
       case e: Exception            => logger.error(s"Exception when listening on a socket", e)
-  }.forever.fork
+  }.forever.forkSupervised
 
   private def clientSend(socket: ConnectedSocket, parent: BlockingQueue[RouterMessage], sendQueue: BlockingQueue[String])(using
       Ox[Any]
@@ -69,7 +69,7 @@ object Router:
         parent.put(Terminated(socket))
         throw e
       case e => logger.error(s"Exception when sending to socket", e)
-  }.forever.fork
+  }.forever.forkSupervised
 
   private def clientReceive(socket: ConnectedSocket, parent: BlockingQueue[RouterMessage])(using Ox[Any]): Fiber[Unit] = {
     try
@@ -81,5 +81,5 @@ object Router:
         parent.put(Terminated(socket))
         throw e
       case e => logger.error("Exception when receiving from a socket", e)
-  }.forever.fork
+  }.forever.forkSupervised
 

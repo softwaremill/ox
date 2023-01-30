@@ -1,7 +1,7 @@
 package ox.crawler
 
 import org.slf4j.LoggerFactory
-import ox.Ox.{Fiber, fork, scoped}
+import ox.Ox.{Fiber, forkSupervised, scoped}
 
 import java.util.concurrent.{ArrayBlockingQueue, BlockingQueue}
 import scala.annotation.tailrec
@@ -55,9 +55,9 @@ object Crawler:
             case e: Exception =>
               logger.error(s"Cannot get contents of $url", e)
               List.empty[Url]
-        fork(crawlerQueue.put(CrawlResult(url, r)))
+        forkSupervised(crawlerQueue.put(CrawlResult(url, r)))
 
-      fork {
+      forkSupervised {
         while true do {
           val url = workerQueue.take
           handleUrl(url)
