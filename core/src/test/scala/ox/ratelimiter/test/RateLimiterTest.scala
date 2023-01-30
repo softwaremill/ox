@@ -3,7 +3,6 @@ package ox.ratelimiter.test
 import org.scalatest.concurrent.{Eventually, IntegrationPatience}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import ox.Ox.{fork, scoped}
 import ox.ratelimiter.RateLimiter
 
 import java.time.LocalTime

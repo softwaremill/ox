@@ -43,7 +43,7 @@ object Ox:
     finally scope.close()
 
   /** Starts a fiber, which is guaranteed to complete before the enclosing [[scoped]] block exits. */
-  def fork[T](f: => T)(using Ox[T]): Fiber[T] =
+  def forkUnsupervised[T](f: => T)(using Ox[T]): Fiber[T] =
     val result = new CompletableFuture[T]()
     val forkFuture = summon[Ox[T]].scope.fork { () =>
       try result.complete(f)
@@ -53,9 +53,9 @@ object Ox:
     }
     new Fiber[T]:
       override def join(): T = try result.get()
-        catch
-          case e: ExecutionException => throw e.getCause
-          case e: Throwable          => throw e
+      catch
+        case e: ExecutionException => throw e.getCause
+        case e: Throwable          => throw e
       override def cancel(): Either[Throwable, T] =
         forkFuture.cancel(true)
         try Right(result.get())
@@ -63,8 +63,8 @@ object Ox:
           case e: ExecutionException => Left(e.getCause)
           case e: Throwable          => Left(e)
 
-  def forkAll[T](fs: Seq[() => T])(using Ox[T]): Fiber[Seq[T]] =
-    val fibers = fs.map(f => fork(f()))
+  def forkAllUnsupervised[T](fs: Seq[() => T])(using Ox[T]): Fiber[Seq[T]] =
+    val fibers = fs.map(f => forkUnsupervised(f()))
     new Fiber[Seq[T]]:
       override def join(): Seq[T] = fibers.map(_.join())
       override def cancel(): Either[Throwable, Seq[T]] =
@@ -73,10 +73,7 @@ object Ox:
         then Left(results.collectFirst { case Left(e) => e }.get)
         else Right(results.collect { case Right(t) => t })
 
-  // TODO: consider making this available only when the scope is created using scopeSupervised, which would allow
-  // narrowing the overhead of the storing the additional propagation atomics; we would then need to introduce an
-  // additional OxSupervised given
-  def forkSupervised[T](f: => T)(using Ox[T]): Fiber[T] = fork {
+  def fork[T](f: => T)(using Ox[T]): Fiber[T] = forkUnsupervised {
     try f
     catch
       // not propagating interrupts, as these are not failures coming from evaluating `f` itself
@@ -97,7 +94,7 @@ object Ox:
   def raceSuccess[T](fs: Seq[() => T]): T =
     scoped {
       val result = new ArrayBlockingQueue[Try[T]](fs.size)
-      fs.foreach(f => fork(result.put(Try(f()))))
+      fs.foreach(f => forkUnsupervised(result.put(Try(f()))))
 
       @tailrec
       def takeUntilSuccess(firstException: Option[Throwable], left: Int): T =
@@ -120,7 +117,7 @@ object Ox:
 
   def uninterruptible[T](f: => T): T =
     scoped {
-      val fiber = fork(f)
+      val fiber = forkUnsupervised(f)
 
       def joinDespiteInterrupted: T =
         try fiber.join()
@@ -160,8 +157,8 @@ object Ox:
       def retry(times: Int, sleep: FiniteDuration): T = Ox.retry(times, sleep)(f)
 
     extension [T](f: => T)(using Ox[T])
+      def forkUnsupervised: Fiber[T] = Ox.forkUnsupervised(f)
       def fork: Fiber[T] = Ox.fork(f)
-      def forkSupervised: Fiber[T] = Ox.forkSupervised(f)
       def timeout(duration: FiniteDuration): T = Ox.timeout(duration)(f)
       def scopedWhere[U](fl: FiberLocal[U], u: U): T = fl.scopedWhere(u)(f)
       def uninterruptible: T = Ox.uninterruptible(f)
