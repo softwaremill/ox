@@ -213,7 +213,15 @@ class OxTest extends AnyFlatSpec with Matchers {
     trail.trail shouldBe Vector("trying", "trying", "trying", "result = ok")
   }
 
-  it should "timeout a computation" in { // TODO test - no timeout
+  it should "throw the exception thrown by a joined fiber" in {
+    val trail = Trail()
+    try scoped(fork(throw new CustomException()).join())
+    catch case e: Exception => trail.add(e.getClass.getSimpleName)
+
+    trail.trail shouldBe Vector("CustomException")
+  }
+
+  "timeout" should "short-circuit a long computation" in {
     val trail = Trail()
     scoped {
       try
@@ -230,7 +238,22 @@ class OxTest extends AnyFlatSpec with Matchers {
     trail.trail shouldBe Vector("timeout", "done")
   }
 
-  // TODO error unpacking - fork { throw } + join
+  it should "not interrupt a short computation" in {
+    val trail = Trail()
+    scoped {
+      try
+        timeout(1.second) {
+          Thread.sleep(500)
+          trail.add("no timeout")
+        }
+      catch case _: TimeoutException => trail.add("timeout")
+
+      trail.add("done")
+      Thread.sleep(2000)
+    }
+
+    trail.trail shouldBe Vector("no timeout", "done")
+  }
 
   "forkSupervised" should "propagate failures to the scope thread" in {
     val trail = Trail()

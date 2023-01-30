@@ -52,7 +52,10 @@ object Ox:
       null.asInstanceOf // TODO
     }
     new Fiber[T]:
-      override def join(): T = result.get()
+      override def join(): T = try result.get()
+        catch
+          case e: ExecutionException => throw e.getCause
+          case e: Throwable          => throw e
       override def cancel(): Either[Throwable, T] =
         forkFuture.cancel(true)
         try Right(result.get())
