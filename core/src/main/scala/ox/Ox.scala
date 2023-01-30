@@ -2,13 +2,16 @@ package ox
 
 import jdk.incubator.concurrent.{ScopedValue, StructuredTaskScope}
 
-import java.util.concurrent.{Callable, CompletableFuture}
+import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.{ArrayBlockingQueue, Callable, CompletableFuture}
+import scala.annotation.tailrec
 import scala.concurrent.{ExecutionException, TimeoutException}
 import scala.concurrent.duration.{Duration, FiniteDuration}
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
+import scala.util.control.NoStackTrace
 
 // TODO: implicit not found explaining `scoped`
-case class Ox[-T](_scope: StructuredTaskScope[_]) {
+case class Ox[-T](_scope: StructuredTaskScope[_], scopeThread: Thread, fiberFailureToPropagate: AtomicReference[Throwable]) {
   // TODO needed? make _scope private?
   def scope[U <: T]: StructuredTaskScope[U] = _scope.asInstanceOf[StructuredTaskScope[U]]
   def cancel(): Unit = scope.shutdown()
@@ -18,21 +21,26 @@ object Ox:
   private class DoNothingScope[T] extends StructuredTaskScope[T](null, Thread.ofVirtual().factory()) {}
 
   /** Any child fibers are interrupted after `f` completes. */
-  def scoped[T](f: Ox[Any] ?=> T): T = scopedCustom(new DoNothingScope[Any]()) { scope =>
-    try f
-    finally
-      scope.shutdown()
-      scope.join()
-  }
+  def scoped[T](f: Ox[Any] ?=> T): T =
+    val fiberFailure = new AtomicReference[Throwable]()
 
-  def scopedCustom[T, S <: StructuredTaskScope[T], U](scope: S)(f: S => Ox[T] ?=> U): U =
-    try f(scope)(using Ox(scope))
+    // only propagating if the main scope thread was interrupted (presumably because of a supervised child fiber failing)
+    def handleInterrupted(e: InterruptedException) = fiberFailure.get() match
+      case null => throw e
+      case t =>
+        t.addSuppressed(e)
+        throw t
+
+    val scope = new DoNothingScope[Any]()
+    try
+      try f(using Ox(scope, Thread.currentThread(), fiberFailure))
+      catch case e: InterruptedException => handleInterrupted(e)
+      finally
+        scope.shutdown()
+        scope.join()
+    // .join might have been interrupted, because of a fiber failing after f completes, including shutdown
+    catch case e: InterruptedException => handleInterrupted(e)
     finally scope.close()
-
-//  trait Sink[T]:
-//    def onComplete(r: Either[Throwable, T]): Unit
-//
-//  def scopedWithSink[T](sink: Sink[T])(t: => T)(using Ox[T]): Fiber[T] = ???
 
   /** Starts a fiber, which is guaranteed to complete before the enclosing [[scoped]] block exits. */
   def fork[T](f: => T)(using Ox[T]): Fiber[T] =
@@ -62,19 +70,44 @@ object Ox:
         then Left(results.collectFirst { case Left(e) => e }.get)
         else Right(results.collect { case Right(t) => t })
 
+  // TODO: consider making this available only when the scope is created using scopeSupervised, which would allow
+  // narrowing the overhead of the storing the additional propagation atomics; we would then need to introduce an
+  // additional OxSupervised given
+  def forkSupervised[T](f: => T)(using Ox[T]): Fiber[T] = fork {
+    try f
+    catch
+      // not propagating interrupts, as these are not failures coming from evaluating `f` itself
+      case e: InterruptedException => throw e
+      case e: Throwable =>
+        val old = summon[Ox[T]].fiberFailureToPropagate.getAndSet(e) // TODO: only the last failure is propagated
+        if (old == null) summon[Ox[T]].scopeThread.interrupt()
+        throw e
+  }
+
+  //
+
   def timeout[T](duration: FiniteDuration)(t: => T): T =
     raceSuccess(Right(t))({ Thread.sleep(duration.toMillis); Left(()) }) match
       case Left(_)  => throw new TimeoutException(s"Timed out after $duration")
       case Right(v) => v
 
   def raceSuccess[T](fs: Seq[() => T]): T =
-    scopedCustom(new StructuredTaskScope.ShutdownOnSuccess[T]()) { scope =>
-      fs.foreach(f => scope.fork(() => f()))
-      scope.join()
-      scope.result()
+    scoped {
+      val result = new ArrayBlockingQueue[Try[T]](fs.size)
+      fs.foreach(f => fork(result.put(Try(f()))))
+
+      @tailrec
+      def takeUntilSuccess(firstException: Option[Throwable], left: Int): T =
+        if left == 0 then throw firstException.getOrElse(new NoSuchElementException)
+        else
+          result.take() match
+            case Success(v) => v
+            case Failure(e) => takeUntilSuccess(firstException.orElse(Some(e)), left - 1)
+
+      takeUntilSuccess(None, fs.size)
     }
 
-  def raceResult[T](fs: Seq[() => T]): T = raceSuccess(fs.map(f => () => Try(f()))).get
+  def raceResult[T](fs: Seq[() => T]): T = raceSuccess(fs.map(f => () => Try(f()))).get // TODO optimize
 
   /** Returns the result of the first computation to complete successfully, or if all fail - throws the first exception. */
   def raceSuccess[T](f1: => T)(f2: => T): T = raceSuccess(List(() => f1, () => f2))
@@ -125,6 +158,7 @@ object Ox:
 
     extension [T](f: => T)(using Ox[T])
       def fork: Fiber[T] = Ox.fork(f)
+      def forkSupervised: Fiber[T] = Ox.forkSupervised(f)
       def timeout(duration: FiniteDuration): T = Ox.timeout(duration)(f)
       def scopedWhere[U](fl: FiberLocal[U], u: U): T = fl.scopedWhere(u)(f)
       def uninterruptible: T = Ox.uninterruptible(f)

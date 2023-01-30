@@ -4,7 +4,7 @@ import jdk.incubator.concurrent.ScopedValue
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import org.slf4j.LoggerFactory
-import ox.Ox.{fork, retry, scoped, timeout, uninterruptible}
+import ox.Ox.{fork, forkSupervised, retry, scoped, timeout, uninterruptible}
 
 import java.time.Clock
 import java.util.concurrent.atomic.AtomicInteger
@@ -18,6 +18,8 @@ class OxTest extends AnyFlatSpec with Matchers {
       trail = trail :+ s
     }
   }
+
+  class CustomException extends RuntimeException
 
   it should "run two forks concurrently" in {
     val trail = Trail()
@@ -211,7 +213,7 @@ class OxTest extends AnyFlatSpec with Matchers {
     trail.trail shouldBe Vector("trying", "trying", "trying", "result = ok")
   }
 
-  it should "timeout a computation" in {
+  it should "timeout a computation" in { // TODO test - no timeout
     val trail = Trail()
     scoped {
       try
@@ -226,6 +228,47 @@ class OxTest extends AnyFlatSpec with Matchers {
     }
 
     trail.trail shouldBe Vector("timeout", "done")
+  }
+
+  // TODO error unpacking - fork { throw } + join
+
+  "forkSupervised" should "propagate failures to the scope thread" in {
+    val trail = Trail()
+    try
+      scoped {
+        val f1 = forkSupervised {
+          Thread.sleep(2000)
+          trail.add("f1 done")
+        }
+
+        val f2 = forkSupervised {
+          Thread.sleep(1000)
+          throw new CustomException
+        }
+
+        f1.join()
+        f2.join()
+      }
+    catch case e: Exception => trail.add(e.getClass.getSimpleName)
+
+    trail.trail shouldBe Vector("CustomException")
+  }
+
+  it should "not propagate interrupt exceptions" in {
+    val trail = Trail()
+    try
+      scoped {
+        forkSupervised {
+          Thread.sleep(2000)
+          trail.add("f1 done")
+        }
+
+        trail.add("main done")
+      }
+    catch case e: Exception => trail.add(e.getClass.getSimpleName)
+
+    // child should be interrupted, but the error shouldn't propagate
+    trail.trail shouldBe Vector("main done")
   }
 }
 
