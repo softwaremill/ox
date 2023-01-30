@@ -42,7 +42,11 @@ object Ox:
     catch case e: InterruptedException => handleInterrupted(e)
     finally scope.close()
 
-  /** Starts a fiber, which is guaranteed to complete before the enclosing [[scoped]] block exits. */
+  /** Starts a fiber, which is guaranteed to complete before the enclosing [[scoped]] block exits.
+    *
+    * In case an exception is thrown while evaluating `t`, it will be thrown when calling the returned [[Fiber]]'s `.join()` method. The
+    * exception is **not** propagated to the enclosing scope's main thread, like in the case of [[fork]].
+    */
   def forkUnsupervised[T](f: => T)(using Ox[T]): Fiber[T] =
     val result = new CompletableFuture[T]()
     val forkFuture = summon[Ox[T]].scope.fork { () =>
@@ -73,6 +77,11 @@ object Ox:
         then Left(results.collectFirst { case Left(e) => e }.get)
         else Right(results.collect { case Right(t) => t })
 
+  /** Starts a fiber, which is guaranteed to complete before the enclosing [[scoped]] block exits.
+    *
+    * In case an exception is thrown while evaluating `t`, the enclosing scope is interrupted and the exception is re-thrown in the scope's
+    * main thread.
+    */
   def fork[T](f: => T)(using Ox[T]): Fiber[T] = forkUnsupervised {
     try f
     catch
