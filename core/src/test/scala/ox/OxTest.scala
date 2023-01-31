@@ -86,7 +86,7 @@ class OxTest extends AnyFlatSpec with Matchers {
     trail.trail shouldBe Vector("main mid", "f1 complete", "f2 complete", "result = 11")
   }
 
-  it should "interrupt child fibers when parents complete" in {
+  it should "interrupt child forks when parents complete" in {
     val trail = Trail()
     scoped {
       val f1 = forkHold {
@@ -113,7 +113,7 @@ class OxTest extends AnyFlatSpec with Matchers {
     trail.trail shouldBe Vector("main mid", "f1 complete", "result = 5", "f2 interrupted")
   }
 
-  it should "throw the exception thrown by a joined fiber" in {
+  it should "throw the exception thrown by a joined fork" in {
     val trail = Trail()
     try scoped(forkHold(throw new CustomException()).join())
     catch case e: Exception => trail.add(e.getClass.getSimpleName)
@@ -121,9 +121,9 @@ class OxTest extends AnyFlatSpec with Matchers {
     trail.trail shouldBe Vector("CustomException")
   }
 
-  "fiber locals" should "properly propagate values" in {
+  "fork locals" should "properly propagate values" in {
     val trail = Trail()
-    val v = Ox.FiberLocal("a")
+    val v = Ox.ForkLocal("a")
     scoped {
       val f1 = forkHold {
         v.scopedWhere("x") {
@@ -154,7 +154,7 @@ class OxTest extends AnyFlatSpec with Matchers {
 
   it should "propagate values across multiple scopes" in {
     val trail = Trail()
-    val v = Ox.FiberLocal("a")
+    val v = Ox.ForkLocal("a")
     scoped {
       forkHold {
         v.scopedWhere("x") {

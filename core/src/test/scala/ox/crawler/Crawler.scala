@@ -1,7 +1,7 @@
 package ox.crawler
 
 import org.slf4j.LoggerFactory
-import ox.Ox.{Fiber, fork, scoped}
+import ox.Ox.{Fork, fork, scoped}
 
 import java.util.concurrent.{ArrayBlockingQueue, BlockingQueue}
 import scala.annotation.tailrec
@@ -47,7 +47,7 @@ object Crawler:
       val data2 = handleMessage(msg, data)
       if data2.inProgress.isEmpty then data2.referenceCount else crawler(crawlerQueue, data2)
 
-    def worker(workerQueue: BlockingQueue[Url], crawlerQueue: BlockingQueue[CrawlerMessage]): Fiber[Unit] =
+    def worker(workerQueue: BlockingQueue[Url], crawlerQueue: BlockingQueue[CrawlerMessage]): Fork[Unit] =
       def handleUrl(url: Url): Unit =
         val r =
           try parseLinks(http.get(url))

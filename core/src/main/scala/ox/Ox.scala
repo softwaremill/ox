@@ -11,19 +11,19 @@ import scala.util.{Failure, Success, Try}
 import scala.util.control.NoStackTrace
 
 // TODO: implicit not found explaining `scoped`
-case class Ox(scope: StructuredTaskScope[Any], scopeThread: Thread, fiberFailureToPropagate: AtomicReference[Throwable]) {
+case class Ox(scope: StructuredTaskScope[Any], scopeThread: Thread, forkFailureToPropagate: AtomicReference[Throwable]) {
   def cancel(): Unit = scope.shutdown()
 }
 
 object Ox:
   private class DoNothingScope[T] extends StructuredTaskScope[T](null, Thread.ofVirtual().factory()) {}
 
-  /** Any child fibers are interrupted after `f` completes. */
+  /** Any child forks are interrupted after `f` completes. */
   def scoped[T](f: Ox ?=> T): T =
-    val fiberFailure = new AtomicReference[Throwable]()
+    val forkFailure = new AtomicReference[Throwable]()
 
-    // only propagating if the main scope thread was interrupted (presumably because of a supervised child fiber failing)
-    def handleInterrupted(e: InterruptedException) = fiberFailure.get() match
+    // only propagating if the main scope thread was interrupted (presumably because of a supervised child fork failing)
+    def handleInterrupted(e: InterruptedException) = forkFailure.get() match
       case null => throw e
       case t =>
         t.addSuppressed(e)
@@ -31,27 +31,27 @@ object Ox:
 
     val scope = new DoNothingScope[Any]()
     try
-      try f(using Ox(scope, Thread.currentThread(), fiberFailure))
+      try f(using Ox(scope, Thread.currentThread(), forkFailure))
       catch case e: InterruptedException => handleInterrupted(e)
       finally
         scope.shutdown()
         scope.join()
-    // .join might have been interrupted, because of a fiber failing after f completes, including shutdown
+    // .join might have been interrupted, because of a fork failing after f completes, including shutdown
     catch case e: InterruptedException => handleInterrupted(e)
     finally scope.close()
 
-  /** Starts a fiber, which is guaranteed to complete before the enclosing [[scoped]] block exits.
+  /** Starts a thread, which is guaranteed to complete before the enclosing [[scoped]] block exits.
     *
-    * Exceptions are held. In case an exception is thrown while evaluating `t`, it will be thrown when calling the returned [[Fiber]]'s
+    * Exceptions are held. In case an exception is thrown while evaluating `t`, it will be thrown when calling the returned [[Fork]]'s
     * `.join()` method. The exception is **not** propagated to the enclosing scope's main thread, like in the case of [[fork]].
     */
-  def forkHold[T](f: => T)(using Ox): Fiber[T] =
+  def forkHold[T](f: => T)(using Ox): Fork[T] =
     val result = new CompletableFuture[T]()
     val forkFuture = summon[Ox].scope.fork { () =>
       try result.complete(f)
       catch case e: Throwable => result.completeExceptionally(e)
     }
-    new Fiber[T]:
+    new Fork[T]:
       override def join(): T = try result.get()
       catch
         case e: ExecutionException => throw e.getCause
@@ -63,28 +63,28 @@ object Ox:
           case e: ExecutionException => Left(e.getCause)
           case e: Throwable          => Left(e)
 
-  def forkAllHold[T](fs: Seq[() => T])(using Ox): Fiber[Seq[T]] =
-    val fibers = fs.map(f => forkHold(f()))
-    new Fiber[Seq[T]]:
-      override def join(): Seq[T] = fibers.map(_.join())
+  def forkAllHold[T](fs: Seq[() => T])(using Ox): Fork[Seq[T]] =
+    val forks = fs.map(f => forkHold(f()))
+    new Fork[Seq[T]]:
+      override def join(): Seq[T] = forks.map(_.join())
       override def cancel(): Either[Throwable, Seq[T]] =
-        val results = fibers.map(_.cancel())
+        val results = forks.map(_.cancel())
         if results.exists(_.isLeft)
         then Left(results.collectFirst { case Left(e) => e }.get)
         else Right(results.collect { case Right(t) => t })
 
-  /** Starts a fiber, which is guaranteed to complete before the enclosing [[scoped]] block exits.
+  /** Starts a thread, which is guaranteed to complete before the enclosing [[scoped]] block exits.
     *
     * Exceptions are propagated. In case an exception is thrown while evaluating `t`, the enclosing scope's main thread is interrupted and
     * the exception is re-thrown there.
     */
-  def fork[T](f: => T)(using Ox): Fiber[T] = forkHold {
+  def fork[T](f: => T)(using Ox): Fork[T] = forkHold {
     try f
     catch
       // not propagating interrupts, as these are not failures coming from evaluating `f` itself
       case e: InterruptedException => throw e
       case e: Throwable =>
-        val old = summon[Ox].fiberFailureToPropagate.getAndSet(e) // TODO: only the last failure is propagated
+        val old = summon[Ox].forkFailureToPropagate.getAndSet(e) // TODO: only the last failure is propagated
         if (old == null) summon[Ox].scopeThread.interrupt()
         throw e
   }
@@ -122,10 +122,10 @@ object Ox:
 
   def uninterruptible[T](f: => T): T =
     scoped {
-      val fiber = forkHold(f)
+      val t = forkHold(f)
 
       def joinDespiteInterrupted: T =
-        try fiber.join()
+        try t.join()
         catch
           case e: InterruptedException =>
             joinDespiteInterrupted
@@ -158,34 +158,35 @@ object Ox:
 
   object syntax:
     extension [T](f: => T)
-      def forever: Fiber[Nothing] = Ox.forever(f)
+      def forever: Fork[Nothing] = Ox.forever(f)
       def retry(times: Int, sleep: FiniteDuration): T = Ox.retry(times, sleep)(f)
 
     extension [T](f: => T)(using Ox)
-      def forkHold: Fiber[T] = Ox.forkHold(f)
-      def fork: Fiber[T] = Ox.fork(f)
+      def forkHold: Fork[T] = Ox.forkHold(f)
+      def fork: Fork[T] = Ox.fork(f)
       def timeout(duration: FiniteDuration): T = Ox.timeout(duration)(f)
-      def scopedWhere[U](fl: FiberLocal[U], u: U): T = fl.scopedWhere(u)(f)
+      def scopedWhere[U](fl: ForkLocal[U], u: U): T = fl.scopedWhere(u)(f)
       def uninterruptible: T = Ox.uninterruptible(f)
       def raceSuccessWith(f2: => T): T = Ox.raceSuccess(f)(f2)
       def raceResultWith(f2: => T): T = Ox.raceResult(f)(f2)
 
   //
 
-  trait Fiber[T]:
-    /** Blocks until the fiber completes with a result. Throws an exception, if the fiber completed with an exception. */
+  /** A running fork, started using [[Ox.fork]] or [[Ox.forkHold]], backend by a thread. */
+  trait Fork[T]:
+    /** Blocks until the fork completes with a result. Throws an exception, if the fork completed with an exception. */
     def join(): T
 
-    /** Blocks until the fiber completes with a result. */
+    /** Blocks until the fork completes with a result. */
     def joinEither(): Either[Throwable, T] = Try(join()).toEither
 
-    /** Interrupts the fiber, and blocks until it completes with a result. */
+    /** Interrupts the fork, and blocks until it completes with a result. */
     def cancel(): Either[Throwable, T]
 
   private def scopedValueWhere[T, U](sv: ScopedValue[T], t: T)(f: => U): U =
     ScopedValue.where(sv, t, (() => f): Callable[U])
 
-  class FiberLocal[T](scopedValue: ScopedValue[T], default: T):
+  class ForkLocal[T](scopedValue: ScopedValue[T], default: T):
     def get(): T = scopedValue.orElse(default)
 
     def scopedWhere[U](newValue: T)(f: Ox ?=> U): U =
@@ -193,5 +194,5 @@ object Ox:
       // before starting the scope itself, as scoped value bindings can't change after the scope is started
       scopedValueWhere(scopedValue, newValue)(scoped(f))
 
-  object FiberLocal:
-    def apply[T](initialValue: T): FiberLocal[T] = new FiberLocal(ScopedValue.newInstance[T](), initialValue)
+  object ForkLocal:
+    def apply[T](initialValue: T): ForkLocal[T] = new ForkLocal(ScopedValue.newInstance[T](), initialValue)

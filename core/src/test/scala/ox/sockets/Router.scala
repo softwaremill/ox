@@ -3,7 +3,7 @@ package ox.sockets
 import org.slf4j.LoggerFactory
 import ox.Ox
 import ox.Ox.syntax.{forever, fork}
-import ox.Ox.{Fiber, scoped}
+import ox.Ox.{Fork, scoped}
 
 import java.util.concurrent.{ArrayBlockingQueue, BlockingQueue}
 import scala.annotation.tailrec
@@ -18,23 +18,23 @@ object Router:
   private case class Terminated(socket: ConnectedSocket) extends RouterMessage
 
   def router(socket: Socket): Unit = scoped {
-    case class ConnectedSocketData(sendFiber: Fiber[Unit], receiveFiber: Fiber[Unit], sendQueue: BlockingQueue[String])
+    case class ConnectedSocketData(sendFork: Fork[Unit], receiveFork: Fork[Unit], sendQueue: BlockingQueue[String])
 
     @tailrec
     def handleMessage(queue: BlockingQueue[RouterMessage], socketSendQueues: Map[ConnectedSocket, ConnectedSocketData]): Unit =
       queue.take match
         case Connected(connectedSocket) =>
           val sendQueue = new ArrayBlockingQueue[String](32)
-          val sendFiber = clientSend(connectedSocket, queue, sendQueue)
-          val receiveFiber = clientReceive(connectedSocket, queue)
-          handleMessage(queue, socketSendQueues + (connectedSocket -> ConnectedSocketData(sendFiber, receiveFiber, sendQueue)))
+          val sendFork = clientSend(connectedSocket, queue, sendQueue)
+          val receiveFork = clientReceive(connectedSocket, queue)
+          handleMessage(queue, socketSendQueues + (connectedSocket -> ConnectedSocketData(sendFork, receiveFork, sendQueue)))
 
         case Terminated(connectedSocket) =>
           socketSendQueues.get(connectedSocket) match
             case None => ()
-            case Some(ConnectedSocketData(sendFiber, receiveFiber, _)) =>
-              sendFiber.cancel()
-              receiveFiber.cancel()
+            case Some(ConnectedSocketData(sendFork, receiveFork, _)) =>
+              sendFork.cancel()
+              receiveFork.cancel()
 
           handleMessage(queue, socketSendQueues - connectedSocket)
 
@@ -49,7 +49,7 @@ object Router:
     handleMessage(queue, Map())
   }
 
-  private def socketAccept(socket: Socket, parent: BlockingQueue[RouterMessage])(using Ox): Fiber[Unit] = {
+  private def socketAccept(socket: Socket, parent: BlockingQueue[RouterMessage])(using Ox): Fork[Unit] = {
     try
       val connectedSocket = socket.accept(Timeout)
       if connectedSocket != null then parent.put(Connected(connectedSocket))
@@ -60,7 +60,7 @@ object Router:
 
   private def clientSend(socket: ConnectedSocket, parent: BlockingQueue[RouterMessage], sendQueue: BlockingQueue[String])(using
       Ox
-  ): Fiber[Unit] = {
+  ): Fork[Unit] = {
     val msg = sendQueue.take
     try socket.send(msg)
     catch
@@ -71,7 +71,7 @@ object Router:
       case e => logger.error(s"Exception when sending to socket", e)
   }.forever.fork
 
-  private def clientReceive(socket: ConnectedSocket, parent: BlockingQueue[RouterMessage])(using Ox): Fiber[Unit] = {
+  private def clientReceive(socket: ConnectedSocket, parent: BlockingQueue[RouterMessage])(using Ox): Fork[Unit] = {
     try
       val msg = socket.receive(Timeout)
       if msg != null then parent.put(Received(socket, msg))
