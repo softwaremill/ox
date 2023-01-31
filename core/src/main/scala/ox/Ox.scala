@@ -65,7 +65,7 @@ object Ox:
           case e: ExecutionException => Left(e.getCause)
           case e: Throwable          => Left(e)
 
-  def forkAllUnsupervised[T](fs: Seq[() => T])(using Ox): Fiber[Seq[T]] =
+  def forkAllHold[T](fs: Seq[() => T])(using Ox): Fiber[Seq[T]] =
     val fibers = fs.map(f => forkHold(f()))
     new Fiber[Seq[T]]:
       override def join(): Seq[T] = fibers.map(_.join())
