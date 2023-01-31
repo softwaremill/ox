@@ -11,7 +11,7 @@ import scala.util.{Failure, Success, Try}
 import scala.util.control.NoStackTrace
 
 // TODO: implicit not found explaining `scoped`
-case class Ox(scope: StructuredTaskScope[_], scopeThread: Thread, fiberFailureToPropagate: AtomicReference[Throwable]) {
+case class Ox(scope: StructuredTaskScope[Any], scopeThread: Thread, fiberFailureToPropagate: AtomicReference[Throwable]) {
   def cancel(): Unit = scope.shutdown()
 }
 
@@ -50,8 +50,6 @@ object Ox:
     val forkFuture = summon[Ox].scope.fork { () =>
       try result.complete(f)
       catch case e: Throwable => result.completeExceptionally(e)
-
-      null.asInstanceOf // TODO
     }
     new Fiber[T]:
       override def join(): T = try result.get()
