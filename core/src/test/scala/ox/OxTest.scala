@@ -4,7 +4,7 @@ import jdk.incubator.concurrent.ScopedValue
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import org.slf4j.LoggerFactory
-import ox.Ox.{forkUnsupervised, fork, retry, scoped, timeout, uninterruptible}
+import ox.Ox.{forkHold, fork, retry, scoped, timeout, uninterruptible}
 
 import java.time.Clock
 import java.util.concurrent.atomic.AtomicInteger
@@ -24,12 +24,12 @@ class OxTest extends AnyFlatSpec with Matchers {
   "forkUnsupervised" should "run two forks concurrently" in {
     val trail = Trail()
     scoped {
-      val f1 = forkUnsupervised {
+      val f1 = forkHold {
         Thread.sleep(500)
         trail.add("f1 complete")
         5
       }
-      val f2 = forkUnsupervised {
+      val f2 = forkHold {
         Thread.sleep(1000)
         trail.add("f2 complete")
         6
@@ -44,8 +44,8 @@ class OxTest extends AnyFlatSpec with Matchers {
   it should "allow nested forks" in {
     val trail = Trail()
     scoped {
-      val f1 = forkUnsupervised {
-        val f2 = forkUnsupervised {
+      val f1 = forkHold {
+        val f2 = forkHold {
           Thread.sleep(1000)
           trail.add("f2 complete")
           6
@@ -72,12 +72,12 @@ class OxTest extends AnyFlatSpec with Matchers {
           Thread.sleep(1000)
           trail.add("f2 complete")
           6
-        }.forkUnsupervised
+        }.forkHold
 
         Thread.sleep(500)
         trail.add("f1 complete")
         5 + f2.join()
-      }.forkUnsupervised
+      }.forkHold
 
       trail.add("main mid")
       trail.add(s"result = ${f1.join()}")
@@ -89,8 +89,8 @@ class OxTest extends AnyFlatSpec with Matchers {
   it should "interrupt child fibers when parents complete" in {
     val trail = Trail()
     scoped {
-      val f1 = forkUnsupervised {
-        forkUnsupervised {
+      val f1 = forkHold {
+        forkHold {
           try
             Thread.sleep(1000)
             trail.add("f2 complete")
@@ -115,7 +115,7 @@ class OxTest extends AnyFlatSpec with Matchers {
 
   it should "throw the exception thrown by a joined fiber" in {
     val trail = Trail()
-    try scoped(forkUnsupervised(throw new CustomException()).join())
+    try scoped(forkHold(throw new CustomException()).join())
     catch case e: Exception => trail.add(e.getClass.getSimpleName)
 
     trail.trail shouldBe Vector("CustomException")
@@ -125,7 +125,7 @@ class OxTest extends AnyFlatSpec with Matchers {
     val trail = Trail()
     val v = Ox.FiberLocal("a")
     scoped {
-      val f1 = forkUnsupervised {
+      val f1 = forkHold {
         v.scopedWhere("x") {
           Thread.sleep(100L)
           trail.add(s"In f1 = ${v.get()}")
@@ -133,10 +133,10 @@ class OxTest extends AnyFlatSpec with Matchers {
         v.get()
       }
 
-      val f3 = forkUnsupervised {
+      val f3 = forkHold {
         v.scopedWhere("z") {
           Thread.sleep(100L)
-          forkUnsupervised {
+          forkHold {
             Thread.sleep(100L)
             trail.add(s"In f3 = ${v.get()}")
           }.join()
@@ -156,12 +156,12 @@ class OxTest extends AnyFlatSpec with Matchers {
     val trail = Trail()
     val v = Ox.FiberLocal("a")
     scoped {
-      forkUnsupervised {
+      forkHold {
         v.scopedWhere("x") {
           trail.add(s"nested1 = ${v.get()}")
 
           scoped {
-            forkUnsupervised {
+            forkHold {
               trail.add(s"nested2 = ${v.get()}")
             }.join()
           }
@@ -177,7 +177,7 @@ class OxTest extends AnyFlatSpec with Matchers {
   "uninterruptible" should "when interrupted, wait until block completes" in {
     val trail = Trail()
     scoped {
-      val f = forkUnsupervised {
+      val f = forkHold {
         trail.add(s"Fork start")
 
         uninterruptible {
@@ -207,7 +207,7 @@ class OxTest extends AnyFlatSpec with Matchers {
     val trail = Trail()
     val counter = new AtomicInteger(2)
     scoped {
-      val f = forkUnsupervised {
+      val f = forkHold {
         retry(3, 100.milliseconds) {
           trail.add(s"trying")
           if counter.getAndDecrement() == 0 then "ok" else throw new RuntimeException("boom")
@@ -298,12 +298,12 @@ class OxTest extends AnyFlatSpec with Matchers {
 @main def test1 =
   val log = LoggerFactory.getLogger("test1")
   val r = Ox.scoped {
-    val f1 = forkUnsupervised {
+    val f1 = forkHold {
       Thread.sleep(1000L)
       log.info("f1 done")
       5
     }
-    val f2 = forkUnsupervised {
+    val f2 = forkHold {
       Thread.sleep(2000L)
       log.info("f2 done")
       6
