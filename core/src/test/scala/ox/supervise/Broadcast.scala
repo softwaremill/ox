@@ -5,6 +5,7 @@ import ox.Ox.{forever, fork, scoped, uninterruptible}
 
 import java.util.concurrent.{ArrayBlockingQueue, BlockingQueue}
 import scala.annotation.tailrec
+import scala.util.control.NonFatal
 
 object Broadcast {
   private val logger = LoggerFactory.getLogger(this.getClass)
@@ -28,9 +29,7 @@ object Broadcast {
       try
         consume(connector, inbox)
         logger.info("[broadcast] queue consumer completed, restarting")
-      catch
-        case e: InterruptedException => throw e
-        case e                       => logger.info("[broadcast] exception in queue consumer, restarting", e)
+      catch case NonFatal(e) => logger.info("[broadcast] exception in queue consumer, restarting", e)
     }
 
     val inbox = new ArrayBlockingQueue[BroadcastMessage](32)

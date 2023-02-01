@@ -7,6 +7,7 @@ import ox.Ox.{Fork, scoped}
 
 import java.util.concurrent.{ArrayBlockingQueue, BlockingQueue}
 import scala.annotation.tailrec
+import scala.util.control.NonFatal
 
 object Router:
   private val logger = LoggerFactory.getLogger(this.getClass)
@@ -53,9 +54,7 @@ object Router:
     try
       val connectedSocket = socket.accept(Timeout)
       if connectedSocket != null then parent.put(Connected(connectedSocket))
-    catch
-      case e: InterruptedException => throw e
-      case e: Exception            => logger.error(s"Exception when listening on a socket", e)
+    catch case NonFatal(e) => logger.error(s"Exception when listening on a socket", e)
   }.forever.fork
 
   private def clientSend(socket: ConnectedSocket, parent: BlockingQueue[RouterMessage], sendQueue: BlockingQueue[String])(using
