@@ -4,8 +4,7 @@ import com.softwaremill.Publish.ossPublishSettings
 lazy val commonSettings = commonSmlBuildSettings ++ ossPublishSettings ++ Seq(
   organization := "com.softwaremill.ox",
   scalaVersion := "3.2.2",
-  javaOptions += "--enable-preview --add-modules jdk.incubator.concurrent",
-  fork := true
+  javaOptions += "--enable-preview --add-modules jdk.incubator.concurrent"
 )
 
 val scalaTest = "org.scalatest" %% "scalatest" % "3.2.15" % Test
