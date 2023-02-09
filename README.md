@@ -8,5 +8,5 @@ Requires JDK 20.
 SBT dependency:
 
 ```scala
-"com.softwaremill.ox" %% "core" % "0.0.2"
+"com.softwaremill.ox" %% "core" % "0.0.3"
 ```
