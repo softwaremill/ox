@@ -15,30 +15,16 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v3
-    - name: Set up JDK 20
-      uses: oracle-actions/setup-java@v1
+    - name: Set up JDK 29
+      uses: actions/setup-java@v3
       with:
-        website: jdk.java.net
-        release: 20
-    - name: Cache sbt
-      uses: actions/cache@v2
-      with:
-        path: |
-          ~/.sbt
-          ~/.ivy2/cache
-          ~/.coursier
-        key: sbt-cache-${{ runner.os }}-${{ hashFiles('project/build.properties') }}
+        distribution: 'oracle'
+        java-version: 20
+        cache: 'sbt'
     - name: Compile
       run: sbt -v compile
     - name: Test
       run: sbt -v test
-    - name: Cleanup
-      run: |
-        rm -rf "$HOME/.ivy2/local" || true
-        find $HOME/.ivy2/cache                       -name "ivydata-*.properties" -delete || true
-        find $HOME/.ivy2/cache                       -name "*-LM-SNAPSHOT*"       -delete || true
-        find $HOME/.cache/coursier/v1                -name "ivydata-*.properties" -delete || true
-        find $HOME/.sbt                              -name "*.lock"               -delete || true
 
   publish:
     name: Publish release
@@ -48,11 +34,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-      - name: Set up JDK 20
-        uses: oracle-actions/setup-java@v1
+      - name: Set up JDK 11
+        uses: actions/setup-java@v3
         with:
-          website: jdk.java.net
-          release: 20
+          distribution: 'oracle'
+          java-version: 20
       - name: Compile
         run: sbt compile
       - name: Publish artifacts
