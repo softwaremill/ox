@@ -10,3 +10,5 @@ SBT dependency:
 ```scala
 "com.softwaremill.ox" %% "core" % "0.0.3"
 ```
+
+See the [Prototype Loom-based concurrency API for Scala](https://softwaremill.com/prototype-loom-based-concurrency-api-for-scala/) introductory article for more details.
