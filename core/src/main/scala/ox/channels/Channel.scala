@@ -23,48 +23,54 @@ class Channel[T](capacity: Int = 1) extends Source[T] with Sink[T]:
   override private[ox] def elementPeek(): T = elements.peek()
   override private[ox] def cellOffer(w: CellCompleter[T]): Unit = waiting.offer(w)
 
+  // invariant for send & select: either elements is empty or waiting.filter(notComplete) is empty
+
   @tailrec
   final def send(t: T): Unit =
     @tailrec
     def tryPairWaitingAndElement(): Unit =
       if waiting.peek() != null && elements.peek() != null
       then
+        // first trying to dequeue a cell; we might need to put it back, and this is only possible for `waiting`,
+        // which is a deque
+        // enqueueing back dequeued values into `elements` is not possible as it would break processing ordering
         val c = waiting.poll()
         if c == null
         then
-          // somebody already took the waiter - we're done
+          // somebody already owned the cell - we're done
           ()
         else if !c.tryOwn()
         then
-          // waiter already done - try again
+          // cell already owned - try again
           tryPairWaitingAndElement()
         else
-          // the waiter is "ours" - obtaining the element
+          // the cell is "ours" - obtaining the element
           val e = elements.poll()
           if e == null then
-            // somebody else already took the element, putting back the waiter
-            // since this is "our" waiter (we completed it), we can be sure that there's somebody waiting on it
-            // hence, putting back a waiter with the same cell, but a new "complete" flag
-            waiting.offerFirst(c.cloneNotOwned)
-            // a new element might have been added, while the waiter was taken off the queue
+            // Somebody else already took the element; since this is "our" cell (we completed it), we can be sure that
+            // there's somebody waiting on it. Creating a new cell, and completing the old with a reference to it.
+            val c2 = c.putClone
+            waiting.offerFirst(c2)
+            // a new element might have been added, while the cell was taken off the queue
             tryPairWaitingAndElement()
           else
             // sending the element
-            c.complete(e)
+            c.put(e)
       else ()
 
     waiting.poll() match
       case null =>
-        // TODO: when interrupted?
+        // if this is interrupted, the element is simply not added to the queue
         elements.put(t)
-        // check again, if there is no waiter added in the meantime
+
+        // check again, if there is no cell added in the meantime
         tryPairWaitingAndElement()
       case c =>
         if c.tryOwn() then
-          // we're the first thread to complete this waiter - sending the element
-          c.complete(t)
+          // we're the first thread to complete this cell - sending the element
+          c.put(t)
         else
-          // some other thread already completed the waiter - trying to send the element again
+          // some other thread already completed the cell - trying to send the element again
           send(t)
 
   def receive(): T =
@@ -72,62 +78,82 @@ class Channel[T](capacity: Int = 1) extends Source[T] with Sink[T]:
     select(List(this))
 
 private[ox] trait CellCompleter[-T]:
-  /** Should only be called if this cell is owned by the calling thread. */
-  def complete(t: T): Unit
+  /** Complete the cell with a value. Should only be called if this cell is owned by the calling thread. */
+  def put(t: T): Unit
 
-  /** If `true`, the calling thread becomes the owner of the waiter, and has to complete the cell with an element. */
+  /** Complete the cell with a new completer, and return it.. Should only be called if this cell is owned by the calling thread. */
+  def putClone: CellCompleter[T]
+
+  /** If `true`, the calling thread becomes the owner of the cell, and has to complete the cell with an element. */
   def tryOwn(): Boolean
 
-  /** Create a copy of this cell, which isn't yet owned by any thread. Should only be called if this cell is owned by the calling thread. */
-  def cloneNotOwned: CellCompleter[T]
-
-private[ox] class Cell[T](cell: ArrayBlockingQueue[T]) extends CellCompleter[T]:
-  def this() = this(new ArrayBlockingQueue[T](1))
-
+private[ox] class Cell[T] extends CellCompleter[T]:
   private val isDone = new AtomicBoolean(false)
-  def complete(t: T): Unit = cell.put(t)
-  def await(): T = cell.take()
+  private val cell = new ArrayBlockingQueue[T | Cell[T]](1)
+
+  def put(t: T): Unit = cell.put(t)
+  def putClone: CellCompleter[T] =
+    val c2 = Cell[T]
+    cell.put(c2)
+    c2
+  def take(): T | Cell[T] = cell.take()
   def tryOwn(): Boolean = isDone.compareAndSet(false, true)
-  def cloneNotOwned: Cell[T] = Cell[T](cell)
 
 def select[T1, T2](ch1: Source[T1], ch2: Source[T2]): T1 | T2 = select(List(ch1, ch2))
 
-// invariant: either elements is non-empty or waiting.filter(notComplete) is non-empty (or both)
 @tailrec
-def select[T](channels: List[Source[T]]): T = {
+def select[T](channels: List[Source[T]]): T =
   @tailrec
-  def takeFirst(chs: List[Source[T]]): Option[T] =
+  def pollFirst(chs: List[Source[T]]): Option[T] =
     chs match
       case Nil => None
       case ch :: tail =>
         val e = ch.elementPoll()
-        if e != null then Some(e) else takeFirst(tail)
+        if e != null then Some(e) else pollFirst(tail)
 
-  takeFirst(channels) match
+  def takeFromCellInterruptSafe(c: Cell[T]): T =
+    try
+      c.take() match
+        case c2: Cell[T] => takeFromCellInterruptSafe(c2)
+        case t: T        => t
+    catch
+      case e: InterruptedException =>
+        @tailrec
+        def ownAndInterruptSelf(cc: Cell[T]): T =
+          // trying to invalidate the cell by owning it
+          if cc.tryOwn() then
+            // nobody else will complete the cell, we can re-throw the exception
+            throw e
+          else
+            // somebody else completed the cell; might block, but event if, for a short period of time, as the
+            // cell-owning thread should complete it without blocking
+            cc.take() match
+              // a new cell which we can try to own
+              case cc2: Cell[T] => ownAndInterruptSelf(cc2)
+              // received the element; interrupting self and returning it
+              case t: T =>
+                try t
+                finally Thread.currentThread().interrupt()
+
+        ownAndInterruptSelf(c)
+
+  pollFirst(channels) match
     case Some(e) => e
     case None    =>
-      // none of the channels has an available element - enqueue a waiter on each channel's waiting list
+      // none of the channels has an available element - enqueue a cell on each channel's waiting list
       val c = Cell[T]
       channels.foreach(_.cellOffer(c))
 
-      // check, if no new element has arrived in the meantime (possibly, before we added the waiter)
+      // check, if no new element has arrived in the meantime (possibly, before we added the cell)
       if channels.exists(_.elementPeek() != null) then
-        // some element arrived in the meantime: trying to invalidate the waiter
+        // some element arrived in the meantime: trying to invalidate the cell by owning it
         if c.tryOwn() then
-          // we managed to complete the waiter before any other thread - try again to obtain an element
-          // we are sure that there's nobody waiting on this waiter, as this could only be us
+          // we managed to complete the cell before any other thread - try again to obtain an element
+          // we are sure that there's nobody waiting on this cell, as this could only be us
           select(channels)
         else
-          // some other thread already completed the waiter - receiving the element
-          c.await()
+          // some other thread already completed the cell - receiving the element
+          takeFromCellInterruptSafe(c)
       else
         // still no new elements - waiting for one to arrive
-        c.await()
-}
-
-/*
-
-To consider: waiting getting interrupted & completed at the same time -> catch interrupted exception,
-try setting "done", if failed -> some sender already completed, try receiving, interrupt self, continue as normal
-
- */
+        takeFromCellInterruptSafe(c)
