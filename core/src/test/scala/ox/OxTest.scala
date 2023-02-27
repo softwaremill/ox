@@ -21,7 +21,7 @@ class OxTest extends AnyFlatSpec with Matchers {
 
   class CustomException extends RuntimeException
 
-  "forkUnsupervised" should "run two forks concurrently" in {
+  "forkHold" should "run two forks concurrently" in {
     val trail = Trail()
     scoped {
       val f1 = forkHold {
