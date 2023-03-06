@@ -16,9 +16,9 @@ def selectNow[T](chs: List[Source[T]]): ClosedOr[Option[T]] =
     case ch :: tail =>
       val e = ch.elementPoll()
       e match
-        case s: ChannelState.Closed => Left(s)
-        case null                   => selectNow(tail)
-        case v: T                   => Right(Some(v))
+        case s: ChannelState.Error    => Left(s)
+        case null | ChannelState.Done => selectNow(tail)
+        case v: T                     => Right(Some(v))
 
 /** Receive an element from exactly one of the channels, blocking if necessary. Complexity: sum of the waiting queues of the channels. */
 def select[T](channels: List[Source[T]]): ClosedOr[T] =
@@ -56,23 +56,34 @@ def select[T](channels: List[Source[T]]): ClosedOr[T] =
     if channels.length > 1 || alsoWhenSingleChannel then channels.foreach(_.cellCleanup(cell))
 
   @tailrec
-  def elementExists_verifyNotClosed(chs: List[Source[T]], allDone: Boolean): ClosedOr[Boolean] =
+  def elementExists_verifyNotClosed(chs: List[Source[T]], allDone: Boolean, cell: Cell[T]): ClosedOr[Boolean] =
     chs match
-      case Nil if allDone => Left(ChannelState.Done) // TODO: cleanup cell
-      case Nil            => Right(false)
+      case Nil if allDone =>
+        // either the cell is already taken off one of the waiting queues & being completed with a done,
+        // or it's never going to get handled; either way, we're never .take-ing from this cell
+        cleanupCell(cell, alsoWhenSingleChannel = true)
+        Left(ChannelState.Done)
+      case Nil => Right(false)
       case c :: tail =>
         c.elementPeek() match
-          case s: ChannelState.Error => Left(s) // TODO: cleanup cell
-          case ChannelState.Done     => elementExists_verifyNotClosed(tail, allDone)
-          case null                  => elementExists_verifyNotClosed(tail, false)
-          case _                     => Right(true)
+          case s: ChannelState.Error =>
+            if cell.tryOwn() then
+              // nobody else will complete the cell, we can safely remove it
+              cleanupCell(cell, alsoWhenSingleChannel = true)
+              Left(s)
+            else
+              // somebody already owned that cell; continuing with the normal process of .take-ing from it
+              Right(false)
+          case ChannelState.Done => elementExists_verifyNotClosed(tail, allDone, cell)
+          case null              => elementExists_verifyNotClosed(tail, false, cell)
+          case _                 => Right(true)
 
   def offerCellAndTake(c: Cell[T]): ClosedOr[T] =
     channels.foreach(_.cellOffer(c))
 
     // check, if no new element has arrived in the meantime (possibly, before we added the cell)
     // plus, verify that none of the channels is in an error state, and that not all channels are closed
-    elementExists_verifyNotClosed(channels, allDone = true).flatMap {
+    elementExists_verifyNotClosed(channels, allDone = true, c).flatMap {
       case true =>
         // some element arrived in the meantime: trying to invalidate the cell by owning it
         if c.tryOwn() then

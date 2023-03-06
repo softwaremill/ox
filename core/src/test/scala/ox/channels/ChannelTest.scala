@@ -120,4 +120,14 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
       }
     }
   }
+
+  it should "select from a channel if one is not" in {
+    val c1 = Channel[Int]()
+    c1.done()
+
+    val c2 = Channel[Int]()
+    c2.send(1)
+
+    select(c1, c2) shouldBe Right(1)
+  }
 }
