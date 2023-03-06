@@ -5,7 +5,10 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.Ox.*
 
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
+
+import scala.jdk.CollectionConverters.*
 
 class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
   it should "send and receive two spaced elements" in {
@@ -55,12 +58,65 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
 
       fork {
         forever {
-          result.addAndGet(select(cs))
+          result.addAndGet(select(cs).orThrow)
         }
       }
 
       eventually {
         result.get() shouldBe cn * n * (n + 1) / 2
+      }
+    }
+  }
+
+  it should "receive from a channel until done" in {
+    val c = Channel[Int](3)
+    c.send(1)
+    c.send(2)
+    c.done()
+
+    c.receive() shouldBe 1
+    c.receive() shouldBe 2
+    an[ChannelClosedException.Done] shouldBe thrownBy(c.receive())
+    an[ChannelClosedException.Done] shouldBe thrownBy(c.receive()) // repeat
+  }
+
+  it should "not receive from a channel in case of an error" in {
+    val c = Channel[Int](3)
+    c.send(1)
+    c.send(2)
+    c.error()
+
+    an[ChannelClosedException.Error] shouldBe thrownBy(c.receive())
+    an[ChannelClosedException.Error] shouldBe thrownBy(c.receive()) // repeat
+  }
+
+  it should "select until all channels are done" in {
+    val n = 10
+    val cn = 10
+
+    val cs = (1 to cn).map(_ => Channel[Int]()).toList
+    scoped {
+      cs.foreach { c =>
+        fork {
+          (1 to n).foreach(c.send)
+          Thread.sleep(10)
+          c.done()
+        }
+      }
+
+      val result = new ConcurrentLinkedQueue[ClosedOr[Int]]()
+
+      fork {
+        var loop = true
+        while loop do {
+          val r = select(cs)
+          result.add(r)
+          loop = r != Left(ChannelState.Done)
+        }
+      }
+
+      eventually {
+        result.asScala.toList should have size (n * cn + 1) // all numbers + done
       }
     }
   }

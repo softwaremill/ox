@@ -7,7 +7,6 @@ import scala.util.Try
 
 trait Source[+T]:
   def receive(): T
-  def tryReceive(): ClosedOr[T] = ClosedOr(receive())
 
   private[ox] def elementPoll(): T | ChannelState.Closed
   private[ox] def elementPeek(): T | ChannelState.Closed
@@ -17,7 +16,6 @@ trait Source[+T]:
 
 trait Sink[-T]:
   def send(t: T): Unit
-  def trySend(t: T): ClosedOr[Unit] = ClosedOr(send(t))
 
   def error(): Unit = error(None)
   def error(reason: Exception): Unit = error(Some(reason))
@@ -47,9 +45,9 @@ class Channel[T](capacity: Int = 1) extends Source[T] with Sink[T]:
       case e: ChannelState.Error => e
       case s =>
         f match
-          case e                              => e
           case null if s == ChannelState.Done => ChannelState.Done
           case null                           => null
+          case e                              => e
 
   override private[ox] def cellOffer(c: CellCompleter[T]): Unit = waiting.offer(c)
   override private[ox] def cellOfferFirst(c: CellCompleter[T]): Unit = waiting.offerFirst(c)
@@ -89,7 +87,7 @@ class Channel[T](capacity: Int = 1) extends Source[T] with Sink[T]:
           state.get() match
             case s @ ChannelState.Error(_) => elements.clear(); throw s.toException
             // if the channel is done, it means that a send() was concurrent with a done() - which can cause the element
-            // to be delivered, even if before a done was signalled to the receiver
+            // to be delivered, even if a done was signalled to the receiver before
             case _ => ()
 
         // check again, if there is no cell added in the meantime
@@ -115,7 +113,7 @@ class Channel[T](capacity: Int = 1) extends Source[T] with Sink[T]:
 
   override def receive(): T =
     // we could do elements.take(), but then any select() calls would always have priority, as they bypass the elements queue if there's a cell waiting
-    select(List(this))
+    select(List(this)).orThrow
 
   override def error(reason: Option[Exception]): Unit =
     // only first state change from open is valid

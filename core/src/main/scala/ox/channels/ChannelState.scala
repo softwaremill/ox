@@ -1,8 +1,7 @@
 package ox.channels
 
-private[ox] sealed trait ChannelState
-
-private[ox] object ChannelState:
+sealed trait ChannelState
+object ChannelState:
   sealed trait Closed extends ChannelState:
     def toException: Exception = this match
       case ChannelState.Error(reason) => ChannelClosedException.Error(reason)
@@ -16,7 +15,10 @@ enum ChannelClosedException(reason: Option[Exception]) extends Exception:
   case Error(reason: Option[Exception]) extends ChannelClosedException(reason)
   case Done() extends ChannelClosedException(None)
 
-type ClosedOr[T] = Either[ChannelClosedException, T]
-object ClosedOr:
-  def apply[T](t: => T): ClosedOr[T] = try Right(t)
-  catch case e: ChannelClosedException => Left(e)
+type ClosedOr[T] = Either[ChannelState.Closed, T]
+
+extension [T](c: ClosedOr[T]) {
+  def orThrow: T = c match
+    case Left(s)      => throw s.toException
+    case Right(value) => value
+}
