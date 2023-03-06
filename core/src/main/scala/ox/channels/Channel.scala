@@ -6,7 +6,7 @@ import scala.annotation.tailrec
 import scala.util.Try
 
 trait Source[+T]:
-  def receive(): T
+  def receive(): ClosedOr[T]
 
   private[ox] def elementPoll(): T | ChannelState.Closed
   private[ox] def elementPeek(): T | ChannelState.Closed
@@ -15,11 +15,11 @@ trait Source[+T]:
   private[ox] def cellCleanup(c: CellCompleter[T]): Unit
 
 trait Sink[-T]:
-  def send(t: T): Unit
+  def send(t: T): ClosedOr[Unit]
 
-  def error(): Unit = error(None)
-  def error(reason: Exception): Unit = error(Some(reason))
-  def error(reason: Option[Exception]): Unit
+  def error(): ClosedOr[Unit] = error(None)
+  def error(reason: Exception): ClosedOr[Unit] = error(Some(reason))
+  def error(reason: Option[Exception]): ClosedOr[Unit]
 
   /** Completes the channel with a "done" state.
     *
@@ -31,7 +31,7 @@ trait Sink[-T]:
     *   If a [[send]] is ran concurrently with [[done]], it can happen that a receiver first learns that the channel is done, and then it
     *   can receive the element that was sent concurrently.
     */
-  def done(): Unit
+  def done(): ClosedOr[Unit]
 
 class Channel[T](capacity: Int = 1) extends Source[T] with Sink[T]:
   private val elements = ArrayBlockingQueue[T](capacity)
@@ -75,34 +75,36 @@ class Channel[T](capacity: Int = 1) extends Source[T] with Sink[T]:
           // `select` receives the clone
         else c.put(e) // sending the element
 
-  @tailrec
-  override final def send(t: T): Unit =
-    throwWhenClosed()
-    waiting.poll() match
-      case null =>
-        // if this is interrupted, the element is simply not added to the queue
-        try elements.put(t)
-        // the channel might have been closed when we were sending, e.g. waiting for free space in `elements`
-        finally
+  override final def send(t: T): ClosedOr[Unit] =
+    closedOrUnit().flatMap { _ =>
+      waiting.poll() match
+        case null =>
+          // if this is interrupted, the element is simply not added to the queue
+          elements.put(t)
+
+          // the channel might have been closed when we were sending, e.g. waiting for free space in `elements`
           state.get() match
-            case s @ ChannelState.Error(_) => elements.clear(); throw s.toException
+            case s @ ChannelState.Error(_) =>
+              elements.clear()
+              Left(s)
             // if the channel is done, it means that a send() was concurrent with a done() - which can cause the element
             // to be delivered, even if a done was signalled to the receiver before
-            case _ => ()
+            case _ =>
+              // check again, if there is no cell added in the meantime
+              Right(tryPairWaitingAndElement())
 
-        // check again, if there is no cell added in the meantime
-        tryPairWaitingAndElement()
-      case c =>
-        if c.tryOwn() then
-          // we're the first thread to complete this cell - sending the element
-          c.put(t)
-        else
-          // some other thread already completed the cell - trying to send the element again
-          send(t)
+        case c =>
+          if c.tryOwn() then
+            // we're the first thread to complete this cell - sending the element
+            Right(c.put(t))
+          else
+            // some other thread already completed the cell - trying to send the element again
+            send(t)
+    }
 
-  private def throwWhenClosed(): Unit = state.get() match
-    case ChannelState.Open      => ()
-    case s: ChannelState.Closed => throw s.toException
+  private def closedOrUnit(): ClosedOr[Unit] = state.get() match
+    case ChannelState.Open      => Right(())
+    case s: ChannelState.Closed => Left(s)
 
   @tailrec
   private def drainWaiting(s: ChannelState.Closed): Unit =
@@ -111,22 +113,26 @@ class Channel[T](capacity: Int = 1) extends Source[T] with Sink[T]:
       if c.tryOwn() then c.putClosed(s)
       drainWaiting(s)
 
-  override def receive(): T =
+  override def receive(): ClosedOr[T] =
     // we could do elements.take(), but then any select() calls would always have priority, as they bypass the elements queue if there's a cell waiting
-    select(List(this)).orThrow
+    select(List(this))
 
-  override def error(reason: Option[Exception]): Unit =
+  override def error(reason: Option[Exception]): ClosedOr[Unit] =
     // only first state change from open is valid
     val s = ChannelState.Error(reason)
-    if !state.compareAndSet(ChannelState.Open, s) then throwWhenClosed()
-    // not delivering enqueued elements
-    elements.clear()
-    // completing all waiting cells
-    drainWaiting(s)
+    if !state.compareAndSet(ChannelState.Open, s) then Left(state.get().asInstanceOf[ChannelState.Closed])
+    else
+      // not delivering enqueued elements
+      elements.clear()
+      // completing all waiting cells
+      drainWaiting(s)
+      Right(())
 
-  override def done(): Unit =
+  override def done(): ClosedOr[Unit] =
     // only first state change from open is valid
     val s = ChannelState.Done
-    if !state.compareAndSet(ChannelState.Open, s) then throwWhenClosed()
-    // leaving the elements intact so that they get delivered; but if there are any waiting cells, completing them, as no new elements will arrive
-    drainWaiting(s)
+    if !state.compareAndSet(ChannelState.Open, s) then Left(state.get().asInstanceOf[ChannelState.Closed])
+    else
+      // leaving the elements intact so that they get delivered; but if there are any waiting cells, completing them, as no new elements will arrive
+      drainWaiting(s)
+      Right(())

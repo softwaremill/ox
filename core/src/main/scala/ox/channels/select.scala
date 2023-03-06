@@ -3,10 +3,8 @@ package ox.channels
 import scala.annotation.tailrec
 
 def select[T1, T2](ch1: Source[T1], ch2: Source[T2]): ClosedOr[T1 | T2] = select(List(ch1, ch2))
-def selectOrThrow[T1, T2](ch1: Source[T1], ch2: Source[T2]): T1 | T2 = select(ch1, ch2).orThrow
 
 def selectNow[T1, T2](ch1: Source[T1], ch2: Source[T2]): ClosedOr[Option[T1 | T2]] = selectNow(List(ch1, ch2))
-def selectNowOrThrow[T1, T2](ch1: Source[T1], ch2: Source[T2]): Option[T1 | T2] = selectNow(ch1, ch2).orThrow
 
 /** Receive an element from exactly one of the channels, if such an element is immediately available. */
 @tailrec

@@ -14,13 +14,13 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
   it should "send and receive two spaced elements" in {
     val c = Channel[Int]()
     scoped {
-      val f1 = fork { c.receive() }
-      val f2 = fork { c.receive() }
+      val f1 = fork { c.receive().orThrow }
+      val f2 = fork { c.receive().orThrow }
 
       Thread.sleep(100L)
-      c.send(1)
+      c.send(1).orThrow
       Thread.sleep(100L)
-      c.send(2)
+      c.send(2).orThrow
 
       val r1 = f1.join()
       val r2 = f2.join()
@@ -34,8 +34,8 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     val c = Channel[Int]()
     scoped {
       val fs = (1 to 2 * n).map { i =>
-        if i % 2 == 0 then fork { c.send(i / 2); 0 }
-        else fork { c.receive() }
+        if i % 2 == 0 then fork { c.send(i / 2).orThrow; 0 }
+        else fork { c.receive().orThrow }
       }
 
       fs.map(_.join()).sum shouldBe n * (n + 1) / 2
@@ -50,7 +50,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     scoped {
       cs.foreach { c =>
         (1 to n).foreach { i =>
-          fork(c.send(i))
+          fork(c.send(i).orThrow)
         }
       }
 
@@ -74,10 +74,10 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     c.send(2)
     c.done()
 
-    c.receive() shouldBe 1
-    c.receive() shouldBe 2
-    an[ChannelClosedException.Done] shouldBe thrownBy(c.receive())
-    an[ChannelClosedException.Done] shouldBe thrownBy(c.receive()) // repeat
+    c.receive().orThrow shouldBe 1
+    c.receive().orThrow shouldBe 2
+    c.receive() shouldBe Left(ChannelState.Done)
+    c.receive() shouldBe Left(ChannelState.Done) // repeat
   }
 
   it should "not receive from a channel in case of an error" in {
@@ -86,8 +86,8 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     c.send(2)
     c.error()
 
-    an[ChannelClosedException.Error] shouldBe thrownBy(c.receive())
-    an[ChannelClosedException.Error] shouldBe thrownBy(c.receive()) // repeat
+    c.receive() shouldBe Left(ChannelState.Error(None))
+    c.receive() shouldBe Left(ChannelState.Error(None)) // repeat
   }
 
   it should "select until all channels are done" in {
