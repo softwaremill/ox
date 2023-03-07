@@ -140,6 +140,10 @@ object Ox:
     while true do f
     throw new RuntimeException("can't get here")
 
+  def foreverWhile(f: => Boolean): Unit =
+    var loop = true
+    while loop do loop = f
+
   def retry[T](times: Int, sleep: FiniteDuration)(f: => T): T =
     try f
     catch

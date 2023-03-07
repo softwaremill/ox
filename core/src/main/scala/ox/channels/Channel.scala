@@ -5,7 +5,7 @@ import java.util.concurrent.{ArrayBlockingQueue, ConcurrentLinkedDeque, Semaphor
 import scala.annotation.tailrec
 import scala.util.Try
 
-trait Source[+T]:
+trait Source[+T] extends SourceOps[T]:
   def receive(): ClosedOr[T]
 
   private[ox] def elementPoll(): T | ChannelState.Closed
