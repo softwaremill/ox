@@ -72,10 +72,10 @@ class Channel[T](capacity: Int = 1) extends Source[T] with Sink[T]:
         if e == null then
           // Somebody else already took the element; since this is "our" cell (we completed it), we can be sure that
           // there's somebody waiting on it. Creating a new cell, and completing the old with a reference to it.
-          c.putNewCell()
+          c.completeWithNewCell()
           // Any new elements added while the cell was out of the waiting queue will be paired with cells when the
           // `select` receives the clone
-        else c.put(e) // sending the element
+        else c.complete(e) // sending the element
 
   override final def send(t: T): ClosedOr[Unit] =
     closedOrUnit().flatMap { _ =>
@@ -112,7 +112,7 @@ class Channel[T](capacity: Int = 1) extends Source[T] with Sink[T]:
   private def drainWaiting(s: ChannelState.Closed): Unit =
     val c = waiting.poll()
     if c != null then
-      if c.tryOwn() then c.putClosed(s)
+      if c.tryOwn() then c.completeWithClosed(s)
       drainWaiting(s)
 
   override def receive(): ClosedOr[T] =
