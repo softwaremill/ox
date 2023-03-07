@@ -55,6 +55,19 @@ trait SourceOps[+T] { this: Source[T] =>
     foreach(b += _)
     b.result()
 
+  def merge[U >: T](other: Source[U])(using Ox): Source[U] = merge(1)(other)
+  def merge[U >: T](capacity: Int)(other: Source[U])(using Ox): Source[U] =
+    val c = Channel[U](capacity)
+    fork {
+      foreverWhile {
+        select(this, other) match // TODO: fairness - either here, or in select, ensure that the first one doesn't always have priority?
+          case Left(ChannelState.Done)     => c.done(); false
+          case Left(ChannelState.Error(e)) => c.error(e); false
+          case Right(t)                    => c.send(t); true
+      }
+    }
+    c
+
   def zip[U](other: Source[U])(using Ox): Source[(T, U)] = zip(1)(other)
   def zip[U](capacity: Int)(other: Source[U])(using Ox): Source[(T, U)] =
     val c = Channel[(T, U)](capacity)
@@ -67,9 +80,7 @@ trait SourceOps[+T] { this: Source[T] =>
             other.receive() match
               case Left(ChannelState.Done)     => c.done(); false
               case Left(ChannelState.Error(e)) => c.error(e); false
-              case Right(u) =>
-                c.send((t, u))
-                true
+              case Right(u)                    => c.send((t, u)); true
       }
     }
     c

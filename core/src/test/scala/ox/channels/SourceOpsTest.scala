@@ -189,4 +189,15 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
       s.receive() shouldBe Left(ChannelState.Done)
     }
   }
+
+  it should "merge two sources" in {
+    scoped {
+      val c1 = Source.from(1, 2, 3)
+      val c2 = Source.from(4, 5, 6)
+
+      val s = c1.merge(c2)
+
+      s.toList.sorted shouldBe List(1, 2, 3, 4, 5, 6)
+    }
+  }
 }
