@@ -1,7 +1,7 @@
 package ox.channels
 
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
-import java.util.concurrent.{ArrayBlockingQueue, ConcurrentLinkedDeque, Semaphore}
+import java.util.concurrent.{ArrayBlockingQueue, ConcurrentLinkedDeque, ConcurrentLinkedQueue, Semaphore}
 import scala.annotation.tailrec
 import scala.util.Try
 
@@ -11,7 +11,6 @@ trait Source[+T] extends SourceOps[T]:
   private[ox] def elementPoll(): T | ChannelState.Closed
   private[ox] def elementPeek(): T | ChannelState.Closed
   private[ox] def cellOffer(c: CellCompleter[T]): Unit
-  private[ox] def cellOfferFirst(c: CellCompleter[T]): Unit
   private[ox] def cellCleanup(c: CellCompleter[T]): Unit
 
 object Source extends SourceCompanionOps
@@ -37,7 +36,7 @@ trait Sink[-T]:
 
 class Channel[T](capacity: Int = 1) extends Source[T] with Sink[T]:
   private val elements = ArrayBlockingQueue[T](capacity)
-  private val waiting = ConcurrentLinkedDeque[CellCompleter[T]]()
+  private val waiting = ConcurrentLinkedQueue[CellCompleter[T]]()
   private val state = AtomicReference[ChannelState](ChannelState.Open)
 
   override private[ox] def elementPoll(): T | ChannelState.Closed = elementOrClosed(elements.poll())
@@ -52,7 +51,6 @@ class Channel[T](capacity: Int = 1) extends Source[T] with Sink[T]:
           case e                              => e
 
   override private[ox] def cellOffer(c: CellCompleter[T]): Unit = waiting.offer(c)
-  override private[ox] def cellOfferFirst(c: CellCompleter[T]): Unit = waiting.offerFirst(c) // TODO: needed?
   override private[ox] def cellCleanup(c: CellCompleter[T]): Unit = waiting.remove(c)
 
   // invariant for send & select: either `elements` is empty or `waiting.filter(_.isOwned.get() == false)` is empty
@@ -61,8 +59,8 @@ class Channel[T](capacity: Int = 1) extends Source[T] with Sink[T]:
   private def tryPairWaitingAndElement(): Unit =
     if waiting.peek() != null && elements.peek() != null
     then
-      // first trying to dequeue a cell; we might need to put back a new one, and this is only possible for `waiting`, which is a deque
-      // enqueueing back dequeued values into `elements` is not possible as it would break processing ordering
+      // first trying to dequeue a cell; we might need to put back a new one & suspend the thread again, and this is
+      // only possible with cells: enqueueing back dequeued values into `elements` would break processing ordering
       val c = waiting.poll()
       if c == null then () // somebody already handles the cell - we're done
       else if !c.tryOwn() then tryPairWaitingAndElement() // cell already owned - try again
