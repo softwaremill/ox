@@ -14,6 +14,8 @@ trait Source[+T] extends SourceOps[T]:
   private[ox] def cellOfferFirst(c: CellCompleter[T]): Unit
   private[ox] def cellCleanup(c: CellCompleter[T]): Unit
 
+object Source extends SourceCompanionOps
+
 trait Sink[-T]:
   def send(t: T): ClosedOr[Unit]
 

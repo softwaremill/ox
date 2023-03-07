@@ -77,4 +77,56 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
 
     r shouldBe List(3, 2, 1)
   }
+
+  it should "convert source to a list" in {
+    val c = Channel[Int](10)
+    c.send(1)
+    c.send(2)
+    c.send(3)
+    c.done()
+
+    c.toList shouldBe List(1, 2, 3)
+  }
+
+  it should "transform a source using a simple map" in {
+    val c = Channel[Int](10)
+    c.send(1)
+    c.send(2)
+    c.send(3)
+    c.done()
+
+    scoped {
+      c.transform(_.map(_ * 2)).toList shouldBe List(2, 4, 6)
+    }
+  }
+
+  it should "transform a source using a complex chain of operations" in {
+    val c = Channel[Int](10)
+    c.send(1)
+    c.send(2)
+    c.send(3)
+    c.send(4)
+    c.done()
+
+    scoped {
+      c.transform(_.drop(2).flatMap(i => List(i, i + 1, i + 2)).filter(_ % 2 == 0)).toList shouldBe List(4, 4, 6)
+    }
+  }
+
+  it should "transform an infinite source" in {
+    val c = Channel[Int]()
+    scoped {
+      fork {
+        var i = 0
+        while true do
+          c.send(i)
+          i += 1
+      }
+
+      val s = c.transform(_.filter(_ % 2 == 0).flatMap(i => List(i, i+1)))
+      s.receive() shouldBe Right(0)
+      s.receive() shouldBe Right(1)
+      s.receive() shouldBe Right(2)
+    }
+  }
 }
