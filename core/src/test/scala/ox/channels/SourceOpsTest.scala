@@ -178,28 +178,15 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
 
   it should "zip two sources" in {
     scoped {
-        val c1 = Channel[Int]()
-        val c2 = Channel[Int]()
-        fork {
-            c1.send(1)
-            c1.send(2)
-            c1.send(3)
-            c1.send(0)
-            c1.done()
-        }
-        fork {
-            c2.send(4)
-            c2.send(5)
-            c2.send(6)
-            c2.done()
-        }
+      val c1 = Source.from(1, 2, 3, 0)
+      val c2 = Source.from(4, 5, 6)
 
-        val s = c1.zip(c2)
+      val s = c1.zip(c2)
 
-        s.receive() shouldBe Right((1, 4))
-        s.receive() shouldBe Right((2, 5))
-        s.receive() shouldBe Right((3, 6))
-        s.receive() shouldBe Left(ChannelState.Done)
+      s.receive() shouldBe Right((1, 4))
+      s.receive() shouldBe Right((2, 5))
+      s.receive() shouldBe Right((3, 6))
+      s.receive() shouldBe Left(ChannelState.Done)
     }
   }
 }

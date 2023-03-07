@@ -18,7 +18,7 @@ trait SourceOps[+T] { this: Source[T] =>
               c2.send(f(t))
               true
             catch
-              case _: InterruptedException => c2.done(); false
+              case _: InterruptedException => c2.done(); false // TODO: done, ignore, propagate error?
               case e: Exception            => c2.error(e); false
       }
     }
@@ -79,6 +79,8 @@ trait SourceCompanionOps:
   def from[T](it: Iterable[T])(using Ox): Source[T] = from(1)(it)
   def from[T](capacity: Int)(it: Iterable[T])(using Ox): Source[T] = from(capacity)(it.iterator)
 
+  def from[T](ts: T*)(using Ox): Source[T] = from(1)(ts.iterator)
+
   def from[T](it: => Iterator[T])(using Ox): Source[T] = from(1)(it)
   def from[T](capacity: Int)(it: => Iterator[T])(using Ox): Source[T] =
     val c = Channel[T](capacity)
@@ -88,7 +90,7 @@ trait SourceCompanionOps:
         while theIt.hasNext do c.send(theIt.next())
         c.done()
       catch
-        case _: InterruptedException => c.done()
+        case _: InterruptedException => c.done() // TODO: done, ignore, propagate error?
         case e: Exception            => c.error(e)
     }
     c
