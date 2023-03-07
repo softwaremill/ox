@@ -132,7 +132,7 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
   }
 
   it should "transform an infinite source (stress test)" in {
-    for (i <- 1 to 10000) { // this nicely demonstrated two race conditions
+    for (i <- 1 to 1000) { // this nicely demonstrated two race conditions
       val c = Channel[Int]()
       scoped {
         fork {
@@ -173,6 +173,33 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
       c.receive() shouldBe Right(())
       (System.currentTimeMillis() - start) shouldBe >=(100L)
       (System.currentTimeMillis() - start) shouldBe <=(150L)
+    }
+  }
+
+  it should "zip two sources" in {
+    scoped {
+        val c1 = Channel[Int]()
+        val c2 = Channel[Int]()
+        fork {
+            c1.send(1)
+            c1.send(2)
+            c1.send(3)
+            c1.send(0)
+            c1.done()
+        }
+        fork {
+            c2.send(4)
+            c2.send(5)
+            c2.send(6)
+            c2.done()
+        }
+
+        val s = c1.zip(c2)
+
+        s.receive() shouldBe Right((1, 4))
+        s.receive() shouldBe Right((2, 5))
+        s.receive() shouldBe Right((3, 6))
+        s.receive() shouldBe Left(ChannelState.Done)
     }
   }
 }

@@ -54,6 +54,25 @@ trait SourceOps[+T] { this: Source[T] =>
     val b = List.newBuilder[T]
     foreach(b += _)
     b.result()
+
+  def zip[U](other: Source[U])(using Ox): Source[(T, U)] = zip(1)(other)
+  def zip[U](capacity: Int)(other: Source[U])(using Ox): Source[(T, U)] =
+    val c = Channel[(T, U)](capacity)
+    fork {
+      foreverWhile {
+        receive() match
+          case Left(ChannelState.Done)     => c.done(); false
+          case Left(ChannelState.Error(e)) => c.error(e); false
+          case Right(t) =>
+            other.receive() match
+              case Left(ChannelState.Done)     => c.done(); false
+              case Left(ChannelState.Error(e)) => c.error(e); false
+              case Right(u) =>
+                c.send((t, u))
+                true
+      }
+    }
+    c
 }
 
 trait SourceCompanionOps:
