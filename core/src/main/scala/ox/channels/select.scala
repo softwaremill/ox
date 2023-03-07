@@ -87,8 +87,8 @@ def select[T](channels: List[Source[T]]): ClosedOr[T] =
         if c.tryOwn() then
           // We managed to complete the cell before any other thread. We are sure that there's nobody waiting on this
           // cell, as this could only be us.
-          // First, we need to remove the now stale cell from the channels' waiting lists. Even if there's only one
-          // channel - as we completed the cell, nobody ever dequeued it.
+          // First, we need to remove the now stale cell from the channels' waiting lists, even if there's only one
+          // channel: we owned the cell, so we can't know if anybody ever dequeued it.
           cleanupCell(c, alsoWhenSingleChannel = true)
           // Try to obtain an element again
           select(channels)

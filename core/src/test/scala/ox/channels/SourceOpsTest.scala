@@ -7,6 +7,7 @@ import ox.Ox.*
 
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
+import scala.concurrent.duration.DurationInt
 import scala.jdk.CollectionConverters.*
 
 class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
@@ -123,10 +124,55 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
           i += 1
       }
 
-      val s = c.transform(_.filter(_ % 2 == 0).flatMap(i => List(i, i+1)))
+      val s = c.transform(_.filter(_ % 2 == 0).flatMap(i => List(i, i + 1)))
       s.receive() shouldBe Right(0)
       s.receive() shouldBe Right(1)
       s.receive() shouldBe Right(2)
+    }
+  }
+
+  it should "transform an infinite source (stress test)" in {
+    for (i <- 1 to 10000) { // this nicely demonstrated two race conditions
+      val c = Channel[Int]()
+      scoped {
+        fork {
+          var i = 0
+          while true do
+            c.send(i)
+            i += 1
+        }
+
+        val s = c.transform(x => x)
+        s.receive() shouldBe Right(0)
+      }
+    }
+  }
+
+  it should "tick regularly" in {
+    scoped {
+      val c = Source.tick(100.millis)
+      val start = System.currentTimeMillis()
+      c.receive() shouldBe Right(())
+      (System.currentTimeMillis() - start) shouldBe >=(0L)
+      (System.currentTimeMillis() - start) shouldBe <=(50L)
+
+      c.receive() shouldBe Right(())
+      (System.currentTimeMillis() - start) shouldBe >=(100L)
+      (System.currentTimeMillis() - start) shouldBe <=(150L)
+
+      c.receive() shouldBe Right(())
+      (System.currentTimeMillis() - start) shouldBe >=(200L)
+      (System.currentTimeMillis() - start) shouldBe <=(250L)
+    }
+  }
+
+  it should "timeout" in {
+    scoped {
+      val c = Source.timeout(100.millis)
+      val start = System.currentTimeMillis()
+      c.receive() shouldBe Right(())
+      (System.currentTimeMillis() - start) shouldBe >=(100L)
+      (System.currentTimeMillis() - start) shouldBe <=(150L)
     }
   }
 }

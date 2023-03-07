@@ -52,7 +52,7 @@ class Channel[T](capacity: Int = 1) extends Source[T] with Sink[T]:
           case e                              => e
 
   override private[ox] def cellOffer(c: CellCompleter[T]): Unit = waiting.offer(c)
-  override private[ox] def cellOfferFirst(c: CellCompleter[T]): Unit = waiting.offerFirst(c)
+  override private[ox] def cellOfferFirst(c: CellCompleter[T]): Unit = waiting.offerFirst(c) // TODO: needed?
   override private[ox] def cellCleanup(c: CellCompleter[T]): Unit = waiting.remove(c)
 
   // invariant for send & select: either `elements` is empty or `waiting.filter(_.isOwned.get() == false)` is empty
@@ -61,7 +61,7 @@ class Channel[T](capacity: Int = 1) extends Source[T] with Sink[T]:
   private def tryPairWaitingAndElement(): Unit =
     if waiting.peek() != null && elements.peek() != null
     then
-      // first trying to dequeue a cell; we might need to put it back, and this is only possible for `waiting`, which is a deque
+      // first trying to dequeue a cell; we might need to put back a new one, and this is only possible for `waiting`, which is a deque
       // enqueueing back dequeued values into `elements` is not possible as it would break processing ordering
       val c = waiting.poll()
       if c == null then () // somebody already handles the cell - we're done
@@ -79,29 +79,29 @@ class Channel[T](capacity: Int = 1) extends Source[T] with Sink[T]:
 
   override final def send(t: T): ClosedOr[Unit] =
     closedOrUnit().flatMap { _ =>
-      waiting.poll() match
-        case null =>
-          // if this is interrupted, the element is simply not added to the queue
-          elements.put(t)
+      // First, always adding the element to the end of a queue; a previous design "optimised" this by checking
+      // if there's a waiting cell, and if so, completing it with the element. However, this could lead to a race
+      // condition, where element is delivered out-of-order:
+      // T1: selectNow -> null
+      // T2: send -> no cells -> add to waiting list
+      // T1: offer cell (before elementExists check)
+      // T2: send -> complete waiting cell
+      //
+      // This won't deadlock as always after offering a cell in `select`, we check if there's a waiting element
 
-          // the channel might have been closed when we were sending, e.g. waiting for free space in `elements`
-          state.get() match
-            case s @ ChannelState.Error(_) =>
-              elements.clear()
-              Left(s)
-            // if the channel is done, it means that a send() was concurrent with a done() - which can cause the element
-            // to be delivered, even if a done was signalled to the receiver before
-            case _ =>
-              // check again, if there is no cell added in the meantime
-              Right(tryPairWaitingAndElement())
+      // if this is interrupted, the element is simply not added to the queue
+      elements.put(t)
 
-        case c =>
-          if c.tryOwn() then
-            // we're the first thread to complete this cell - sending the element
-            Right(c.put(t))
-          else
-            // some other thread already completed the cell - trying to send the element again
-            send(t)
+      // the channel might have been closed when we were sending, e.g. waiting for free space in `elements`
+      state.get() match
+        case s @ ChannelState.Error(_) =>
+          elements.clear()
+          Left(s)
+        // if the channel is done, it means that a send() was concurrent with a done() - which can cause the element
+        // to be delivered, even if a done was signalled to the receiver before
+        case _ =>
+          // check if there is a waiting cell
+          Right(tryPairWaitingAndElement())
     }
 
   private def closedOrUnit(): ClosedOr[Unit] = state.get() match

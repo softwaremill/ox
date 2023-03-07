@@ -3,6 +3,8 @@ package ox.channels
 import ox.Ox
 import ox.Ox.*
 
+import scala.concurrent.duration.FiniteDuration
+
 trait SourceOps[+T] { this: Source[T] =>
   def map[U](capacity: Int)(f: T => U)(using Ox): Source[U] =
     val c2 = Channel[U](capacity)
@@ -69,5 +71,24 @@ trait SourceCompanionOps:
       catch
         case _: InterruptedException => c.done()
         case e: Exception            => c.error(e)
+    }
+    c
+
+  def tick[T](interval: FiniteDuration, element: T = ())(using Ox): Source[T] =
+    val c = Channel[T]()
+    fork {
+      forever {
+        c.send(element)
+        Thread.sleep(interval.toMillis)
+      }
+    }
+    c
+
+  def timeout[T](interval: FiniteDuration, element: T = ())(using Ox): Source[T] =
+    val c = Channel[T]()
+    fork {
+      Thread.sleep(interval.toMillis)
+      c.send(element)
+      c.done()
     }
     c
