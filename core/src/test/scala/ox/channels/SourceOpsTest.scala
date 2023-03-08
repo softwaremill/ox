@@ -132,7 +132,7 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
   }
 
   it should "transform an infinite source (stress test)" in {
-    for (i <- 1 to 1000) { // this nicely demonstrated two race conditions
+    for (_ <- 1 to 1000) { // this nicely demonstrated two race conditions
       val c = Channel[Int]()
       scoped {
         fork {

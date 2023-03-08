@@ -1,25 +1,32 @@
 package ox.channels
 
 import scala.annotation.tailrec
+import scala.util.Random
 
 def select[T1, T2](ch1: Source[T1], ch2: Source[T2]): ClosedOr[T1 | T2] = select(List(ch1, ch2))
 
 def selectNow[T1, T2](ch1: Source[T1], ch2: Source[T2]): ClosedOr[Option[T1 | T2]] = selectNow(List(ch1, ch2))
 
 /** Receive an element from exactly one of the channels, if such an element is immediately available. */
+def selectNow[T](chs: List[Source[T]]): ClosedOr[Option[T]] = doSelectNow(Random.shuffle(chs))
+
 @tailrec
-def selectNow[T](chs: List[Source[T]]): ClosedOr[Option[T]] =
+private def doSelectNow[T](chs: List[Source[T]]): ClosedOr[Option[T]] =
   chs match
     case Nil => Right(None)
     case ch :: tail =>
       val e = ch.elementPoll()
       e match
         case s: ChannelState.Error    => Left(s)
-        case null | ChannelState.Done => selectNow(tail)
+        case null | ChannelState.Done => doSelectNow(tail)
         case v: T                     => Right(Some(v))
 
 /** Receive an element from exactly one of the channels, blocking if necessary. Complexity: sum of the waiting queues of the channels. */
 def select[T](channels: List[Source[T]]): ClosedOr[T] =
+  // randomizing the order of the channels to ensure fairness: not the mos efficient solution, but will have to do for now
+  doSelect(Random.shuffle(channels))
+
+private def doSelect[T](channels: List[Source[T]]): ClosedOr[T] =
   def cellTakeInterrupted(c: Cell[T], e: InterruptedException): ClosedOr[T] =
     // trying to invalidate the cell by owning it
     if c.tryOwn() then
@@ -33,7 +40,7 @@ def select[T](channels: List[Source[T]]): ClosedOr[T] =
           // nobody else will complete the new cell, as it's not put on the channels waiting queues, we can re-throw the exception
           throw e
         case s: ChannelState.Error => Left(s)
-        case ChannelState.Done     => select(channels)
+        case ChannelState.Done     => doSelect(channels)
         case t: T                  =>
           // received the element; interrupting self and returning it
           try Right(t)
@@ -44,7 +51,7 @@ def select[T](channels: List[Source[T]]): ClosedOr[T] =
       c.take() match
         case c2: Cell[T]           => offerCellAndTake(c2) // we got a new cell on which we should be waiting, add it to the channels
         case s: ChannelState.Error => Left(s)
-        case ChannelState.Done     => select(channels)
+        case ChannelState.Done     => doSelect(channels)
         case t: T                  => Right(t)
     catch case e: InterruptedException => cellTakeInterrupted(c, e)
     // now that the cell has been filled, it is owned, and should be removed from the waiting lists of the other channels
@@ -91,7 +98,7 @@ def select[T](channels: List[Source[T]]): ClosedOr[T] =
           // channel: we owned the cell, so we can't know if anybody ever dequeued it.
           cleanupCell(c, alsoWhenSingleChannel = true)
           // Try to obtain an element again
-          select(channels)
+          doSelect(channels)
         else
           // some other thread already completed the cell - receiving the element
           takeFromCellInterruptSafe(c)
@@ -100,7 +107,7 @@ def select[T](channels: List[Source[T]]): ClosedOr[T] =
         takeFromCellInterruptSafe(c)
     }
 
-  selectNow(channels).flatMap {
+  doSelectNow(channels).flatMap {
     case Some(e) => Right(e)
     case None => offerCellAndTake(Cell[T]) // none of the channels has an available element - enqueue a cell on each channel's waiting list
   }

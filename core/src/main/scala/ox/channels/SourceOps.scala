@@ -54,7 +54,7 @@ trait SourceOps[+T] { this: Source[T] =>
     val c = Channel[U](capacity)
     fork {
       foreverWhile {
-        select(this, other) match // TODO: fairness - either here, or in select, ensure that the first one doesn't always have priority?
+        select(this, other) match
           case Left(ChannelState.Done)     => c.done(); false
           case Left(ChannelState.Error(e)) => c.error(e); false
           case Right(t)                    => safeSend(c, t)
