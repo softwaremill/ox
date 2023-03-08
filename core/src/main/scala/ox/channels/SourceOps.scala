@@ -13,13 +13,7 @@ trait SourceOps[+T] { this: Source[T] =>
         receive() match
           case Left(ChannelState.Done)     => c2.done(); false
           case Left(ChannelState.Error(e)) => c2.error(e); false
-          case Right(t) =>
-            try
-              c2.send(f(t))
-              true
-            catch
-              case _: InterruptedException => c2.done(); false // TODO: done, ignore, propagate error?
-              case e: Exception            => c2.error(e); false
+          case Right(t)                    => safeSend(c2, f(t))
       }
     }
     c2
@@ -63,7 +57,7 @@ trait SourceOps[+T] { this: Source[T] =>
         select(this, other) match // TODO: fairness - either here, or in select, ensure that the first one doesn't always have priority?
           case Left(ChannelState.Done)     => c.done(); false
           case Left(ChannelState.Error(e)) => c.error(e); false
-          case Right(t)                    => c.send(t); true
+          case Right(t)                    => safeSend(c, t)
       }
     }
     c
@@ -80,10 +74,19 @@ trait SourceOps[+T] { this: Source[T] =>
             other.receive() match
               case Left(ChannelState.Done)     => c.done(); false
               case Left(ChannelState.Error(e)) => c.error(e); false
-              case Right(u)                    => c.send((t, u)); true
+              case Right(u)                    => safeSend(c, (t, u))
       }
     }
     c
+
+  private def safeSend[U](c: Sink[U], t: => U): Boolean =
+    try
+      c.send(t)
+      true
+    catch
+      case e: Exception =>
+        c.error(e)
+        false
 }
 
 trait SourceCompanionOps:
@@ -100,9 +103,7 @@ trait SourceCompanionOps:
       try
         while theIt.hasNext do c.send(theIt.next())
         c.done()
-      catch
-        case _: InterruptedException => c.done() // TODO: done, ignore, propagate error?
-        case e: Exception            => c.error(e)
+      catch case e: Exception => c.error(e)
     }
     c
 
@@ -110,7 +111,7 @@ trait SourceCompanionOps:
     val c = Channel[T]()
     fork {
       forever {
-        c.send(element)
+        send_errorWhenInterrupt(c, element)
         Thread.sleep(interval.toMillis)
       }
     }
@@ -120,7 +121,14 @@ trait SourceCompanionOps:
     val c = Channel[T]()
     fork {
       Thread.sleep(interval.toMillis)
-      c.send(element)
+      send_errorWhenInterrupt(c, element)
       c.done()
     }
     c
+
+  private def send_errorWhenInterrupt[T](c: Sink[T], v: T): Unit =
+    try c.send(v)
+    catch
+      case e: InterruptedException =>
+        c.error(e)
+        throw e
