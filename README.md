@@ -8,7 +8,7 @@ Requires JDK 20. Applications need the following JVM flags: `--enable-preview --
 SBT dependency:
 
 ```scala
-"com.softwaremill.ox" %% "core" % "0.0.3"
+"com.softwaremill.ox" %% "core" % "0.0.4"
 ```
 
 See the [Prototype Loom-based concurrency API for Scala](https://softwaremill.com/prototype-loom-based-concurrency-api-for-scala/) introductory article for more details.
