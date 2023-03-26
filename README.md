@@ -12,3 +12,5 @@ SBT dependency:
 ```
 
 See the [Prototype Loom-based concurrency API for Scala](https://softwaremill.com/prototype-loom-based-concurrency-api-for-scala/) introductory article for more details.
+
+If you'd have feedback, development ideas or critique, please head to our [community forum](https://softwaremill.community/c/ox/12).
