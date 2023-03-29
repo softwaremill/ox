@@ -18,7 +18,7 @@ trait SourceOps[+T] { this: Source[T] =>
     }
     c2
 
-  def map[U](f: T => U)(using Ox): Source[U] = map(1)(f)
+  def map[U](f: T => U)(using Ox): Source[U] = map(0)(f)
 
   def transform[U](f: Iterator[T] => Iterator[U])(using Ox): Source[U] =
     val it = new Iterator[T]:
@@ -49,7 +49,7 @@ trait SourceOps[+T] { this: Source[T] =>
     foreach(b += _)
     b.result()
 
-  def merge[U >: T](other: Source[U])(using Ox): Source[U] = merge(1)(other)
+  def merge[U >: T](other: Source[U])(using Ox): Source[U] = merge(0)(other)
   def merge[U >: T](capacity: Int)(other: Source[U])(using Ox): Source[U] =
     val c = Channel[U](capacity)
     fork {
@@ -62,7 +62,7 @@ trait SourceOps[+T] { this: Source[T] =>
     }
     c
 
-  def zip[U](other: Source[U])(using Ox): Source[(T, U)] = zip(1)(other)
+  def zip[U](other: Source[U])(using Ox): Source[(T, U)] = zip(0)(other)
   def zip[U](capacity: Int)(other: Source[U])(using Ox): Source[(T, U)] =
     val c = Channel[(T, U)](capacity)
     fork {
