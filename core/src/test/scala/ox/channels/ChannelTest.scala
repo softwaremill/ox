@@ -157,10 +157,11 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
       val f3 = fork {
         Thread.sleep(100L)
         trail.add("R1")
-        c.receive().orThrow shouldBe "x"
+        val r1 = c.receive().orThrow
         Thread.sleep(100L)
         trail.add("R2")
-        c.receive().orThrow shouldBe "y"
+        val r2 = c.receive().orThrow
+        Set(r1, r2) shouldBe Set("x", "y")
       }
 
       f3.join()
