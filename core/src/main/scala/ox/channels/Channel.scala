@@ -58,11 +58,11 @@ class DirectChannel[T] extends Channel[T]:
   private val waiting = ConcurrentLinkedQueue[CellCompleter[T]]()
   private val state = CurrentChannelState()
 
-  override private[ox] def elementPoll(): T | ChannelState.Closed = state.closedOrEval {
+  override private[ox] def elementPoll(): T | ChannelState.Closed = state.elementOrClosed {
     val result = elements.poll()
     if result == null then null.asInstanceOf[T] else result.receive()
   }
-  override private[ox] def elementPeek(): T | ChannelState.Closed = state.closedOrEval {
+  override private[ox] def elementPeek(): T | ChannelState.Closed = state.elementOrClosed {
     val result = elements.peek()
     if result == null then null.asInstanceOf[T] else result.element
   }
@@ -109,8 +109,8 @@ class BufferedChannel[T](capacity: Int = 1) extends Channel[T]:
   private val waiting = ConcurrentLinkedQueue[CellCompleter[T]]()
   private val state = CurrentChannelState()
 
-  override private[ox] def elementPoll(): T | ChannelState.Closed = state.closedOrEval(elements.poll())
-  override private[ox] def elementPeek(): T | ChannelState.Closed = state.closedOrEval(elements.peek())
+  override private[ox] def elementPoll(): T | ChannelState.Closed = state.elementOrClosed(elements.poll())
+  override private[ox] def elementPeek(): T | ChannelState.Closed = state.elementOrClosed(elements.peek())
 
   override private[ox] def cellOffer(c: CellCompleter[T]): Unit = waiting.offer(c)
   override private[ox] def cellCleanup(c: CellCompleter[T]): Unit = waiting.remove(c)
@@ -168,7 +168,7 @@ private class CurrentChannelState:
     case ChannelState.Open      => Right(())
     case s: ChannelState.Closed => Left(s)
 
-  def closedOrEval[T](f: => T): T | ChannelState.Closed =
+  def elementOrClosed[T](f: => T): T | ChannelState.Closed =
     state.get() match
       case e: ChannelState.Error => e
       case s =>

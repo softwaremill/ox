@@ -63,12 +63,8 @@ private def doSelect[T](channels: List[Source[T]]): ClosedOr[T] =
   @tailrec
   def elementExists_verifyNotClosed(chs: List[Source[T]], allDone: Boolean, cell: Cell[T]): ClosedOr[Boolean] =
     chs match
-      case Nil if allDone =>
-        // either the cell is already taken off one of the waiting queues & being completed with a done,
-        // or it's never going to get handled; either way, we're never .take-ing from this cell
-        cleanupCell(cell, alsoWhenSingleChannel = true)
-        Left(ChannelState.Done)
-      case Nil => Right(false)
+      case Nil if allDone => Left(ChannelState.Done)
+      case Nil            => Right(false)
       case c :: tail =>
         c.elementPeek() match
           case s: ChannelState.Error =>
@@ -88,8 +84,8 @@ private def doSelect[T](channels: List[Source[T]]): ClosedOr[T] =
 
     // check, if no new element has arrived in the meantime (possibly, before we added the cell)
     // plus, verify that none of the channels is in an error state, and that not all channels are closed
-    elementExists_verifyNotClosed(channels, allDone = true, c).flatMap {
-      case true =>
+    elementExists_verifyNotClosed(channels, allDone = true, c) match {
+      case Right(true) =>
         // some element arrived in the meantime: trying to invalidate the cell by owning it
         if c.tryOwn() then
           // We managed to complete the cell before any other thread. We are sure that there's nobody waiting on this
@@ -102,9 +98,16 @@ private def doSelect[T](channels: List[Source[T]]): ClosedOr[T] =
         else
           // some other thread already completed the cell - receiving the element
           takeFromCellInterruptSafe(c)
-      case false =>
+      case Right(false) =>
         // still no new elements - waiting for one to arrive
         takeFromCellInterruptSafe(c)
+      case Left(s) =>
+        // either the cell is already taken off one of the waiting queues & being completed, or it's never going to get handled
+        if c.tryOwn() then
+          // nobody else will complete the cell, we can safely remove it
+          cleanupCell(c, alsoWhenSingleChannel = true)
+          Left(s)
+        else takeFromCellInterruptSafe(c)
     }
 
   doSelectNow(channels).flatMap {
