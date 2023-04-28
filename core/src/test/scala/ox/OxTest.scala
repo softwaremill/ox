@@ -4,7 +4,7 @@ import jdk.incubator.concurrent.ScopedValue
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import org.slf4j.LoggerFactory
-import ox.Ox.{fork, forkHold, retry, scoped, timeout, uninterruptible, useInScope, useScoped}
+import ox.{fork, forkHold, retry, scoped, timeout, uninterruptible, useInScope, useScoped}
 
 import java.time.Clock
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger}
@@ -64,7 +64,7 @@ class OxTest extends AnyFlatSpec with Matchers {
   }
 
   it should "allow extension method syntax" in {
-    import Ox.syntax.*
+    import ox.syntax.*
     val trail = Trail()
     scoped {
       val f1 = {
@@ -123,7 +123,7 @@ class OxTest extends AnyFlatSpec with Matchers {
 
   "fork locals" should "properly propagate values" in {
     val trail = Trail()
-    val v = Ox.ForkLocal("a")
+    val v = ForkLocal("a")
     scoped {
       val f1 = forkHold {
         v.scopedWhere("x") {
@@ -154,7 +154,7 @@ class OxTest extends AnyFlatSpec with Matchers {
 
   it should "propagate values across multiple scopes" in {
     val trail = Trail()
-    val v = Ox.ForkLocal("a")
+    val v = ForkLocal("a")
     scoped {
       forkHold {
         v.scopedWhere("x") {
@@ -378,7 +378,7 @@ class OxTest extends AnyFlatSpec with Matchers {
 
 @main def test1 =
   val log = LoggerFactory.getLogger("test1")
-  val r = Ox.scoped {
+  val r = scoped {
     val f1 = forkHold {
       Thread.sleep(1000L)
       log.info("f1 done")

@@ -1,7 +1,7 @@
 package ox.crawler
 
 import org.slf4j.LoggerFactory
-import ox.Ox.{Fork, fork, scoped}
+import ox.{Fork, fork, scoped}
 
 import java.util.concurrent.{ArrayBlockingQueue, BlockingQueue}
 import scala.annotation.tailrec

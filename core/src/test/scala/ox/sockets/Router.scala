@@ -1,9 +1,8 @@
 package ox.sockets
 
 import org.slf4j.LoggerFactory
-import ox.Ox
-import ox.Ox.syntax.{forever, fork}
-import ox.Ox.{Fork, scoped}
+import ox.syntax.{forever, fork}
+import ox.{Fork, scoped, Ox}
 
 import java.util.concurrent.{ArrayBlockingQueue, BlockingQueue}
 import scala.annotation.tailrec

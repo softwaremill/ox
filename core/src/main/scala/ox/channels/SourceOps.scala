@@ -1,7 +1,6 @@
 package ox.channels
 
-import ox.Ox
-import ox.Ox.*
+import ox.*
 
 import scala.concurrent.duration.FiniteDuration
 

@@ -1,7 +1,7 @@
 package ox.supervise
 
 import org.slf4j.LoggerFactory
-import ox.Ox.{forever, fork, scoped, uninterruptible}
+import ox.{forever, fork, scoped, uninterruptible}
 
 import java.util.concurrent.{ArrayBlockingQueue, BlockingQueue}
 import scala.annotation.tailrec
