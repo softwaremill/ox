@@ -2,6 +2,7 @@ package ox
 
 import jdk.incubator.concurrent.{ScopedValue, StructuredTaskScope}
 
+import java.io.Closeable
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.{ArrayBlockingQueue, Callable, CompletableFuture}
 import scala.annotation.tailrec
@@ -11,8 +12,14 @@ import scala.util.{Failure, Success, Try}
 import scala.util.control.NoStackTrace
 
 // TODO: implicit not found explaining `scoped`
-case class Ox(scope: StructuredTaskScope[Any], scopeThread: Thread, forkFailureToPropagate: AtomicReference[Throwable]) {
+case class Ox(
+    scope: StructuredTaskScope[Any],
+    scopeThread: Thread,
+    forkFailureToPropagate: AtomicReference[Throwable],
+    finalizers: AtomicReference[List[() => Unit]]
+) {
   def cancel(): Unit = scope.shutdown()
+  private[ox] def addFinalizer(f: () => Unit): Unit = finalizers.updateAndGet(f :: _)
 }
 
 object Ox:
@@ -29,16 +36,45 @@ object Ox:
         t.addSuppressed(e)
         throw t
 
+    def throwWithSuppressed(es: List[Throwable]): Nothing =
+      val e = es.head
+      es.tail.foreach(e.addSuppressed)
+      throw e
+
+    val finalizers = new AtomicReference(List.empty[() => Unit])
+    def runFinalizers(result: Either[Throwable, T]): T =
+      val fs = finalizers.get
+      if fs.isEmpty then result.fold(throw _, identity)
+      else
+        val es = uninterruptible {
+          fs.flatMap { f =>
+            try { f(); None }
+            catch case e: Throwable => Some(e)
+          }
+        }
+
+        result match
+          case Left(e)                => throwWithSuppressed(e :: es)
+          case Right(t) if es.isEmpty => t
+          case _                      => throwWithSuppressed(es)
+
     val scope = new DoNothingScope[Any]()
     try
-      try f(using Ox(scope, Thread.currentThread(), forkFailure))
-      catch case e: InterruptedException => handleInterrupted(e)
-      finally
-        scope.shutdown()
-        scope.join()
-    // .join might have been interrupted, because of a fork failing after f completes, including shutdown
-    catch case e: InterruptedException => handleInterrupted(e)
-    finally scope.close()
+      val t =
+        try
+          try f(using Ox(scope, Thread.currentThread(), forkFailure, finalizers))
+          catch case e: InterruptedException => handleInterrupted(e)
+          finally
+            scope.shutdown()
+            scope.join()
+        // .join might have been interrupted, because of a fork failing after f completes, including shutdown
+        catch case e: InterruptedException => handleInterrupted(e)
+        finally scope.close()
+
+      // running the finalizers only once we are sure that all child threads have been terminated, so that no new
+      // finalizers are added, and none are lost
+      runFinalizers(Right(t))
+    catch case e: Throwable => runFinalizers(Left(e))
 
   /** Starts a thread, which is guaranteed to complete before the enclosing [[scoped]] block exits.
     *
@@ -89,6 +125,16 @@ object Ox:
         throw e
   }
 
+  /** Use the given resource in the current scope. The resource is allocated using `acquire`, and released after the scope is done using
+    * `release`. Releasing is uninterruptible.
+    */
+  def useInScope[T](acquire: => T)(release: T => Unit)(using Ox): T =
+    val t = acquire
+    summon[Ox].addFinalizer(() => release(t))
+    t
+
+  def useCloseableInScope[T <: AutoCloseable](c: => T)(using Ox): T = useInScope(c)(_.close())
+
   //
 
   def timeout[T](duration: FiniteDuration)(t: => T): T =
@@ -134,6 +180,9 @@ object Ox:
       joinDespiteInterrupted
     }
 
+  def useScoped[T, U](acquire: => T)(release: T => Unit)(b: T => U): U = scoped(b(useInScope(acquire)(release)))
+  def useScoped[T <: AutoCloseable, U](acquire: => T)(b: T => U): U = scoped(b(useInScope(acquire)(_.close())))
+
   //
 
   def forever(f: => Unit): Nothing =
@@ -173,6 +222,8 @@ object Ox:
       def uninterruptible: T = Ox.uninterruptible(f)
       def raceSuccessWith(f2: => T): T = Ox.raceSuccess(f)(f2)
       def raceResultWith(f2: => T): T = Ox.raceResult(f)(f2)
+
+    extension [T <: AutoCloseable](f: => T)(using Ox) def useInScope: T = Ox.useCloseableInScope(f)
 
   //
 
