@@ -228,7 +228,7 @@ object syntax:
 
 //
 
-/** A running fork, started using [[Ox.fork]] or [[Ox.forkHold]], backend by a thread. */
+/** A running fork, started using [[fork]] or [[forkHold]], backend by a thread. */
 trait Fork[T]:
   /** Blocks until the fork completes with a result. Throws an exception, if the fork completed with an exception. */
   def join(): T
