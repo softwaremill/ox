@@ -10,7 +10,7 @@ trait Source[+T] extends SourceOps[T]:
   def receive(): ClosedOr[T]
 
   private[ox] def elementPoll(): T | ChannelState.Closed
-  private[ox] def elementPeek(): T | ChannelState.Closed
+  private[ox] def elementPeek(): T | ChannelState.Closed // TODO: change to hasElement (boolean)
   private[ox] def cellOffer(c: CellCompleter[T]): Unit
   private[ox] def cellCleanup(c: CellCompleter[T]): Unit
 
@@ -18,6 +18,12 @@ object Source extends SourceCompanionOps
 
 trait Sink[-T]:
   def send(t: T): ClosedOr[Unit]
+
+  /** Evaluates the given block and sends its result. In case of an exception, propagates the error. */
+  def sendSafe(t: => T): ClosedOr[Either[Exception, Unit]] = try send(t).map(Right(_))
+  catch
+    case e: Exception =>
+      error(e).map(_ => Left(e))
 
   def error(): ClosedOr[Unit] = error(None)
   def error(reason: Exception): ClosedOr[Unit] = error(Some(reason))

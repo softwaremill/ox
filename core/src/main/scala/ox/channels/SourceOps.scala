@@ -8,11 +8,11 @@ trait SourceOps[+T] { this: Source[T] =>
   def map[U](capacity: Int)(f: T => U)(using Ox): Source[U] =
     val c2 = Channel[U](capacity)
     fork {
-      foreverWhile {
+      repeatWhile {
         receive() match
           case Left(ChannelState.Done)     => c2.done(); false
           case Left(ChannelState.Error(e)) => c2.error(e); false
-          case Right(t)                    => safeSend(c2, f(t))
+          case Right(t)                    => sendSuccessful(c2.sendSafe(f(t)))
       }
     }
     c2
@@ -36,7 +36,7 @@ trait SourceOps[+T] { this: Source[T] =>
     Source.from(f(it))
 
   def foreach(f: T => Unit): Unit =
-    foreverWhile {
+    repeatWhile {
       receive() match
         case Left(ChannelState.Done)     => false
         case Left(s: ChannelState.Error) => throw s.toException
@@ -52,11 +52,11 @@ trait SourceOps[+T] { this: Source[T] =>
   def merge[U >: T](capacity: Int)(other: Source[U])(using Ox): Source[U] =
     val c = Channel[U](capacity)
     fork {
-      foreverWhile {
+      repeatWhile {
         select(this, other) match
           case Left(ChannelState.Done)     => c.done(); false
           case Left(ChannelState.Error(e)) => c.error(e); false
-          case Right(t)                    => safeSend(c, t)
+          case Right(t)                    => c.send(t).isRight
       }
     }
     c
@@ -65,7 +65,7 @@ trait SourceOps[+T] { this: Source[T] =>
   def zip[U](capacity: Int)(other: Source[U])(using Ox): Source[(T, U)] =
     val c = Channel[(T, U)](capacity)
     fork {
-      foreverWhile {
+      repeatWhile {
         receive() match
           case Left(ChannelState.Done)     => c.done(); false
           case Left(ChannelState.Error(e)) => c.error(e); false
@@ -73,19 +73,12 @@ trait SourceOps[+T] { this: Source[T] =>
             other.receive() match
               case Left(ChannelState.Done)     => c.done(); false
               case Left(ChannelState.Error(e)) => c.error(e); false
-              case Right(u)                    => safeSend(c, (t, u))
+              case Right(u)                    => c.send(t, u).isRight
       }
     }
     c
 
-  private def safeSend[U](c: Sink[U], t: => U): Boolean =
-    try
-      c.send(t)
-      true
-    catch
-      case e: Exception =>
-        c.error(e)
-        false
+  private def sendSuccessful(r: ClosedOr[Either[Exception, Unit]]) = r.map(_.isRight).getOrElse(false)
 }
 
 trait SourceCompanionOps:

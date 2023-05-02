@@ -6,9 +6,15 @@ def forever(f: => Unit): Nothing =
   while true do f
   throw new RuntimeException("can't get here")
 
-def foreverWhile(f: => Boolean): Unit =
+/** Repeat evaluating `f` while it evaluates to `true`. */
+def repeatWhile(f: => Boolean): Unit =
   var loop = true
   while loop do loop = f
+
+/** Repeat evaluating `f` until it evaluates to `true`. */
+def repeatUntil(f: => Boolean): Unit =
+  var loop = true
+  while loop do loop = !f
 
 def retry[T](times: Int, sleep: FiniteDuration)(f: => T): T =
   try f
