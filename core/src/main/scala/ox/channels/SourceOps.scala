@@ -17,7 +17,10 @@ trait SourceOps[+T] { this: Source[T] =>
     }
     c2
 
-  def map[U](f: T => U)(using Ox): Source[U] = map(0)(f)
+  def map[U](f: T => U)(using Ox): Source[U] = map(DefaultCapacity)(f)
+
+  def take(n: Int)(using Ox): Source[T] = transform(_.take(n))
+  def filter(f: T => Boolean)(using Ox): Source[T] = transform(_.filter(f))
 
   def transform[U](f: Iterator[T] => Iterator[U])(using Ox): Source[U] =
     val it = new Iterator[T]:
@@ -33,7 +36,7 @@ trait SourceOps[+T] { this: Source[T] =>
         case e: ChannelResult.Error => throw e.toException
         case ChannelResult.Value(t) => v = None; t
 
-    Source.from(f(it))
+    Source.fromIterator(f(it))
 
   def foreach(f: T => Unit): Unit =
     repeatWhile {
@@ -48,7 +51,15 @@ trait SourceOps[+T] { this: Source[T] =>
     foreach(b += _)
     b.result()
 
-  def merge[U >: T](other: Source[U])(using Ox): Source[U] = merge(0)(other)
+  def pipeTo(sink: Sink[T]): Unit =
+    repeatWhile {
+      receive() match
+        case ChannelResult.Done     => sink.done(); false
+        case ChannelResult.Error(r) => sink.error(r); false
+        case ChannelResult.Value(t) => sink.send(t).isValue
+    }
+
+  def merge[U >: T](other: Source[U])(using Ox): Source[U] = merge(DefaultCapacity)(other)
   def merge[U >: T](capacity: Int)(other: Source[U])(using Ox): Source[U] =
     val c = Channel[U](capacity)
     fork {
@@ -61,7 +72,7 @@ trait SourceOps[+T] { this: Source[T] =>
     }
     c
 
-  def zip[U](other: Source[U])(using Ox): Source[(T, U)] = zip(0)(other)
+  def zip[U](other: Source[U])(using Ox): Source[(T, U)] = zip(DefaultCapacity)(other)
   def zip[U](capacity: Int)(other: Source[U])(using Ox): Source[(T, U)] =
     val c = Channel[(T, U)](capacity)
     fork {
@@ -82,13 +93,14 @@ trait SourceOps[+T] { this: Source[T] =>
 }
 
 trait SourceCompanionOps:
-  def from[T](it: Iterable[T])(using Ox): Source[T] = from(1)(it)
-  def from[T](capacity: Int)(it: Iterable[T])(using Ox): Source[T] = from(capacity)(it.iterator)
+  def fromIterable[T](it: Iterable[T])(using Ox): Source[T] = fromIterable(DefaultCapacity)(it)
+  def fromIterable[T](capacity: Int)(it: Iterable[T])(using Ox): Source[T] = fromIterator(capacity)(it.iterator)
 
-  def from[T](ts: T*)(using Ox): Source[T] = from(1)(ts.iterator)
+  def fromValues[T](ts: T*)(using Ox): Source[T] = fromValues(DefaultCapacity)(ts: _*)
+  def fromValues[T](capacity: Int)(ts: T*)(using Ox): Source[T] = fromIterator(capacity)(ts.iterator)
 
-  def from[T](it: => Iterator[T])(using Ox): Source[T] = from(1)(it)
-  def from[T](capacity: Int)(it: => Iterator[T])(using Ox): Source[T] =
+  def fromIterator[T](it: => Iterator[T])(using Ox): Source[T] = fromIterator(DefaultCapacity)(it)
+  def fromIterator[T](capacity: Int)(it: => Iterator[T])(using Ox): Source[T] =
     val c = Channel[T](capacity)
     fork {
       val theIt = it
@@ -99,8 +111,55 @@ trait SourceCompanionOps:
     }
     c
 
-  def tick[T](interval: FiniteDuration, element: T = ())(using Ox): Source[T] =
-    val c = Channel[T]()
+  def fromFork[T](f: Fork[T])(using Ox): Source[T] = fromFork(DefaultCapacity)(f)
+  def fromFork[T](capacity: Int)(f: Fork[T])(using Ox): Source[T] =
+    val c = Channel[T](capacity)
+    fork {
+      try
+        c.send(f.join())
+        c.done()
+      catch case e: Exception => c.error(e)
+    }
+    c
+
+  def iterate[T](zero: T)(f: T => T)(using Ox): Source[T] = iterate(DefaultCapacity)(zero)(f)
+  def iterate[T](capacity: Int)(zero: T)(f: T => T)(using Ox): Source[T] =
+    val c = Channel[T](capacity)
+    fork {
+      var t = zero
+      try
+        forever {
+          send_errorWhenInterrupt(c, t)
+          t = f(t)
+        }
+      catch case e: Exception => c.error(e)
+    }
+    c
+
+  def unfold[S, T](initial: S)(f: S => Option[(T, S)])(using Ox): Source[T] = unfold(DefaultCapacity)(initial)(f)
+  def unfold[S, T](capacity: Int)(initial: S)(f: S => Option[(T, S)])(using Ox): Source[T] =
+    val c = Channel[T](capacity)
+    fork {
+      var s = initial
+      try
+        repeatWhile {
+          f(s) match
+            case Some((value, next)) =>
+              send_errorWhenInterrupt(c, value)
+              s = next
+              true
+            case None =>
+              c.done()
+              false
+        }
+      catch case e: Exception => c.error(e)
+    }
+    c
+
+  def tick(interval: FiniteDuration)(using Ox): Source[Unit] = tick(DefaultCapacity)(interval, ())
+  def tick[T](interval: FiniteDuration, element: T)(using Ox): Source[T] = tick(DefaultCapacity)(interval, element)
+  def tick[T](capacity: Int)(interval: FiniteDuration, element: T = ())(using Ox): Source[T] =
+    val c = Channel[T](capacity)
     fork {
       forever {
         send_errorWhenInterrupt(c, element)
@@ -109,8 +168,21 @@ trait SourceCompanionOps:
     }
     c
 
-  def timeout[T](interval: FiniteDuration, element: T = ())(using Ox): Source[T] =
-    val c = Channel[T]()
+  def repeat(using Ox): Source[Unit] = repeat(DefaultCapacity)(())
+  def repeat[T](element: T)(using Ox): Source[T] = repeat(DefaultCapacity)(element)
+  def repeat[T](capacity: Int)(element: T = ())(using Ox): Source[T] =
+    val c = Channel[T](capacity)
+    fork {
+      forever {
+        send_errorWhenInterrupt(c, element)
+      }
+    }
+    c
+
+  def timeout(interval: FiniteDuration)(using Ox): Source[Unit] = timeout(DefaultCapacity)(interval, ())
+  def timeout[T](interval: FiniteDuration, element: T)(using Ox): Source[T] = timeout(DefaultCapacity)(interval, element)
+  def timeout[T](capacity: Int)(interval: FiniteDuration, element: T = ())(using Ox): Source[T] =
+    val c = Channel[T](capacity)
     fork {
       Thread.sleep(interval.toMillis)
       send_errorWhenInterrupt(c, element)
@@ -118,9 +190,11 @@ trait SourceCompanionOps:
     }
     c
 
-  private def send_errorWhenInterrupt[T](c: Sink[T], v: T): Unit =
+  private def send_errorWhenInterrupt[T](c: Sink[T], v: T): Unit = // TODO: make default?
     try c.send(v)
     catch
       case e: InterruptedException =>
         c.error(e)
         throw e
+
+private val DefaultCapacity = 0
