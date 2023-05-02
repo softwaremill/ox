@@ -78,7 +78,8 @@ val result2: Try[Int] = Try(timeout(3.seconds)(computation)) // success: 1
 
 ## Fork & join threads
 
-It's safest to use higher-level methods
+It's safest to use higher-level methods, such as `par` or `raceSuccess`, however this isn't always sufficient. For
+these cases, threads can be started using the structured concurrency APIs described below.
 
 The lifetime of the threads is defined by the structure of the code, and corresponds to the `scoped` block. Once
 `scoped` exits, any threads that are still running are interrupted. Hence, it is guaranteed that all threads started 
