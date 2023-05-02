@@ -23,10 +23,10 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
 
       val s = c.map(_ * 10)
 
-      s.receive() shouldBe Right(10)
-      s.receive() shouldBe Right(20)
-      s.receive() shouldBe Right(30)
-      s.receive() shouldBe Left(ChannelState.Done)
+      s.receive() shouldBe ChannelResult.Value(10)
+      s.receive() shouldBe ChannelResult.Value(20)
+      s.receive() shouldBe ChannelResult.Value(30)
+      s.receive() shouldBe ChannelResult.Done
     }
   }
 
@@ -43,8 +43,8 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
 
         val s = c.map(_ * 10)
 
-        s.receive() shouldBe Right(10)
-        s.receive() shouldBe Left(ChannelState.Done)
+        s.receive() shouldBe ChannelResult.Value(10)
+        s.receive() shouldBe ChannelResult.Done
       }
     }
   }
@@ -63,10 +63,10 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
         v <- c
       } yield v * 2
 
-      s.receive() shouldBe Right(2)
-      s.receive() shouldBe Right(4)
-      s.receive() shouldBe Right(6)
-      s.receive() shouldBe Left(ChannelState.Done)
+      s.receive() shouldBe ChannelResult.Value(2)
+      s.receive() shouldBe ChannelResult.Value(4)
+      s.receive() shouldBe ChannelResult.Value(6)
+      s.receive() shouldBe ChannelResult.Done
     }
   }
 
@@ -144,9 +144,9 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
       }
 
       val s = c.transform(_.filter(_ % 2 == 0).flatMap(i => List(i, i + 1)))
-      s.receive() shouldBe Right(0)
-      s.receive() shouldBe Right(1)
-      s.receive() shouldBe Right(2)
+      s.receive() shouldBe ChannelResult.Value(0)
+      s.receive() shouldBe ChannelResult.Value(1)
+      s.receive() shouldBe ChannelResult.Value(2)
     }
   }
 
@@ -162,7 +162,7 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
         }
 
         val s = c.transform(x => x)
-        s.receive() shouldBe Right(0)
+        s.receive() shouldBe ChannelResult.Value(0)
       }
     }
   }
@@ -171,15 +171,15 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
     scoped {
       val c = Source.tick(100.millis)
       val start = System.currentTimeMillis()
-      c.receive() shouldBe Right(())
+      c.receive() shouldBe ChannelResult.Value(())
       (System.currentTimeMillis() - start) shouldBe >=(0L)
       (System.currentTimeMillis() - start) shouldBe <=(50L)
 
-      c.receive() shouldBe Right(())
+      c.receive() shouldBe ChannelResult.Value(())
       (System.currentTimeMillis() - start) shouldBe >=(100L)
       (System.currentTimeMillis() - start) shouldBe <=(150L)
 
-      c.receive() shouldBe Right(())
+      c.receive() shouldBe ChannelResult.Value(())
       (System.currentTimeMillis() - start) shouldBe >=(200L)
       (System.currentTimeMillis() - start) shouldBe <=(250L)
     }
@@ -189,7 +189,7 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
     scoped {
       val c = Source.timeout(100.millis)
       val start = System.currentTimeMillis()
-      c.receive() shouldBe Right(())
+      c.receive() shouldBe ChannelResult.Value(())
       (System.currentTimeMillis() - start) shouldBe >=(100L)
       (System.currentTimeMillis() - start) shouldBe <=(150L)
     }
@@ -202,10 +202,10 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
 
       val s = c1.zip(c2)
 
-      s.receive() shouldBe Right((1, 4))
-      s.receive() shouldBe Right((2, 5))
-      s.receive() shouldBe Right((3, 6))
-      s.receive() shouldBe Left(ChannelState.Done)
+      s.receive() shouldBe ChannelResult.Value((1, 4))
+      s.receive() shouldBe ChannelResult.Value((2, 5))
+      s.receive() shouldBe ChannelResult.Value((3, 6))
+      s.receive() shouldBe ChannelResult.Done
     }
   }
 

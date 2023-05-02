@@ -10,9 +10,9 @@ trait SourceOps[+T] { this: Source[T] =>
     fork {
       repeatWhile {
         receive() match
-          case Left(ChannelState.Done)     => c2.done(); false
-          case Left(ChannelState.Error(e)) => c2.error(e); false
-          case Right(t)                    => sendSuccessful(c2.sendSafe(f(t)))
+          case ChannelResult.Done     => c2.done(); false
+          case ChannelResult.Error(r) => c2.error(r); false
+          case ChannelResult.Value(t) => sendSuccessful(c2.sendSafe(f(t)))
       }
     }
     c2
@@ -21,26 +21,26 @@ trait SourceOps[+T] { this: Source[T] =>
 
   def transform[U](f: Iterator[T] => Iterator[U])(using Ox): Source[U] =
     val it = new Iterator[T]:
-      private var v: Option[ClosedOr[T]] = None
-      private def forceNext(): ClosedOr[T] = v match
+      private var v: Option[ChannelResult[T]] = None
+      private def forceNext(): ChannelResult[T] = v match
         case None    => val temp = receive(); v = Some(temp); temp
         case Some(t) => t
       override def hasNext: Boolean = forceNext() match
-        case Left(ChannelState.Done) => false
-        case _                       => true
+        case ChannelResult.Done => false
+        case _                  => true
       override def next(): T = forceNext() match
-        case Left(ChannelState.Done)     => throw new NoSuchElementException
-        case Left(e: ChannelState.Error) => throw e.toException
-        case Right(t)                    => v = None; t
+        case ChannelResult.Done     => throw new NoSuchElementException
+        case e: ChannelResult.Error => throw e.toException
+        case ChannelResult.Value(t) => v = None; t
 
     Source.from(f(it))
 
   def foreach(f: T => Unit): Unit =
     repeatWhile {
       receive() match
-        case Left(ChannelState.Done)     => false
-        case Left(s: ChannelState.Error) => throw s.toException
-        case Right(t)                    => f(t); true
+        case ChannelResult.Done     => false
+        case e: ChannelResult.Error => throw e.toException
+        case ChannelResult.Value(t) => f(t); true
     }
 
   def toList: List[T] =
@@ -54,9 +54,9 @@ trait SourceOps[+T] { this: Source[T] =>
     fork {
       repeatWhile {
         select(this, other) match
-          case Left(ChannelState.Done)     => c.done(); false
-          case Left(ChannelState.Error(e)) => c.error(e); false
-          case Right(t)                    => c.send(t).isRight
+          case ChannelResult.Done     => c.done(); false
+          case ChannelResult.Error(r) => c.error(r); false
+          case ChannelResult.Value(t) => c.send(t).isValue
       }
     }
     c
@@ -67,18 +67,18 @@ trait SourceOps[+T] { this: Source[T] =>
     fork {
       repeatWhile {
         receive() match
-          case Left(ChannelState.Done)     => c.done(); false
-          case Left(ChannelState.Error(e)) => c.error(e); false
-          case Right(t) =>
+          case ChannelResult.Done     => c.done(); false
+          case ChannelResult.Error(r) => c.error(r); false
+          case ChannelResult.Value(t) =>
             other.receive() match
-              case Left(ChannelState.Done)     => c.done(); false
-              case Left(ChannelState.Error(e)) => c.error(e); false
-              case Right(u)                    => c.send(t, u).isRight
+              case ChannelResult.Done     => c.done(); false
+              case ChannelResult.Error(r) => c.error(r); false
+              case ChannelResult.Value(u) => c.send(t, u).isValue
       }
     }
     c
 
-  private def sendSuccessful(r: ClosedOr[Either[Exception, Unit]]) = r.map(_.isRight).getOrElse(false)
+  private def sendSuccessful(r: ChannelResult[Either[Exception, Unit]]) = r.map(_.isRight).getOrElse(false)
 }
 
 trait SourceCompanionOps:
