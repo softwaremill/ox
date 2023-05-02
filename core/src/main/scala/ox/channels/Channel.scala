@@ -17,7 +17,14 @@ trait Source[+T] extends SourceOps[T]:
 object Source extends SourceCompanionOps
 
 trait Sink[-T]:
-  def send(t: T): ChannelResult[Unit]
+  def send(t: T): ChannelResult[Unit] =
+    try doSend(t)
+    catch
+      case e: InterruptedException =>
+        error(e)
+        throw e
+
+  private[ox] def doSend(t: T): ChannelResult[Unit]
 
   def error(): ChannelResult[Unit] = error(None)
   def error(reason: Exception): ChannelResult[Unit] = error(Some(reason))
@@ -70,7 +77,7 @@ class DirectChannel[T] extends Channel[T]:
   override private[ox] def cellOffer(c: CellCompleter[T]): Unit = waiting.offer(c)
   override private[ox] def cellCleanup(c: CellCompleter[T]): Unit = waiting.remove(c)
 
-  override def send(t: T): ChannelResult[Unit] =
+  override private[ox] final def doSend(t: T): ChannelResult[Unit] =
     state.asResult().flatMap { _ =>
       val pending = PendingElement(t)
       elements.offer(pending)
@@ -117,7 +124,7 @@ class BufferedChannel[T](capacity: Int = 1) extends Channel[T]:
 
   // invariant for send & select: either `elements` is empty or `waiting.filter(_.isOwned.get() == false)` is empty
 
-  override final def send(t: T): ChannelResult[Unit] =
+  override private[ox] final def doSend(t: T): ChannelResult[Unit] =
     state.asResult().flatMap { _ =>
       // First, always adding the element to the end of a queue; a previous design "optimised" this by checking
       // if there's a waiting cell, and if so, completing it with the element. However, this could lead to a race

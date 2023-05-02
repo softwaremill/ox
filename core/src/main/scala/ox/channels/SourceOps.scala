@@ -134,7 +134,7 @@ trait SourceCompanionOps:
       var t = zero
       try
         forever {
-          send_errorWhenInterrupt(c, t)
+          c.send(t)
           t = f(t)
         }
       catch case e: Exception => c.error(e)
@@ -150,7 +150,7 @@ trait SourceCompanionOps:
         repeatWhile {
           f(s) match
             case Some((value, next)) =>
-              send_errorWhenInterrupt(c, value)
+              c.send(value)
               s = next
               true
             case None =>
@@ -167,7 +167,7 @@ trait SourceCompanionOps:
     val c = Channel[T](capacity)
     fork {
       forever {
-        send_errorWhenInterrupt(c, element)
+        c.send(element)
         Thread.sleep(interval.toMillis)
       }
     }
@@ -179,7 +179,7 @@ trait SourceCompanionOps:
     val c = Channel[T](capacity)
     fork {
       forever {
-        send_errorWhenInterrupt(c, element)
+        c.send(element)
       }
     }
     c
@@ -190,16 +190,9 @@ trait SourceCompanionOps:
     val c = Channel[T](capacity)
     fork {
       Thread.sleep(interval.toMillis)
-      send_errorWhenInterrupt(c, element)
+      c.send(element)
       c.done()
     }
     c
-
-  private def send_errorWhenInterrupt[T](c: Sink[T], v: T): Unit = // TODO: make default?
-    try c.send(v)
-    catch
-      case e: InterruptedException =>
-        c.error(e)
-        throw e
 
 private val DefaultCapacity = 0
