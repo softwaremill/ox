@@ -252,4 +252,16 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
       c.toList shouldBe List(0, 1, 2)
     }
   }
+
+  it should "concatenate sources" in {
+    scoped {
+      val s1 = Source.fromValues("a", "b", "c")
+      val s2 = Source.fromValues("d", "e", "f")
+      val s3 = Source.fromValues("g", "h", "i")
+
+      val s = Source.concat(List(() => s1, () => s2, () => s3))
+
+      s.toList shouldBe List("a", "b", "c", "d", "e", "f", "g", "h", "i")
+    }
+  }
 }

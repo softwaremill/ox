@@ -79,6 +79,9 @@ trait SourceOps[+T] { this: Source[T] =>
     }
     c
 
+  def concat[U >: T](other: Source[U])(using Ox): Source[U] = concat(DefaultCapacity)(other)
+  def concat[U >: T](capacity: Int)(other: Source[U])(using Ox): Source[U] = Source.concat(capacity)(List(() => this, () => other))
+
   def zip[U](other: Source[U])(using Ox): Source[(T, U)] = zip(DefaultCapacity)(other)
   def zip[U](capacity: Int)(other: Source[U])(using Ox): Source[(T, U)] =
     val c = Channel[(T, U)](capacity)
@@ -192,6 +195,33 @@ trait SourceCompanionOps:
       Thread.sleep(interval.toMillis)
       c.send(element)
       c.done()
+    }
+    c
+
+  def concat[T](sources: Seq[() => Source[T]])(using Ox): Source[T] = concat(DefaultCapacity)(sources)
+  def concat[T](capacity: Int)(sources: Seq[() => Source[T]])(using Ox): Source[T] =
+    val c = Channel[T](capacity)
+    fork {
+      var currentSource: Option[Source[T]] = None
+      val sourcesIterator = sources.iterator
+      var continue = true
+      try
+        while continue do
+          currentSource match
+            case None if sourcesIterator.hasNext => currentSource = Some(sourcesIterator.next()())
+            case None =>
+              c.done()
+              continue = false
+            case Some(source) =>
+              source.receive() match
+                case ChannelResult.Done =>
+                  currentSource = None
+                case ChannelResult.Error(r) =>
+                  c.error(r)
+                  continue = false
+                case ChannelResult.Value(t) =>
+                  c.send(t)
+      catch case e: Exception => c.error(e)
     }
     c
 
