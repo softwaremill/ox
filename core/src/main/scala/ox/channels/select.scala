@@ -67,18 +67,10 @@ private def doSelect[T](channels: List[Source[T]]): ChannelResult[T] =
       case Nil            => ChannelResult.Value(false)
       case c :: tail =>
         c.elementPeek() match
-          case s: ChannelState.Error =>
-            if cell.tryOwn() then
-              cell.completeWithClosed(s) // we'll be .take-ing from the cell in offerCellAndTake/takeFromCellInterruptSafe
-              // nobody else will complete the cell, we can safely remove it
-              cleanupCell(cell, alsoWhenSingleChannel = true)
-              ChannelResult.Error(s.reason)
-            else
-              // somebody already owned that cell; continuing with the normal process of .take-ing from it
-              ChannelResult.Value(false)
-          case ChannelState.Done => elementExists_verifyNotClosed(tail, allDone, cell)
-          case null              => elementExists_verifyNotClosed(tail, false, cell)
-          case _                 => ChannelResult.Value(true)
+          case ChannelState.Error(e) => ChannelResult.Error(e)
+          case ChannelState.Done     => elementExists_verifyNotClosed(tail, allDone, cell)
+          case null                  => elementExists_verifyNotClosed(tail, false, cell)
+          case _                     => ChannelResult.Value(true)
 
   def offerCellAndTake(c: Cell[T]): ChannelResult[T] =
     channels.foreach(_.cellOffer(c))
