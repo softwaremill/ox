@@ -33,7 +33,10 @@ trait SourceOps[+T] { this: Source[T] =>
     val it = new Iterator[T]:
       private var v: Option[ChannelResult[T]] = None
       private def forceNext(): ChannelResult[T] = v match
-        case None    => val temp = receive(); v = Some(temp); temp
+        case None =>
+          val temp = receive()
+          v = Some(temp)
+          temp
         case Some(t) => t
       override def hasNext: Boolean = forceNext() match
         case ChannelResult.Done => false
@@ -41,7 +44,9 @@ trait SourceOps[+T] { this: Source[T] =>
       override def next(): T = forceNext() match
         case ChannelResult.Done     => throw new NoSuchElementException
         case e: ChannelResult.Error => throw e.toException
-        case ChannelResult.Value(t) => v = None; t
+        case ChannelResult.Value(t) =>
+          v = None
+          t
 
     Source.fromIterator(f(it))
 
