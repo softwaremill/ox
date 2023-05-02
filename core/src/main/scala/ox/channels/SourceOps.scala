@@ -12,7 +12,14 @@ trait SourceOps[+T] { this: Source[T] =>
         receive() match
           case ChannelResult.Done     => c2.done(); false
           case ChannelResult.Error(r) => c2.error(r); false
-          case ChannelResult.Value(t) => sendSuccessful(c2.sendSafe(f(t)))
+          case ChannelResult.Value(t) =>
+            try
+              val u = f(t)
+              c2.send(u).isValue
+            catch
+              case e: Exception =>
+                c2.error(e)
+                false
       }
     }
     c2
@@ -88,8 +95,6 @@ trait SourceOps[+T] { this: Source[T] =>
       }
     }
     c
-
-  private def sendSuccessful(r: ChannelResult[Either[Exception, Unit]]) = r.map(_.isRight).getOrElse(false)
 }
 
 trait SourceCompanionOps:

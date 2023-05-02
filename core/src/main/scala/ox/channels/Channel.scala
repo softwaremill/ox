@@ -19,12 +19,6 @@ object Source extends SourceCompanionOps
 trait Sink[-T]:
   def send(t: T): ChannelResult[Unit]
 
-  /** Evaluates the given block and sends its result. In case of an exception, propagates the error to the channel, and returns it. */
-  def sendSafe(t: => T): ChannelResult[Either[Exception, Unit]] = try send(t).map(Right(_))
-  catch
-    case e: Exception =>
-      error(e).map(_ => Left(e))
-
   def error(): ChannelResult[Unit] = error(None)
   def error(reason: Exception): ChannelResult[Unit] = error(Some(reason))
   def error(reason: Option[Exception]): ChannelResult[Unit]
