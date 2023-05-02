@@ -165,6 +165,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
       }
 
       f3.join()
+      Thread.sleep(100L)
 
       trail.asScala.toList shouldBe List("R1", "S", "R2", "S")
     }
