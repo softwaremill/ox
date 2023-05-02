@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger}
 import scala.concurrent.TimeoutException
 import scala.concurrent.duration.DurationInt
 
-class ControlTest extends AnyFlatSpec with Matchers {
+class RaceTest extends AnyFlatSpec with Matchers {
   "timeout" should "short-circuit a long computation" in {
     val trail = Trail()
     scoped {
