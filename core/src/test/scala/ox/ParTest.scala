@@ -3,7 +3,6 @@ package ox
 import jdk.incubator.concurrent.ScopedValue
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import ox.*
 import ox.util.Trail
 
 import java.time.Clock
