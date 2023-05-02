@@ -8,19 +8,29 @@ lazy val commonSettings = commonSmlBuildSettings ++ ossPublishSettings ++ Seq(
 )
 
 val scalaTest = "org.scalatest" %% "scalatest" % "3.2.15" % Test
-val logback = "ch.qos.logback" % "logback-classic" % "1.4.5"
+val logback = "ch.qos.logback" % "logback-classic" % "1.4.6"
 
 lazy val rootProject = (project in file("."))
-  .settings(commonSettings: _*)
+  .settings(commonSettings)
   .settings(publishArtifact := false, name := "ox")
-  .aggregate(core)
+  .aggregate(core, examples)
 
 lazy val core: Project = (project in file("core"))
-  .settings(commonSettings: _*)
+  .settings(commonSettings)
   .settings(
     name := "core",
+    libraryDependencies ++= Seq(
+      scalaTest
+    )
+  )
+
+lazy val examples: Project = (project in file("examples"))
+  .settings(commonSettings)
+  .settings(
+    name := "examples",
     libraryDependencies ++= Seq(
       logback % Test,
       scalaTest
     )
   )
+  .dependsOn(core)
