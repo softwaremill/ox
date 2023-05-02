@@ -5,8 +5,6 @@ on:
   push:
     branches: ['**']
     tags: [v*]
-env:
-  JAVA_OPTS: "--enable-preview --add-modules jdk.incubator.concurrent"
 jobs:
   ci:
     # run on external PRs, but not on internal PRs since those will be run by push to branch
@@ -19,7 +17,7 @@ jobs:
       uses: actions/setup-java@v3
       with:
         distribution: 'temurin'
-        java-version: '20-ea'
+        java-version: '20'
         cache: 'sbt'
     - name: Compile
       run: sbt -v compile
@@ -38,7 +36,7 @@ jobs:
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
-          java-version: '20-ea'
+          java-version: '20'
       - name: Compile
         run: sbt compile
       - name: Publish artifacts
