@@ -104,7 +104,7 @@ scoped {
 }
 ```
 
-It is a compile-time error to use `fork` outside of a `scoped` block. Helper methods might require to be run with
+It is a compile-time error to use `fork` outside of a `scoped` block. Helper methods might require to be run within
 a `scoped` block by requiring the `Ox` capability:
 
 ```scala
