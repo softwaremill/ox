@@ -20,6 +20,8 @@ Introductory articles:
 * [Prototype Loom-based concurrency API for Scala](https://softwaremill.com/prototype-loom-based-concurrency-api-for-scala/) 
 * [Go-like channels using project Loom and Scala](https://softwaremill.com/go-like-channels-using-project-loom-and-scala/)
 
+# Community
+
 If you'd have feedback, development ideas or critique, please head to our [community forum](https://softwaremill.community/c/ox/12)!
 
 # API overview
@@ -253,9 +255,187 @@ There are some helper methods which might be useful when writing forked code:
 Extension-method syntax can be imported using `import ox.syntax.*`. This allows calling methods such as 
 `.fork`, `.raceSuccessWith`, `.parWith`, `.forever`, `.useInScope` directly on code blocks / values.
 
-## & much more
+## Channels basics
 
-... docs fill follow ... :)
+A channel is like a queue (data can be sent/received), but additionally channels support:
+
+* completion (a source can be `done`)
+* error propagation downstream
+* receiving exactly one value from a number of channels
+
+Creating a channel is a light-weight operation:
+
+```scala
+import ox.channels.*
+val c = Channel[String]()
+```
+
+By default, channels are unbuffered, that is a sender and receiver must "meet" to exchange a value. Hence, `.send` 
+always blocks, unless there's another thread waiting on a `.receive`. 
+
+Buffered channels can be created by providing a non-zero capacity:
+
+```scala
+import ox.channels.*
+val c = Channel[String](5)
+```
+
+Channels implement two trait: `Source` and `Sink`.
+
+## Sinks
+
+Data can be sent to a channel using `.send`. Once no more data items are available, completion can be signalled using
+`.done`. If there's an error when producing data, this can be signalled using `.error`:
+
+```scala
+import ox. {fork, scoped}
+import ox.channels.*
+
+val c = Channel[String]()
+scoped {
+  fork {
+    c.send("Hello")
+    c.send("World")
+    c.done()
+  }
+
+  // TODO: receive
+}
+```
+
+`.send` is blocking, hence usually channels are shared across forks to communicate data between them.
+
+## Sources
+
+A source can be used to receive elements from a channel. The `.receive()` method can block, and the result might be
+one of the following:
+
+```scala
+trait Source[+T]:
+  def receive(): ChannelResult[T]
+
+sealed trait ChannelResult[+T]
+object ChannelResult:
+  sealed trait Closed extends ChannelResult[Nothing]
+  case object Done extends Closed
+  case class Error(reason: Option[Exception]) extends Closed
+  case class Value[T](t: T) extends ChannelResult[T]
+```
+
+That is, the result might be either a value, or information that the channel is closed because it's done or an error
+has occurred. The value might be "unwrapped" to `T`, and closed information thrown as an exception using 
+`receive().orThrow`.
+
+## Creating sources
+
+Sources can be created using one of the many factory methods on the `Source` companion object, e.g.:
+
+```scala
+import ox.channels.Source
+import scala.concurrent.duration.FiniteDuration
+
+Source.fromValues(1, 2, 3)
+Source.tick(1.second, "x")
+Source.iterate(0)(_ + 1) // natural numbers
+```
+
+## Transforming sources
+
+Sources can be transformed by receiving values, manipulating them and sending to other channels - this provides the
+highest flexibility and allows creating arbitrary channel topologies.
+
+However, there's a number of common operations that are built-in as methods on `Source`, which allow transforming the 
+source. For example:
+
+```scala
+import ox.scoped
+import ox.channels.{Channel, Source}
+
+scoped {
+  val c = Channel[String]()
+  val c2: Source[Int] = c.map(s => s.length())
+}
+```
+
+The `.map` needs to be run within a scope, as it starts a new virtual thread (using `fork`), which received values from
+the given source, applies the given function and sends the result to the new channel, which is then returned to the 
+user.
+
+Some other available combinators include `.filter`, `.take`, `.zip(otherSource)`, `.merge(otherSource)` etc.
+
+To run multiple transformations within one virtual thread / fork, the `.transform` method is available:
+
+```scala
+import ox.scoped
+import ox.channels.{Channel, Source}
+
+scoped {
+  val c = Channel[Int]()
+  fork {
+    Source.iterate(0)(_ + 1) // natural numbers
+      .transform(_.filter(_ % 2 == 0).map(_ + 1).take(10)) // take the 10 first even numbers, incremented by 1
+      .foreach(n => println(n.toString))
+  }
+```
+
+## Discharging channels
+
+Values of a source can be terminated using methods such as `.foreach`, `.toList`, `.pipeTo` or `.drain`. These methods
+are blocking, and hence don't need to be run within a scope:
+
+```scala
+import ox.channels.Source
+
+val s = Source.fromValues(1, 2, 3)
+s.toList // List(1, 2, 3)
+```
+
+## Selecting from channels
+
+Channels are distinct from queues in that there's a `select` method, which takes a number of channels, and blocks until
+a value from exactly one of them is received. The other channels are left intact (no values are received).
+
+```scala
+import ox.Souce
+import scala.concurrent.duration.FiniteDuration
+
+case object Tick
+def consumer(strings: Source[String]): Nothing =
+  scoped {
+    val tick = Source.tick(1.second, Tick)
+
+    @tailrec
+    def doConsume(acc: Int): Nothing =
+      select(strings, tick).orThrow match
+        case Tick =>
+          log.info(s"Characters received this second: $acc")
+          doConsume(0)
+        case s: String => doConsume(acc + s.length)
+
+    doConsume(0)
+  }
+```
+
+If any of the channels is in an error state, `select` returns with that error. If all channels are done, `selects` 
+returns with a `Done` as well.
+
+## Error propagation
+
+Errors are only propagated downstream, ultimately reaching the point where the source is discharged, leading to an
+exception being thrown there.
+
+Won't this design cause upstream channels / sources to operate despite the consumer being gone (because of the 
+exception)?
+
+No: the exception should cause the containing scope to finish, interrupting any forks that are operating in the 
+background. Any unused channels can then be garbage-collected.
+
+The role of the exception handler is then to re-create the entire processing pipeline, or escalate the error further.
+
+## Backpressure
+
+Channels are back-pressured, as the `.send` operation is blocking until there's a receiver thread available, or if 
+there's enough space in the buffer. The processing space is bound by the total size of channel buffers.
 
 # Development
 

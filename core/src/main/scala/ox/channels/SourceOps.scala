@@ -50,27 +50,6 @@ trait SourceOps[+T] { this: Source[T] =>
 
     Source.fromIterator(f(it))
 
-  def foreach(f: T => Unit): Unit =
-    repeatWhile {
-      receive() match
-        case ChannelResult.Done     => false
-        case e: ChannelResult.Error => throw e.toException
-        case ChannelResult.Value(t) => f(t); true
-    }
-
-  def toList: List[T] =
-    val b = List.newBuilder[T]
-    foreach(b += _)
-    b.result()
-
-  def pipeTo(sink: Sink[T]): Unit =
-    repeatWhile {
-      receive() match
-        case ChannelResult.Done     => sink.done(); false
-        case ChannelResult.Error(r) => sink.error(r); false
-        case ChannelResult.Value(t) => sink.send(t).isValue
-    }
-
   def merge[U >: T](other: Source[U])(using Ox): Source[U] = merge(DefaultCapacity)(other)
   def merge[U >: T](capacity: Int)(other: Source[U])(using Ox): Source[U] =
     val c = Channel[U](capacity)
@@ -103,6 +82,31 @@ trait SourceOps[+T] { this: Source[T] =>
       }
     }
     c
+
+  //
+
+  def foreach(f: T => Unit): Unit =
+    repeatWhile {
+      receive() match
+        case ChannelResult.Done     => false
+        case e: ChannelResult.Error => throw e.toException
+        case ChannelResult.Value(t) => f(t); true
+    }
+
+  def toList: List[T] =
+    val b = List.newBuilder[T]
+    foreach(b += _)
+    b.result()
+
+  def pipeTo(sink: Sink[T]): Unit =
+    repeatWhile {
+      receive() match
+        case ChannelResult.Done     => sink.done(); false
+        case ChannelResult.Error(r) => sink.error(r); false
+        case ChannelResult.Value(t) => sink.send(t).isValue
+    }
+
+  def drain: ChannelResult[Unit] = foreach(_ => ())
 }
 
 trait SourceCompanionOps:
