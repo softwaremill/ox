@@ -1,8 +1,8 @@
 # Ox
 
 Developer-friendly structured concurrency library for the JVM, based on:
-* [Project Loom](https://openjdk.org/projects/loom/)
-* structured concurrency Java APIs ([JEP 428](https://openjdk.org/jeps/428)), 
+* [Project Loom](https://openjdk.org/projects/loom/) (virtual threads)
+* structured concurrency Java APIs ([JEP 428](https://openjdk.org/jeps/428)) 
 * scoped values ([JEP 429](https://openjdk.org/jeps/429))
 * [Go](https://golang.org)-like channels
 * the [Scala](https://www.scala-lang.org) programming language
@@ -60,7 +60,13 @@ val result: Int = raceSuccess(computation1)(computation2)
 // 2
 ```
 
-The other computation is interrupted using `Thread.interrupt`; `raceSuccess` waits until both branches complete.
+The loosing computation is interrupted using `Thread.interrupt`. `raceSuccess` waits until both branches finish; this
+also applies to the loosing one, which might take a while to clean up after interruption.
+
+### Error handling
+
+* `raceSuccess` returns the first result, or re-throws the last exception
+* `raceResult` returns the first result, or re-throws the first exception
 
 ## Timeout a computation
 
@@ -121,6 +127,131 @@ scoped {
   (f1.join(), f2.join())
 }
 ```
+
+Scopes can be arbitrarily nested.
+
+### Error handling
+
+Any unhandled exceptions that are thrown in a `fork` block are propagated to the scope's main thread, by interrupting
+it and re-throwing the exception there. Hence, any failed fork will cause the entire scope's computation to be 
+interrupted, and unless interruptions are intercepted, all other forks will get interrupted as well.
+
+On the other hand, `forkHold` doesn't propagate any exceptions but retains them. The result of the fork must be
+explicitly inspected to discover, if the computation failed or succeeded, e.g. using the `Fork.join` method.
+
+## Scoped values
+
+Scoped value replace usages of `ThreadLocal` when using virtual threads and structural concurrency. They are useful to 
+propagate auxiliary context, e.g. trace or correlation ids.
+
+Values are bound structurally as well, e.g.:
+
+```scala
+import ox.{ForkLocal, fork, scoped}
+
+val v = ForkLocal("a")
+scoped {
+  println(v.get()) // "a"
+  fork {
+    v.scopedWhere("x") {
+      println(v.get()) // "x"
+      fork {
+        println(v.get()) // "x"
+      }.join()
+    }
+  }.join()
+  println(v.get()) // "a"
+}
+```
+
+Scoped values propagate across nested scopes.
+
+## Interruptions
+
+When catching exceptions, care must be taken not to catch & fail to propagate an `InterruptedException`. Doing so will
+prevent the scope cleanup mechanisms to make appropriate progress, as the scope won't finish until all started threads
+complete.
+
+A good solution is to catch only non-fatal exception using `NonFatal`, e.g.:
+
+```scala
+import ox.{forever, fork, scoped}
+
+def processSingleItem(): Unit = ()
+
+scoped {
+  fork {
+    forever {
+      try processSingleItem()
+      catch case NonFatal(e) => logger.error("Processing error", e)
+    }
+  }
+
+  // do something else that keeps the scope busy
+}
+```
+
+## Resources
+
+### In-scope
+
+Resources can be allocated within a scope. They will be released in reverse acquisition order, after the scope completes
+(that is, after all forks started within finish). E.g.:
+
+```scala
+import ox.useScoped
+
+case class MyResource(c: Int)
+
+def acquire: MyResource = 
+  println("acquiring ...")
+  MyResource(5)
+def release(resource: MyResource): Unit =
+  println(s"releasing ${resource.c}...")
+
+scoped {
+  val resource1 = useInScope(acquire(10))(release)
+  val resource2 = useInScope(acquire(20))(release)
+  println(s"Using $resource1 ...")
+  println(s"Using $resource2 ...")
+}
+```
+
+### Scoped
+
+Resources can also be used in a dedicated scope:
+
+```scala
+import ox.useScoped
+
+case class MyResource(c: Int)
+
+def acquire: MyResource = 
+  println("acquiring ...")
+  MyResource(5)
+def release(resource: MyResource): Unit =
+  println(s"releasing ${resource.c}...")
+
+useScoped(acquire(10))(release) { resource =>
+  println(s"Using $resource ...")
+}
+```
+
+If the resource extends `AutoCloseable`, the `release` method doesn't need to be provided.
+
+## Helper control flow methods
+
+There are some helper methods which might be useful when writing forked code:
+
+* `forever { ... }` repeatedly evaluates the given code block forever
+* `repeatWhile { ... }` repeatedly evaluates the given code block, as long as it returns `true`
+* `retry(times, sleep) { ... }` retries the given block up to the given number of times
+* `uninterruptible { ... }` evaluates the given code block making sure it can't be interrupted
+
+## Syntax
+
+Extension-method syntax can be imported using `import ox.syntax.*`. This allows calling methods such as 
+`.fork`, `.raceSuccessWith`, `.parWith`, `.forever`, `.useInScope` directly on code blocks / values.
 
 ## & much more
 
