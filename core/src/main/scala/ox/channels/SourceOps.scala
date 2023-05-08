@@ -5,6 +5,7 @@ import ox.*
 import scala.concurrent.duration.FiniteDuration
 
 trait SourceOps[+T] { this: Source[T] =>
+  def map[U](f: T => U)(using Ox): Source[U] = map(DefaultCapacity)(f)
   def map[U](capacity: Int)(f: T => U)(using Ox): Source[U] =
     val c2 = Channel[U](capacity)
     fork {
@@ -24,12 +25,14 @@ trait SourceOps[+T] { this: Source[T] =>
     }
     c2
 
-  def map[U](f: T => U)(using Ox): Source[U] = map(DefaultCapacity)(f)
+  def take(n: Int)(using Ox): Source[T] = take(DefaultCapacity)(n)
+  def take(capacity: Int)(n: Int)(using Ox): Source[T] = transform(capacity)(_.take(n))
 
-  def take(n: Int)(using Ox): Source[T] = transform(_.take(n))
-  def filter(f: T => Boolean)(using Ox): Source[T] = transform(_.filter(f))
+  def filter(f: T => Boolean)(using Ox): Source[T] = filter(DefaultCapacity)(f)
+  def filter(capacity: Int)(f: T => Boolean)(using Ox): Source[T] = transform(capacity)(_.filter(f))
 
-  def transform[U](f: Iterator[T] => Iterator[U])(using Ox): Source[U] =
+  def transform[U](f: Iterator[T] => Iterator[U])(using Ox): Source[U] = transform(DefaultCapacity)(f)
+  def transform[U](capacity: Int)(f: Iterator[T] => Iterator[U])(using Ox): Source[U] =
     val it = new Iterator[T]:
       private var v: Option[ChannelResult[T]] = None
       private def forceNext(): ChannelResult[T] = v match
@@ -47,8 +50,7 @@ trait SourceOps[+T] { this: Source[T] =>
         case ChannelResult.Value(t) =>
           v = None
           t
-
-    Source.fromIterator(f(it))
+    Source.fromIterator(capacity)(f(it))
 
   def merge[U >: T](other: Source[U])(using Ox): Source[U] = merge(DefaultCapacity)(other)
   def merge[U >: T](capacity: Int)(other: Source[U])(using Ox): Source[U] =
@@ -106,7 +108,7 @@ trait SourceOps[+T] { this: Source[T] =>
         case ChannelResult.Value(t) => sink.send(t).isValue
     }
 
-  def drain: ChannelResult[Unit] = foreach(_ => ())
+  def drain(): Unit = foreach(_ => ())
 }
 
 trait SourceCompanionOps:
