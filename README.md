@@ -396,7 +396,7 @@ Channels are distinct from queues in that there's a `select` method, which takes
 a value from exactly one of them is received. The other channels are left intact (no values are received).
 
 ```scala
-import ox.Souce
+import ox.Source
 import scala.concurrent.duration.FiniteDuration
 
 case object Tick
