@@ -48,7 +48,7 @@ trait Sink[-T]:
   // The Send trait is needed to "hide" the value of type T, so that it's not accessible after construction & casting.
   // Otherwise we could do `val x = Sink[Superclass].Send(); val y: Sink[Subclass#Send] = x`, and then we could access
   // the value through `y`, which is not necessarily of type `Subclass`.
-  trait Send extends ChannelClause[Unit]:
+  sealed trait Send extends ChannelClause[Unit]:
     type Result = Sent
     override def channel: Sink[T] = Sink.this
 
