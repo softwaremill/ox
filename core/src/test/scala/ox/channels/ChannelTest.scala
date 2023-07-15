@@ -52,7 +52,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
       }
     }
 
-    it should "select from multiple channels" in {
+    it should "select a receive from multiple channels" in {
       val n = 1000
       val cn = 10
 
@@ -78,7 +78,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
       }
     }
 
-    it should "select until all channels are done" in {
+    it should "select a receive until all channels are done" in {
       val n = 10
       val cn = 10
 
@@ -110,6 +110,15 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     }
   }
 
+  "buffered channel" should "select a send when one is available" in {
+    val c1 = Channel[Int](1)
+    val c2 = Channel[Int](1)
+    select(c1.sendClause(1), c2.sendClause(2)).orThrow should matchPattern { case _: Channel[_]#Sent => }
+    select(c1.sendClause(1), c2.sendClause(2)).orThrow should matchPattern { case _: Channel[_]#Sent => }
+
+    Set(c1.receive().orThrow, c2.receive().orThrow) shouldBe Set(1, 2)
+  }
+
   "channel" should "receive from a channel until done" in {
     val c = Channel[Int](3)
     c.send(1)
@@ -132,7 +141,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     c.receive() shouldBe ChannelResult.Error(None) // repeat
   }
 
-  it should "select from a channel if one is not done" in {
+  it should "select a receive from a channel if one is not done" in {
     val c1 = Channel[Int]()
     c1.done()
 
@@ -168,6 +177,36 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
       Thread.sleep(100L)
 
       trail.asScala.toList shouldBe List("R1", "S", "R2", "S")
+    }
+  }
+
+  it should "select a send when a receive is waiting" in {
+    val c1 = Channel[Int](0)
+    val c2 = Channel[Int](0)
+
+    scoped {
+      val f1 = fork(c1.receive().orThrow)
+      select(c1.sendClause(1), c2.sendClause(2)).orThrow
+      f1.join() shouldBe 1
+
+      val f2 = fork(c2.receive().orThrow)
+      select(c1.sendClause(1), c2.sendClause(2)).orThrow
+      f2.join() shouldBe 2
+    }
+  }
+
+  it should "select a send or receive depending on availability" in {
+    val c1 = Channel[Int](0)
+    val c2 = Channel[Int](0)
+
+    scoped {
+      val f1 = fork(c1.receive().orThrow)
+      select(c1.sendClause(1), c2.receiveClause).orThrow shouldBe c1.Sent()
+      f1.join() shouldBe 1
+
+      val f2 = fork(c2.send(2).orThrow)
+      select(c1.sendClause(1), c2.receiveClause).orThrow shouldBe c2.Received(2)
+      f2.join() shouldBe ()
     }
   }
 }
