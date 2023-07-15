@@ -68,7 +68,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
 
         fork {
           forever {
-            result.addAndGet(select(cs).orThrow)
+            result.addAndGet(select(cs.map(_.receiveClause)).orThrow.value)
           }
         }
 
@@ -97,8 +97,8 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
         fork {
           var loop = true
           while loop do {
-            val r = select(cs)
-            result.add(r)
+            val r = select(cs.map(_.receiveClause))
+            result.add(r.map(_.value))
             loop = r != ChannelResult.Done
           }
         }
@@ -139,7 +139,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     val c2 = Channel[Int](1)
     c2.send(1)
 
-    select(c1, c2) shouldBe ChannelResult.Value(1)
+    select(c1.receiveClause, c2.receiveClause).map(_.value) shouldBe ChannelResult.Value(1)
   }
 
   "direct channel" should "wait until elements are transmitted" in {

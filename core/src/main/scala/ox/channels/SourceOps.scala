@@ -57,10 +57,10 @@ trait SourceOps[+T] { this: Source[T] =>
     val c = Channel[U](capacity)
     fork {
       repeatWhile {
-        select(this, other) match
+        select((this: Source[U]).receiveClause, other.receiveClause) match
           case ChannelResult.Done     => c.done(); false
           case ChannelResult.Error(r) => c.error(r); false
-          case ChannelResult.Value(t) => c.send(t).isValue
+          case ChannelResult.Value(t) => c.send(t.value).isValue
       }
     }
     c

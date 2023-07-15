@@ -3,31 +3,17 @@ package ox.channels
 import scala.annotation.tailrec
 import scala.util.Random
 
-def select[T1, T2](ch1: Source[T1], ch2: Source[T2]): ChannelResult[T1 | T2] = select(List(ch1, ch2))
+def select(clause1: ChannelClause[_], clause2: ChannelClause[_]): ChannelResult[clause1.Result | clause2.Result] =
+  select(List(clause1, clause2)).asInstanceOf[ChannelResult[clause1.Result | clause2.Result]]
 
-def selectNow[T1, T2](ch1: Source[T1], ch2: Source[T2]): ChannelResult[Option[T1 | T2]] = selectNow(List(ch1, ch2))
+def select[T](clauses: List[ChannelClause[T]]): ChannelResult[ChannelClauseResult[T]] =
+  // randomizing the order of the channels to ensure fairness: not the most efficient solution, but will have to do for now
+  doSelect(Random.shuffle(clauses))
 
-/** Receive an element from exactly one of the channels, if such an element is immediately available. */
-def selectNow[T](chs: List[Source[T]]): ChannelResult[Option[T]] = doSelectNow(Random.shuffle(chs))
+//def select[T1, T2](ch1: Source[T1], ch2: Source[T2]): ChannelResult[T1 | T2] = select(List(ch1, ch2))
 
-@tailrec
-private def doSelectNow[T](chs: List[Source[T]]): ChannelResult[Option[T]] =
-  chs match
-    case Nil => ChannelResult.Value(None)
-    case ch :: tail =>
-      val e = ch.elementPoll()
-      e match
-        case s: ChannelState.Error    => ChannelResult.Error(s.reason)
-        case null | ChannelState.Done => doSelectNow(tail)
-        case v: T                     => ChannelResult.Value(Some(v))
-
-/** Receive an element from exactly one of the channels, blocking if necessary. Complexity: sum of the waiting queues of the channels. */
-def select[T](channels: List[Source[T]]): ChannelResult[T] =
-  // randomizing the order of the channels to ensure fairness: not the mos efficient solution, but will have to do for now
-  doSelect(Random.shuffle(channels))
-
-private def doSelect[T](channels: List[Source[T]]): ChannelResult[T] =
-  def cellTakeInterrupted(c: Cell[T], e: InterruptedException): ChannelResult[T] =
+private def doSelect[T](clauses: List[ChannelClause[T]]): ChannelResult[ChannelClauseResult[T]] =
+  def cellTakeInterrupted(c: Cell[T], e: InterruptedException): ChannelResult[ChannelClauseResult[T]] =
     // trying to invalidate the cell by owning it
     if c.tryOwn() then
       // nobody else will complete the cell, we can re-throw the exception
@@ -36,74 +22,68 @@ private def doSelect[T](channels: List[Source[T]]): ChannelResult[T] =
       // somebody else completed the cell; might block, but even if, only for a short period of time, as the
       // cell-owning thread should complete it without blocking
       c.take() match
-        case _: Cell[T] =>
+        case _: Cell[T] @unchecked =>
           // nobody else will complete the new cell, as it's not put on the channels waiting queues, we can re-throw the exception
           throw e
         case s: ChannelState.Error => ChannelResult.Error(s.reason)
-        case ChannelState.Done     => doSelect(channels)
-        case t: T                  =>
-          // received the element; interrupting self and returning it
+        case ChannelState.Done     =>
+          // one of the channels is done, others might be not, but we simply re-throw the exception
+          throw e
+        case t: ChannelClauseResult[T] @unchecked =>
+          // completed with a value; interrupting self and returning it
           try ChannelResult.Value(t)
           finally Thread.currentThread().interrupt()
 
-  def takeFromCellInterruptSafe(c: Cell[T]): ChannelResult[T] =
+  def takeFromCellInterruptSafe(c: Cell[T]): ChannelResult[ChannelClauseResult[T]] =
     try
       c.take() match
-        case c2: Cell[T]           => offerCellAndTake(c2) // we got a new cell on which we should be waiting, add it to the channels
-        case s: ChannelState.Error => ChannelResult.Error(s.reason)
-        case ChannelState.Done     => doSelect(channels)
-        case t: T                  => ChannelResult.Value(t)
+        case c2: Cell[T] @unchecked => offerCellAndTake(c2) // we got a new cell on which we should be waiting, add it to the channels
+        case s: ChannelState.Error  => ChannelResult.Error(s.reason)
+        case ChannelState.Done      => doSelect(clauses)
+        case t: ChannelClauseResult[T] @unchecked => ChannelResult.Value(t)
     catch case e: InterruptedException => cellTakeInterrupted(c, e)
     // now that the cell has been filled, it is owned, and should be removed from the waiting lists of the other channels
-    finally cleanupCell(c, alsoWhenSingleChannel = false)
+    finally cleanupCell(c, alsoWhenSingleClause = false)
 
-  def cleanupCell(cell: Cell[T], alsoWhenSingleChannel: Boolean): Unit =
-    if channels.length > 1 || alsoWhenSingleChannel then channels.foreach(_.cellCleanup(cell))
+  def cleanupCell(cell: Cell[T], alsoWhenSingleClause: Boolean): Unit =
+    if clauses.length > 1 || alsoWhenSingleClause then
+      clauses.foreach {
+        case s: Source[_]#Receive               => s.channel.receiveCellCleanup(cell)
+        case s: BufferedChannel[_]#BufferedSend => s.channel.sendCellCleanup(cell)
+        case s: DirectChannel[_]#DirectSend     => s.channel.sendCellCleanup(cell)
+      }
 
   @tailrec
-  def elementExists_verifyNotClosed(chs: List[Source[T]], allDone: Boolean, cell: Cell[T]): ChannelResult[Boolean] =
-    chs match
+  def trySatisfyWaiting(ccs: List[ChannelClause[T]], allDone: Boolean): ChannelResult[Unit] =
+    ccs match
       case Nil if allDone => ChannelResult.Done
-      case Nil            => ChannelResult.Value(false)
-      case c :: tail =>
-        c.elementPeek() match
-          case ChannelState.Error(e) => ChannelResult.Error(e)
-          case ChannelState.Done     => elementExists_verifyNotClosed(tail, allDone, cell)
-          case null                  => elementExists_verifyNotClosed(tail, false, cell)
-          case _                     => ChannelResult.Value(true)
+      case Nil            => ChannelResult.Value(())
+      case clause :: tail =>
+        val clauseTrySatisfyResult = clause.channel match
+          case s: Source[_] => s.trySatisfyWaiting()
+          case s: Sink[_]   => s.trySatisfyWaiting()
 
-  def offerCellAndTake(c: Cell[T]): ChannelResult[T] =
-    channels.foreach(_.cellOffer(c))
+        clauseTrySatisfyResult match
+          case ChannelResult.Error(e) => ChannelResult.Error(e)
+          case ChannelResult.Done     => trySatisfyWaiting(tail, allDone)
+          case _                      => trySatisfyWaiting(tail, false)
 
-    // check, if no new element has arrived in the meantime (possibly, before we added the cell)
-    // plus, verify that none of the channels is in an error state, and that not all channels are closed
-    elementExists_verifyNotClosed(channels, allDone = true, c) match {
-      case ChannelResult.Value(true) =>
-        // some element arrived in the meantime: trying to invalidate the cell by owning it
-        if c.tryOwn() then
-          // We managed to complete the cell before any other thread. We are sure that there's nobody waiting on this
-          // cell, as this could only be us.
-          // First, we need to remove the now stale cell from the channels' waiting lists, even if there's only one
-          // channel: we owned the cell, so we can't know if anybody ever dequeued it.
-          cleanupCell(c, alsoWhenSingleChannel = true)
-          // Try to obtain an element again
-          doSelect(channels)
-        else
-          // some other thread already completed the cell - receiving the element
-          takeFromCellInterruptSafe(c)
-      case ChannelResult.Value(false) =>
-        // still no new elements - waiting for one to arrive
-        takeFromCellInterruptSafe(c)
+  def offerCellAndTake(c: Cell[T]): ChannelResult[ChannelClauseResult[T]] =
+    clauses.foreach {
+      case s: Source[_]#Receive               => s.channel.receiveCellOffer(c)
+      case s: BufferedChannel[_]#BufferedSend => s.channel.sendCellOffer(s.v, c)
+      case s: DirectChannel[_]#DirectSend     => s.channel.sendCellOffer(s.v, c)
+    }
+
+    trySatisfyWaiting(clauses, allDone = true) match {
+      case ChannelResult.Value(()) => takeFromCellInterruptSafe(c)
       case r: ChannelResult.Closed =>
         // either the cell is already taken off one of the waiting queues & being completed, or it's never going to get handled
         if c.tryOwn() then
           // nobody else will complete the cell, we can safely remove it
-          cleanupCell(c, alsoWhenSingleChannel = true)
+          cleanupCell(c, alsoWhenSingleClause = true)
           r
         else takeFromCellInterruptSafe(c)
     }
 
-  doSelectNow(channels).flatMap {
-    case Some(e) => ChannelResult.Value(e)
-    case None => offerCellAndTake(Cell[T]) // none of the channels has an available element - enqueue a cell on each channel's waiting list
-  }
+  offerCellAndTake(Cell[T])
