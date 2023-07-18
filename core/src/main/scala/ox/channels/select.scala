@@ -6,9 +6,11 @@ import scala.util.Random
 def select(clause1: ChannelClause[_], clause2: ChannelClause[_]): ChannelResult[clause1.Result | clause2.Result] =
   select(List(clause1, clause2)).asInstanceOf[ChannelResult[clause1.Result | clause2.Result]]
 
+/** The select is biased towards the clauses first on the list. To ensure fairness, you might want to randomize the clause order using
+  * {{{Random.shuffle(clauses)}}}.
+  */
 def select[T](clauses: List[ChannelClause[T]]): ChannelResult[ChannelClauseResult[T]] =
-  // randomizing the order of the channels to ensure fairness: not the most efficient solution, but will have to do for now
-  doSelect(Random.shuffle(clauses))
+  doSelect(clauses)
 
 //def select[T1, T2](ch1: Source[T1], ch2: Source[T2]): ChannelResult[T1 | T2] = select(List(ch1, ch2))
 
@@ -53,29 +55,33 @@ private def doSelect[T](clauses: List[ChannelClause[T]]): ChannelResult[ChannelC
         case s: DirectChannel[_]#DirectSend     => s.channel.sendCellCleanup(cell)
       }
 
-  @tailrec
-  def trySatisfyWaiting(ccs: List[ChannelClause[T]], allDone: Boolean): ChannelResult[Unit] =
+  @tailrec def offerAndTrySatisfy(ccs: List[ChannelClause[T]], c: Cell[T], allDone: Boolean): ChannelResult[Unit] =
     ccs match
       case Nil if allDone => ChannelResult.Done
       case Nil            => ChannelResult.Value(())
       case clause :: tail =>
-        val clauseTrySatisfyResult = clause.channel match
-          case s: Source[_] => s.trySatisfyWaiting()
-          case s: Sink[_]   => s.trySatisfyWaiting()
+        val clauseTrySatisfyResult = clause match
+          case s: Source[_]#Receive =>
+            s.channel.receiveCellOffer(c)
+            s.channel.trySatisfyWaiting()
+          case s: BufferedChannel[_]#BufferedSend =>
+            s.channel.sendCellOffer(s.v, c)
+            s.channel.trySatisfyWaiting()
+          case s: DirectChannel[_]#DirectSend =>
+            s.channel.sendCellOffer(s.v, c)
+            s.channel.trySatisfyWaiting()
 
         clauseTrySatisfyResult match
           case ChannelResult.Error(e) => ChannelResult.Error(e)
-          case ChannelResult.Done     => trySatisfyWaiting(tail, allDone)
-          case _                      => trySatisfyWaiting(tail, false)
+          case ChannelResult.Done     => offerAndTrySatisfy(tail, c, allDone)
+          // optimization: checking if the cell is already owned; if so, no need to put it on other queues
+          // TODO: this might be possibly further optimized, by returning the satisfied cells from trySatisfyWaiting()
+          // TODO: and then checking if the cell is already satisfied, instead of looking at the AtomicBoolean
+          case _ if c.isAlreadyOwned => ChannelResult.Value(())
+          case _                     => offerAndTrySatisfy(tail, c, false)
 
   def offerCellAndTake(c: Cell[T]): ChannelResult[ChannelClauseResult[T]] =
-    clauses.foreach {
-      case s: Source[_]#Receive               => s.channel.receiveCellOffer(c)
-      case s: BufferedChannel[_]#BufferedSend => s.channel.sendCellOffer(s.v, c)
-      case s: DirectChannel[_]#DirectSend     => s.channel.sendCellOffer(s.v, c)
-    }
-
-    trySatisfyWaiting(clauses, allDone = true) match {
+    offerAndTrySatisfy(clauses, c, allDone = true) match {
       case ChannelResult.Value(()) => takeFromCellInterruptSafe(c)
       case r: ChannelResult.Closed =>
         // either the cell is already taken off one of the waiting queues & being completed, or it's never going to get handled

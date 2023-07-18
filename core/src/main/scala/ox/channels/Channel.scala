@@ -29,7 +29,7 @@ trait Source[+T] extends SourceOps[T]:
     type Result = Received
     override def channel: Source[T] = Source.this
 
-  def receiveClause: Receive = Receive()
+  val receiveClause: Receive = Receive()
   def receive(): ChannelResult[T]
 
   private[ox] def receiveCellOffer(c: CellCompleter[T]): Unit

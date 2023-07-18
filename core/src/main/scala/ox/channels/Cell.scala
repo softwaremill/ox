@@ -30,3 +30,4 @@ private[ox] class Cell[T] extends CellCompleter[T]:
   override def completeWithClosed(s: ChannelState.Closed): Unit = cell.add(s)
   override def tryOwn(): Boolean = isOwned.compareAndSet(false, true)
   def take(): ChannelClauseResult[T] | Cell[T] | ChannelState.Closed = cell.take()
+  def isAlreadyOwned: Boolean = isOwned.get()
