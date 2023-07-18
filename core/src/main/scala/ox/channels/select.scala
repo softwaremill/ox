@@ -6,13 +6,33 @@ import scala.util.Random
 def select(clause1: ChannelClause[_], clause2: ChannelClause[_]): ChannelResult[clause1.Result | clause2.Result] =
   select(List(clause1, clause2)).asInstanceOf[ChannelResult[clause1.Result | clause2.Result]]
 
+def select(
+    clause1: ChannelClause[_],
+    clause2: ChannelClause[_],
+    clause3: ChannelClause[_]
+): ChannelResult[clause1.Result | clause2.Result | clause3.Result] =
+  select(List(clause1, clause2)).asInstanceOf[ChannelResult[clause1.Result | clause2.Result | clause3.Result]]
+
+def select[T1, T2](source1: Source[T1], source2: Source[T2]): ChannelResult[T1 | T2] =
+  select(source1.receiveClause, source2.receiveClause).map {
+    case source1.Received(v) => v
+    case source2.Received(v) => v
+  }
+
+def select[T1, T2, T3](source1: Source[T1], source2: Source[T2], source3: Source[T3]): ChannelResult[T1 | T2 | T3] =
+  select(source1.receiveClause, source2.receiveClause, source3.receiveClause).map {
+    case source1.Received(v) => v
+    case source2.Received(v) => v
+    case source3.Received(v) => v
+  }
+
 /** The select is biased towards the clauses first on the list. To ensure fairness, you might want to randomize the clause order using
   * {{{Random.shuffle(clauses)}}}.
   */
-def select[T](clauses: List[ChannelClause[T]]): ChannelResult[ChannelClauseResult[T]] =
-  doSelect(clauses)
+def select[T](clauses: List[ChannelClause[T]]): ChannelResult[ChannelClauseResult[T]] = doSelect(clauses)
 
-//def select[T1, T2](ch1: Source[T1], ch2: Source[T2]): ChannelResult[T1 | T2] = select(List(ch1, ch2))
+def select[T](sources: List[Source[T]])(using DummyImplicit): ChannelResult[T] =
+  doSelect(sources.map(_.receiveClause: ChannelClause[T])).map(_.value)
 
 private def doSelect[T](clauses: List[ChannelClause[T]]): ChannelResult[ChannelClauseResult[T]] =
   def cellTakeInterrupted(c: Cell[T], e: InterruptedException): ChannelResult[ChannelClauseResult[T]] =
