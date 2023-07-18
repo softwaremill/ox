@@ -92,14 +92,14 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
           }
         }
 
-        val result = new ConcurrentLinkedQueue[ChannelResult[Int]]()
+        val result = new ConcurrentLinkedQueue[Int | ChannelClauseResult.Closed]()
 
         fork {
           var loop = true
           while loop do {
             val r = select(cs.map(_.receiveClause))
             result.add(r.map(_.value))
-            loop = r != ChannelResult.Done
+            loop = r != ChannelClauseResult.Done
           }
         }
 
@@ -127,8 +127,8 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
 
     c.receive().orThrow shouldBe 1
     c.receive().orThrow shouldBe 2
-    c.receive() shouldBe ChannelResult.Done
-    c.receive() shouldBe ChannelResult.Done // repeat
+    c.receive() shouldBe ChannelClauseResult.Done
+    c.receive() shouldBe ChannelClauseResult.Done // repeat
   }
 
   it should "not receive from a channel in case of an error" in {
@@ -137,8 +137,8 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     c.send(2)
     c.error()
 
-    c.receive() shouldBe ChannelResult.Error(None)
-    c.receive() shouldBe ChannelResult.Error(None) // repeat
+    c.receive() shouldBe ChannelClauseResult.Error(None)
+    c.receive() shouldBe ChannelClauseResult.Error(None) // repeat
   }
 
   it should "select a receive from a channel if one is not done" in {
@@ -148,7 +148,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     val c2 = Channel[Int](1)
     c2.send(1)
 
-    select(c1.receiveClause, c2.receiveClause).map(_.value) shouldBe ChannelResult.Value(1)
+    select(c1.receiveClause, c2.receiveClause).map(_.value) shouldBe 1
   }
 
   "direct channel" should "wait until elements are transmitted" in {
