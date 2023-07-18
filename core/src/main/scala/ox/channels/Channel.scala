@@ -282,15 +282,6 @@ private class CurrentChannelState:
     case ChannelState.Done     => ChannelResult.Done
     case ChannelState.Error(r) => ChannelResult.Error(r)
 
-  def elementOrClosed[T](f: => T): T | ChannelState.Closed =
-    state.get() match
-      case e: ChannelState.Error => e
-      case s =>
-        f match
-          case null if s == ChannelState.Done => ChannelState.Done
-          case null                           => null
-          case e                              => e
-
   def get(): ChannelState = state.get()
 
   private def set(s: ChannelState.Closed): ChannelResult[ChannelState.Closed] =
