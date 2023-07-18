@@ -107,6 +107,7 @@ private def doSelect[T](clauses: List[ChannelClause[T]]): ChannelResult[ChannelC
         // either the cell is already taken off one of the waiting queues & being completed, or it's never going to get handled
         if c.tryOwn() then
           // nobody else will complete the cell, we can safely remove it
+          // TODO: only cleanup the cell from channels to which it has been actually added - see the optimization above
           cleanupCell(c, alsoWhenSingleClause = true)
           r
         else takeFromCellInterruptSafe(c)
