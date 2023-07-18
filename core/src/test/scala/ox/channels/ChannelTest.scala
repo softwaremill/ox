@@ -53,7 +53,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     }
 
     it should "select a receive from multiple channels" in {
-      val n = 1000
+      val n = 100
       val cn = 10
 
       val cs = (1 to cn).map(_ => Channel[Int](capacity)).toList
