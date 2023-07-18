@@ -10,20 +10,18 @@ import scala.util.Try
 
 // results
 
-sealed trait ChannelClauseResult[+T]
-//case class DefaultResult[T](v: T) extends ClauseResult[T]
-
-sealed trait ChannelValueResult[+T] extends ChannelClauseResult[T]:
+sealed trait ChannelResult[+T]:
   def value: T
   def channel: Source[T] | Sink[_]
+//case class DefaultResult[T](v: T) extends ClauseResult[T]
 
-object ChannelClauseResult:
-  sealed trait Closed extends ChannelClauseResult[Nothing]:
-    def toException: Exception = this match
-      case Error(reason) => ChannelClosedException.Error(reason)
-      case Done          => ChannelClosedException.Done()
-  case class Error(reason: Option[Exception]) extends Closed
-  case object Done extends Closed
+sealed trait ChannelClosed:
+  def toException: Exception = this match
+    case ChannelClosed.Error(reason) => ChannelClosedException.Error(reason)
+    case ChannelClosed.Done          => ChannelClosedException.Done()
+object ChannelClosed:
+  case class Error(reason: Option[Exception]) extends ChannelClosed
+  case object Done extends ChannelClosed
 
 // exceptions
 
@@ -33,24 +31,24 @@ enum ChannelClosedException(reason: Option[Exception]) extends Exception:
 
 // extensions
 
-extension [T](v: T | ChannelClauseResult.Closed)
-  def map[U](f: T => U): U | ChannelClauseResult.Closed = v match
-    case ChannelClauseResult.Done     => ChannelClauseResult.Done
-    case e: ChannelClauseResult.Error => e
-    case t: T @unchecked              => f(t)
+extension [T](v: T | ChannelClosed)
+  def map[U](f: T => U): U | ChannelClosed = v match
+    case ChannelClosed.Done     => ChannelClosed.Done
+    case e: ChannelClosed.Error => e
+    case t: T @unchecked        => f(t)
 
   def orThrow: T = v match
-    case c: ChannelClauseResult.Closed => throw c.toException
-    case t: T @unchecked               => t
+    case c: ChannelClosed => throw c.toException
+    case t: T @unchecked  => t
 
   def isValue: Boolean = v match
-    case c: ChannelClauseResult.Closed => false
-    case t: T @unchecked               => true
+    case _: ChannelClosed => false
+    case _: T @unchecked  => true
 
 // clauses
 
 sealed trait ChannelClause[+T]:
-  type Result <: ChannelValueResult[T]
+  type Result <: ChannelResult[T]
   def channel: Source[T] | Sink[_]
 
 //case class Default[T](v: T) extends Clause[T]:
@@ -59,26 +57,26 @@ sealed trait ChannelClause[+T]:
 trait Source[+T] extends SourceOps[T]:
   // Skipping variance checks here is fine, as the only way a `Received` instance is created is by the original channel,
   // so no values of super-types of T which are not the original T will ever be provided
-  case class Received private[channels] (value: T @uncheckedVariance) extends ChannelValueResult[T]:
+  case class Received private[channels] (value: T @uncheckedVariance) extends ChannelResult[T]:
     override def channel: Source[T] = Source.this
   case class Receive private[channels] () extends ChannelClause[T]:
     type Result = Received
     override def channel: Source[T] = Source.this
 
   val receiveClause: Receive = Receive()
-  def receive(): T | ChannelClauseResult.Closed
+  def receive(): T | ChannelClosed
 
   private[ox] def receiveCellOffer(c: CellCompleter[T]): Unit
   private[ox] def receiveCellCleanup(c: CellCompleter[T]): Unit
 
-  private[ox] def trySatisfyWaiting(): Unit | ChannelClauseResult.Closed
+  private[ox] def trySatisfyWaiting(): Unit | ChannelClosed
 
 object Source extends SourceCompanionOps
 
 //
 
 trait Sink[-T]:
-  case class Sent private[channels] () extends ChannelValueResult[Unit]:
+  case class Sent private[channels] () extends ChannelResult[Unit]:
     override def value: Unit = ()
     override def channel: Sink[T] = Sink.this
   // The Send trait is needed to "hide" the value of type T, so that it's not accessible after construction & casting.
@@ -89,11 +87,11 @@ trait Sink[-T]:
     override def channel: Sink[T] = Sink.this
 
   def sendClause(v: T): Send
-  def send(t: T): Unit | ChannelClauseResult.Closed
+  def send(t: T): Unit | ChannelClosed
 
-  def error(): Unit | ChannelClauseResult.Closed = error(None)
-  def error(reason: Exception): Unit | ChannelClauseResult.Closed = error(Some(reason))
-  def error(reason: Option[Exception]): Unit | ChannelClauseResult.Closed
+  def error(): Unit | ChannelClosed = error(None)
+  def error(reason: Exception): Unit | ChannelClosed = error(Some(reason))
+  def error(reason: Option[Exception]): Unit | ChannelClosed
 
   /** Completes the channel with a "done" state.
     *
@@ -105,18 +103,18 @@ trait Sink[-T]:
     *   If a [[send]] is ran concurrently with [[done]], it can happen that a receiver first learns that the channel is done, and then it
     *   can receive the element that was sent concurrently.
     */
-  def done(): Unit | ChannelClauseResult.Closed
+  def done(): Unit | ChannelClosed
 
   private[ox] def sendCellOffer(v: T, c: CellCompleter[Unit]): Unit
   private[ox] def sendCellCleanup(c: CellCompleter[Unit]): Unit
 
-  private[ox] def trySatisfyWaiting(): Unit | ChannelClauseResult.Closed
+  private[ox] def trySatisfyWaiting(): Unit | ChannelClosed
 
 //
 
 trait Channel[T] extends Source[T] with Sink[T]:
-  override def receive(): T | ChannelClauseResult.Closed = select(List(receiveClause)).map(_.value)
-  override def send(v: T): Unit | ChannelClauseResult.Closed = select(List(sendClause(v))).map(_.value)
+  override def receive(): T | ChannelClosed = select(List(receiveClause)).map(_.value)
+  override def send(v: T): Unit | ChannelClosed = select(List(sendClause(v))).map(_.value)
 
 /** A channel with capacity 0, requiring that senders & receivers meet to exchange a value. */
 class DirectChannel[T] extends Channel[T]:
@@ -134,16 +132,16 @@ class DirectChannel[T] extends Channel[T]:
   override private[ox] def sendCellOffer(v: T, c: CellCompleter[Unit]): Unit = waitingSends.offer((v, c))
   override private[ox] def sendCellCleanup(c: CellCompleter[Unit]): Unit = waitingSends.removeIf((t: (T, CellCompleter[Unit])) => t._2 == c)
 
-  override private[ox] def trySatisfyWaiting(): Unit | ChannelClauseResult.Closed =
+  override private[ox] def trySatisfyWaiting(): Unit | ChannelClosed =
     state.asResult() match
       case () =>
         while tryPairingSendsAndReceives() do ()
         ()
-      case d @ ChannelClauseResult.Done =>
+      case d @ ChannelClosed.Done =>
         // when the channel is done, we still allow outstanding elements to be delivered
         while tryPairingSendsAndReceives() do ()
         d
-      case e: ChannelClauseResult.Error => e
+      case e: ChannelClosed.Error => e
 
   @tailrec private def ownedWaitingSend(): (T, CellCompleter[Unit]) =
     val cv = waitingSends.poll()
@@ -171,14 +169,14 @@ class DirectChannel[T] extends Channel[T]:
           true
     else false
 
-  override def error(reason: Option[Exception]): Unit | ChannelClauseResult.Closed =
+  override def error(reason: Option[Exception]): Unit | ChannelClosed =
     state.error(reason).map { s =>
       // completing all waiting cells
       drainWaiting(waitingReceives, identity, s)
       drainWaiting(waitingSends, _._2, s)
     }
 
-  override def done(): Unit | ChannelClauseResult.Closed =
+  override def done(): Unit | ChannelClosed =
     state.done().map { s =>
       // we need a special method to drain `waitingReceives` to handle the cases when `done()` is called concurrently
       // with `select(receive)`, so that any non-satisfiable receives are completed with a `Done`
@@ -219,7 +217,7 @@ class BufferedChannel[T](capacity: Int = 1) extends Channel[T]:
 
   // TODO invariant for send & select: either `elements` is empty or `waiting.filter(_.isOwned.get() == false)` is empty
 
-  override private[ox] def trySatisfyWaiting(): Unit | ChannelClauseResult.Closed =
+  override private[ox] def trySatisfyWaiting(): Unit | ChannelClosed =
     state.asResult() match
       case () =>
         // any receive must be followed by an attempt to satisfy a send, and vice versa; an invocation of `trySatisfyWaiting()`
@@ -227,13 +225,13 @@ class BufferedChannel[T](capacity: Int = 1) extends Channel[T]:
         // running `select()`s, we might have both a pending receive/send that can be satisfied
         while trySatisfyWaitingReceives() | trySatisfyWaitingSends() do () // important: a non-short-circuiting or
         ()
-      case d @ ChannelClauseResult.Done =>
+      case d @ ChannelClosed.Done =>
         // when the channel is done, we still allow outstanding elements to be delivered; no new elements can be sent, though
         // we have to try satisfying receives as long as there are any waiting ones, as the `trySatisfyWaiting()` calls for
         // other `select()`s might be scheduled later
         while trySatisfyWaitingReceives() do ()
         d
-      case e: ChannelClauseResult.Error => e
+      case e: ChannelClosed.Error => e
 
   /** @return `true` if a value was taken off the `elements` queue */
   @tailrec private def trySatisfyWaitingReceives(): Boolean =
@@ -276,7 +274,7 @@ class BufferedChannel[T](capacity: Int = 1) extends Channel[T]:
         false
     else false
 
-  override def error(reason: Option[Exception]): Unit | ChannelClauseResult.Closed =
+  override def error(reason: Option[Exception]): Unit | ChannelClosed =
     state.error(reason).map { s =>
       // not delivering enqueued elements
       elements.clear()
@@ -285,7 +283,7 @@ class BufferedChannel[T](capacity: Int = 1) extends Channel[T]:
       drainWaiting(waitingSends, _._2, s)
     }
 
-  override def done(): Unit | ChannelClauseResult.Closed =
+  override def done(): Unit | ChannelClosed =
     state.done().map { s =>
       // leaving the elements intact so that they get delivered
 
@@ -313,20 +311,20 @@ object Channel:
 private class CurrentChannelState:
   private val state = AtomicReference[ChannelState](ChannelState.Open)
 
-  def asResult(): Unit | ChannelClauseResult.Closed = state.get() match
+  def asResult(): Unit | ChannelClosed = state.get() match
     case ChannelState.Open     => ()
-    case ChannelState.Done     => ChannelClauseResult.Done
-    case ChannelState.Error(r) => ChannelClauseResult.Error(r)
+    case ChannelState.Done     => ChannelClosed.Done
+    case ChannelState.Error(r) => ChannelClosed.Error(r)
 
   def get(): ChannelState = state.get()
 
-  private def set(s: ChannelState.Closed): ChannelState.Closed | ChannelClauseResult.Closed =
+  private def set(s: ChannelState.Closed): ChannelState.Closed | ChannelClosed =
     // only first state change from open is valid
     if !state.compareAndSet(ChannelState.Open, s) then state.get().asInstanceOf[ChannelState.Closed].toResult
     else s
 
-  def error(reason: Option[Exception]): ChannelState.Closed | ChannelClauseResult.Closed = set(ChannelState.Error(reason))
-  def done(): ChannelState.Closed | ChannelClauseResult.Closed = set(ChannelState.Done)
+  def error(reason: Option[Exception]): ChannelState.Closed | ChannelClosed = set(ChannelState.Error(reason))
+  def done(): ChannelState.Closed | ChannelClosed = set(ChannelState.Done)
 
 @tailrec
 private def drainWaiting[T](waiting: ConcurrentLinkedQueue[T], toCell: T => CellCompleter[_], s: ChannelState.Closed): Unit =

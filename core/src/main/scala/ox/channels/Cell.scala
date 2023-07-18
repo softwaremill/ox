@@ -5,7 +5,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 private[ox] trait CellCompleter[-T]:
   /** Complete the cell with a value. Should only be called if this cell is owned by the calling thread. */
-  def complete(t: ChannelValueResult[T]): Unit
+  def complete(t: ChannelResult[T]): Unit
 
   /** Complete the cell with a new completer. Should only be called if this cell is owned by the calling thread. */
   def completeWithNewCell(): Unit
@@ -20,14 +20,14 @@ private[ox] trait CellCompleter[-T]:
 
 private[ox] class Cell[T] extends CellCompleter[T]:
   private val isOwned = new AtomicBoolean(false)
-  private val cell = new ArrayBlockingQueue[ChannelValueResult[T] | Cell[T] | ChannelState.Closed](1)
+  private val cell = new ArrayBlockingQueue[ChannelResult[T] | Cell[T] | ChannelState.Closed](1)
 
   // each cell should be completed exactly once, so we are not using the blocking capabilities of `cell`;
   // using `cell.put` might throw an interrupted exception, which might cause a deadlock (as there's a thread awaiting a
   // cell's completion on its own interrupt - see cellTakeInterrupted); hence, using `.add`.
-  override def complete(t: ChannelValueResult[T]): Unit = cell.add(t)
+  override def complete(t: ChannelResult[T]): Unit = cell.add(t)
   override def completeWithNewCell(): Unit = cell.add(Cell[T])
   override def completeWithClosed(s: ChannelState.Closed): Unit = cell.add(s)
   override def tryOwn(): Boolean = isOwned.compareAndSet(false, true)
-  def take(): ChannelValueResult[T] | Cell[T] | ChannelState.Closed = cell.take()
+  def take(): ChannelResult[T] | Cell[T] | ChannelState.Closed = cell.take()
   def isAlreadyOwned: Boolean = isOwned.get()

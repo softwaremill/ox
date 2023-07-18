@@ -11,8 +11,8 @@ trait SourceOps[+T] { this: Source[T] =>
     fork {
       repeatWhile {
         receive() match
-          case ChannelClauseResult.Done     => c2.done(); false
-          case ChannelClauseResult.Error(r) => c2.error(r); false
+          case ChannelClosed.Done     => c2.done(); false
+          case ChannelClosed.Error(r) => c2.error(r); false
           case t: T @unchecked =>
             try
               val u = f(t)
@@ -34,19 +34,19 @@ trait SourceOps[+T] { this: Source[T] =>
   def transform[U](f: Iterator[T] => Iterator[U])(using Ox): Source[U] = transform(DefaultCapacity)(f)
   def transform[U](capacity: Int)(f: Iterator[T] => Iterator[U])(using Ox): Source[U] =
     val it = new Iterator[T]:
-      private var v: Option[T | ChannelClauseResult.Closed] = None
-      private def forceNext(): T | ChannelClauseResult.Closed = v match
+      private var v: Option[T | ChannelClosed] = None
+      private def forceNext(): T | ChannelClosed = v match
         case None =>
           val temp = receive()
           v = Some(temp)
           temp
         case Some(t) => t
       override def hasNext: Boolean = forceNext() match
-        case ChannelClauseResult.Done => false
+        case ChannelClosed.Done => false
         case _                        => true
       override def next(): T = forceNext() match
-        case ChannelClauseResult.Done     => throw new NoSuchElementException
-        case e: ChannelClauseResult.Error => throw e.toException
+        case ChannelClosed.Done     => throw new NoSuchElementException
+        case e: ChannelClosed.Error => throw e.toException
         case t: T @unchecked =>
           v = None
           t
@@ -58,8 +58,8 @@ trait SourceOps[+T] { this: Source[T] =>
     fork {
       repeatWhile {
         select((this: Source[U]).receiveClause, other.receiveClause) match
-          case ChannelClauseResult.Done     => c.done(); false
-          case ChannelClauseResult.Error(r) => c.error(r); false
+          case ChannelClosed.Done     => c.done(); false
+          case ChannelClosed.Error(r) => c.error(r); false
           case r: Source[U]#Received        => c.send(r.value).isValue
       }
     }
@@ -74,12 +74,12 @@ trait SourceOps[+T] { this: Source[T] =>
     fork {
       repeatWhile {
         receive() match
-          case ChannelClauseResult.Done     => c.done(); false
-          case ChannelClauseResult.Error(r) => c.error(r); false
+          case ChannelClosed.Done     => c.done(); false
+          case ChannelClosed.Error(r) => c.error(r); false
           case t: T @unchecked =>
             other.receive() match
-              case ChannelClauseResult.Done     => c.done(); false
-              case ChannelClauseResult.Error(r) => c.error(r); false
+              case ChannelClosed.Done     => c.done(); false
+              case ChannelClosed.Error(r) => c.error(r); false
               case u: U @unchecked              => c.send(t, u).isValue
       }
     }
@@ -90,8 +90,8 @@ trait SourceOps[+T] { this: Source[T] =>
   def foreach(f: T => Unit): Unit =
     repeatWhile {
       receive() match
-        case ChannelClauseResult.Done     => false
-        case e: ChannelClauseResult.Error => throw e.toException
+        case ChannelClosed.Done     => false
+        case e: ChannelClosed.Error => throw e.toException
         case t: T @unchecked              => f(t); true
     }
 
@@ -103,8 +103,8 @@ trait SourceOps[+T] { this: Source[T] =>
   def pipeTo(sink: Sink[T]): Unit =
     repeatWhile {
       receive() match
-        case ChannelClauseResult.Done     => sink.done(); false
-        case ChannelClauseResult.Error(r) => sink.error(r); false
+        case ChannelClosed.Done     => sink.done(); false
+        case ChannelClosed.Error(r) => sink.error(r); false
         case t: T @unchecked              => sink.send(t).isValue
     }
 
@@ -225,9 +225,9 @@ trait SourceCompanionOps:
               continue = false
             case Some(source) =>
               source.receive() match
-                case ChannelClauseResult.Done =>
+                case ChannelClosed.Done =>
                   currentSource = None
-                case ChannelClauseResult.Error(r) =>
+                case ChannelClosed.Error(r) =>
                   c.error(r)
                   continue = false
                 case t: T @unchecked =>

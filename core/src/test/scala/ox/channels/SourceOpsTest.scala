@@ -26,7 +26,7 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
       s.receive() shouldBe 10
       s.receive() shouldBe 20
       s.receive() shouldBe 30
-      s.receive() shouldBe ChannelClauseResult.Done
+      s.receive() shouldBe ChannelClosed.Done
     }
   }
 
@@ -44,7 +44,7 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
         val s = c.map(_ * 10)
 
         s.receive() shouldBe 10
-        s.receive() shouldBe ChannelClauseResult.Done
+        s.receive() shouldBe ChannelClosed.Done
       }
     }
   }
@@ -66,7 +66,7 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
       s.receive() shouldBe 2
       s.receive() shouldBe 4
       s.receive() shouldBe 6
-      s.receive() shouldBe ChannelClauseResult.Done
+      s.receive() shouldBe ChannelClosed.Done
     }
   }
 
@@ -205,7 +205,7 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
       s.receive() shouldBe (1, 4)
       s.receive() shouldBe (2, 5)
       s.receive() shouldBe (3, 6)
-      s.receive() shouldBe ChannelClauseResult.Done
+      s.receive() shouldBe ChannelClosed.Done
     }
   }
 
