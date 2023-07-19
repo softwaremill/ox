@@ -10,24 +10,10 @@ import scala.util.Try
 
 // results
 
-sealed trait ChannelResult[+T]:
+sealed trait SelectResult[+T]:
   def value: T
   def channel: Source[T] | Sink[_]
 //case class DefaultResult[T](v: T) extends ClauseResult[T]
-
-sealed trait ChannelClosed:
-  def toException: Exception = this match
-    case ChannelClosed.Error(reason) => ChannelClosedException.Error(reason)
-    case ChannelClosed.Done          => ChannelClosedException.Done()
-object ChannelClosed:
-  case class Error(reason: Option[Exception]) extends ChannelClosed
-  case object Done extends ChannelClosed
-
-// exceptions
-
-enum ChannelClosedException(reason: Option[Exception]) extends Exception:
-  case Error(reason: Option[Exception]) extends ChannelClosedException(reason)
-  case Done() extends ChannelClosedException(None)
 
 // extensions
 
@@ -47,8 +33,8 @@ extension [T](v: T | ChannelClosed)
 
 // clauses
 
-sealed trait ChannelClause[+T]:
-  type Result <: ChannelResult[T]
+sealed trait SelectClause[+T]:
+  type Result <: SelectResult[T]
   def channel: Source[T] | Sink[_]
 
 //case class Default[T](v: T) extends Clause[T]:
@@ -57,9 +43,9 @@ sealed trait ChannelClause[+T]:
 trait Source[+T] extends SourceOps[T]:
   // Skipping variance checks here is fine, as the only way a `Received` instance is created is by the original channel,
   // so no values of super-types of T which are not the original T will ever be provided
-  case class Received private[channels] (value: T @uncheckedVariance) extends ChannelResult[T]:
+  case class Received private[channels] (value: T @uncheckedVariance) extends SelectResult[T]:
     override def channel: Source[T] = Source.this
-  case class Receive private[channels] () extends ChannelClause[T]:
+  case class Receive private[channels] () extends SelectClause[T]:
     type Result = Received
     override def channel: Source[T] = Source.this
 
@@ -76,13 +62,13 @@ object Source extends SourceCompanionOps
 //
 
 trait Sink[-T]:
-  case class Sent private[channels] () extends ChannelResult[Unit]:
+  case class Sent private[channels] () extends SelectResult[Unit]:
     override def value: Unit = ()
     override def channel: Sink[T] = Sink.this
   // The Send trait is needed to "hide" the value of type T, so that it's not accessible after construction & casting.
   // Otherwise we could do `val x = Sink[Superclass].Send(); val y: Sink[Subclass#Send] = x`, and then we could access
   // the value through `y`, which is not necessarily of type `Subclass`.
-  sealed trait Send extends ChannelClause[Unit]:
+  sealed trait Send extends SelectClause[Unit]:
     type Result = Sent
     override def channel: Sink[T] = Sink.this
 

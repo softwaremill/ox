@@ -3,13 +3,13 @@ package ox.channels
 import scala.annotation.tailrec
 import scala.util.Random
 
-def select(clause1: ChannelClause[_], clause2: ChannelClause[_]): clause1.Result | clause2.Result | ChannelClosed =
+def select(clause1: SelectClause[_], clause2: SelectClause[_]): clause1.Result | clause2.Result | ChannelClosed =
   select(List(clause1, clause2)).asInstanceOf[clause1.Result | clause2.Result | ChannelClosed]
 
 def select(
-    clause1: ChannelClause[_],
-    clause2: ChannelClause[_],
-    clause3: ChannelClause[_]
+            clause1: SelectClause[_],
+            clause2: SelectClause[_],
+            clause3: SelectClause[_]
 ): clause1.Result | clause2.Result | clause3.Result | ChannelClosed =
   select(List(clause1, clause2)).asInstanceOf[clause1.Result | clause2.Result | clause3.Result | ChannelClosed]
 
@@ -29,16 +29,16 @@ def select[T1, T2, T3](source1: Source[T1], source2: Source[T2], source3: Source
 /** The select is biased towards the clauses first on the list. To ensure fairness, you might want to randomize the clause order using
   * {{{Random.shuffle(clauses)}}}.
   */
-def select[T](clauses: List[ChannelClause[T]]): ChannelResult[T] | ChannelClosed = doSelect(clauses)
+def select[T](clauses: List[SelectClause[T]]): SelectResult[T] | ChannelClosed = doSelect(clauses)
 
 def select[T](sources: List[Source[T]])(using DummyImplicit): T | ChannelClosed =
-  doSelect(sources.map(_.receiveClause: ChannelClause[T])) match
+  doSelect(sources.map(_.receiveClause: SelectClause[T])) match
     case r: Source[T]#Received => r.value
     case c: ChannelClosed      => c
     case _: Sink[_]#Sent       => throw new IllegalStateException()
 
-private def doSelect[T](clauses: List[ChannelClause[T]]): ChannelResult[T] | ChannelClosed =
-  def cellTakeInterrupted(c: Cell[T], e: InterruptedException): ChannelResult[T] | ChannelClosed =
+private def doSelect[T](clauses: List[SelectClause[T]]): SelectResult[T] | ChannelClosed =
+  def cellTakeInterrupted(c: Cell[T], e: InterruptedException): SelectResult[T] | ChannelClosed =
     // trying to invalidate the cell by owning it
     if c.tryOwn() then
       // nobody else will complete the cell, we can re-throw the exception
@@ -54,18 +54,18 @@ private def doSelect[T](clauses: List[ChannelClause[T]]): ChannelResult[T] | Cha
         case ChannelState.Done     =>
           // one of the channels is done, others might be not, but we simply re-throw the exception
           throw e
-        case t: ChannelResult[T] @unchecked =>
+        case t: SelectResult[T] @unchecked =>
           // completed with a value; interrupting self and returning it
           try t
           finally Thread.currentThread().interrupt()
 
-  def takeFromCellInterruptSafe(c: Cell[T]): ChannelResult[T] | ChannelClosed =
+  def takeFromCellInterruptSafe(c: Cell[T]): SelectResult[T] | ChannelClosed =
     try
       c.take() match
         case c2: Cell[T] @unchecked => offerCellAndTake(c2) // we got a new cell on which we should be waiting, add it to the channels
         case s: ChannelState.Error  => ChannelClosed.Error(s.reason)
         case ChannelState.Done      => doSelect(clauses)
-        case t: ChannelResult[T] @unchecked => t
+        case t: SelectResult[T] @unchecked => t
     catch case e: InterruptedException => cellTakeInterrupted(c, e)
     // now that the cell has been filled, it is owned, and should be removed from the waiting lists of the other channels
     finally cleanupCell(c, alsoWhenSingleClause = false)
@@ -78,7 +78,7 @@ private def doSelect[T](clauses: List[ChannelClause[T]]): ChannelResult[T] | Cha
         case s: DirectChannel[_]#DirectSend     => s.channel.sendCellCleanup(cell)
       }
 
-  @tailrec def offerAndTrySatisfy(ccs: List[ChannelClause[T]], c: Cell[T], allDone: Boolean): Unit | ChannelClosed =
+  @tailrec def offerAndTrySatisfy(ccs: List[SelectClause[T]], c: Cell[T], allDone: Boolean): Unit | ChannelClosed =
     ccs match
       case Nil if allDone => ChannelClosed.Done
       case Nil            => ()
@@ -103,7 +103,7 @@ private def doSelect[T](clauses: List[ChannelClause[T]]): ChannelResult[T] | Cha
           case () if c.isAlreadyOwned => ()
           case ()                     => offerAndTrySatisfy(tail, c, false)
 
-  def offerCellAndTake(c: Cell[T]): ChannelResult[T] | ChannelClosed =
+  def offerCellAndTake(c: Cell[T]): SelectResult[T] | ChannelClosed =
     offerAndTrySatisfy(clauses, c, allDone = true) match {
       case ()               => takeFromCellInterruptSafe(c)
       case r: ChannelClosed =>
