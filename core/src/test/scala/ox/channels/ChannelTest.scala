@@ -209,4 +209,24 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
       f2.join() shouldBe ()
     }
   }
+
+  "default" should "use the default value if the clauses are not satisfiable" in {
+    val c1 = Channel[Int](0)
+    select(c1.receiveClause, Default(10)) shouldBe DefaultResult(10)
+
+    val c2 = Channel[Int](0)
+    select(c2.sendClause(5), Default(10)) shouldBe DefaultResult(10)
+
+    // the send should not have succeeded
+    select(c2.receiveClause, Default(10)) shouldBe DefaultResult(10)
+  }
+
+  it should "not use the default value if a clause is satisfiable" in {
+    val c1 = Channel[Int](1)
+    c1.send(5)
+    select(c1.receiveClause, Default(10)) shouldBe c1.Received(5)
+
+    val c2 = Channel[Int](1)
+    select(c2.sendClause(5), Default(10)) shouldBe c2.Sent()
+  }
 }

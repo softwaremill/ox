@@ -12,7 +12,7 @@ import scala.util.Try
 
 sealed trait SelectResult[+T]:
   def value: T
-//case class DefaultResult[T](v: T) extends ClauseResult[T]
+case class DefaultResult[T](value: T) extends SelectResult[T]
 
 // extensions
 
@@ -34,10 +34,9 @@ extension [T](v: T | ChannelClosed)
 
 sealed trait SelectClause[+T]:
   type Result <: SelectResult[T]
-  def channel: Source[T] | Sink[_]
 
-//case class Default[T](v: T) extends Clause[T]:
-//  type Result = DefaultResult[T]
+case class Default[T](value: T) extends SelectClause[T]:
+  type Result = DefaultResult[T]
 
 trait Source[+T] extends SourceOps[T]:
   // Skipping variance checks here is fine, as the only way a `Received` instance is created is by the original channel,
@@ -45,7 +44,7 @@ trait Source[+T] extends SourceOps[T]:
   case class Received private[channels] (value: T @uncheckedVariance) extends SelectResult[T]
   case class Receive private[channels] () extends SelectClause[T]:
     type Result = Received
-    override def channel: Source[T] = Source.this
+    def channel: Source[T] = Source.this
 
   val receiveClause: Receive = Receive()
   def receive(): T | ChannelClosed
@@ -67,7 +66,7 @@ trait Sink[-T]:
   // the value through `y`, which is not necessarily of type `Subclass`.
   sealed trait Send extends SelectClause[Unit]:
     type Result = Sent
-    override def channel: Sink[T] = Sink.this
+    def channel: Sink[T] = Sink.this
 
   def sendClause(v: T): Send
   def send(t: T): Unit | ChannelClosed

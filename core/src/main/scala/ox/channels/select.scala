@@ -36,6 +36,7 @@ def select[T](sources: List[Source[T]])(using DummyImplicit): T | ChannelClosed 
     case r: Source[T]#Received => r.value
     case c: ChannelClosed      => c
     case _: Sink[_]#Sent       => throw new IllegalStateException()
+    case _: DefaultResult[_]   => throw new IllegalStateException()
 
 private def doSelect[T](clauses: List[SelectClause[T]]): SelectResult[T] | ChannelClosed =
   def cellTakeInterrupted(c: Cell[T], e: InterruptedException): SelectResult[T] | ChannelClosed =
@@ -76,6 +77,7 @@ private def doSelect[T](clauses: List[SelectClause[T]]): SelectResult[T] | Chann
         case s: Source[_]#Receive               => s.channel.receiveCellCleanup(cell)
         case s: BufferedChannel[_]#BufferedSend => s.channel.sendCellCleanup(cell)
         case s: DirectChannel[_]#DirectSend     => s.channel.sendCellCleanup(cell)
+        case _: Default[_]                      => ()
       }
 
   @tailrec def offerAndTrySatisfy(ccs: List[SelectClause[T]], c: Cell[T], allDone: Boolean): Unit | ChannelClosed =
@@ -93,6 +95,7 @@ private def doSelect[T](clauses: List[SelectClause[T]]): SelectResult[T] | Chann
           case s: DirectChannel[_]#DirectSend =>
             s.channel.sendCellOffer(s.v, c)
             s.channel.trySatisfyWaiting()
+          case _: Default[_] => ()
 
         clauseTrySatisfyResult match
           case ChannelClosed.Error(e) => ChannelClosed.Error(e)
@@ -116,4 +119,31 @@ private def doSelect[T](clauses: List[SelectClause[T]]): SelectResult[T] | Chann
         else takeFromCellInterruptSafe(c)
     }
 
-  offerCellAndTake(Cell[T])
+  def offerCellAndTakeWithDefault(c: Cell[T], d: Default[T]): SelectResult[T] | ChannelClosed =
+    offerAndTrySatisfy(clauses, c, allDone = true) match {
+      case () =>
+        if c.tryOwn() then
+          // the cell wasn't immediately satisfied, so returning the default value
+          cleanupCell(c, alsoWhenSingleClause = true)
+          DefaultResult(d.value)
+        else
+          // the cell is already owned, a result should be available shortly
+          takeFromCellInterruptSafe(c)
+
+      case r: ChannelClosed =>
+        // same as in offerCellAndTake
+        if c.tryOwn() then
+          cleanupCell(c, alsoWhenSingleClause = true)
+          r
+        else takeFromCellInterruptSafe(c)
+    }
+
+  def default: Option[Default[T]] =
+    clauses.collect { case d: Default[T] => d } match
+      case Nil      => None
+      case d :: Nil => Some(d)
+      case ds       => throw new IllegalArgumentException(s"More than one default clause in select: $ds")
+
+  default match
+    case None    => offerCellAndTake(Cell[T])
+    case Some(d) => offerCellAndTakeWithDefault(Cell[T], d)
