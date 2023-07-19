@@ -7,9 +7,9 @@ def select(clause1: SelectClause[_], clause2: SelectClause[_]): clause1.Result |
   select(List(clause1, clause2)).asInstanceOf[clause1.Result | clause2.Result | ChannelClosed]
 
 def select(
-            clause1: SelectClause[_],
-            clause2: SelectClause[_],
-            clause3: SelectClause[_]
+    clause1: SelectClause[_],
+    clause2: SelectClause[_],
+    clause3: SelectClause[_]
 ): clause1.Result | clause2.Result | clause3.Result | ChannelClosed =
   select(List(clause1, clause2)).asInstanceOf[clause1.Result | clause2.Result | clause3.Result | ChannelClosed]
 

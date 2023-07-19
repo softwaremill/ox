@@ -12,7 +12,6 @@ import scala.util.Try
 
 sealed trait SelectResult[+T]:
   def value: T
-  def channel: Source[T] | Sink[_]
 //case class DefaultResult[T](v: T) extends ClauseResult[T]
 
 // extensions
@@ -43,8 +42,7 @@ sealed trait SelectClause[+T]:
 trait Source[+T] extends SourceOps[T]:
   // Skipping variance checks here is fine, as the only way a `Received` instance is created is by the original channel,
   // so no values of super-types of T which are not the original T will ever be provided
-  case class Received private[channels] (value: T @uncheckedVariance) extends SelectResult[T]:
-    override def channel: Source[T] = Source.this
+  case class Received private[channels] (value: T @uncheckedVariance) extends SelectResult[T]
   case class Receive private[channels] () extends SelectClause[T]:
     type Result = Received
     override def channel: Source[T] = Source.this
@@ -64,7 +62,6 @@ object Source extends SourceCompanionOps
 trait Sink[-T]:
   case class Sent private[channels] () extends SelectResult[Unit]:
     override def value: Unit = ()
-    override def channel: Sink[T] = Sink.this
   // The Send trait is needed to "hide" the value of type T, so that it's not accessible after construction & casting.
   // Otherwise we could do `val x = Sink[Superclass].Send(); val y: Sink[Subclass#Send] = x`, and then we could access
   // the value through `y`, which is not necessarily of type `Subclass`.
