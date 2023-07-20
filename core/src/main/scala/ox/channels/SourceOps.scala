@@ -43,7 +43,7 @@ trait SourceOps[+T] { this: Source[T] =>
         case Some(t) => t
       override def hasNext: Boolean = forceNext() match
         case ChannelClosed.Done => false
-        case _                        => true
+        case _                  => true
       override def next(): T = forceNext() match
         case ChannelClosed.Done     => throw new NoSuchElementException
         case e: ChannelClosed.Error => throw e.toException
@@ -57,10 +57,10 @@ trait SourceOps[+T] { this: Source[T] =>
     val c = Channel[U](capacity)
     fork {
       repeatWhile {
-        select((this: Source[U]).receiveClause, other.receiveClause) match
+        select(this, other) match
           case ChannelClosed.Done     => c.done(); false
           case ChannelClosed.Error(r) => c.error(r); false
-          case r: Source[U]#Received        => c.send(r.value).isValue
+          case r: U @unchecked        => c.send(r).isValue
       }
     }
     c
@@ -80,7 +80,7 @@ trait SourceOps[+T] { this: Source[T] =>
             other.receive() match
               case ChannelClosed.Done     => c.done(); false
               case ChannelClosed.Error(r) => c.error(r); false
-              case u: U @unchecked              => c.send(t, u).isValue
+              case u: U @unchecked        => c.send(t, u).isValue
       }
     }
     c
@@ -92,7 +92,7 @@ trait SourceOps[+T] { this: Source[T] =>
       receive() match
         case ChannelClosed.Done     => false
         case e: ChannelClosed.Error => throw e.toException
-        case t: T @unchecked              => f(t); true
+        case t: T @unchecked        => f(t); true
     }
 
   def toList: List[T] =
@@ -105,7 +105,7 @@ trait SourceOps[+T] { this: Source[T] =>
       receive() match
         case ChannelClosed.Done     => sink.done(); false
         case ChannelClosed.Error(r) => sink.error(r); false
-        case t: T @unchecked              => sink.send(t).isValue
+        case t: T @unchecked        => sink.send(t).isValue
     }
 
   def drain(): Unit = foreach(_ => ())
