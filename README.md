@@ -422,7 +422,7 @@ def consumer(strings: Source[String]): Nothing =
 
     @tailrec
     def doConsume(acc: Int): Nothing =
-      select(strings, tick).orThrow match
+      select(tick, strings).orThrow match
         case Tick =>
           log.info(s"Characters received this second: $acc")
           doConsume(0)
