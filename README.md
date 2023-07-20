@@ -312,19 +312,17 @@ one of the following:
 
 ```scala
 trait Source[+T]:
-  def receive(): ChannelResult[T]
+  def receive(): T | ChannelClosed
 
-sealed trait ChannelResult[+T]
-object ChannelResult:
-  sealed trait Closed extends ChannelResult[Nothing]
-  case object Done extends Closed
-  case class Error(reason: Option[Exception]) extends Closed
-  case class Value[T](t: T) extends ChannelResult[T]
+sealed trait ChannelClosed
+object ChannelClosed:
+  case class Error(reason: Option[Exception]) extends ChannelClosed
+  case object Done extends ChannelClosed
 ```
 
-That is, the result might be either a value, or information that the channel is closed because it's done or an error
-has occurred. The value might be "unwrapped" to `T`, and closed information thrown as an exception using 
-`receive().orThrow`.
+That is, the result might be a value, or information that the channel is closed. A channel can be done or an error
+might have occurred. Using an extension method provided by the `ox.channels.*` import, closed information can be thrown 
+as an exception using `receive().orThrow: T`.
 
 ## Creating sources
 
@@ -392,8 +390,26 @@ s.toList // List(1, 2, 3)
 
 ## Selecting from channels
 
-Channels are distinct from queues in that there's a `select` method, which takes a number of channels, and blocks until
-a value from exactly one of them is received. The other channels are left intact (no values are received).
+Channels are distinct from queues in that they support a `select` method, which takes a number of channel clauses, and 
+block until at least one clause is satisfied. The other channels are left intact (no values are sent or received).
+
+Channel clauses include:
+
+* `channel.receiveClause` - to receive a value from the channel
+* `channel.sendClause(value)` - to send a value to a channel
+* `Default(value)` - to return the given value from the `select`, if no other clause can be immediately satisfied
+
+### Receiving from exactly one channel
+
+The most common use-case for `select` is to receive from exactly one channel. There's a dedicated `select` variant for
+this use-case, which accepts a number of `Source`s, for which receive clauses are created. The signature for the 
+two-source variant of this method is:
+
+```scala
+def select[T1, T2](source1: Source[T1], source2: Source[T2]): T1 | T2 | ChannelClosed
+```
+
+As an example, this can be used as follows:
 
 ```scala
 import ox.Source
@@ -406,7 +422,7 @@ def consumer(strings: Source[String]): Nothing =
 
     @tailrec
     def doConsume(acc: Int): Nothing =
-      select(strings, tick).orThrow match
+      select(tick, strings).orThrow match
         case Tick =>
           log.info(s"Characters received this second: $acc")
           doConsume(0)
@@ -418,6 +434,68 @@ def consumer(strings: Source[String]): Nothing =
 
 If any of the channels is in an error state, `select` returns with that error. If all channels are done, `selects` 
 returns with a `Done` as well.
+
+Selects are biased towards clauses/sources that appear first in the argument list. To achieve fairness, you might want
+to randomize the ordering of the clauses/sources.
+
+### Mixed receive and send clauses
+
+The `select` method can also be used to send a value to exactly one channel, or with mixed receive and send clauses.
+It is guaranteed that exactly one clause will be satisfied (either a value sent, or received from exactly one of the
+channels).
+
+For example:
+
+```scala
+val c = Channel[Int]()
+val d = Channel[Int]()
+
+select(c.sendClause(10), d.receiveClause)
+```
+
+The above will block until a value can be sent to `d` (as this is an unbuffered channel, for this to happen there must 
+be a concurrently running `receive` call), or until a value can be received from `c`.
+
+The type returned by the above invocation is:
+
+```scala
+c.Sent | d.Received | ChannelClosed
+```
+
+Note that the `Sent` and `Received` types are inner types of the `c` and `d` values. For different channels, the 
+`Sent` / `Received` instances will have distinct classes, hence allowing distinguishing which clause has been satisfied.
+
+Channel closed values can be inspected, or converted to an exception using `.orThrow`. 
+
+The results of a `select` can be inspected using a pattern match:
+
+```scala
+val c = Channel[Int]()
+val d = Channel[Int]()
+
+select(c.sendClause(10), d.receiveClause).orThrow match
+  case c.Sent()      => println("Sent to c")
+  case d.Received(v) => println(s"Received from d: $v")
+```
+
+If there's a missing case, the compiler will warn you that the `match` is not exhaustive, and give you a hint as to
+what is missing. Similarly, there will be a warning in case of an unneeded, extra match case.
+
+### Default clauses
+
+A default clause can be provided, which specifies the return value of the `select`, in case no other clause can be
+immediately satisfied. The clause can be created with `Default`, and in case the value is used, it is returned wrapped
+in `DefaultResult`. For example:
+
+```scala
+val c = Channel[Int]()
+
+select(c.receiveClause, Default(5)).orThrow match
+  case c.Received(v)    => println(s"Received from d: $v")
+  case DefaultResult(v) => println(s"No value available in c, using default: $v")
+```
+
+There can be at most one default clause in a `select` invocation.
 
 ## Error propagation
 

@@ -11,9 +11,9 @@ trait SourceOps[+T] { this: Source[T] =>
     fork {
       repeatWhile {
         receive() match
-          case ChannelResult.Done     => c2.done(); false
-          case ChannelResult.Error(r) => c2.error(r); false
-          case ChannelResult.Value(t) =>
+          case ChannelClosed.Done     => c2.done(); false
+          case ChannelClosed.Error(r) => c2.error(r); false
+          case t: T @unchecked =>
             try
               val u = f(t)
               c2.send(u).isValue
@@ -34,20 +34,20 @@ trait SourceOps[+T] { this: Source[T] =>
   def transform[U](f: Iterator[T] => Iterator[U])(using Ox): Source[U] = transform(DefaultCapacity)(f)
   def transform[U](capacity: Int)(f: Iterator[T] => Iterator[U])(using Ox): Source[U] =
     val it = new Iterator[T]:
-      private var v: Option[ChannelResult[T]] = None
-      private def forceNext(): ChannelResult[T] = v match
+      private var v: Option[T | ChannelClosed] = None
+      private def forceNext(): T | ChannelClosed = v match
         case None =>
           val temp = receive()
           v = Some(temp)
           temp
         case Some(t) => t
       override def hasNext: Boolean = forceNext() match
-        case ChannelResult.Done => false
+        case ChannelClosed.Done => false
         case _                  => true
       override def next(): T = forceNext() match
-        case ChannelResult.Done     => throw new NoSuchElementException
-        case e: ChannelResult.Error => throw e.toException
-        case ChannelResult.Value(t) =>
+        case ChannelClosed.Done     => throw new NoSuchElementException
+        case e: ChannelClosed.Error => throw e.toException
+        case t: T @unchecked =>
           v = None
           t
     Source.fromIterator(capacity)(f(it))
@@ -58,9 +58,9 @@ trait SourceOps[+T] { this: Source[T] =>
     fork {
       repeatWhile {
         select(this, other) match
-          case ChannelResult.Done     => c.done(); false
-          case ChannelResult.Error(r) => c.error(r); false
-          case ChannelResult.Value(t) => c.send(t).isValue
+          case ChannelClosed.Done     => c.done(); false
+          case ChannelClosed.Error(r) => c.error(r); false
+          case r: U @unchecked        => c.send(r).isValue
       }
     }
     c
@@ -74,13 +74,13 @@ trait SourceOps[+T] { this: Source[T] =>
     fork {
       repeatWhile {
         receive() match
-          case ChannelResult.Done     => c.done(); false
-          case ChannelResult.Error(r) => c.error(r); false
-          case ChannelResult.Value(t) =>
+          case ChannelClosed.Done     => c.done(); false
+          case ChannelClosed.Error(r) => c.error(r); false
+          case t: T @unchecked =>
             other.receive() match
-              case ChannelResult.Done     => c.done(); false
-              case ChannelResult.Error(r) => c.error(r); false
-              case ChannelResult.Value(u) => c.send(t, u).isValue
+              case ChannelClosed.Done     => c.done(); false
+              case ChannelClosed.Error(r) => c.error(r); false
+              case u: U @unchecked        => c.send(t, u).isValue
       }
     }
     c
@@ -90,9 +90,9 @@ trait SourceOps[+T] { this: Source[T] =>
   def foreach(f: T => Unit): Unit =
     repeatWhile {
       receive() match
-        case ChannelResult.Done     => false
-        case e: ChannelResult.Error => throw e.toException
-        case ChannelResult.Value(t) => f(t); true
+        case ChannelClosed.Done     => false
+        case e: ChannelClosed.Error => throw e.toException
+        case t: T @unchecked        => f(t); true
     }
 
   def toList: List[T] =
@@ -103,9 +103,9 @@ trait SourceOps[+T] { this: Source[T] =>
   def pipeTo(sink: Sink[T]): Unit =
     repeatWhile {
       receive() match
-        case ChannelResult.Done     => sink.done(); false
-        case ChannelResult.Error(r) => sink.error(r); false
-        case ChannelResult.Value(t) => sink.send(t).isValue
+        case ChannelClosed.Done     => sink.done(); false
+        case ChannelClosed.Error(r) => sink.error(r); false
+        case t: T @unchecked        => sink.send(t).isValue
     }
 
   def drain(): Unit = foreach(_ => ())
@@ -225,12 +225,12 @@ trait SourceCompanionOps:
               continue = false
             case Some(source) =>
               source.receive() match
-                case ChannelResult.Done =>
+                case ChannelClosed.Done =>
                   currentSource = None
-                case ChannelResult.Error(r) =>
+                case ChannelClosed.Error(r) =>
                   c.error(r)
                   continue = false
-                case ChannelResult.Value(t) =>
+                case t: T @unchecked =>
                   c.send(t)
       catch case e: Exception => c.error(e)
     }
