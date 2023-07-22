@@ -241,14 +241,14 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
 
   it should "create an iterating source" in {
     scoped {
-      val c = Source.iterate(0)(1)(_ + 1)
+      val c = Source.iterate(1)(_ + 1)
       c.take(3).toList shouldBe List(1, 2, 3)
     }
   }
 
   it should "unfold a function" in {
     scoped {
-      val c = Source.unfold(0)(0)(i => if i < 3 then Some((i, i + 1)) else None)
+      val c = Source.unfold(0)(i => if i < 3 then Some((i, i + 1)) else None)
       c.toList shouldBe List(0, 1, 2)
     }
   }

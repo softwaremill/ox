@@ -5,9 +5,8 @@ import ox.*
 import scala.concurrent.duration.FiniteDuration
 
 trait SourceOps[+T] { this: Source[T] =>
-  def map[U](f: T => U)(using Ox): Source[U] = map(DefaultCapacity)(f)
-  def map[U](capacity: Int)(f: T => U)(using Ox): Source[U] =
-    val c2 = Channel[U](capacity)
+  def map[U](f: T => U)(using Ox, StageCapacity): Source[U] =
+    val c2 = Channel[U](summon[StageCapacity].toInt)
     fork {
       repeatWhile {
         receive() match
@@ -25,14 +24,11 @@ trait SourceOps[+T] { this: Source[T] =>
     }
     c2
 
-  def take(n: Int)(using Ox): Source[T] = take(DefaultCapacity)(n)
-  def take(capacity: Int)(n: Int)(using Ox): Source[T] = transform(capacity)(_.take(n))
+  def take(n: Int)(using Ox, StageCapacity): Source[T] = transform(_.take(n))
 
-  def filter(f: T => Boolean)(using Ox): Source[T] = filter(DefaultCapacity)(f)
-  def filter(capacity: Int)(f: T => Boolean)(using Ox): Source[T] = transform(capacity)(_.filter(f))
+  def filter(f: T => Boolean)(using Ox, StageCapacity): Source[T] = transform(_.filter(f))
 
-  def transform[U](f: Iterator[T] => Iterator[U])(using Ox): Source[U] = transform(DefaultCapacity)(f)
-  def transform[U](capacity: Int)(f: Iterator[T] => Iterator[U])(using Ox): Source[U] =
+  def transform[U](f: Iterator[T] => Iterator[U])(using Ox, StageCapacity): Source[U] =
     val it = new Iterator[T]:
       private var v: Option[T | ChannelClosed] = None
       private def forceNext(): T | ChannelClosed = v match
@@ -50,11 +46,10 @@ trait SourceOps[+T] { this: Source[T] =>
         case t: T @unchecked =>
           v = None
           t
-    Source.fromIterator(capacity)(f(it))
+    Source.fromIterator(f(it))
 
-  def merge[U >: T](other: Source[U])(using Ox): Source[U] = merge(DefaultCapacity)(other)
-  def merge[U >: T](capacity: Int)(other: Source[U])(using Ox): Source[U] =
-    val c = Channel[U](capacity)
+  def merge[U >: T](other: Source[U])(using Ox, StageCapacity): Source[U] =
+    val c = Channel[U](summon[StageCapacity].toInt)
     fork {
       repeatWhile {
         select(this, other) match
@@ -65,12 +60,11 @@ trait SourceOps[+T] { this: Source[T] =>
     }
     c
 
-  def concat[U >: T](other: Source[U])(using Ox): Source[U] = concat(DefaultCapacity)(other)
-  def concat[U >: T](capacity: Int)(other: Source[U])(using Ox): Source[U] = Source.concat(capacity)(List(() => this, () => other))
+  def concat[U >: T](other: Source[U])(using Ox, StageCapacity): Source[U] =
+    Source.concat(List(() => this, () => other))
 
-  def zip[U](other: Source[U])(using Ox): Source[(T, U)] = zip(DefaultCapacity)(other)
-  def zip[U](capacity: Int)(other: Source[U])(using Ox): Source[(T, U)] =
-    val c = Channel[(T, U)](capacity)
+  def zip[U](other: Source[U])(using Ox, StageCapacity): Source[(T, U)] =
+    val c = Channel[(T, U)](summon[StageCapacity].toInt)
     fork {
       repeatWhile {
         receive() match
@@ -112,15 +106,12 @@ trait SourceOps[+T] { this: Source[T] =>
 }
 
 trait SourceCompanionOps:
-  def fromIterable[T](it: Iterable[T])(using Ox): Source[T] = fromIterable(DefaultCapacity)(it)
-  def fromIterable[T](capacity: Int)(it: Iterable[T])(using Ox): Source[T] = fromIterator(capacity)(it.iterator)
+  def fromIterable[T](it: Iterable[T])(using Ox, StageCapacity): Source[T] = fromIterator(it.iterator)
 
-  def fromValues[T](ts: T*)(using Ox): Source[T] = fromValues(DefaultCapacity)(ts: _*)
-  def fromValues[T](capacity: Int)(ts: T*)(using Ox): Source[T] = fromIterator(capacity)(ts.iterator)
+  def fromValues[T](ts: T*)(using Ox, StageCapacity): Source[T] = fromIterator(ts.iterator)
 
-  def fromIterator[T](it: => Iterator[T])(using Ox): Source[T] = fromIterator(DefaultCapacity)(it)
-  def fromIterator[T](capacity: Int)(it: => Iterator[T])(using Ox): Source[T] =
-    val c = Channel[T](capacity)
+  def fromIterator[T](it: => Iterator[T])(using Ox, StageCapacity): Source[T] =
+    val c = Channel[T](summon[StageCapacity].toInt)
     fork {
       val theIt = it
       try
@@ -130,9 +121,8 @@ trait SourceCompanionOps:
     }
     c
 
-  def fromFork[T](f: Fork[T])(using Ox): Source[T] = fromFork(DefaultCapacity)(f)
-  def fromFork[T](capacity: Int)(f: Fork[T])(using Ox): Source[T] =
-    val c = Channel[T](capacity)
+  def fromFork[T](f: Fork[T])(using Ox, StageCapacity): Source[T] =
+    val c = Channel[T](summon[StageCapacity].toInt)
     fork {
       try
         c.send(f.join())
@@ -141,9 +131,8 @@ trait SourceCompanionOps:
     }
     c
 
-  def iterate[T](zero: T)(f: T => T)(using Ox): Source[T] = iterate(DefaultCapacity)(zero)(f)
-  def iterate[T](capacity: Int)(zero: T)(f: T => T)(using Ox): Source[T] =
-    val c = Channel[T](capacity)
+  def iterate[T](zero: T)(f: T => T)(using Ox, StageCapacity): Source[T] =
+    val c = Channel[T](summon[StageCapacity].toInt)
     fork {
       var t = zero
       try
@@ -155,9 +144,8 @@ trait SourceCompanionOps:
     }
     c
 
-  def unfold[S, T](initial: S)(f: S => Option[(T, S)])(using Ox): Source[T] = unfold(DefaultCapacity)(initial)(f)
-  def unfold[S, T](capacity: Int)(initial: S)(f: S => Option[(T, S)])(using Ox): Source[T] =
-    val c = Channel[T](capacity)
+  def unfold[S, T](initial: S)(f: S => Option[(T, S)])(using Ox, StageCapacity): Source[T] =
+    val c = Channel[T](summon[StageCapacity].toInt)
     fork {
       var s = initial
       try
@@ -175,10 +163,8 @@ trait SourceCompanionOps:
     }
     c
 
-  def tick(interval: FiniteDuration)(using Ox): Source[Unit] = tick(DefaultCapacity)(interval, ())
-  def tick[T](interval: FiniteDuration, element: T)(using Ox): Source[T] = tick(DefaultCapacity)(interval, element)
-  def tick[T](capacity: Int)(interval: FiniteDuration, element: T = ())(using Ox): Source[T] =
-    val c = Channel[T](capacity)
+  def tick[T](interval: FiniteDuration, element: T = ())(using Ox, StageCapacity): Source[T] =
+    val c = Channel[T](summon[StageCapacity].toInt)
     fork {
       forever {
         c.send(element)
@@ -187,10 +173,8 @@ trait SourceCompanionOps:
     }
     c
 
-  def repeat(using Ox): Source[Unit] = repeat(DefaultCapacity)(())
-  def repeat[T](element: T)(using Ox): Source[T] = repeat(DefaultCapacity)(element)
-  def repeat[T](capacity: Int)(element: T = ())(using Ox): Source[T] =
-    val c = Channel[T](capacity)
+  def repeat[T](element: T = ())(using Ox, StageCapacity): Source[T] =
+    val c = Channel[T](summon[StageCapacity].toInt)
     fork {
       forever {
         c.send(element)
@@ -198,10 +182,8 @@ trait SourceCompanionOps:
     }
     c
 
-  def timeout(interval: FiniteDuration)(using Ox): Source[Unit] = timeout(DefaultCapacity)(interval, ())
-  def timeout[T](interval: FiniteDuration, element: T)(using Ox): Source[T] = timeout(DefaultCapacity)(interval, element)
-  def timeout[T](capacity: Int)(interval: FiniteDuration, element: T = ())(using Ox): Source[T] =
-    val c = Channel[T](capacity)
+  def timeout[T](interval: FiniteDuration, element: T = ())(using Ox, StageCapacity): Source[T] =
+    val c = Channel[T](summon[StageCapacity].toInt)
     fork {
       Thread.sleep(interval.toMillis)
       c.send(element)
@@ -209,9 +191,8 @@ trait SourceCompanionOps:
     }
     c
 
-  def concat[T](sources: Seq[() => Source[T]])(using Ox): Source[T] = concat(DefaultCapacity)(sources)
-  def concat[T](capacity: Int)(sources: Seq[() => Source[T]])(using Ox): Source[T] =
-    val c = Channel[T](capacity)
+  def concat[T](sources: Seq[() => Source[T]])(using Ox, StageCapacity): Source[T] =
+    val c = Channel[T](summon[StageCapacity].toInt)
     fork {
       var currentSource: Option[Source[T]] = None
       val sourcesIterator = sources.iterator
@@ -236,4 +217,9 @@ trait SourceCompanionOps:
     }
     c
 
-private val DefaultCapacity = 0
+opaque type StageCapacity = Int
+
+object StageCapacity:
+  def apply(c: Int) = c
+  extension (c: StageCapacity) def toInt: Int = c
+  given default: StageCapacity = 0

@@ -374,6 +374,16 @@ scoped {
       .transform(_.filter(_ % 2 == 0).map(_ + 1).take(10)) // take the 10 first even numbers, incremented by 1
       .foreach(n => println(n.toString))
   }
+}
+```
+
+### Capacity of transformation stages
+
+Most source transformation methods create new channels, on which the transformed values are produced. The capacity of
+these channels by default is 0 (unbuffered). This can be overridden by providing `StageCapacity` given, e.g.:
+
+```scala
+(v: Source[Int]).map(_ + 1)(using StageCapacity(10))
 ```
 
 ## Discharging channels
@@ -413,6 +423,7 @@ As an example, this can be used as follows:
 
 ```scala
 import ox.Source
+import ox.channels.*
 import scala.concurrent.duration.FiniteDuration
 
 case object Tick
@@ -447,6 +458,8 @@ channels).
 For example:
 
 ```scala
+import ox.channels.Channel
+
 val c = Channel[Int]()
 val d = Channel[Int]()
 
@@ -470,6 +483,8 @@ Channel closed values can be inspected, or converted to an exception using `.orT
 The results of a `select` can be inspected using a pattern match:
 
 ```scala
+import ox.channels.*
+
 val c = Channel[Int]()
 val d = Channel[Int]()
 
@@ -488,6 +503,8 @@ immediately satisfied. The clause can be created with `Default`, and in case the
 in `DefaultResult`. For example:
 
 ```scala
+import ox.channels.*
+
 val c = Channel[Int]()
 
 select(c.receiveClause, Default(5)).orThrow match
