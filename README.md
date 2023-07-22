@@ -12,7 +12,7 @@ Requires JDK 20. Applications need the following JVM flags: `--enable-preview --
 [sbt](https://www.scala-sbt.org) dependency:
 
 ```scala
-"com.softwaremill.ox" %% "core" % "0.0.7"
+"com.softwaremill.ox" %% "core" % "0.0.8"
 ```
 
 Introductory articles:
