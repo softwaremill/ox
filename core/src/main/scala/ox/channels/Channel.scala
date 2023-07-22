@@ -287,8 +287,11 @@ class BufferedChannel[T](capacity: Int = 1) extends Channel[T]:
       else c.complete(Received(w)) // sending the element
       drainWaitingReceivesWhenDone()
 
-class MappedSource[T, U](s: Source[T], f: T => U) extends Source[U]:
-  override def receive(): U | ChannelClosed = select(List(s.receiveClause)).map(_.value).map(f)
+class CollectSource[T, U](s: Source[T], f: T => Option[U]) extends Source[U]:
+  @tailrec final override def receive(): U | ChannelClosed = select(List(s.receiveClause)).map(_.value).map(f) match
+    case Some(u)          => u
+    case None             => receive()
+    case c: ChannelClosed => c
   override private[ox] def receiveCellOffer(c: CellCompleter[U]): Unit = s.receiveCellOffer(createLinkedCell(c))
   override private[ox] def receiveCellCleanup(c: CellCompleter[U]): Unit = s.receiveCellCleanup(createLinkedCell(c))
   override private[ox] def trySatisfyWaiting(): Unit | ChannelClosed = s.trySatisfyWaiting()

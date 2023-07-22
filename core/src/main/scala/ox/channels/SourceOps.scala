@@ -5,6 +5,14 @@ import ox.*
 import scala.concurrent.duration.FiniteDuration
 
 trait SourceOps[+T] { this: Source[T] =>
+  // view ops (lazy)
+
+  def mapAsView[U](f: T => U): Source[U] = CollectSource(this, t => Some(f(t)))
+  def filterAsView(f: T => Boolean): Source[T] = CollectSource(this, t => if f(t) then Some(t) else None)
+  def collectAsView[U](f: PartialFunction[T, U]): Source[U] = CollectSource(this, f.lift)
+
+  // run ops (eager)
+
   def map[U](f: T => U)(using Ox, StageCapacity): Source[U] =
     val c2 = Channel[U](summon[StageCapacity].toInt)
     fork {
@@ -23,8 +31,6 @@ trait SourceOps[+T] { this: Source[T] =>
       }
     }
     c2
-
-  def mapView[U](f: T => U): Source[U] = MappedSource(this, f)
 
   def take(n: Int)(using Ox, StageCapacity): Source[T] = transform(_.take(n))
 
