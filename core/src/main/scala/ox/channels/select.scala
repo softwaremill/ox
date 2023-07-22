@@ -59,6 +59,12 @@ private def doSelect[T](clauses: List[SelectClause[T]]): SelectResult[T] | Chann
           // completed with a value; interrupting self and returning it
           try t
           finally Thread.currentThread().interrupt()
+        case t: MaybeCreateResult[T] @unchecked =>
+          try
+            t() match
+              case Some(r) => r
+              case None    => throw e
+          finally Thread.currentThread().interrupt()
 
   def takeFromCellInterruptSafe(c: Cell[T]): SelectResult[T] | ChannelClosed =
     try
@@ -66,7 +72,12 @@ private def doSelect[T](clauses: List[SelectClause[T]]): SelectResult[T] | Chann
         case c2: Cell[T] @unchecked => offerCellAndTake(c2) // we got a new cell on which we should be waiting, add it to the channels
         case s: ChannelState.Error  => ChannelClosed.Error(s.reason)
         case ChannelState.Done      => doSelect(clauses)
-        case t: SelectResult[T] @unchecked => t
+        case t: SelectResult[T] @unchecked      => t
+        case t: MaybeCreateResult[T] @unchecked =>
+          // this might throw exceptions, but this is fine - we're on the thread that called select
+          t() match
+            case Some(r) => r
+            case None    => doSelect(clauses)
     catch case e: InterruptedException => cellTakeInterrupted(c, e)
     // now that the cell has been filled, it is owned, and should be removed from the waiting lists of the other channels
     finally cleanupCell(c, alsoWhenSingleClause = false)
