@@ -31,3 +31,20 @@ private[ox] class Cell[T] extends CellCompleter[T]:
   override def tryOwn(): Boolean = isOwned.compareAndSet(false, true)
   def take(): SelectResult[T] | Cell[T] | ChannelState.Closed = cell.take()
   def isAlreadyOwned: Boolean = isOwned.get()
+
+/** Linked cells are created when creating MappedSources. */
+private[ox] class LinkedCell[T, U](linkedTo: CellCompleter[U], f: T => U, createReceived: U => Source[U]#Received)
+    extends CellCompleter[T] {
+  override def complete(t: SelectResult[T]): Unit =
+    val u: SelectResult[U] = t match
+      case r: Source[T]#Received => createReceived(f(r.value)) // TODO exceptions
+      case _                     => throw new IllegalStateException() // linked cells can only be created from sources
+    linkedTo.complete(u)
+  override def completeWithNewCell(): Unit = linkedTo.completeWithNewCell()
+  override def completeWithClosed(s: ChannelState.Closed): Unit = linkedTo.completeWithClosed(s)
+  override def tryOwn(): Boolean = linkedTo.tryOwn()
+
+  // for cleanup
+  override def equals(obj: Any): Boolean = linkedTo.equals(obj)
+  override def hashCode(): Int = linkedTo.hashCode()
+}

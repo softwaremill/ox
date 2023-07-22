@@ -24,6 +24,8 @@ trait SourceOps[+T] { this: Source[T] =>
     }
     c2
 
+  def mapView[U](f: T => U): Source[U] = MappedSource(this, f)
+
   def take(n: Int)(using Ox, StageCapacity): Source[T] = transform(_.take(n))
 
   def filter(f: T => Boolean)(using Ox, StageCapacity): Source[T] = transform(_.filter(f))
