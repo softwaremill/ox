@@ -162,4 +162,25 @@ class ForkTest extends AnyFlatSpec with Matchers {
       else trail.trail shouldBe Vector("started", "interrupted", "interrupted done", "cancel done")
     }
   }
+
+  "cancelNow" should "return immediately, and wait for forks when scope completes" in {
+    val trail = Trail()
+    scoped {
+      val f = fork {
+        try
+          Thread.sleep(500L)
+          trail.add("main done")
+        catch
+          case _: InterruptedException =>
+            Thread.sleep(500L)
+            trail.add("interrupted done")
+      }
+
+      Thread.sleep(100L) // making sure the fork starts
+      f.cancelNow()
+      trail.add("cancel done")
+      trail.trail shouldBe Vector("cancel done")
+    }
+    trail.trail shouldBe Vector("cancel done", "interrupted done")
+  }
 }

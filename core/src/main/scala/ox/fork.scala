@@ -34,6 +34,7 @@ def fork[T](f: => T)(using Ox): Fork[T] =
           case e: ExecutionException => Left(e.getCause)
           case e: Throwable          => Left(e)
       else Left(new InterruptedException("fork was cancelled before it started"))
+    override def cancelNow(): Unit = forkFuture.cancel(false)
 
 def forkAll[T](fs: Seq[() => T])(using Ox): Fork[Seq[T]] =
   val forks = fs.map(f => fork(f()))
@@ -44,6 +45,7 @@ def forkAll[T](fs: Seq[() => T])(using Ox): Fork[Seq[T]] =
       if results.exists(_.isLeft)
       then Left(results.collectFirst { case Left(e) => e }.get)
       else Right(results.collect { case Right(t) => t })
+    override def cancelNow(): Unit = forks.foreach(_.cancelNow())
 
 /** A running fork, started using [[fork]] or [[fork]], backend by a thread. */
 trait Fork[T]:
@@ -55,3 +57,8 @@ trait Fork[T]:
 
   /** Interrupts the fork, and blocks until it completes with a result. */
   def cancel(): Either[Throwable, T]
+
+  /** Interrupts the fork, and returns immediately, without waiting for the fork complete. Note that the enclosing scope will only complete
+    * once all forks have completed.
+    */
+  def cancelNow(): Unit
