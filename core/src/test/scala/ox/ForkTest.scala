@@ -14,15 +14,15 @@ import scala.concurrent.duration.DurationInt
 class ForkTest extends AnyFlatSpec with Matchers {
   class CustomException extends RuntimeException
 
-  "forkHold" should "run two forks concurrently" in {
+  "fork" should "run two forks concurrently" in {
     val trail = Trail()
     scoped {
-      val f1 = forkHold {
+      val f1 = fork {
         Thread.sleep(500)
         trail.add("f1 complete")
         5
       }
-      val f2 = forkHold {
+      val f2 = fork {
         Thread.sleep(1000)
         trail.add("f2 complete")
         6
@@ -37,8 +37,8 @@ class ForkTest extends AnyFlatSpec with Matchers {
   it should "allow nested forks" in {
     val trail = Trail()
     scoped {
-      val f1 = forkHold {
-        val f2 = forkHold {
+      val f1 = fork {
+        val f2 = fork {
           Thread.sleep(1000)
           trail.add("f2 complete")
           6
@@ -65,12 +65,12 @@ class ForkTest extends AnyFlatSpec with Matchers {
           Thread.sleep(1000)
           trail.add("f2 complete")
           6
-        }.forkHold
+        }.fork
 
         Thread.sleep(500)
         trail.add("f1 complete")
         5 + f2.join()
-      }.forkHold
+      }.fork
 
       trail.add("main mid")
       trail.add(s"result = ${f1.join()}")
@@ -82,8 +82,8 @@ class ForkTest extends AnyFlatSpec with Matchers {
   it should "interrupt child forks when parents complete" in {
     val trail = Trail()
     scoped {
-      val f1 = forkHold {
-        forkHold {
+      val f1 = fork {
+        fork {
           try
             Thread.sleep(1000)
             trail.add("f2 complete")
@@ -108,50 +108,9 @@ class ForkTest extends AnyFlatSpec with Matchers {
 
   it should "throw the exception thrown by a joined fork" in {
     val trail = Trail()
-    try scoped(forkHold(throw new CustomException()).join())
+    try scoped(fork(throw new CustomException()).join())
     catch case e: Exception => trail.add(e.getClass.getSimpleName)
 
     trail.trail shouldBe Vector("CustomException")
-  }
-
-  "fork" should "propagate failures to the scope thread" in {
-    val trail = Trail()
-    try
-      scoped {
-        val f1 = fork {
-          Thread.sleep(2000)
-          trail.add("f1 done")
-        }
-
-        val f2 = fork {
-          Thread.sleep(1000)
-          throw new CustomException
-        }
-
-        f1.join()
-        f2.join()
-      }
-    catch case e: Exception => trail.add(e.getClass.getSimpleName)
-
-    trail.trail shouldBe Vector("CustomException")
-  }
-
-  it should "not propagate interrupt exceptions" in {
-    val trail = Trail()
-    try
-      scoped {
-        fork {
-          Thread.sleep(2000)
-          trail.add("f1 done")
-        }
-
-        trail.add("main done")
-      }
-    catch case e: Exception => trail.add(e.getClass.getSimpleName)
-
-    // child should be interrupted, but the error shouldn't propagate
-    trail.trail shouldBe Vector("main done")
   }
 }
-
-

@@ -41,4 +41,38 @@ class RaceTest extends AnyFlatSpec with Matchers {
 
     trail.trail shouldBe Vector("no timeout", "done")
   }
+
+  it should "race a slower and faster computation" in {
+    val trail = Trail()
+    val start = System.currentTimeMillis()
+    raceSuccess {
+      Thread.sleep(1000L)
+      trail.add("slow")
+    } {
+      Thread.sleep(500L)
+      trail.add("fast")
+    }
+    val end = System.currentTimeMillis()
+
+    Thread.sleep(1000L)
+    trail.trail shouldBe Vector("fast")
+    end - start should be < 1000L
+  }
+
+  it should "race a faster and slower computation" in {
+    val trail = Trail()
+    val start = System.currentTimeMillis()
+    raceSuccess {
+      Thread.sleep(500L)
+      trail.add("fast")
+    } {
+      Thread.sleep(1000L)
+      trail.add("slow")
+    }
+    val end = System.currentTimeMillis()
+
+    Thread.sleep(1000L)
+    trail.trail shouldBe Vector("fast")
+    end - start should be < 1000L
+  }
 }

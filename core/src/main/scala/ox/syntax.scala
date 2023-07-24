@@ -8,7 +8,6 @@ object syntax:
     def retry(times: Int, sleep: FiniteDuration): T = ox.retry(times, sleep)(f)
 
   extension [T](f: => T)(using Ox)
-    def forkHold: Fork[T] = ox.forkHold(f)
     def fork: Fork[T] = ox.fork(f)
     def timeout(duration: FiniteDuration): T = ox.timeout(duration)(f)
     def scopedWhere[U](fl: ForkLocal[U], u: U): T = fl.scopedWhere(u)(f)

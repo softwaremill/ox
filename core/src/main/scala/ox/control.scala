@@ -28,7 +28,7 @@ def retry[T](times: Int, sleep: FiniteDuration)(f: => T): T =
 
 def uninterruptible[T](f: => T): T =
   scoped {
-    val t = forkHold(f)
+    val t = fork(f)
 
     def joinDespiteInterrupted: T =
       try t.join()

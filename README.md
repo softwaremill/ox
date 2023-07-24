@@ -134,12 +134,8 @@ Scopes can be arbitrarily nested.
 
 ### Error handling
 
-Any unhandled exceptions that are thrown in a `fork` block are propagated to the scope's main thread, by interrupting
-it and re-throwing the exception there. Hence, any failed fork will cause the entire scope's computation to be 
-interrupted, and unless interruptions are intercepted, all other forks will get interrupted as well.
-
-On the other hand, `forkHold` doesn't propagate any exceptions but retains them. The result of the fork must be
-explicitly inspected to discover, if the computation failed or succeeded, e.g. using the `Fork.join` method.
+If a fork fails with an exception, the `Fork.join` method will throw that exception. If there's no join and the fork 
+fails, the exception might go unnoticed.
 
 ## Scoped values
 

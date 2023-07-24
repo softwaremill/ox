@@ -6,17 +6,8 @@ import java.util.concurrent.atomic.AtomicReference
 
 private class DoNothingScope[T] extends StructuredTaskScope[T](null, Thread.ofVirtual().factory()) {}
 
-/** Any child forks are interrupted after `f` completes. */
+/** Any child forks are interrupted after `f` completes. The method only completes when all child forks have completed. */
 def scoped[T](f: Ox ?=> T): T =
-  val forkFailure = new AtomicReference[Throwable]()
-
-  // only propagating if the main scope thread was interrupted (presumably because of a supervised child fork failing)
-  def handleInterrupted(e: InterruptedException) = forkFailure.get() match
-    case null => throw e
-    case t =>
-      t.addSuppressed(e)
-      throw t
-
   def throwWithSuppressed(es: List[Throwable]): Nothing =
     val e = es.head
     es.tail.foreach(e.addSuppressed)
@@ -43,13 +34,11 @@ def scoped[T](f: Ox ?=> T): T =
   try
     val t =
       try
-        try f(using Ox(scope, Thread.currentThread(), forkFailure, finalizers))
-        catch case e: InterruptedException => handleInterrupted(e)
+        try f(using Ox(scope, Thread.currentThread(), finalizers))
         finally
           scope.shutdown()
           scope.join()
-        // .join might have been interrupted, because of a fork failing after f completes, including shutdown
-      catch case e: InterruptedException => handleInterrupted(e)
+      // join might have been interrupted
       finally scope.close()
 
     // running the finalizers only once we are sure that all child threads have been terminated, so that no new
