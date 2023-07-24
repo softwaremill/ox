@@ -1,6 +1,7 @@
 package ox
 
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.atomic.AtomicBoolean
 import scala.concurrent.ExecutionException
 import scala.util.Try
 
@@ -9,10 +10,15 @@ import scala.util.Try
   * In case an exception is thrown while evaluating `t`, it will be thrown when calling the returned [[Fork]]'s `.join()` method.
   */
 def fork[T](f: => T)(using Ox): Fork[T] =
+  // the separate result future is needed to wait for a result when cancelled (forkFuture is immediately completed upon cancellation)
   val result = new CompletableFuture[T]()
+  // forks can be never run, if they are cancelled immediately - we need to detect this, not to await on result.get()
+  val started = new AtomicBoolean(false)
   val forkFuture = summon[Ox].scope.fork { () =>
-    try result.complete(f)
-    catch case e: Throwable => result.completeExceptionally(e)
+    // the "else" should never happen, but it would mean that the fork is already cancelled, so doing nothing in that case
+    if !started.getAndSet(true) then
+      try result.complete(f)
+      catch case e: Throwable => result.completeExceptionally(e)
   }
   new Fork[T]:
     override def join(): T = try result.get()
@@ -21,10 +27,13 @@ def fork[T](f: => T)(using Ox): Fork[T] =
       case e: Throwable          => throw e
     override def cancel(): Either[Throwable, T] =
       forkFuture.cancel(true)
-      try Right(result.get())
-      catch
-        case e: ExecutionException => Left(e.getCause)
-        case e: Throwable          => Left(e)
+      if started.getAndSet(true)
+      then
+        try Right(result.get())
+        catch
+          case e: ExecutionException => Left(e.getCause)
+          case e: Throwable          => Left(e)
+      else Left(new InterruptedException("fork was cancelled before it started"))
 
 def forkAll[T](fs: Seq[() => T])(using Ox): Fork[Seq[T]] =
   val forks = fs.map(f => fork(f()))

@@ -113,4 +113,53 @@ class ForkTest extends AnyFlatSpec with Matchers {
 
     trail.trail shouldBe Vector("CustomException")
   }
+
+  it should "block on cancel until the fork completes" in {
+    val trail = Trail()
+    scoped {
+      val f = fork {
+        trail.add("started")
+        try
+          Thread.sleep(500L)
+          trail.add("main done")
+        catch
+          case _: InterruptedException =>
+            trail.add("interrupted")
+            Thread.sleep(500L)
+            trail.add("interrupted done")
+      }
+
+      Thread.sleep(100L) // making sure the fork starts
+      f.cancel()
+      trail.add("cancel done")
+      Thread.sleep(1000L)
+    }
+    trail.trail shouldBe Vector("started", "interrupted", "interrupted done", "cancel done")
+  }
+
+  it should "block on cancel until the fork completes (stress test)" in {
+    for (_ <- 1 to 10) {
+      val trail = Trail()
+      scoped {
+        val f = fork {
+          trail.add("started")
+          try
+            Thread.sleep(500L)
+            trail.add("main done")
+          catch
+            case _: InterruptedException =>
+              trail.add("interrupted")
+              Thread.sleep(500L)
+              trail.add("interrupted done")
+        }
+
+        f.cancel()
+        trail.add("cancel done")
+        Thread.sleep(500L)
+      }
+      if trail.trail.length == 1
+      then trail.trail shouldBe Vector("cancel done") // the fork wasn't even started
+      else trail.trail shouldBe Vector("started", "interrupted", "interrupted done", "cancel done")
+    }
+  }
 }
