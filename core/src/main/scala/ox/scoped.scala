@@ -34,7 +34,7 @@ def scoped[T](f: Ox ?=> T): T =
   try
     val t =
       try
-        try f(using Ox(scope, Thread.currentThread(), finalizers))
+        try f(using Ox(scope, finalizers))
         finally
           scope.shutdown()
           scope.join()

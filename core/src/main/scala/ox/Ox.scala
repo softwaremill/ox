@@ -16,7 +16,6 @@ import scala.util.control.NoStackTrace
 )
 case class Ox(
     scope: StructuredTaskScope[Any],
-    scopeThread: Thread,
     finalizers: AtomicReference[List[() => Unit]]
 ):
   private[ox] def addFinalizer(f: () => Unit): Unit = finalizers.updateAndGet(f :: _)
