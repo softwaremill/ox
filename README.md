@@ -84,14 +84,19 @@ val result1: Try[Int] = Try(timeout(1.second)(computation)) // failure: TimeoutE
 val result2: Try[Int] = Try(timeout(3.seconds)(computation)) // success: 1
 ```
 
+A variant, `timeoutOption`, doesn't throw a `TimeoutException` on timeout, but returns `None` instead.
+
 ## Fork & join threads
 
 It's safest to use higher-level methods, such as `par` or `raceSuccess`, however this isn't always sufficient. For
 these cases, threads can be started using the structured concurrency APIs described below.
 
-The lifetime of the threads is defined by the structure of the code, and corresponds to the `scoped` block. Once
-`scoped` exits, any threads that are still running are interrupted. Hence, it is guaranteed that all threads started 
-within `scoped` will finish successfully, with an exception, or due to an interrupt.
+The lifetime of the threads is defined by the structure of the code, and corresponds to the `scoped` block. Once the
+code blocked passed to `scoped` completes, any forks that are still running are interrupted. The whole `scoped` block
+will completely only once all forks have completed (successfully, or with an exception). 
+
+Hence, it is guaranteed that all forks started within `scoped` will finish successfully, with an exception, or due to an 
+interrupt.
 
 ```scala
 import ox.{fork, scoped}
@@ -131,6 +136,12 @@ scoped {
 ```
 
 Scopes can be arbitrarily nested.
+
+### Cancelling forks
+
+Forks can be cancelled using `.cancel`, which interrupts the fork and awaits its completion. Alternatively, `.cancelNow`
+returns immediately. Still, the enclosing scope will only complete once the fork has completed, regardless of the method
+that has been called to cancel it.
 
 ### Error handling
 
