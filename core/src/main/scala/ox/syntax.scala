@@ -10,6 +10,7 @@ object syntax:
   extension [T](f: => T)(using Ox)
     def fork: Fork[T] = ox.fork(f)
     def timeout(duration: FiniteDuration): T = ox.timeout(duration)(f)
+    def timeoutOption(duration: FiniteDuration): Option[T] = ox.timeoutOption(duration)(f)
     def scopedWhere[U](fl: ForkLocal[U], u: U): T = fl.scopedWhere(u)(f)
     def uninterruptible: T = ox.uninterruptible(f)
     def parWith[U](f2: => U): (T, U) = ox.par(f)(f2)
