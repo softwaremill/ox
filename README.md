@@ -565,6 +565,11 @@ The role of the exception handler is then to re-create the entire processing pip
 Channels are back-pressured, as the `.send` operation is blocking until there's a receiver thread available, or if 
 there's enough space in the buffer. The processing space is bound by the total size of channel buffers.
 
+# Performance
+
+Performance is unknown, hasn't been measured and the code hasn't been optimized. We'd welcome contributions in this
+area!
+
 # Development
 
 To compile and test, run:
