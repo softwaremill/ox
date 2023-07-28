@@ -54,64 +54,65 @@ trait SourceOps[+T] { this: Source[T] =>
     */
   def mapPar[U](parallelism: Int)(f: T => U)(using Ox, StageCapacity): Source[U] =
     val c2 = StageCapacity.newChannel[U]
-    val mapsInProgress = new LinkedBlockingQueue[Fork[U] | ChannelClosed.Done.type]()
+    // this channel will become done whenever the upstream is done or there's an error
+    val inProgress = Channel[Fork[Option[U]]](parallelism)
     val s = new Semaphore(parallelism)
 
-    def cancelAllMapsInProgress(): Unit = {
-      val drain = new java.util.ArrayList[Fork[U] | ChannelClosed.Done.type](parallelism)
-      mapsInProgress.drainTo(drain)
-      val it = drain.iterator()
-      while it.hasNext do
-        it.next() match
-          case f: Fork[U] => f.cancel()
-          case _          => // ignore
-    }
+    def cancelAllInProgress(): Unit = inProgress.foreach(_.cancel())
 
     val enqueueFork = fork {
       repeatWhile {
         s.acquire()
         receive() match
           case ChannelClosed.Done =>
-            mapsInProgress.offer(ChannelClosed.Done)
+            inProgress.done()
             false
-          case ChannelClosed.Error(r) =>
+          case e @ ChannelClosed.Error(r) =>
             c2.error(r)
-            // even if the drain is interleaved with mapsInProgress.take(), send will fail (b/c we just did c2.error),
+            inProgress.done()
+            // even if the drain is interleaved with inProgress.receive(), c2.send will fail (b/c we just did c2.error),
             // so we won't deliver any elements out-of-order
-            cancelAllMapsInProgress()
+            cancelAllInProgress()
             false
           case t: T @unchecked =>
-            mapsInProgress.offer(fork {
-              val u = f(t)
-              s.release() // not in finally, as in case of an exception, no point in starting subsequent forks
-              u
-            })
-            true
+            val sendFork: Fork[Option[U]] = fork {
+              try
+                val u = Some(f(t))
+                s.release() // not in finally, as in case of an exception, no point in starting subsequent forks
+                u
+              catch
+                case t: Throwable =>
+                  c2.error(t)
+                  inProgress.done()
+                  cancelAllInProgress()
+                  None
+            }
+            val sent = inProgress.send(sendFork).isValue // might be done in case of an exception in any of the mappings
+            if !sent then sendFork.cancel() // mapping is finished, cancelling the fork we just started
+            sent
       }
     }
 
     // sending fork
     fork {
       repeatWhile {
-        mapsInProgress.take() match
-          case f: Fork[U] =>
-            try
-              // done is not possible
-              // when error, cancelling maps in progress will be done in enqueueFork
-              c2.send(f.join()).isValue
-            catch
-              case t: Throwable =>
-                c2.error(t)
-                enqueueFork.cancel()
-                cancelAllMapsInProgress()
-                false
-          case ChannelClosed.Done => c2.done(); false
+        inProgress.receive() match
+          case f: Fork[Option[U]] @unchecked =>
+            // send results:
+            // - done is not possible
+            // - when error, cancelling maps in progress will be done in enqueueFork
+            f.join().map(c2.send(_).isValue).getOrElse(false)
+          case ChannelClosed.Done =>
+            enqueueFork.cancel() // can still be running, if there was an exception during mapping
+            c2.done()
+            false
+          case ChannelClosed.Error(reason) => throw new IllegalStateException() // inProgress is never in an error state
       }
     }
 
     c2
 
-  def mapParUnordered[U](parallelism: Int)(f: T => U)(using Ox, StageCapacity): Source[U] = ???
+  def mapParUnordered[U](parallelism: Int)(f: T => U)(using Ox, StageCapacity): Source[U] = ??? // TODO
 
   def take(n: Int)(using Ox, StageCapacity): Source[T] = transform(_.take(n))
 
