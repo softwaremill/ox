@@ -2,6 +2,7 @@ package ox.channels
 
 import ox.*
 
+import java.util.concurrent.{ArrayBlockingQueue, ConcurrentLinkedQueue, LinkedBlockingQueue, Semaphore}
 import scala.concurrent.duration.FiniteDuration
 
 trait SourceOps[+T] { this: Source[T] =>
@@ -31,6 +32,86 @@ trait SourceOps[+T] { this: Source[T] =>
       }
     }
     c2
+
+  /** Applies the given mapping function `f` to each element received from this source, and sends the results to the returned channel. At
+    * most `parallelism` invocations of `f` are run in parallel.
+    *
+    * The mapped results are sent to the returned channel in the same order, in which inputs are received from this source. In other words,
+    * ordering is preserved.
+    *
+    * Errors from this channel are propagated to the returned channel. Any exceptions that occur when invoking `f` are propagated as errors
+    * to the returned channel as well, and result in interrupting any mappings that are in progress.
+    *
+    * Must be run within a scope, as child forks are created, which receive from this source, send to the resulting one, and run the
+    * mappings.
+    *
+    * @param parallelism
+    *   An upper bound on the number of forks that run in parallel. Each fork runs the function `f` on a single element of the source.
+    * @param f
+    *   The mapping function.
+    * @return
+    *   A source, onto which results of the mapping function will be sent.
+    */
+  def mapPar[U](parallelism: Int)(f: T => U)(using Ox, StageCapacity): Source[U] =
+    val c2 = Channel[U](summon[StageCapacity].toInt)
+    val mapsInProgress = new LinkedBlockingQueue[Fork[U] | ChannelClosed.Done.type]()
+    val s = new Semaphore(parallelism)
+
+    def cancelAllMapsInProgress(): Unit = {
+      val drain = new java.util.ArrayList[Fork[U] | ChannelClosed.Done.type](parallelism)
+      mapsInProgress.drainTo(drain)
+      val it = drain.iterator()
+      while it.hasNext do
+        it.next() match
+          case f: Fork[U] => f.cancel()
+          case _          => // ignore
+    }
+
+    val enqueueFork = fork {
+      repeatWhile {
+        s.acquire()
+        receive() match
+          case ChannelClosed.Done =>
+            mapsInProgress.offer(ChannelClosed.Done)
+            false
+          case ChannelClosed.Error(r) =>
+            c2.error(r)
+            // even if the drain is interleaved with mapsInProgress.take(), send will fail (b/c we just did c2.error),
+            // so we won't deliver any elements out-of-order
+            cancelAllMapsInProgress()
+            false
+          case t: T @unchecked =>
+            mapsInProgress.offer(fork {
+              val u = f(t)
+              s.release() // not in finally, as in case of an exception, no point in starting subsequent forks
+              u
+            })
+            true
+      }
+    }
+
+    // sending fork
+    fork {
+      repeatWhile {
+        mapsInProgress.take() match
+          case f: Fork[U] =>
+            try
+              // done is not possible
+              // when error, cancelling maps in progress will be done in enqueueFork
+              c2.send(f.join()).isValue
+            catch
+              case e: Exception =>
+                c2.error(e)
+                enqueueFork.cancel()
+                cancelAllMapsInProgress()
+                false
+          case ChannelClosed.Done => c2.done(); false
+      }
+    }
+
+    c2
+
+  // def mapParUnordered[U](parallelism: Int)(f: T => U)(using Ox, StageCapacity): Source[U] = ???
 
   def take(n: Int)(using Ox, StageCapacity): Source[T] = transform(_.take(n))
 
@@ -224,10 +305,3 @@ trait SourceCompanionOps:
       catch case e: Exception => c.error(e)
     }
     c
-
-opaque type StageCapacity = Int
-
-object StageCapacity:
-  def apply(c: Int) = c
-  extension (c: StageCapacity) def toInt: Int = c
-  given default: StageCapacity = 0

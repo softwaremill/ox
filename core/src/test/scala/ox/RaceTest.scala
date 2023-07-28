@@ -1,13 +1,10 @@
 package ox
 
-import jdk.incubator.concurrent.ScopedValue
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.*
 import ox.util.Trail
 
-import java.time.Clock
-import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger}
 import scala.concurrent.TimeoutException
 import scala.concurrent.duration.DurationInt
 
