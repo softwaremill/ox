@@ -31,7 +31,7 @@ class ForkTest extends AnyFlatSpec with Matchers {
       trail.add(s"result = ${f1.join() + f2.join()}")
     }
 
-    trail.trail shouldBe Vector("main mid", "f1 complete", "f2 complete", "result = 11")
+    trail.get shouldBe Vector("main mid", "f1 complete", "f2 complete", "result = 11")
   }
 
   it should "allow nested forks" in {
@@ -53,7 +53,7 @@ class ForkTest extends AnyFlatSpec with Matchers {
       trail.add(s"result = ${f1.join()}")
     }
 
-    trail.trail shouldBe Vector("main mid", "f1 complete", "f2 complete", "result = 11")
+    trail.get shouldBe Vector("main mid", "f1 complete", "f2 complete", "result = 11")
   }
 
   it should "allow extension method syntax" in {
@@ -76,7 +76,7 @@ class ForkTest extends AnyFlatSpec with Matchers {
       trail.add(s"result = ${f1.join()}")
     }
 
-    trail.trail shouldBe Vector("main mid", "f1 complete", "f2 complete", "result = 11")
+    trail.get shouldBe Vector("main mid", "f1 complete", "f2 complete", "result = 11")
   }
 
   it should "interrupt child forks when parents complete" in {
@@ -103,7 +103,7 @@ class ForkTest extends AnyFlatSpec with Matchers {
       trail.add(s"result = ${f1.join()}")
     }
 
-    trail.trail shouldBe Vector("main mid", "f1 complete", "result = 5", "f2 interrupted")
+    trail.get shouldBe Vector("main mid", "f1 complete", "result = 5", "f2 interrupted")
   }
 
   it should "throw the exception thrown by a joined fork" in {
@@ -111,7 +111,7 @@ class ForkTest extends AnyFlatSpec with Matchers {
     try scoped(fork(throw new CustomException()).join())
     catch case e: Exception => trail.add(e.getClass.getSimpleName)
 
-    trail.trail shouldBe Vector("CustomException")
+    trail.get shouldBe Vector("CustomException")
   }
 
   it should "block on cancel until the fork completes" in {
@@ -134,7 +134,7 @@ class ForkTest extends AnyFlatSpec with Matchers {
       trail.add("cancel done")
       Thread.sleep(1000L)
     }
-    trail.trail shouldBe Vector("started", "interrupted", "interrupted done", "cancel done")
+    trail.get shouldBe Vector("started", "interrupted", "interrupted done", "cancel done")
   }
 
   it should "block on cancel until the fork completes (stress test)" in {
@@ -157,9 +157,9 @@ class ForkTest extends AnyFlatSpec with Matchers {
         trail.add("cancel done")
         Thread.sleep(500L)
       }
-      if trail.trail.length == 1
-      then trail.trail shouldBe Vector("cancel done") // the fork wasn't even started
-      else trail.trail shouldBe Vector("started", "interrupted", "interrupted done", "cancel done")
+      if trail.get.length == 1
+      then trail.get shouldBe Vector("cancel done") // the fork wasn't even started
+      else trail.get shouldBe Vector("started", "interrupted", "interrupted done", "cancel done")
     }
   }
 
@@ -179,8 +179,8 @@ class ForkTest extends AnyFlatSpec with Matchers {
       Thread.sleep(100L) // making sure the fork starts
       f.cancelNow()
       trail.add("cancel done")
-      trail.trail shouldBe Vector("cancel done")
+      trail.get shouldBe Vector("cancel done")
     }
-    trail.trail shouldBe Vector("cancel done", "interrupted done")
+    trail.get shouldBe Vector("cancel done", "interrupted done")
   }
 }

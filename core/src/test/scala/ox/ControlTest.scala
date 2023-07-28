@@ -26,7 +26,7 @@ class ControlTest extends AnyFlatSpec with Matchers {
       Thread.sleep(2000)
     }
 
-    trail.trail shouldBe Vector("timeout", "done")
+    trail.get shouldBe Vector("timeout", "done")
   }
 
   it should "not interrupt a short computation" in {
@@ -43,6 +43,6 @@ class ControlTest extends AnyFlatSpec with Matchers {
       Thread.sleep(2000)
     }
 
-    trail.trail shouldBe Vector("no timeout", "done")
+    trail.get shouldBe Vector("no timeout", "done")
   }
 }

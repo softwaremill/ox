@@ -40,7 +40,7 @@ class LocalTest extends AnyFlatSpec with Matchers {
       trail.add(s"result = ${f3.join()}")
     }
 
-    trail.trail shouldBe Vector("main mid", "In f1 = x", "result = a", "In f3 = z", "result = a")
+    trail.get shouldBe Vector("main mid", "In f1 = x", "result = a", "In f3 = z", "result = a")
   }
 
   it should "propagate values across multiple scopes" in {
@@ -62,6 +62,6 @@ class LocalTest extends AnyFlatSpec with Matchers {
       trail.add(s"outer = ${v.get()}")
     }
 
-    trail.trail shouldBe Vector("nested1 = x", "nested2 = x", "outer = a")
+    trail.get shouldBe Vector("nested1 = x", "nested2 = x", "outer = a")
   }
 }

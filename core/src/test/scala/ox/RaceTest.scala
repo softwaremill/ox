@@ -21,7 +21,7 @@ class RaceTest extends AnyFlatSpec with Matchers {
     trail.add("done")
     Thread.sleep(2000)
 
-    trail.trail shouldBe Vector("timeout", "done")
+    trail.get shouldBe Vector("timeout", "done")
   }
 
   it should "not interrupt a short computation" in {
@@ -36,7 +36,7 @@ class RaceTest extends AnyFlatSpec with Matchers {
     trail.add("done")
     Thread.sleep(2000)
 
-    trail.trail shouldBe Vector("no timeout", "done")
+    trail.get shouldBe Vector("no timeout", "done")
   }
 
   "timeoutOption" should "short-circuit a long computation" in {
@@ -49,7 +49,7 @@ class RaceTest extends AnyFlatSpec with Matchers {
     trail.add(s"done: $result")
     Thread.sleep(2000)
 
-    trail.trail shouldBe Vector("done: None")
+    trail.get shouldBe Vector("done: None")
   }
 
   it should "race a slower and faster computation" in {
@@ -65,7 +65,7 @@ class RaceTest extends AnyFlatSpec with Matchers {
     val end = System.currentTimeMillis()
 
     Thread.sleep(1000L)
-    trail.trail shouldBe Vector("fast")
+    trail.get shouldBe Vector("fast")
     end - start should be < 1000L
   }
 
@@ -82,7 +82,7 @@ class RaceTest extends AnyFlatSpec with Matchers {
     val end = System.currentTimeMillis()
 
     Thread.sleep(1000L)
-    trail.trail shouldBe Vector("fast")
+    trail.get shouldBe Vector("fast")
     end - start should be < 1000L
   }
 }
