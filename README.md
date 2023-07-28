@@ -54,7 +54,7 @@ def computation1: Int =
   Thread.sleep(2000)
   1
 
-def computation2: String =
+def computation2: Int =
   Thread.sleep(1000)
   2
 
