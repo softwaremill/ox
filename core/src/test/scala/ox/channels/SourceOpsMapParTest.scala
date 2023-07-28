@@ -66,7 +66,7 @@ class SourceOpsMapParTest extends AnyFlatSpec with Matchers with Eventually {
         started.get() should be <= 7 // 4 successful + at most 3 taking up all the permits
   }
 
-  ignore should "cancel other running forks when there's an error" in scoped {
+  it should "cancel other running forks when there's an error" in scoped {
     // given
     val trail = Trail()
     val s = Source.fromIterable(1 to 10)
@@ -79,7 +79,7 @@ class SourceOpsMapParTest extends AnyFlatSpec with Matchers with Eventually {
         throw new Exception("boom")
       else
         Thread.sleep(200)
-        trail.add(s"done $i")
+        trail.add(s"done")
         i * 2
     }
 
@@ -90,6 +90,6 @@ class SourceOpsMapParTest extends AnyFlatSpec with Matchers with Eventually {
 
     // checking if the forks aren't left running
     Thread.sleep(200)
-    trail.get shouldBe Vector("done 1", "done 2", "exception") // TODO: 3 isn't cancelled because it's already taken off the queue
+    trail.get shouldBe Vector("done", "done", "exception") // TODO: 3 isn't cancelled because it's already taken off the queue
   }
 }

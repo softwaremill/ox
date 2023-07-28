@@ -2,7 +2,7 @@ package ox.channels
 
 import ox.*
 
-import java.util.concurrent.{ArrayBlockingQueue, ConcurrentLinkedQueue, LinkedBlockingQueue, Semaphore}
+import java.util.concurrent.{ArrayBlockingQueue, ConcurrentLinkedQueue, CountDownLatch, LinkedBlockingQueue, Semaphore}
 import scala.concurrent.duration.FiniteDuration
 
 trait SourceOps[+T] { this: Source[T] =>
@@ -54,63 +54,60 @@ trait SourceOps[+T] { this: Source[T] =>
     */
   def mapPar[U](parallelism: Int)(f: T => U)(using Ox, StageCapacity): Source[U] =
     val c2 = StageCapacity.newChannel[U]
-    // this channel will become done whenever the upstream is done or there's an error
-    val inProgress = Channel[Fork[Option[U]]](parallelism)
-    val s = new Semaphore(parallelism)
-
-    def cancelAllInProgress(): Unit = inProgress.foreach(_.cancel())
-
-    val enqueueFork = fork {
-      repeatWhile {
-        s.acquire()
-        receive() match
-          case ChannelClosed.Done =>
-            inProgress.done()
-            false
-          case e @ ChannelClosed.Error(r) =>
-            c2.error(r)
-            inProgress.done()
-            // even if the drain is interleaved with inProgress.receive(), c2.send will fail (b/c we just did c2.error),
-            // so we won't deliver any elements out-of-order
-            cancelAllInProgress()
-            false
-          case t: T @unchecked =>
-            val sendFork: Fork[Option[U]] = fork {
-              try
-                val u = Some(f(t))
-                s.release() // not in finally, as in case of an exception, no point in starting subsequent forks
-                u
-              catch
-                case t: Throwable =>
-                  c2.error(t)
-                  inProgress.done()
-                  cancelAllInProgress()
-                  None
-            }
-            val sent = inProgress.send(sendFork).isValue // might be done in case of an exception in any of the mappings
-            if !sent then sendFork.cancel() // mapping is finished, cancelling the fork we just started
-            sent
-      }
-    }
-
-    // sending fork
-    fork {
-      repeatWhile {
-        inProgress.receive() match
-          case f: Fork[Option[U]] @unchecked =>
-            // send results:
-            // - done is not possible
-            // - when error, cancelling maps in progress will be done in enqueueFork
-            f.join().map(c2.send(_).isValue).getOrElse(false)
-          case ChannelClosed.Done =>
-            enqueueFork.cancel() // can still be running, if there was an exception during mapping
-            c2.done()
-            false
-          case ChannelClosed.Error(reason) => throw new IllegalStateException() // inProgress is never in an error state
-      }
-    }
-
+    fork(mapParScope(parallelism, c2, f))
     c2
+
+  private def mapParScope[U](parallelism: Int, c2: Channel[U], f: T => U): Unit =
+    val s = new Semaphore(parallelism)
+    val inProgress = Channel[Fork[U]](parallelism)
+    val closeScope = new CountDownLatch(1)
+    scoped {
+      // enqueueing fork
+      fork {
+        repeatWhile {
+          s.acquire()
+          receive() match
+            case ChannelClosed.Done =>
+              inProgress.done()
+              false
+            case e @ ChannelClosed.Error(r) =>
+              c2.error(r)
+              // closing the scope, any child forks will be cancelled before the scope is done
+              closeScope.countDown()
+              false
+            case t: T @unchecked =>
+              inProgress.send(fork {
+                try
+                  val u = f(t)
+                  s.release() // not in finally, as in case of an exception, no point in starting subsequent forks
+                  u
+                catch
+                  case t: Throwable =>
+                    c2.error(t)
+                    closeScope.countDown()
+                    throw t
+              })
+              true
+        }
+      }
+
+      // sending fork
+      fork {
+        repeatWhile {
+          inProgress.receive() match
+            case f: Fork[U] @unchecked =>
+              c2.send(f.join()).isValue
+            case ChannelClosed.Done =>
+              closeScope.countDown()
+              c2.done()
+              false
+            case ChannelClosed.Error(reason) =>
+              throw new IllegalStateException() // inProgress is never in an error state
+        }
+      }
+
+      closeScope.await()
+    }
 
   def mapParUnordered[U](parallelism: Int)(f: T => U)(using Ox, StageCapacity): Source[U] = ??? // TODO
 
