@@ -23,7 +23,7 @@ extension [T](v: T | ChannelClosed)
     case t: T @unchecked        => f(t)
 
   def orThrow: T = v match
-    case c: ChannelClosed => throw c.toException
+    case c: ChannelClosed => throw c.toThrowable
     case t: T @unchecked  => t
 
   def isValue: Boolean = v match
@@ -72,8 +72,8 @@ trait Sink[-T]:
   def send(t: T): Unit | ChannelClosed
 
   def error(): Unit | ChannelClosed = error(None)
-  def error(reason: Exception): Unit | ChannelClosed = error(Some(reason))
-  def error(reason: Option[Exception]): Unit | ChannelClosed
+  def error(reason: Throwable): Unit | ChannelClosed = error(Some(reason))
+  def error(reason: Option[Throwable]): Unit | ChannelClosed
 
   /** Completes the channel with a "done" state.
     *
@@ -151,7 +151,7 @@ class DirectChannel[T] extends Channel[T]:
           true
     else false
 
-  override def error(reason: Option[Exception]): Unit | ChannelClosed =
+  override def error(reason: Option[Throwable]): Unit | ChannelClosed =
     state.error(reason).map { s =>
       // completing all waiting cells
       drainWaiting(waitingReceives, identity, s)
@@ -256,7 +256,7 @@ class BufferedChannel[T](capacity: Int = 1) extends Channel[T]:
         false
     else false
 
-  override def error(reason: Option[Exception]): Unit | ChannelClosed =
+  override def error(reason: Option[Throwable]): Unit | ChannelClosed =
     state.error(reason).map { s =>
       // not delivering enqueued elements
       elements.clear()
@@ -315,7 +315,7 @@ private class CurrentChannelState:
     if !state.compareAndSet(ChannelState.Open, s) then state.get().asInstanceOf[ChannelState.Closed].toResult
     else s
 
-  def error(reason: Option[Exception]): ChannelState.Closed | ChannelClosed = set(ChannelState.Error(reason))
+  def error(reason: Option[Throwable]): ChannelState.Closed | ChannelClosed = set(ChannelState.Error(reason))
   def done(): ChannelState.Closed | ChannelClosed = set(ChannelState.Done)
 
 @tailrec

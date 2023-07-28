@@ -26,8 +26,8 @@ trait SourceOps[+T] { this: Source[T] =>
               val u = f(t)
               c2.send(u).isValue
             catch
-              case e: Exception =>
-                c2.error(e)
+              case t: Throwable =>
+                c2.error(t)
                 false
       }
     }
@@ -100,8 +100,8 @@ trait SourceOps[+T] { this: Source[T] =>
               // when error, cancelling maps in progress will be done in enqueueFork
               c2.send(f.join()).isValue
             catch
-              case e: Exception =>
-                c2.error(e)
+              case t: Throwable =>
+                c2.error(t)
                 enqueueFork.cancel()
                 cancelAllMapsInProgress()
                 false
@@ -131,7 +131,7 @@ trait SourceOps[+T] { this: Source[T] =>
         case _                  => true
       override def next(): T = forceNext() match
         case ChannelClosed.Done     => throw new NoSuchElementException
-        case e: ChannelClosed.Error => throw e.toException
+        case e: ChannelClosed.Error => throw e.toThrowable
         case t: T @unchecked =>
           v = None
           t
@@ -174,7 +174,7 @@ trait SourceOps[+T] { this: Source[T] =>
     repeatWhile {
       receive() match
         case ChannelClosed.Done     => false
-        case e: ChannelClosed.Error => throw e.toException
+        case e: ChannelClosed.Error => throw e.toThrowable
         case t: T @unchecked        => f(t); true
     }
 
@@ -206,7 +206,7 @@ trait SourceCompanionOps:
       try
         while theIt.hasNext do c.send(theIt.next())
         c.done()
-      catch case e: Exception => c.error(e)
+      catch case t: Throwable => c.error(t)
     }
     c
 
@@ -216,7 +216,7 @@ trait SourceCompanionOps:
       try
         c.send(f.join())
         c.done()
-      catch case e: Exception => c.error(e)
+      catch case t: Throwable => c.error(t)
     }
     c
 
@@ -229,7 +229,7 @@ trait SourceCompanionOps:
           c.send(t)
           t = f(t)
         }
-      catch case e: Exception => c.error(e)
+      catch case t: Throwable => c.error(t)
     }
     c
 
@@ -248,7 +248,7 @@ trait SourceCompanionOps:
               c.done()
               false
         }
-      catch case e: Exception => c.error(e)
+      catch case t: Throwable => c.error(t)
     }
     c
 
@@ -302,6 +302,6 @@ trait SourceCompanionOps:
                   continue = false
                 case t: T @unchecked =>
                   c.send(t)
-      catch case e: Exception => c.error(e)
+      catch case t: Throwable => c.error(t)
     }
     c

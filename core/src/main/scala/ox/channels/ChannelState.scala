@@ -8,5 +8,5 @@ private[ox] object ChannelState:
       case Error(r) => ChannelClosed.Error(r)
 
   case object Open extends ChannelState
-  case class Error(reason: Option[Exception]) extends Closed
+  case class Error(reason: Option[Throwable]) extends Closed
   case object Done extends ChannelState with Closed

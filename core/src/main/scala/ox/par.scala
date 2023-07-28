@@ -19,7 +19,7 @@ def par[T1, T2, T3](t1: => T1)(t2: => T2)(t3: => T3): (T1, T2, T3) =
 /** Runs the given computations in parallel. If any fails, interrupts the others, and re-throws the exception. */
 def par[T](ts: Seq[() => T]): Seq[T] =
   scoped {
-    val firstError = new ArrayBlockingQueue[Exception](1)
+    val firstError = new ArrayBlockingQueue[Throwable](1)
     val fs = ts.map(t =>
       fork {
         tapException(t())(firstError.offer)
@@ -33,7 +33,7 @@ def par[T](ts: Seq[() => T]): Seq[T] =
   */
 def parLimit[T](parallelism: Int)(ts: Seq[() => T]): Seq[T] =
   scoped {
-    val firstError = new ArrayBlockingQueue[Exception](1)
+    val firstError = new ArrayBlockingQueue[Throwable](1)
     val s = new Semaphore(parallelism)
     val fs = ts.map(t =>
       fork {
@@ -47,14 +47,14 @@ def parLimit[T](parallelism: Int)(ts: Seq[() => T]): Seq[T] =
     joinAllOrFirstError(fs, firstError)
   }
 
-private def tapException[T](t: => T)(f: Exception => Unit): T =
+private def tapException[T](t: => T)(f: Throwable => Unit): T =
   try t
   catch
-    case e: Exception =>
-      f(e)
-      throw e
+    case t: Throwable =>
+      f(t)
+      throw t
 
-private def joinAllOrFirstError[T](fs: Seq[Fork[T]], firstError: ArrayBlockingQueue[Exception]): Seq[T] = raceResult {
+private def joinAllOrFirstError[T](fs: Seq[Fork[T]], firstError: ArrayBlockingQueue[Throwable]): Seq[T] = raceResult {
   fs.map(_.join())
 } {
   val e = firstError.take()
