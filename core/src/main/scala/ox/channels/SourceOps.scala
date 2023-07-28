@@ -15,7 +15,7 @@ trait SourceOps[+T] { this: Source[T] =>
   // run ops (eager)
 
   def map[U](f: T => U)(using Ox, StageCapacity): Source[U] =
-    val c2 = Channel[U](summon[StageCapacity].toInt)
+    val c2 = StageCapacity.newChannel[U]
     fork {
       repeatWhile {
         receive() match
@@ -53,7 +53,7 @@ trait SourceOps[+T] { this: Source[T] =>
     *   A source, onto which results of the mapping function will be sent.
     */
   def mapPar[U](parallelism: Int)(f: T => U)(using Ox, StageCapacity): Source[U] =
-    val c2 = Channel[U](summon[StageCapacity].toInt)
+    val c2 = StageCapacity.newChannel[U]
     val mapsInProgress = new LinkedBlockingQueue[Fork[U] | ChannelClosed.Done.type]()
     val s = new Semaphore(parallelism)
 
@@ -111,7 +111,7 @@ trait SourceOps[+T] { this: Source[T] =>
 
     c2
 
-  // def mapParUnordered[U](parallelism: Int)(f: T => U)(using Ox, StageCapacity): Source[U] = ???
+  def mapParUnordered[U](parallelism: Int)(f: T => U)(using Ox, StageCapacity): Source[U] = ???
 
   def take(n: Int)(using Ox, StageCapacity): Source[T] = transform(_.take(n))
 
@@ -138,7 +138,7 @@ trait SourceOps[+T] { this: Source[T] =>
     Source.fromIterator(f(it))
 
   def merge[U >: T](other: Source[U])(using Ox, StageCapacity): Source[U] =
-    val c = Channel[U](summon[StageCapacity].toInt)
+    val c = StageCapacity.newChannel[U]
     fork {
       repeatWhile {
         select(this, other) match
@@ -153,7 +153,7 @@ trait SourceOps[+T] { this: Source[T] =>
     Source.concat(List(() => this, () => other))
 
   def zip[U](other: Source[U])(using Ox, StageCapacity): Source[(T, U)] =
-    val c = Channel[(T, U)](summon[StageCapacity].toInt)
+    val c = StageCapacity.newChannel[(T, U)]
     fork {
       repeatWhile {
         receive() match
@@ -200,7 +200,7 @@ trait SourceCompanionOps:
   def fromValues[T](ts: T*)(using Ox, StageCapacity): Source[T] = fromIterator(ts.iterator)
 
   def fromIterator[T](it: => Iterator[T])(using Ox, StageCapacity): Source[T] =
-    val c = Channel[T](summon[StageCapacity].toInt)
+    val c = StageCapacity.newChannel[T]
     fork {
       val theIt = it
       try
@@ -211,7 +211,7 @@ trait SourceCompanionOps:
     c
 
   def fromFork[T](f: Fork[T])(using Ox, StageCapacity): Source[T] =
-    val c = Channel[T](summon[StageCapacity].toInt)
+    val c = StageCapacity.newChannel[T]
     fork {
       try
         c.send(f.join())
@@ -221,7 +221,7 @@ trait SourceCompanionOps:
     c
 
   def iterate[T](zero: T)(f: T => T)(using Ox, StageCapacity): Source[T] =
-    val c = Channel[T](summon[StageCapacity].toInt)
+    val c = StageCapacity.newChannel[T]
     fork {
       var t = zero
       try
@@ -234,7 +234,7 @@ trait SourceCompanionOps:
     c
 
   def unfold[S, T](initial: S)(f: S => Option[(T, S)])(using Ox, StageCapacity): Source[T] =
-    val c = Channel[T](summon[StageCapacity].toInt)
+    val c = StageCapacity.newChannel[T]
     fork {
       var s = initial
       try
@@ -253,7 +253,7 @@ trait SourceCompanionOps:
     c
 
   def tick[T](interval: FiniteDuration, element: T = ())(using Ox, StageCapacity): Source[T] =
-    val c = Channel[T](summon[StageCapacity].toInt)
+    val c = StageCapacity.newChannel[T]
     fork {
       forever {
         c.send(element)
@@ -263,7 +263,7 @@ trait SourceCompanionOps:
     c
 
   def repeat[T](element: T = ())(using Ox, StageCapacity): Source[T] =
-    val c = Channel[T](summon[StageCapacity].toInt)
+    val c = StageCapacity.newChannel[T]
     fork {
       forever {
         c.send(element)
@@ -272,7 +272,7 @@ trait SourceCompanionOps:
     c
 
   def timeout[T](interval: FiniteDuration, element: T = ())(using Ox, StageCapacity): Source[T] =
-    val c = Channel[T](summon[StageCapacity].toInt)
+    val c = StageCapacity.newChannel[T]
     fork {
       Thread.sleep(interval.toMillis)
       c.send(element)
@@ -281,7 +281,7 @@ trait SourceCompanionOps:
     c
 
   def concat[T](sources: Seq[() => Source[T]])(using Ox, StageCapacity): Source[T] =
-    val c = Channel[T](summon[StageCapacity].toInt)
+    val c = StageCapacity.newChannel[T]
     fork {
       var currentSource: Option[Source[T]] = None
       val sourcesIterator = sources.iterator
