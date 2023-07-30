@@ -62,8 +62,8 @@ val result: Int = raceSuccess(computation1)(computation2)
 // 2
 ```
 
-The loosing computation is interrupted using `Thread.interrupt`. `raceSuccess` waits until both branches finish; this
-also applies to the loosing one, which might take a while to clean up after interruption.
+The losing computation is interrupted using `Thread.interrupt`. `raceSuccess` waits until both branches finish; this
+also applies to the losing one, which might take a while to clean up after interruption.
 
 ### Error handling
 
