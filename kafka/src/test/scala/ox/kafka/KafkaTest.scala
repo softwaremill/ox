@@ -9,6 +9,7 @@ import org.scalatest.matchers.should.Matchers
 import ox.channels.*
 import ox.kafka.ConsumerSettings.AutoOffsetReset.Earliest
 import ox.*
+import scala.concurrent.duration.*
 
 class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with BeforeAndAfterAll {
 
