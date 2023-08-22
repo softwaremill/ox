@@ -1,6 +1,8 @@
 package ox.kafka
 
 import io.github.embeddedkafka.EmbeddedKafka
+import org.apache.kafka.clients.producer.ProducerRecord
+import org.apache.kafka.common.serialization.{Deserializer, StringDeserializer}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
@@ -8,7 +10,7 @@ import ox.channels.*
 import ox.kafka.ConsumerSettings.AutoOffsetReset.Earliest
 import ox.scoped
 
-class KafkaSourceTest extends AnyFlatSpec with Matchers with EmbeddedKafka with BeforeAndAfterAll {
+class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with BeforeAndAfterAll {
 
   private var kafkaPort: Int = _
 
@@ -45,5 +47,23 @@ class KafkaSourceTest extends AnyFlatSpec with Matchers with EmbeddedKafka with 
       publishStringMessageToKafka(topic, "msg4")
       source.receive().orThrow.value() shouldBe "msg4"
     }
+  }
+
+  it should "send messages to topics" in {
+    // given
+    val topic = "t2"
+
+    // when
+    scoped {
+      val settings = ProducerSettings.default.bootstrapServers(s"localhost:$kafkaPort")
+      Source
+        .fromIterable(List("a", "b", "c"))
+        .mapAsView(msg => ProducerRecord[String, String](topic, msg))
+        .pipeTo(KafkaSink.publish(settings))
+    }
+
+    // then
+    given Deserializer[String] = new StringDeserializer()
+    consumeNumberMessagesFrom[String](topic, 3) shouldBe List("a", "b", "c")
   }
 }

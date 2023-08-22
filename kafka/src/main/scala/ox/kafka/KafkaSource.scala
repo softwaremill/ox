@@ -7,19 +7,19 @@ import ox.channels.{Source, StageCapacity}
 import scala.jdk.CollectionConverters.*
 import scala.util.control.NonFatal
 
-object KafkaSource {
+object KafkaSource:
   def subscribe[K, V](settings: ConsumerSettings[K, V], topic: String, otherTopics: String*)(using
       StageCapacity,
       Ox
   ): Source[ConsumerRecord[K, V]] =
     subscribe(
       new KafkaConsumer(settings.toProperties, settings.keyDeserializer, settings.valueDeserializer),
-      closeWhenDone = true,
+      closeWhenComplete = true,
       topic,
       otherTopics: _*
     )
 
-  def subscribe[K, V](kafkaConsumer: KafkaConsumer[K, V], closeWhenDone: Boolean, topic: String, otherTopics: String*)(using
+  def subscribe[K, V](kafkaConsumer: KafkaConsumer[K, V], closeWhenComplete: Boolean, topic: String, otherTopics: String*)(using
       StageCapacity,
       Ox
   ): Source[ConsumerRecord[K, V]] =
@@ -32,8 +32,7 @@ object KafkaSource {
           val records = kafkaConsumer.poll(java.time.Duration.ofMillis(100))
           records.forEach(c.send)
       catch case NonFatal(e) => c.error(e)
-      finally if closeWhenDone then kafkaConsumer.close()
+      finally if closeWhenComplete then kafkaConsumer.close()
     }
 
     c
-}

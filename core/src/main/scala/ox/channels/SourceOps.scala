@@ -168,6 +168,10 @@ trait SourceOps[+T] { this: Source[T] =>
 
   //
 
+  /** Invokes the given function for each received element. Blocks until the channel is done.
+    * @throws ChannelClosedException
+    *   when there is an upstream error.
+    */
   def foreach(f: T => Unit): Unit =
     repeatWhile {
       receive() match
@@ -176,19 +180,31 @@ trait SourceOps[+T] { this: Source[T] =>
         case t: T @unchecked        => f(t); true
     }
 
+  /** Accumulates all elements received from the channel into a list. Blocks until the channel is done.
+    * @throws ChannelClosedException
+    *   when there is an upstream error.
+    */
   def toList: List[T] =
     val b = List.newBuilder[T]
     foreach(b += _)
     b.result()
 
+  /** Passes each received element from this channel to the given sink. Blocks until the channel is done.
+    * @throws ChannelClosedException
+    *   when there is an upstream error, or when the sink is closed.
+    */
   def pipeTo(sink: Sink[T]): Unit =
     repeatWhile {
       receive() match
         case ChannelClosed.Done     => sink.done(); false
-        case ChannelClosed.Error(r) => sink.error(r); false
-        case t: T @unchecked        => sink.send(t).isValue
+        case e: ChannelClosed.Error => sink.error(e.reason); throw e.toThrowable
+        case t: T @unchecked        => sink.send(t).orThrow; true
     }
 
+  /** Receives all elements from the channel. Blocks until the channel is done.
+    * @throws ChannelClosedException
+    *   when there is an upstream error.
+    */
   def drain(): Unit = foreach(_ => ())
 }
 
