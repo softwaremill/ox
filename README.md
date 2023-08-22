@@ -565,6 +565,74 @@ The role of the exception handler is then to re-create the entire processing pip
 Channels are back-pressured, as the `.send` operation is blocking until there's a receiver thread available, or if 
 there's enough space in the buffer. The processing space is bound by the total size of channel buffers.
 
+## Kafka sources & sinks
+
+Dependency:
+
+```scala
+"com.softwaremill.ox" %% "kafka" % "0.0.10"
+```
+
+`Source`s which read from a Kafka topic, and `Sink`s which publish to Kafka topics are available through the `KafkaSource`
+and `KafkaSink` objects. In all cases either a manually constructed instance of a `KafkaProducer` / `KafkaConsumer`
+is needed, or `ProducerSettings` / `ConsumerSetttings` need to be provided with the bootstrap servers, consumer group id,
+key / value serializers, etc.
+
+To read from a Kafka topic, use:
+
+```scala
+import ox.channel.ChannelClosed
+import ox.kafka.{ConsumerSettings, KafkaSource}
+import ox.kafka.ConsumerSettings.AutoOffsetReset.Earliest
+import ox.scoped
+import org.apache.kafka.clients.consumer.ConsumerRecord
+
+scoped {
+  val settings = ConsumerSettings.default("my_group").bootstrapServers("localhost:9092").autoOffsetReset(Earliest)
+  val source = KafkaSource.subscribe(settings, topic)
+
+  source.receive(): ConsumerRecord[String, String] | ChannelClosed
+}
+```
+
+To publish data to a Kafka topic:
+
+```scala
+import ox.channel.Source
+import ox.kafka.{ProducerSettings, KafkaSink}
+import ox.scoped
+import org.apache.kafka.clients.producer.ProducerRecord
+
+scoped {
+  val settings = ProducerSettings.default.bootstrapServers("localhost:9092")
+  Source
+    .fromIterable(List("a", "b", "c"))
+    .mapAsView(msg => ProducerRecord[String, String]("my_topic", msg))
+    .pipeTo(KafkaSink.publish(settings))
+}
+```
+
+To publish data and commit offsets of messages, basing on which the published data is computed:
+
+```scala
+import ox.kafka.{KafkaSink, KafkaSource, ProducerSettings, SendPacket}
+import ox.scoped
+import org.apache.kafka.clients.producer.ProducerRecord
+
+scoped {
+  val consumerSettings = ConsumerSettings.default("my_group").bootstrapServers("localhost:9092").autoOffsetReset(Earliest)
+  val producerSettings = ProducerSettings.default.bootstrapServers("localhost:9092")
+
+  KafkaSource
+    .subscribe(consumerSettings, sourceTopic)
+    .map(in => (in.value().toLong * 2, in))
+    .map((value, original) => SendPacket(ProducerRecord[String, String](destTopic, value.toString), original))
+    .pipeTo(KafkaSink.publishAndCommit(consumerSettings, producerSettings))
+}
+```
+
+The offsets are committed every second in a background process.
+
 # Performance
 
 Performance is unknown, hasn't been measured and the code hasn't been optimized. We'd welcome contributions in this
