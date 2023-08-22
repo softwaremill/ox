@@ -8,14 +8,14 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.channels.*
 import ox.kafka.ConsumerSettings.AutoOffsetReset.Earliest
-import ox.scoped
+import ox.*
 
 class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with BeforeAndAfterAll {
 
-  private var kafkaPort: Int = _
+  private var bootstrapServer: String = _
 
   override def beforeAll(): Unit =
-    kafkaPort = EmbeddedKafka.start().config.kafkaPort
+    bootstrapServer = s"localhost:${EmbeddedKafka.start().config.kafkaPort}"
 
   override def afterAll(): Unit =
     EmbeddedKafka.stop()
@@ -32,11 +32,10 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
 
     scoped {
       // then
-      val settings = ConsumerSettings.default(group).bootstrapServers(s"localhost:$kafkaPort").autoOffsetReset(Earliest)
+      val settings = ConsumerSettings.default(group).bootstrapServers(bootstrapServer).autoOffsetReset(Earliest)
       val source = KafkaSource.subscribe(settings, topic)
 
       source.receive().orThrow.value() shouldBe "msg1"
-
       source.receive().orThrow.value() shouldBe "msg2"
       source.receive().orThrow.value() shouldBe "msg3"
 
@@ -55,7 +54,7 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
 
     // when
     scoped {
-      val settings = ProducerSettings.default.bootstrapServers(s"localhost:$kafkaPort")
+      val settings = ProducerSettings.default.bootstrapServers(bootstrapServer)
       Source
         .fromIterable(List("a", "b", "c"))
         .mapAsView(msg => ProducerRecord[String, String](topic, msg))
@@ -65,5 +64,52 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
     // then
     given Deserializer[String] = new StringDeserializer()
     consumeNumberMessagesFrom[String](topic, 3) shouldBe List("a", "b", "c")
+  }
+
+  it should "commit offsets of processed messages" in {
+    // given
+    val sourceTopic = "t3_1"
+    val destTopic = "t3_2"
+    val group1 = "g3_1"
+    val group2 = "g3_2"
+
+    val consumerSettings = ConsumerSettings.default(group1).bootstrapServers(bootstrapServer).autoOffsetReset(Earliest)
+    val producerSettings = ProducerSettings.default.bootstrapServers(bootstrapServer)
+
+    // when
+    publishStringMessageToKafka(sourceTopic, "10")
+    publishStringMessageToKafka(sourceTopic, "25")
+    publishStringMessageToKafka(sourceTopic, "92")
+
+    scoped {
+      // then
+      fork {
+        KafkaSource
+          .subscribe(consumerSettings, sourceTopic)
+          .map(in => (in.value().toLong * 2, in))
+          .map((value, original) => SendPacket(ProducerRecord[String, String](destTopic, value.toString), original))
+          .pipeTo(KafkaSink.publishAndCommit(consumerSettings, producerSettings))
+      }
+
+      val inDest = KafkaSource.subscribe(consumerSettings, destTopic)
+      inDest.receive().orThrow.value() shouldBe "20"
+      inDest.receive().orThrow.value() shouldBe "50"
+      inDest.receive().orThrow.value() shouldBe "184"
+
+      // interrupting the stream processing
+    }
+
+    // sending some more messages to source
+    publishStringMessageToKafka(sourceTopic, "4")
+
+    scoped {
+      // reading from source, using the same consumer group as before, should start from the last committed offset
+      val inSource = KafkaSource.subscribe(consumerSettings, sourceTopic)
+      inSource.receive().orThrow.value() shouldBe "4"
+
+      // while reading using another group, should start from the earliest offset
+      val inSource2 = KafkaSource.subscribe(consumerSettings.groupId(group2), sourceTopic)
+      inSource2.receive().orThrow.value() shouldBe "10"
+    }
   }
 }

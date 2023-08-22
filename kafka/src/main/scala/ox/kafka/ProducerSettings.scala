@@ -1,6 +1,6 @@
 package ox.kafka
 
-import org.apache.kafka.clients.producer.ProducerConfig
+import org.apache.kafka.clients.producer.{KafkaProducer, ProducerConfig}
 import org.apache.kafka.common.serialization.{Serializer, StringSerializer}
 
 import java.util.Properties
@@ -21,6 +21,8 @@ case class ProducerSettings[K, V](
     props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers.mkString(","))
     otherProperties.foreach { case (key, value) => props.put(key, value) }
     props
+
+  def toProducer: KafkaProducer[K, V] = KafkaProducer(toProperties, keySerializer, valueSerializer)
 
 object ProducerSettings:
   private val StringSerializerInstance = new StringSerializer

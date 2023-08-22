@@ -1,6 +1,6 @@
 package ox.kafka
 
-import org.apache.kafka.clients.consumer.ConsumerConfig
+import org.apache.kafka.clients.consumer.{ConsumerConfig, KafkaConsumer}
 import org.apache.kafka.common.serialization.{Deserializer, StringDeserializer}
 import ox.kafka.ConsumerSettings.AutoOffsetReset
 
@@ -28,6 +28,8 @@ case class ConsumerSettings[K, V](
     autoOffsetReset.foreach { reset => props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, reset.toString.toLowerCase) }
     otherProperties.foreach { case (key, value) => props.put(key, value) }
     props
+
+  def toConsumer: KafkaConsumer[K, V] = KafkaConsumer(toProperties, keyDeserializer, valueDeserializer)
 
 object ConsumerSettings:
   private val StringDeserializerInstance = new StringDeserializer

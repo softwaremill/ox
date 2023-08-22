@@ -12,12 +12,7 @@ object KafkaSource:
       StageCapacity,
       Ox
   ): Source[ConsumerRecord[K, V]] =
-    subscribe(
-      new KafkaConsumer(settings.toProperties, settings.keyDeserializer, settings.valueDeserializer),
-      closeWhenComplete = true,
-      topic,
-      otherTopics: _*
-    )
+    subscribe(settings.toConsumer, closeWhenComplete = true, topic, otherTopics: _*)
 
   def subscribe[K, V](kafkaConsumer: KafkaConsumer[K, V], closeWhenComplete: Boolean, topic: String, otherTopics: String*)(using
       StageCapacity,
