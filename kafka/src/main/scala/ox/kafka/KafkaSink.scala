@@ -45,7 +45,7 @@ object KafkaSink:
       finally
         if closeWhenComplete then
           logger.debug("Closing the Kafka producer")
-          producer.close()
+          uninterruptible(producer.close())
     }
 
     c
