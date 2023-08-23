@@ -56,7 +56,7 @@ object KafkaConsumerActor:
       finally
         if closeWhenComplete then
           logger.debug("Closing the Kafka consumer")
-          consumer.close()
+          uninterruptible(consumer.close())
     }
 
     c
