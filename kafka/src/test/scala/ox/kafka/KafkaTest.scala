@@ -36,16 +36,16 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
       val settings = ConsumerSettings.default(group).bootstrapServers(bootstrapServer).autoOffsetReset(Earliest)
       val source = KafkaSource.subscribe(settings, topic)
 
-      source.receive().orThrow.value() shouldBe "msg1"
-      source.receive().orThrow.value() shouldBe "msg2"
-      source.receive().orThrow.value() shouldBe "msg3"
+      source.receive().orThrow.value shouldBe "msg1"
+      source.receive().orThrow.value shouldBe "msg2"
+      source.receive().orThrow.value shouldBe "msg3"
 
       // give a chance for a potential message to be received from Kafka & sent to the channel
       Thread.sleep(250)
       select(source.receiveClause, Default("none")) shouldBe DefaultResult("none")
 
       publishStringMessageToKafka(topic, "msg4")
-      source.receive().orThrow.value() shouldBe "msg4"
+      source.receive().orThrow.value shouldBe "msg4"
     }
   }
 
@@ -87,15 +87,18 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
       fork {
         KafkaSource
           .subscribe(consumerSettings, sourceTopic)
-          .map(in => (in.value().toLong * 2, in))
+          .map(in => (in.value.toLong * 2, in))
           .map((value, original) => SendPacket(ProducerRecord[String, String](destTopic, value.toString), original))
-          .pipeTo(KafkaSink.publishAndCommit(consumerSettings, producerSettings))
+          .pipeTo(KafkaSink.publishAndCommit(producerSettings))
       }
 
       val inDest = KafkaSource.subscribe(consumerSettings, destTopic)
-      inDest.receive().orThrow.value() shouldBe "20"
-      inDest.receive().orThrow.value() shouldBe "50"
-      inDest.receive().orThrow.value() shouldBe "184"
+      inDest.receive().orThrow.value shouldBe "20"
+      inDest.receive().orThrow.value shouldBe "50"
+      inDest.receive().orThrow.value shouldBe "184"
+
+      // giving the commit process a chance to commit
+      Thread.sleep(2000L)
 
       // interrupting the stream processing
     }
@@ -106,11 +109,11 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
     scoped {
       // reading from source, using the same consumer group as before, should start from the last committed offset
       val inSource = KafkaSource.subscribe(consumerSettings, sourceTopic)
-      inSource.receive().orThrow.value() shouldBe "4"
+      inSource.receive().orThrow.value shouldBe "4"
 
       // while reading using another group, should start from the earliest offset
       val inSource2 = KafkaSource.subscribe(consumerSettings.groupId(group2), sourceTopic)
-      inSource2.receive().orThrow.value() shouldBe "10"
+      inSource2.receive().orThrow.value shouldBe "10"
     }
   }
 }

@@ -3,6 +3,7 @@ package ox.kafka
 import org.apache.kafka.clients.consumer.{ConsumerRecord, KafkaConsumer, OffsetAndMetadata}
 import org.apache.kafka.clients.producer.{Callback, KafkaProducer, ProducerRecord, RecordMetadata}
 import org.apache.kafka.common.TopicPartition
+import org.slf4j.LoggerFactory
 import ox.*
 import ox.channels.*
 
@@ -12,6 +13,8 @@ import scala.concurrent.duration.*
 import scala.jdk.CollectionConverters.*
 
 object KafkaSink:
+  private val logger = LoggerFactory.getLogger(classOf[KafkaSink.type])
+
   def publish[K, V](settings: ProducerSettings[K, V])(using StageCapacity, Ox): Sink[ProducerRecord[K, V]] =
     publish(settings.toProducer, closeWhenComplete = true)
 
@@ -22,20 +25,27 @@ object KafkaSink:
       try
         repeatWhile {
           c.receive() match
-            case e: ChannelClosed.Error => c.error(e.toThrowable); false
-            case ChannelClosed.Done     => false
+            case e: ChannelClosed.Error =>
+              logger.debug(s"Stopping publishing: upstream closed due to an error ($e).")
+              false
+            case ChannelClosed.Done =>
+              logger.debug(s"Stopping publishing: upstream done.")
+              false
             case record: ProducerRecord[K, V] @unchecked =>
               tapException {
                 producer.send(
                   record,
                   (_: RecordMetadata, exception: Exception) => {
-                    if exception != null then c.error(exception)
+                    if exception != null then exceptionWhenSendingRecord(c, exception)
                   }
                 )
-              }(c.error)
+              }(exceptionWhenSendingRecord(c, _))
               true
         }
-      finally if closeWhenComplete then producer.close()
+      finally
+        if closeWhenComplete then
+          logger.debug("Closing the Kafka producer")
+          producer.close()
     }
 
     c
@@ -44,21 +54,16 @@ object KafkaSink:
     *   A sink, which accepts commit packets. For each packet, first all messages (producer records) are sent. Then, all messages up to the
     *   offsets of the consumer messages are committed.
     */
-  def publishAndCommit[K, V](consumerSettings: ConsumerSettings[K, V], producerSettings: ProducerSettings[K, V])(using
-      StageCapacity,
-      Ox
-  ): Sink[SendPacket[K, V]] =
-    publishAndCommit(consumerSettings.toConsumer, producerSettings.toProducer, closeWhenComplete = true)
+  def publishAndCommit[K, V](producerSettings: ProducerSettings[K, V])(using StageCapacity, Ox): Sink[SendPacket[K, V]] =
+    publishAndCommit(producerSettings.toProducer, closeWhenComplete = true)
 
-  /** @param consumer
-    *   The consumer that is used to commit offsets.
-    * @param producer
+  /** @param producer
     *   The producer that is used to send messages.
     * @return
     *   A sink, which accepts send packets. For each packet, first all `send` messages (producer records) are sent. Then, all `commit`
     *   messages (consumer records) up to their offsets are committed.
     */
-  def publishAndCommit[K, V](consumer: KafkaConsumer[K, V], producer: KafkaProducer[K, V], closeWhenComplete: Boolean)(using
+  def publishAndCommit[K, V](producer: KafkaProducer[K, V], closeWhenComplete: Boolean)(using
       StageCapacity,
       Ox
   ): Sink[SendPacket[K, V]] =
@@ -70,20 +75,27 @@ object KafkaSink:
         // starting a nested scope, so that the committer is interrupted when the main process ends
         scoped {
           // committer
-          fork(tapException(doCommit(consumer, toCommit))(c.error))
+          fork(tapException(doCommit(toCommit)) { e =>
+            logger.error("Exception when committing offsets", e)
+            c.error(e)
+          })
 
           repeatWhile {
             c.receive() match
-              case e: ChannelClosed.Error => c.error(e.toThrowable); false
-              case ChannelClosed.Done     => false
+              case e: ChannelClosed.Error =>
+                logger.debug(s"Stopping publishing: upstream closed due to an error ($e).")
+                false
+              case ChannelClosed.Done =>
+                logger.debug(s"Stopping publishing: upstream done.")
+                false
               case packet: SendPacket[K, V] @unchecked =>
-                tapException(sendPacket(producer, packet, toCommit, c.error))(c.error)
+                tapException(sendPacket(producer, packet, toCommit, exceptionWhenSendingRecord(c, _)))(exceptionWhenSendingRecord(c, _))
                 true
           }
         }
       finally
         if closeWhenComplete then
-          consumer.close()
+          logger.debug("Closing the Kafka producer")
           producer.close()
     }
 
@@ -94,7 +106,7 @@ object KafkaSink:
       packet: SendPacket[K, V],
       toCommit: Sink[SendPacket[_, _]],
       onSendException: Exception => Unit
-  ) =
+  ): Unit =
     val leftToSend = new AtomicInteger(packet.send.size)
     packet.send.foreach { toSend =>
       producer.send(
@@ -108,31 +120,39 @@ object KafkaSink:
       )
     }
 
-  private def doCommit(consumer: KafkaConsumer[_, _], packets: Source[SendPacket[_, _]])(using Ox) =
+  private def doCommit(packets: Source[SendPacket[_, _]])(using Ox) =
     val commitInterval = 1.second
     val ticks = Source.tick(commitInterval)
     val toCommit = mutable.Map[TopicPartition, Long]()
+    var consumer: Sink[KafkaConsumerRequest[_, _]] = null // assuming all packets come from the same consumer
 
     forever {
       select(ticks, packets).orThrow match
         case () =>
-          consumer.commitSync(toCommit.view.mapValues(new OffsetAndMetadata(_)).toMap.asJava)
-          toCommit.clear()
+          if consumer != null && toCommit.nonEmpty then
+            logger.trace(s"Committing ${toCommit.size} offsets.")
+            consumer.send(KafkaConsumerRequest.Commit(toCommit.toMap))
+            toCommit.clear()
         case packet: SendPacket[_, _] =>
-          packet.commit.foreach { record =>
-            val tp = new TopicPartition(record.topic(), record.partition())
+          packet.commit.foreach { receivedMessage =>
+            if consumer == null then consumer = receivedMessage.consumer.asInstanceOf[Sink[KafkaConsumerRequest[_, _]]]
+            val tp = new TopicPartition(receivedMessage.topic, receivedMessage.partition)
             toCommit.updateWith(tp) {
-              case Some(offset) => Some(math.max(offset, record.offset()))
-              case None         => Some(record.offset())
+              case Some(offset) => Some(math.max(offset, receivedMessage.offset))
+              case None         => Some(receivedMessage.offset)
             }
           }
     }
 
-case class SendPacket[K, V](send: List[ProducerRecord[K, V]], commit: List[ConsumerRecord[_, _]])
+  private def exceptionWhenSendingRecord(s: Sink[_], e: Throwable) =
+    logger.error("Exception when sending record", e)
+    s.error(e)
+
+case class SendPacket[K, V](send: List[ProducerRecord[K, V]], commit: List[ReceivedMessage[_, _]])
 
 object SendPacket:
-  def apply[K, V](send: ProducerRecord[K, V], commit: ConsumerRecord[_, _]): SendPacket[K, V] =
+  def apply[K, V](send: ProducerRecord[K, V], commit: ReceivedMessage[_, _]): SendPacket[K, V] =
     SendPacket(List(send), List(commit))
 
-  def apply[K, V](send: List[ProducerRecord[K, V]], commit: ConsumerRecord[_, _]): SendPacket[K, V] =
+  def apply[K, V](send: List[ProducerRecord[K, V]], commit: ReceivedMessage[_, _]): SendPacket[K, V] =
     SendPacket(send, List(commit))

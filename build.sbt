@@ -7,6 +7,7 @@ lazy val commonSettings = commonSmlBuildSettings ++ ossPublishSettings ++ Seq(
 )
 
 val scalaTest = "org.scalatest" %% "scalatest" % "3.2.15" % Test
+val slf4j = "org.slf4j" % "slf4j-api" % "2.0.7"
 val logback = "ch.qos.logback" % "logback-classic" % "1.4.7"
 
 lazy val rootProject = (project in file("."))
@@ -40,6 +41,7 @@ lazy val kafka: Project = (project in file("kafka"))
     name := "kafka",
     libraryDependencies ++= Seq(
       "org.apache.kafka" % "kafka-clients" % "3.5.0",
+      slf4j,
       logback % Test,
       "io.github.embeddedkafka" %% "embedded-kafka" % "3.5.1" % Test,
       scalaTest

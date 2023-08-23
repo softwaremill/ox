@@ -1,33 +1,48 @@
 package ox.kafka
 
-import org.apache.kafka.clients.consumer.{ConsumerRecord, KafkaConsumer}
-import ox.{Ox, fork}
-import ox.channels.{Source, StageCapacity}
+import org.apache.kafka.clients.consumer.{ConsumerRecord, ConsumerRecords, KafkaConsumer, OffsetAndMetadata}
+import org.apache.kafka.common.TopicPartition
+import org.slf4j.LoggerFactory
+import ox.*
+import ox.channels.*
 
 import scala.jdk.CollectionConverters.*
 import scala.util.control.NonFatal
 
 object KafkaSource:
+  private val logger = LoggerFactory.getLogger(classOf[KafkaSource.type])
+
   def subscribe[K, V](settings: ConsumerSettings[K, V], topic: String, otherTopics: String*)(using
       StageCapacity,
       Ox
-  ): Source[ConsumerRecord[K, V]] =
+  ): Source[ReceivedMessage[K, V]] =
     subscribe(settings.toConsumer, closeWhenComplete = true, topic, otherTopics: _*)
 
   def subscribe[K, V](kafkaConsumer: KafkaConsumer[K, V], closeWhenComplete: Boolean, topic: String, otherTopics: String*)(using
       StageCapacity,
       Ox
-  ): Source[ConsumerRecord[K, V]] =
-    kafkaConsumer.subscribe((topic :: otherTopics.toList).asJava)
-    val c = StageCapacity.newChannel[ConsumerRecord[K, V]]
+  ): Source[ReceivedMessage[K, V]] = subscribe(KafkaConsumerActor(kafkaConsumer, closeWhenComplete), topic, otherTopics: _*)
+
+  def subscribe[K, V](kafkaConsumer: Sink[KafkaConsumerRequest[K, V]], topic: String, otherTopics: String*)(using
+      StageCapacity,
+      Ox
+  ): Source[ReceivedMessage[K, V]] =
+    kafkaConsumer.send(KafkaConsumerRequest.Subscribe(topic :: otherTopics.toList))
+
+    val c = StageCapacity.newChannel[ReceivedMessage[K, V]]
 
     fork {
       try
-        while true do
-          val records = kafkaConsumer.poll(java.time.Duration.ofMillis(100))
-          records.forEach(c.send)
-      catch case NonFatal(e) => c.error(e)
-      finally if closeWhenComplete then kafkaConsumer.close()
+        val pollResults = Channel[ConsumerRecords[K, V]]()
+        forever {
+          kafkaConsumer.send(KafkaConsumerRequest.Poll(pollResults))
+          val records = pollResults.receive().orThrow
+          records.forEach(r => c.send(ReceivedMessage(kafkaConsumer, r)))
+        }
+      catch
+        case NonFatal(e) =>
+          logger.error("Exception when polling for records", e)
+          c.error(e)
     }
 
     c

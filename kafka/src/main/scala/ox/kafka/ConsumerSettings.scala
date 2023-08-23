@@ -11,6 +11,7 @@ case class ConsumerSettings[K, V](
     groupId: String,
     keyDeserializer: Deserializer[K],
     valueDeserializer: Deserializer[V],
+    autoCommit: Boolean,
     autoOffsetReset: Option[AutoOffsetReset],
     otherProperties: Map[String, String]
 ):
@@ -23,6 +24,7 @@ case class ConsumerSettings[K, V](
 
   def toProperties: Properties =
     val props = new Properties()
+    props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, autoCommit.toString)
     props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers.mkString(","))
     props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId)
     autoOffsetReset.foreach { reset => props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, reset.toString.toLowerCase) }
@@ -34,7 +36,15 @@ case class ConsumerSettings[K, V](
 object ConsumerSettings:
   private val StringDeserializerInstance = new StringDeserializer
   def default(groupId: String): ConsumerSettings[String, String] =
-    ConsumerSettings(List("localhost:9092"), groupId, StringDeserializerInstance, StringDeserializerInstance, None, Map.empty)
+    ConsumerSettings(
+      DefaultBootstrapServers,
+      groupId,
+      StringDeserializerInstance,
+      StringDeserializerInstance,
+      autoCommit = false,
+      None,
+      Map.empty
+    )
 
   enum AutoOffsetReset:
     case Earliest, Latest, None
