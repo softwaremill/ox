@@ -64,7 +64,10 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
 
     // then
     given Deserializer[String] = new StringDeserializer()
-    consumeNumberMessagesFrom[String](topic, 3, timeout = 30.seconds) shouldBe List("a", "b", "c")
+    consumeFirstStringMessageFrom(topic) shouldBe "a"
+    consumeFirstStringMessageFrom(topic) shouldBe "b"
+    consumeFirstStringMessageFrom(topic) shouldBe "c"
+// TODO   consumeNumberMessagesFrom[String](topic, 3, timeout = 30.seconds) shouldBe List("a", "b", "c")
   }
 
   it should "commit offsets of processed messages" in {
