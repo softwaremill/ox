@@ -2,7 +2,14 @@ package ox.channels
 
 import java.util
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
-import java.util.concurrent.{ArrayBlockingQueue, ConcurrentLinkedDeque, ConcurrentLinkedQueue, Semaphore}
+import java.util.concurrent.{
+  ArrayBlockingQueue,
+  BlockingQueue,
+  ConcurrentLinkedDeque,
+  ConcurrentLinkedQueue,
+  LinkedBlockingQueue,
+  Semaphore
+}
 import java.util.function.Predicate
 import scala.annotation.tailrec
 import scala.annotation.unchecked.uncheckedVariance
@@ -186,7 +193,7 @@ class BufferedChannel[T](capacity: Int = 1) extends Channel[T]:
   case class BufferedSend(v: T) extends Send
   override def sendClause(v: T): Send = BufferedSend(v)
 
-  private val elements = ArrayBlockingQueue[T](capacity)
+  private val elements: BlockingQueue[T] = if capacity <= 1024 then ArrayBlockingQueue[T](capacity) else LinkedBlockingQueue[T](capacity)
   private val waitingReceives = ConcurrentLinkedQueue[CellCompleter[T]]()
   private val waitingSends = ConcurrentLinkedQueue[(T, CellCompleter[Unit])]()
   private val state = CurrentChannelState()
@@ -298,6 +305,9 @@ class CollectSource[T, U](s: Source[T], f: T => Option[U]) extends Source[U]:
   private def createLinkedCell(c: CellCompleter[U]): CellCompleter[T] = LinkedCell(c, f, u => Received(u))
 
 object Channel:
+  /** Creates direct or buffered channels. Channels up to a certain limit use an fixed-size-array backed queue otherwise they use a
+    * linked-list-based queue. To create an unbounded channel, pass in `Int.MaxValue` as the capacity.
+    */
   def apply[T](capacity: Int = 0): Channel[T] = if capacity == 0 then DirectChannel() else BufferedChannel(capacity)
 
 private class CurrentChannelState:
