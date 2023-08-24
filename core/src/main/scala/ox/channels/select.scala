@@ -108,9 +108,14 @@ private def doSelect[T](clauses: List[SelectClause[T]]): SelectResult[T] | Chann
             s.channel.trySatisfyWaiting()
           case _: Default[_] => ()
 
+        val skipWhenDone = clause match
+          case s: Source[_]#Receive => s.skipWhenDone
+          case _                    => true
+
         clauseTrySatisfyResult match
-          case ChannelClosed.Error(e) => ChannelClosed.Error(e)
-          case ChannelClosed.Done     => offerAndTrySatisfy(tail, c, allDone)
+          case ChannelClosed.Error(e)             => ChannelClosed.Error(e)
+          case ChannelClosed.Done if skipWhenDone => offerAndTrySatisfy(tail, c, allDone)
+          case ChannelClosed.Done                 => ChannelClosed.Done
           // optimization: checking if the cell is already owned; if so, no need to put it on other queues
           // TODO: this might be possibly further optimized, by returning the satisfied cells from trySatisfyWaiting()
           // TODO: and then checking if the cell is already satisfied, instead of looking at the AtomicBoolean

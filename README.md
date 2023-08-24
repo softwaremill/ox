@@ -444,9 +444,9 @@ Channel clauses include:
 
 ### Receiving from exactly one channel
 
-The most common use-case for `select` is to receive from exactly one channel. There's a dedicated `select` variant for
-this use-case, which accepts a number of `Source`s, for which receive clauses are created. The signature for the 
-two-source variant of this method is:
+The most common use-case for `select` is to receive exactly one value from a number of channels. There's a dedicated 
+`select` variant for this use-case, which accepts a number of `Source`s, for which receive clauses are created. The 
+signature for the two-source variant of this method is:
 
 ```scala
 def select[T1, T2](source1: Source[T1], source2: Source[T2]): T1 | T2 | ChannelClosed
@@ -475,9 +475,6 @@ def consumer(strings: Source[String]): Nothing =
     doConsume(0)
   }
 ```
-
-If any of the channels is in an error state, `select` returns with that error. If all channels are done, `selects` 
-returns with a `Done` as well.
 
 Selects are biased towards clauses/sources that appear first in the argument list. To achieve fairness, you might want
 to randomize the ordering of the clauses/sources.
@@ -528,6 +525,17 @@ select(c.sendClause(10), d.receiveClause).orThrow match
 
 If there's a missing case, the compiler will warn you that the `match` is not exhaustive, and give you a hint as to
 what is missing. Similarly, there will be a warning in case of an unneeded, extra match case.
+
+### Closed channels (done / error)
+
+If any of the channels is (or becomes) in an error state, `select` returns with that error. If all channels are done,
+by default `select` returns with a `Done` as well.
+
+However, a variant of the receive clause, namely `source.receiveOrDoneClause`, will cause a `Done` to be returned from
+the select, if that source is done (instead of waiting for another clause to become satisfied).
+
+It is possible to inspect which channel is in a closed state by using the `.isDone`, `.isError` and `.isClosed` methods
+(plus detailed variants).
 
 ### Default clauses
 

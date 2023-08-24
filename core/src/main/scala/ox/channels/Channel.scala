@@ -1,19 +1,11 @@
 package ox.channels
 
 import java.util
-import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
-import java.util.concurrent.{
-  ArrayBlockingQueue,
-  BlockingQueue,
-  ConcurrentLinkedDeque,
-  ConcurrentLinkedQueue,
-  LinkedBlockingQueue,
-  Semaphore
-}
+import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.{ArrayBlockingQueue, BlockingQueue, ConcurrentLinkedQueue, LinkedBlockingQueue}
 import java.util.function.Predicate
 import scala.annotation.tailrec
 import scala.annotation.unchecked.uncheckedVariance
-import scala.util.Try
 
 // results
 
@@ -45,15 +37,29 @@ sealed trait SelectClause[+T]:
 case class Default[T](value: T) extends SelectClause[T]:
   type Result = DefaultResult[T]
 
-trait Source[+T] extends SourceOps[T]:
+trait Stateful:
+  private[ox] def state: CurrentChannelState
+  def isClosed: Boolean = state.get() != ChannelState.Open
+  def isDone: Boolean = state.get() == ChannelState.Done
+  def isError: Boolean = state.get().isInstanceOf[ChannelState.Error]
+  def isClosedDetail: Option[ChannelClosed] = state.get() match
+    case c: ChannelState.Closed => Some(c.toResult)
+    case _                      => None
+  def isErrorDetail: Option[ChannelClosed.Error] = state.get() match
+    case ChannelState.Error(r) => Some(ChannelClosed.Error(r))
+    case _                     => None
+
+trait Source[+T] extends SourceOps[T] with Stateful:
   // Skipping variance checks here is fine, as the only way a `Received` instance is created is by the original channel,
   // so no values of super-types of T which are not the original T will ever be provided
   case class Received private[channels] (value: T @uncheckedVariance) extends SelectResult[T]
-  case class Receive private[channels] () extends SelectClause[T]:
+  case class Receive private[channels] (skipWhenDone: Boolean) extends SelectClause[T]:
     type Result = Received
     def channel: Source[T] = Source.this
 
-  val receiveClause: Receive = Receive()
+  val receiveClause: Receive = Receive(skipWhenDone = true)
+  def receiveOrDoneClause: Receive = Receive(skipWhenDone = false)
+
   def receive(): T | ChannelClosed
 
   private[ox] def receiveCellOffer(c: CellCompleter[T]): Unit
@@ -65,7 +71,7 @@ object Source extends SourceCompanionOps
 
 //
 
-trait Sink[-T]:
+trait Sink[-T] extends Stateful:
   case class Sent private[channels] () extends SelectResult[Unit]:
     override def value: Unit = ()
   // The Send trait is needed to "hide" the value of type T, so that it's not accessible after construction & casting.
@@ -113,7 +119,7 @@ class DirectChannel[T] extends Channel[T]:
 
   private val waitingReceives = ConcurrentLinkedQueue[CellCompleter[T]]()
   private val waitingSends = ConcurrentLinkedQueue[(T, CellCompleter[Unit])]()
-  private val state = CurrentChannelState()
+  private[ox] val state = CurrentChannelState()
 
   override private[ox] def receiveCellOffer(c: CellCompleter[T]): Unit = waitingReceives.offer(c)
   override private[ox] def receiveCellCleanup(c: CellCompleter[T]): Unit = waitingReceives.remove(c)
@@ -196,7 +202,7 @@ class BufferedChannel[T](capacity: Int = 1) extends Channel[T]:
   private val elements: BlockingQueue[T] = if capacity <= 1024 then ArrayBlockingQueue[T](capacity) else LinkedBlockingQueue[T](capacity)
   private val waitingReceives = ConcurrentLinkedQueue[CellCompleter[T]]()
   private val waitingSends = ConcurrentLinkedQueue[(T, CellCompleter[Unit])]()
-  private val state = CurrentChannelState()
+  private[ox] val state = CurrentChannelState()
 
   override private[ox] def receiveCellOffer(c: CellCompleter[T]): Unit = waitingReceives.offer(c)
   override private[ox] def receiveCellCleanup(c: CellCompleter[T]): Unit = waitingReceives.remove(c)
@@ -295,6 +301,7 @@ class BufferedChannel[T](capacity: Int = 1) extends Channel[T]:
       drainWaitingReceivesWhenDone()
 
 class CollectSource[T, U](s: Source[T], f: T => Option[U]) extends Source[U]:
+  private[ox] def state: CurrentChannelState = s.state
   @tailrec final override def receive(): U | ChannelClosed = select(List(s.receiveClause)).map(_.value).map(f) match
     case Some(u)          => u
     case None             => receive()

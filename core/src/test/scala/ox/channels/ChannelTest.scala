@@ -108,6 +108,92 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
         }
       }
     }
+
+    it should "properly report channel state" in {
+      // given
+      val c1 = Channel[Int](capacity)
+      val c2 = Channel[Int](capacity)
+      val c3 = Channel[Int](capacity)
+
+      // when
+      c1.done()
+      c2.error()
+
+      // then
+      c1.isDone shouldBe true
+      c2.isDone shouldBe false
+      c3.isDone shouldBe false
+
+      c1.isError shouldBe false
+      c2.isError shouldBe true
+      c3.isError shouldBe false
+
+      c1.isClosed shouldBe true
+      c2.isClosed shouldBe true
+      c3.isClosed shouldBe false
+
+      c1.isClosedDetail should matchPattern { case Some(_) => }
+      c2.isClosedDetail should matchPattern { case Some(_) => }
+      c3.isClosedDetail shouldBe None
+
+      c1.isErrorDetail shouldBe None
+      c2.isErrorDetail should matchPattern { case Some(_) => }
+      c3.isErrorDetail shouldBe None
+    }
+
+    it should "skip channels, which are done immediately" in {
+      val c1 = Channel[Int](capacity)
+      val c2 = Channel[Int](capacity)
+      scoped {
+        fork {
+          c1.done()
+          c2.send(1)
+        }
+
+        Thread.sleep(100) // let the fork progress
+        select(c1.receiveClause, c2.receiveClause).orThrow shouldBe c2.Received(1)
+      }
+    }
+
+    it should "skip channels, which become done" in {
+      val c1 = Channel[Int](capacity)
+      val c2 = Channel[Int](capacity)
+      scoped {
+        fork {
+          Thread.sleep(100) // let the select block
+          c1.done()
+          c2.send(1)
+        }
+
+        select(c1.receiveClause, c2.receiveClause).orThrow shouldBe c2.Received(1)
+      }
+    }
+
+    it should "not skip channels, which are done immediately, when requested" in {
+      val c1 = Channel[Int](capacity)
+      val c2 = Channel[Int](capacity)
+      scoped {
+        fork {
+          c2.done()
+        }
+
+        Thread.sleep(100) // let the fork progress
+        select(c1.receiveClause, c2.receiveOrDoneClause) shouldBe ChannelClosed.Done
+      }
+    }
+
+    it should "not skip channels, which become done, when requested" in {
+      val c1 = Channel[Int](capacity)
+      val c2 = Channel[Int](capacity)
+      scoped {
+        fork {
+          Thread.sleep(100) // let the select block
+          c2.done()
+        }
+
+        select(c1.receiveClause, c2.receiveOrDoneClause) shouldBe ChannelClosed.Done
+      }
+    }
   }
 
   "buffered channel" should "select a send when one is available" in {
