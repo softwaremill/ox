@@ -199,7 +199,7 @@ trait SourceOps[+T] { this: Source[T] =>
         case ChannelClosed.Done     => sink.done(); false
         case e: ChannelClosed.Error => sink.error(e.reason); throw e.toThrowable
         case t: T @unchecked        => sink.send(t).orThrow; true
-    }  
+    }
 
   /** Receives all elements from the channel. Blocks until the channel is done.
     * @throws ChannelClosedException

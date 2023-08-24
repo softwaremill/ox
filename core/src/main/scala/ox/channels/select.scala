@@ -1,7 +1,6 @@
 package ox.channels
 
 import scala.annotation.tailrec
-import scala.util.Random
 
 def select(clause1: SelectClause[_], clause2: SelectClause[_]): clause1.Result | clause2.Result | ChannelClosed =
   select(List(clause1, clause2)).asInstanceOf[clause1.Result | clause2.Result | ChannelClosed]
@@ -11,7 +10,7 @@ def select(
     clause2: SelectClause[_],
     clause3: SelectClause[_]
 ): clause1.Result | clause2.Result | clause3.Result | ChannelClosed =
-  select(List(clause1, clause2)).asInstanceOf[clause1.Result | clause2.Result | clause3.Result | ChannelClosed]
+  select(List(clause1, clause2, clause3)).asInstanceOf[clause1.Result | clause2.Result | clause3.Result | ChannelClosed]
 
 def select[T1, T2](source1: Source[T1], source2: Source[T2]): T1 | T2 | ChannelClosed =
   select(source1.receiveClause, source2.receiveClause).map {

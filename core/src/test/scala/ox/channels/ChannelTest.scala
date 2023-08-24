@@ -52,6 +52,21 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
       }
     }
 
+    it should "select from two receives, if the last one has elements" in scoped {
+      val c1 = Channel[String](capacity)
+      val c2 = Source.fromIterable(List("a"))
+
+      select(c1, c2) shouldBe "a"
+    }
+
+    it should "select from three receives, if the last one has elements" in scoped {
+      val c1 = Channel[String](capacity)
+      val c2 = Channel[String](capacity)
+      val c3 = Source.fromIterable(List("a"))
+
+      select(c1, c2, c3) shouldBe "a"
+    }
+
     it should "select a receive from multiple channels" in {
       val n = 100
       val cn = 10
