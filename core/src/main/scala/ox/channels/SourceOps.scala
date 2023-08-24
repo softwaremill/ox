@@ -101,7 +101,7 @@ trait SourceOps[+T] { this: Source[T] =>
               closeScope.countDown()
               c2.done()
               false
-            case ChannelClosed.Error(reason) =>
+            case ChannelClosed.Error(_) =>
               throw new IllegalStateException() // inProgress is never in an error state
         }
       }
