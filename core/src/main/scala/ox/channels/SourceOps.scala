@@ -70,7 +70,7 @@ trait SourceOps[+T] { this: Source[T] =>
             case ChannelClosed.Done =>
               inProgress.done()
               false
-            case e @ ChannelClosed.Error(r) =>
+            case ChannelClosed.Error(r) =>
               c2.error(r)
               // closing the scope, any child forks will be cancelled before the scope is done
               closeScope.countDown()

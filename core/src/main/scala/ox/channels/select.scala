@@ -107,7 +107,7 @@ private def doSelect[T](clauses: List[SelectClause[T]]): SelectResult[T] | Chann
             s.channel.trySatisfyWaiting()
           case _: Default[_] => ()
 
-        val skipWhenDone = clause match
+        def skipWhenDone = clause match
           case s: Source[_]#Receive => s.skipWhenDone
           case _                    => true
 
