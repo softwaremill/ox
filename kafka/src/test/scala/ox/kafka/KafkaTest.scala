@@ -21,7 +21,7 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
   override def afterAll(): Unit =
     EmbeddedKafka.stop()
 
-  it should "receive messages from a topic" in {
+  "source" should "receive messages from a topic" in {
     // given
     val topic = "t1"
     val group = "g1"
@@ -49,7 +49,7 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
     }
   }
 
-  it should "send messages to topics" in {
+  "sink" should "send messages to topics" in {
     // given
     val topic = "t2"
 
@@ -115,5 +115,23 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
       val inSource2 = KafkaSource.subscribe(consumerSettings.groupId(group2), sourceTopic)
       inSource2.receive().orThrow.value shouldBe "10"
     }
+  }
+
+  "drain" should "send messages to topics" in {
+    // given
+    val topic = "t4"
+
+    // when
+    scoped {
+      val settings = ProducerSettings.default.bootstrapServers(bootstrapServer)
+      Source
+        .fromIterable(List("a", "b", "c"))
+        .mapAsView(msg => ProducerRecord[String, String](topic, msg))
+        .applied(KafkaDrain.publish(settings))
+    }
+
+    // then
+    given Deserializer[String] = new StringDeserializer()
+    consumeNumberMessagesFrom[String](topic, 3, timeout = 30.seconds) shouldBe List("a", "b", "c")
   }
 }
