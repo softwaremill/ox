@@ -113,9 +113,8 @@ object KafkaSink:
         toSend,
         (_: RecordMetadata, exception: Exception) => {
           if exception == null
-          then
-            if leftToSend.decrementAndGet() == 0 then toCommit.send(packet)
-            else onSendException(exception)
+          then { if leftToSend.decrementAndGet() == 0 then toCommit.send(packet) }
+          else onSendException(exception)
         }
       )
     }

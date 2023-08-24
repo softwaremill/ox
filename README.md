@@ -573,7 +573,7 @@ The role of the exception handler is then to re-create the entire processing pip
 Channels are back-pressured, as the `.send` operation is blocking until there's a receiver thread available, or if 
 there's enough space in the buffer. The processing space is bound by the total size of channel buffers.
 
-## Kafka sources & sinks
+## Kafka sources & drains
 
 Dependency:
 
@@ -581,8 +581,8 @@ Dependency:
 "com.softwaremill.ox" %% "kafka" % "0.0.10"
 ```
 
-`Source`s which read from a Kafka topic, and `Sink`s which publish to Kafka topics are available through the `KafkaSource`
-and `KafkaSink` objects. In all cases either a manually constructed instance of a `KafkaProducer` / `KafkaConsumer`
+`Source`s which read from a Kafka topic, and drains which publish to Kafka topics are available through the `KafkaSource`
+and `KafkaDrain` objects. In all cases either a manually constructed instance of a `KafkaProducer` / `KafkaConsumer`
 is needed, or `ProducerSettings` / `ConsumerSetttings` need to be provided with the bootstrap servers, consumer group id,
 key / value serializers, etc.
 
@@ -616,7 +616,7 @@ scoped {
   Source
     .fromIterable(List("a", "b", "c"))
     .mapAsView(msg => ProducerRecord[String, String]("my_topic", msg))
-    .pipeTo(KafkaSink.publish(settings))
+    .applied(KafkaDrain.publish(settings))
 }
 ```
 
@@ -635,7 +635,7 @@ scoped {
     .subscribe(consumerSettings, sourceTopic)
     .map(in => (in.value().toLong * 2, in))
     .map((value, original) => SendPacket(ProducerRecord[String, String](destTopic, value.toString), original))
-    .pipeTo(KafkaSink.publishAndCommit(consumerSettings, producerSettings))
+    .applied(KafkaDrain.publishAndCommit(consumerSettings, producerSettings))
 }
 ```
 

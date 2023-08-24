@@ -134,4 +134,54 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
     given Deserializer[String] = new StringDeserializer()
     consumeNumberMessagesFrom[String](topic, 3, timeout = 30.seconds) shouldBe List("a", "b", "c")
   }
+
+  it should "commit offsets of processed messages" in {
+    // given
+    val sourceTopic = "t3_1"
+    val destTopic = "t3_2"
+    val group1 = "g3_1"
+    val group2 = "g3_2"
+
+    val consumerSettings = ConsumerSettings.default(group1).bootstrapServers(bootstrapServer).autoOffsetReset(Earliest)
+    val producerSettings = ProducerSettings.default.bootstrapServers(bootstrapServer)
+
+    // when
+    publishStringMessageToKafka(sourceTopic, "10")
+    publishStringMessageToKafka(sourceTopic, "25")
+    publishStringMessageToKafka(sourceTopic, "92")
+
+    scoped {
+      // then
+      fork {
+        KafkaSource
+          .subscribe(consumerSettings, sourceTopic)
+          .map(in => (in.value.toLong * 2, in))
+          .map((value, original) => SendPacket(ProducerRecord[String, String](destTopic, value.toString), original))
+          .applied(KafkaDrain.publishAndCommit(producerSettings))
+      }
+
+      val inDest = KafkaSource.subscribe(consumerSettings, destTopic)
+      inDest.receive().orThrow.value shouldBe "20"
+      inDest.receive().orThrow.value shouldBe "50"
+      inDest.receive().orThrow.value shouldBe "184"
+
+      // giving the commit process a chance to commit
+      Thread.sleep(2000L)
+
+      // interrupting the stream processing
+    }
+
+    // sending some more messages to source
+    publishStringMessageToKafka(sourceTopic, "4")
+
+    scoped {
+      // reading from source, using the same consumer group as before, should start from the last committed offset
+      val inSource = KafkaSource.subscribe(consumerSettings, sourceTopic)
+      inSource.receive().orThrow.value shouldBe "4"
+
+      // while reading using another group, should start from the earliest offset
+      val inSource2 = KafkaSource.subscribe(consumerSettings.groupId(group2), sourceTopic)
+      inSource2.receive().orThrow.value shouldBe "10"
+    }
+  }
 }
