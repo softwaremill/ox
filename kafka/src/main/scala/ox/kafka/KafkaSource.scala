@@ -1,12 +1,10 @@
 package ox.kafka
 
-import org.apache.kafka.clients.consumer.{ConsumerRecord, ConsumerRecords, KafkaConsumer, OffsetAndMetadata}
-import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.clients.consumer.{ConsumerRecord, ConsumerRecords, KafkaConsumer}
 import org.slf4j.LoggerFactory
 import ox.*
 import ox.channels.*
 
-import scala.jdk.CollectionConverters.*
 import scala.util.control.NonFatal
 
 object KafkaSource:

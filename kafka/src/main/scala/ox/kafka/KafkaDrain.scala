@@ -109,27 +109,3 @@ object KafkaDrain:
         }
       )
     }
-
-  private def doCommit(packets: Source[SendPacket[_, _]])(using Ox) =
-    val commitInterval = 1.second
-    val ticks = Source.tick(commitInterval)
-    val toCommit = mutable.Map[TopicPartition, Long]()
-    var consumer: Sink[KafkaConsumerRequest[_, _]] = null // assuming all packets come from the same consumer
-
-    forever {
-      select(ticks, packets).orThrow match
-        case () =>
-          if consumer != null && toCommit.nonEmpty then
-            logger.trace(s"Committing ${toCommit.size} offsets.")
-            consumer.send(KafkaConsumerRequest.Commit(toCommit.toMap))
-            toCommit.clear()
-        case packet: SendPacket[_, _] =>
-          packet.commit.foreach { receivedMessage =>
-            if consumer == null then consumer = receivedMessage.consumer.asInstanceOf[Sink[KafkaConsumerRequest[_, _]]]
-            val tp = new TopicPartition(receivedMessage.topic, receivedMessage.partition)
-            toCommit.updateWith(tp) {
-              case Some(offset) => Some(math.max(offset, receivedMessage.offset))
-              case None         => Some(receivedMessage.offset)
-            }
-          }
-    }

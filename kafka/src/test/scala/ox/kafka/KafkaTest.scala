@@ -1,7 +1,7 @@
 package ox.kafka
 
 import io.github.embeddedkafka.EmbeddedKafka
-import org.apache.kafka.clients.producer.ProducerRecord
+import org.apache.kafka.clients.producer.{ProducerRecord, RecordMetadata}
 import org.apache.kafka.common.serialization.{Deserializer, StringDeserializer}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpec
@@ -9,6 +9,7 @@ import org.scalatest.matchers.should.Matchers
 import ox.channels.*
 import ox.kafka.ConsumerSettings.AutoOffsetReset.Earliest
 import ox.*
+
 import scala.concurrent.duration.*
 
 class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with BeforeAndAfterAll {
@@ -49,20 +50,25 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
     }
   }
 
-  "sink" should "send messages to topics" in {
+  "stage" should "publish messages to a topic" in {
     // given
     val topic = "t2"
 
     // when
-    scoped {
+    val metadatas = scoped {
+      import KafkaStage.*
+
       val settings = ProducerSettings.default.bootstrapServers(bootstrapServer)
       Source
         .fromIterable(List("a", "b", "c"))
         .mapAsView(msg => ProducerRecord[String, String](topic, msg))
-        .pipeTo(KafkaSink.publish(settings))
+        .mapPublish(settings)
+        .toList
     }
 
     // then
+    metadatas.map(_.offset()) shouldBe List(0L, 1L, 2L)
+
     given Deserializer[String] = new StringDeserializer()
     consumeNumberMessagesFrom[String](topic, 3, timeout = 30.seconds) shouldBe List("a", "b", "c")
   }
@@ -82,14 +88,19 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
     publishStringMessageToKafka(sourceTopic, "25")
     publishStringMessageToKafka(sourceTopic, "92")
 
+    val metadatas = Channel[RecordMetadata](16)
+
     scoped {
       // then
       fork {
+        import KafkaStage.*
+
         KafkaSource
           .subscribe(consumerSettings, sourceTopic)
           .map(in => (in.value.toLong * 2, in))
           .map((value, original) => SendPacket(ProducerRecord[String, String](destTopic, value.toString), original))
-          .pipeTo(KafkaSink.publishAndCommit(producerSettings))
+          .mapPublishAndCommit(producerSettings)
+          .pipeTo(metadatas)
       }
 
       val inDest = KafkaSource.subscribe(consumerSettings, destTopic)
@@ -99,6 +110,11 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
 
       // giving the commit process a chance to commit
       Thread.sleep(2000L)
+
+      // checking the metadata
+      metadatas.receive().orThrow.offset() shouldBe 0L
+      metadatas.receive().orThrow.offset() shouldBe 1L
+      metadatas.receive().orThrow.offset() shouldBe 2L
 
       // interrupting the stream processing
     }
@@ -117,7 +133,7 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
     }
   }
 
-  "drain" should "send messages to topics" in {
+  "drain" should "publish messages to a topic" in {
     // given
     val topic = "t4"
 
@@ -137,10 +153,10 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
 
   it should "commit offsets of processed messages" in {
     // given
-    val sourceTopic = "t3_1"
-    val destTopic = "t3_2"
-    val group1 = "g3_1"
-    val group2 = "g3_2"
+    val sourceTopic = "t5_1"
+    val destTopic = "t5_2"
+    val group1 = "g5_1"
+    val group2 = "g5_2"
 
     val consumerSettings = ConsumerSettings.default(group1).bootstrapServers(bootstrapServer).autoOffsetReset(Earliest)
     val producerSettings = ProducerSettings.default.bootstrapServers(bootstrapServer)

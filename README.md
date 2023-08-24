@@ -581,10 +581,10 @@ Dependency:
 "com.softwaremill.ox" %% "kafka" % "0.0.10"
 ```
 
-`Source`s which read from a Kafka topic, and drains which publish to Kafka topics are available through the `KafkaSource`
-and `KafkaDrain` objects. In all cases either a manually constructed instance of a `KafkaProducer` / `KafkaConsumer`
-is needed, or `ProducerSettings` / `ConsumerSetttings` need to be provided with the bootstrap servers, consumer group id,
-key / value serializers, etc.
+`Source`s which read from a Kafka topic, mapping stages and drains which publish to Kafka topics are available through 
+the `KafkaSource`, `KafkaStage` and `KafkaDrain` objects. In all cases either a manually constructed instance of a 
+`KafkaProducer` / `KafkaConsumer` is needed, or `ProducerSettings` / `ConsumerSetttings` need to be provided with the 
+bootstrap servers, consumer group id, key / value serializers, etc.
 
 To read from a Kafka topic, use:
 
@@ -640,6 +640,26 @@ scoped {
 ```
 
 The offsets are committed every second in a background process.
+
+To publish data as a mapping stage:
+
+```scala
+import ox.channel.Source
+import ox.kafka.{ProducerSettings, KafkaSink}
+import ox.kafka.KafkaStage.*
+import ox.scoped
+import org.apache.kafka.clients.producer.{ProducerRecord, RecordMetadata}
+
+scoped {
+  val settings = ProducerSettings.default.bootstrapServers("localhost:9092")
+  val metadatas: Source[RecordMetadata] = Source
+    .fromIterable(List("a", "b", "c"))
+    .mapAsView(msg => ProducerRecord[String, String]("my_topic", msg))
+    .mapPublish(settings)
+  
+  // process the metadatas source further
+}
+```
 
 # Performance
 
