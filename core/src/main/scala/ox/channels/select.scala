@@ -73,25 +73,6 @@ private def doSelect[T](clauses: List[SelectClause[T]]): SelectResult[T] | Chann
         else takeFromCellInterruptSafe(c, Nil) // already cleaned up
     }
 
-  def offerCellAndTakeWithDefault(c: Cell[T], d: Default[T]): SelectResult[T] | ChannelClosed =
-    offerAndTrySatisfy(clauses, c, allDone = true, Nil) match {
-      case ((), offeredTo) =>
-        if c.tryOwn() then
-          // the cell wasn't immediately satisfied, so returning the default value
-          cleanupCell(offeredTo, c, alsoWhenSingleClause = true)
-          DefaultResult(d.value)
-        else
-          // the cell is already owned, a result should be available shortly
-          takeFromCellInterruptSafe(c, offeredTo)
-
-      case (r: ChannelClosed, offeredTo) =>
-        // same as in offerCellAndTake
-        if c.tryOwn() then
-          cleanupCell(offeredTo, c, alsoWhenSingleClause = true)
-          r
-        else takeFromCellInterruptSafe(c, clauses)
-    }
-
   def default: Option[Default[T]] =
     clauses.collect { case d: Default[T] => d } match
       case Nil      => None
@@ -99,8 +80,15 @@ private def doSelect[T](clauses: List[SelectClause[T]]): SelectResult[T] | Chann
       case ds       => throw new IllegalArgumentException(s"More than one default clause in select: $ds")
 
   default match
-    case None    => offerCellAndTake(Cell[T])
-    case Some(d) => offerCellAndTakeWithDefault(Cell[T], d)
+    case None => offerCellAndTake(Cell[T])
+    case Some(d) =>
+      val c = Cell[T]
+      trySatisfyNow(clauses, c, allDone = true) match
+        case (ChannelClosed.Done, true)  => ChannelClosed.Done
+        case (ChannelClosed.Done, false) => DefaultResult(d.value)
+        case (e: ChannelClosed.Error, _) => e
+        case false                       => DefaultResult(d.value)
+        case true                        => takeFromCellInterruptSafe(c, Nil) // the cell hasn't been offered to any channel
 
 //
 
@@ -165,7 +153,7 @@ def cleanupCell[T](from: List[SelectClause[T]], cell: Cell[T], alsoWhenSingleCla
         case s: DirectChannel[_]#DirectSend =>
           s.channel.sendCellOffer(s.v, c)
           s.channel.trySatisfyWaiting()
-        case _: Default[_] => ()
+        case _: Default[_] => throw new IllegalStateException() // should use trySatisfyNow() instead
 
       def skipWhenDone = clause match
         case s: Source[_]#Receive => s.skipWhenDone
@@ -180,3 +168,30 @@ def cleanupCell[T](from: List[SelectClause[T]], cell: Cell[T], alsoWhenSingleCla
         // TODO: and then checking if the cell is already satisfied, instead of looking at the AtomicBoolean
         case () if c.isAlreadyOwned => ((), offeredTo)
         case ()                     => offerAndTrySatisfy(tail, c, false, clause :: offeredTo)
+
+/** @return `true` if the cell has been (immediately) satisfied (without owning it). */
+@tailrec def trySatisfyNow[T](
+    ccs: List[SelectClause[T]],
+    c: Cell[T],
+    allDone: Boolean
+): Boolean | (ChannelClosed, Boolean) =
+  ccs match
+    case Nil if allDone => (ChannelClosed.Done, false)
+    case Nil            => false
+    case clause :: tail =>
+      val clauseTrySatisfyResult = clause match
+        case s: Source[_]#Receive               => s.channel.trySatisfyReceive(c)
+        case s: BufferedChannel[_]#BufferedSend => s.channel.trySatisfySend(s.v, c)
+        case s: DirectChannel[_]#DirectSend     => s.channel.trySatisfySend(s.v, c)
+        case _: Default[_]                      => false
+
+      def skipWhenDone = clause match
+        case s: Source[_]#Receive => s.skipWhenDone
+        case _                    => true
+
+      clauseTrySatisfyResult match
+        case ChannelClosed.Error(e)             => (ChannelClosed.Error(e), true)
+        case ChannelClosed.Done if skipWhenDone => trySatisfyNow(tail, c, allDone)
+        case ChannelClosed.Done                 => (ChannelClosed.Done, true)
+        case true                               => true
+        case false                              => trySatisfyNow(tail, c, false)

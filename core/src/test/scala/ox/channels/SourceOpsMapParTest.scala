@@ -39,12 +39,12 @@ class SourceOpsMapParTest extends AnyFlatSpec with Matchers with Eventually {
       val result = s.mapPar(parallelism)(f).toList
 
       // then
-      result should be(List(2, 4, 6, 8, 10, 12, 14, 16, 18, 20))
+      result shouldBe List(2, 4, 6, 8, 10, 12, 14, 16, 18, 20)
       maxRunning.get() shouldBe parallelism
     }
   }
 
-  it should s"map over a source with parallelism limit 10 (stress test" in scoped {
+  it should s"map over a source with parallelism limit 10 (stress test)" in scoped {
     for (i <- 1 to 100) {
       info(s"iteration $i")
 
@@ -59,7 +59,7 @@ class SourceOpsMapParTest extends AnyFlatSpec with Matchers with Eventually {
       val result = s.mapPar(10)(f).toList
 
       // then
-      result should be(List(2, 4, 6, 8, 10, 12, 14, 16, 18, 20))
+      result shouldBe List(2, 4, 6, 8, 10, 12, 14, 16, 18, 20)
     }
   }
 

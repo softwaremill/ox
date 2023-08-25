@@ -322,6 +322,12 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     select(c2.receiveClause, Default(10)) shouldBe DefaultResult(10)
   }
 
+  it should "use the default value if all channels are done" in {
+    val c1 = Channel[Int](0)
+    c1.done()
+    select(c1.receiveClause, Default(10)) shouldBe DefaultResult(10)
+  }
+
   it should "not use the default value if a clause is satisfiable" in {
     val c1 = Channel[Int](1)
     c1.send(5)
@@ -329,5 +335,31 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
 
     val c2 = Channel[Int](1)
     select(c2.sendClause(5), Default(10)) shouldBe c2.Sent()
+  }
+
+  it should "not use the default value if the channel is done, and a receiveOrDone clause is used" in {
+    val c1 = Channel[Int](1)
+    c1.done()
+    select(c1.receiveOrDoneClause, Default(10)) shouldBe ChannelClosed.Done
+  }
+
+  it should "use the default value once a source is done (buffered channel, stress test)" in {
+    for (i <- 1 to 100) {
+      info(s"iteration $i")
+
+      scoped {
+        // given
+        val c = Channel[Int](3)
+        c.send(1)
+        c.send(2)
+        c.send(3)
+
+        // when
+        val result = for (_ <- 1 to 4) yield select(c.receiveClause, Default(5)).orThrow.value
+
+        // then
+        result.toList shouldBe List(1, 2, 3, 5)
+      }
+    }
   }
 }

@@ -69,6 +69,12 @@ trait Source[+T] extends SourceOps[T] with Stateful:
 
   private[ox] def trySatisfyWaiting(): Unit | ChannelClosed
 
+  /** Try to immediately satisfy the given cell, without owning it.
+    * @return
+    *   true if the cell has been satisfied.
+    */
+  private[ox] def trySatisfyReceive(c: CellCompleter[T]): Boolean | ChannelClosed
+
 object Source extends SourceCompanionOps
 
 //
@@ -108,6 +114,12 @@ trait Sink[-T] extends Stateful:
   private[ox] def sendCellCleanup(c: CellCompleter[Unit]): Boolean
 
   private[ox] def trySatisfyWaiting(): Unit | ChannelClosed
+
+  /** Try to immediately satisfy the given cell, without owning it.
+    * @return
+    *   true if the cell has been satisfied.
+    */
+  private[ox] def trySatisfySend(v: T, c: CellCompleter[Unit]): Boolean | ChannelClosed
 
 //
 
@@ -168,6 +180,32 @@ class DirectChannel[T] extends Channel[T]:
           cv2._2.complete(Sent())
           true
     else false
+
+  override private[ox] def trySatisfyReceive(c: CellCompleter[T]): Boolean | ChannelClosed =
+    def doTry(resultWhenNotSatisfied: Boolean | ChannelClosed) =
+      val cv2 = ownedWaitingSend()
+      if cv2 == null then resultWhenNotSatisfied
+      else
+        c.complete(Received(cv2._1))
+        cv2._2.complete(Sent())
+        true
+
+    state.asResult() match
+      case ()                     => doTry(false)
+      case ChannelClosed.Done     => doTry(ChannelClosed.Done)
+      case e: ChannelClosed.Error => e
+
+  override private[ox] def trySatisfySend(v: T, c: CellCompleter[Unit]): Boolean | ChannelClosed =
+    state.asResult() match
+      case () =>
+        val c2 = waitingReceives.poll()
+        if c2 == null then false
+        else
+          c.complete(Sent())
+          c2.complete(Received(v))
+          true
+      case ChannelClosed.Done     => ChannelClosed.Done
+      case e: ChannelClosed.Error => e
 
   override def error(reason: Option[Throwable]): Unit | ChannelClosed =
     state.error(reason).map { s =>
@@ -258,6 +296,19 @@ class BufferedChannel[T](capacity: Int = 1) extends Channel[T]:
           true
     else false
 
+  override private[ox] def trySatisfyReceive(c: CellCompleter[T]): Boolean | ChannelClosed =
+    def doTry(resultWhenNotSatisfied: Boolean | ChannelClosed) =
+      val w = elements.poll()
+      if w == null then resultWhenNotSatisfied
+      else
+        c.complete(Received(w))
+        true
+
+    state.asResult() match
+      case ()                     => doTry(false)
+      case ChannelClosed.Done     => doTry(ChannelClosed.Done)
+      case e: ChannelClosed.Error => e
+
   /** @return `true` if a value was added to the `elements` queue */
   @tailrec private def trySatisfyWaitingSends(): Boolean =
     // the algorithm is similar as with trySatisfyWaitingReceives()
@@ -274,6 +325,16 @@ class BufferedChannel[T](capacity: Int = 1) extends Channel[T]:
         cv._2.completeWithNewCell()
         false
     else false
+
+  override private[ox] def trySatisfySend(v: T, c: CellCompleter[Unit]): Boolean | ChannelClosed =
+    state.asResult() match
+      case () =>
+        if elements.offer(v) then
+          c.complete(Sent())
+          true
+        else false
+      case ChannelClosed.Done     => ChannelClosed.Done
+      case e: ChannelClosed.Error => e
 
   override def error(reason: Option[Throwable]): Unit | ChannelClosed =
     state.error(reason).map { s =>
@@ -318,6 +379,7 @@ class CollectSource[T, U](s: Source[T], f: T => Option[U]) extends Source[U]:
   override private[ox] def receiveCellOffer(c: CellCompleter[U]): Unit = s.receiveCellOffer(createLinkedCell(c))
   override private[ox] def receiveCellCleanup(c: CellCompleter[U]): Boolean = s.receiveCellCleanup(createLinkedCell(c))
   override private[ox] def trySatisfyWaiting(): Unit | ChannelClosed = s.trySatisfyWaiting()
+  override private[ox] def trySatisfyReceive(c: CellCompleter[U]): Boolean | ChannelClosed = s.trySatisfyReceive(createLinkedCell(c))
   private def createLinkedCell(c: CellCompleter[U]): CellCompleter[T] = LinkedCell(c, f, u => Received(u))
 
 object Channel:
