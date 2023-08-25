@@ -12,7 +12,7 @@ Requires JDK 20. Applications need the following JVM flags: `--enable-preview --
 [sbt](https://www.scala-sbt.org) dependency:
 
 ```scala
-"com.softwaremill.ox" %% "core" % "0.0.10"
+"com.softwaremill.ox" %% "core" % "0.0.11"
 ```
 
 Introductory articles:
@@ -578,7 +578,7 @@ there's enough space in the buffer. The processing space is bound by the total s
 Dependency:
 
 ```scala
-"com.softwaremill.ox" %% "kafka" % "0.0.10"
+"com.softwaremill.ox" %% "kafka" % "0.0.11"
 ```
 
 `Source`s which read from a Kafka topic, mapping stages and drains which publish to Kafka topics are available through 
