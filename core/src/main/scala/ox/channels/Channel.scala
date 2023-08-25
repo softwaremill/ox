@@ -63,7 +63,9 @@ trait Source[+T] extends SourceOps[T] with Stateful:
   def receive(): T | ChannelClosed
 
   private[ox] def receiveCellOffer(c: CellCompleter[T]): Unit
-  private[ox] def receiveCellCleanup(c: CellCompleter[T]): Unit
+
+  /** @return `true` if the cell was removed from the queue; `false` if the cell was absent from the queue. */
+  private[ox] def receiveCellCleanup(c: CellCompleter[T]): Boolean
 
   private[ox] def trySatisfyWaiting(): Unit | ChannelClosed
 
@@ -101,7 +103,9 @@ trait Sink[-T] extends Stateful:
   def done(): Unit | ChannelClosed
 
   private[ox] def sendCellOffer(v: T, c: CellCompleter[Unit]): Unit
-  private[ox] def sendCellCleanup(c: CellCompleter[Unit]): Unit
+
+  /** @return `true` if the cell was removed from the queue; `false` if the cell was absent from the queue. */
+  private[ox] def sendCellCleanup(c: CellCompleter[Unit]): Boolean
 
   private[ox] def trySatisfyWaiting(): Unit | ChannelClosed
 
@@ -122,10 +126,11 @@ class DirectChannel[T] extends Channel[T]:
   private[ox] val state = CurrentChannelState()
 
   override private[ox] def receiveCellOffer(c: CellCompleter[T]): Unit = waitingReceives.offer(c)
-  override private[ox] def receiveCellCleanup(c: CellCompleter[T]): Unit = waitingReceives.remove(c)
+  override private[ox] def receiveCellCleanup(c: CellCompleter[T]): Boolean = waitingReceives.removeIf(c0 => sameCell(c0, c))
 
   override private[ox] def sendCellOffer(v: T, c: CellCompleter[Unit]): Unit = waitingSends.offer((v, c))
-  override private[ox] def sendCellCleanup(c: CellCompleter[Unit]): Unit = waitingSends.removeIf((t: (T, CellCompleter[Unit])) => t._2 == c)
+  override private[ox] def sendCellCleanup(c: CellCompleter[Unit]): Boolean =
+    waitingSends.removeIf((t: (T, CellCompleter[Unit])) => sameCell(t._2, c))
 
   override private[ox] def trySatisfyWaiting(): Unit | ChannelClosed =
     state.asResult() match
@@ -205,10 +210,11 @@ class BufferedChannel[T](capacity: Int = 1) extends Channel[T]:
   private[ox] val state = CurrentChannelState()
 
   override private[ox] def receiveCellOffer(c: CellCompleter[T]): Unit = waitingReceives.offer(c)
-  override private[ox] def receiveCellCleanup(c: CellCompleter[T]): Unit = waitingReceives.remove(c)
+  override private[ox] def receiveCellCleanup(c: CellCompleter[T]): Boolean = waitingReceives.removeIf(c0 => sameCell(c0, c))
 
   override private[ox] def sendCellOffer(v: T, c: CellCompleter[Unit]): Unit = waitingSends.offer((v, c))
-  override private[ox] def sendCellCleanup(c: CellCompleter[Unit]): Unit = waitingSends.removeIf((t: (T, CellCompleter[Unit])) => t._2 == c)
+  override private[ox] def sendCellCleanup(c: CellCompleter[Unit]): Boolean =
+    waitingSends.removeIf((t: (T, CellCompleter[Unit])) => sameCell(t._2, c))
 
   // TODO invariant for send & select: either `elements` is empty or `waiting.filter(_.isOwned.get() == false)` is empty
 
@@ -292,13 +298,16 @@ class BufferedChannel[T](capacity: Int = 1) extends Channel[T]:
   @tailrec private def drainWaitingReceivesWhenDone(): Unit =
     val c = waitingReceives.poll()
     if c == null then () // no more receives
-    else if !c.tryOwn() then drainWaitingReceivesWhenDone() // cell already owned - continue with next
-    else
-      val w = elements.poll()
-      if w == null
-      then c.completeWithClosed(ChannelState.Done) // no more elements - completing the cell with `Done`
-      else c.complete(Received(w)) // sending the element
-      drainWaitingReceivesWhenDone()
+    else {
+      if !c.tryOwn()
+      then drainWaitingReceivesWhenDone() // cell already owned - continue with next
+      else
+        val w = elements.poll()
+        if w == null
+        then c.completeWithClosed(ChannelState.Done) // no more elements - completing the cell with `Done`
+        else c.complete(Received(w)) // sending the element
+        drainWaitingReceivesWhenDone()
+    }
 
 class CollectSource[T, U](s: Source[T], f: T => Option[U]) extends Source[U]:
   private[ox] def state: CurrentChannelState = s.state
@@ -307,7 +316,7 @@ class CollectSource[T, U](s: Source[T], f: T => Option[U]) extends Source[U]:
     case None             => receive()
     case c: ChannelClosed => c
   override private[ox] def receiveCellOffer(c: CellCompleter[U]): Unit = s.receiveCellOffer(createLinkedCell(c))
-  override private[ox] def receiveCellCleanup(c: CellCompleter[U]): Unit = s.receiveCellCleanup(createLinkedCell(c))
+  override private[ox] def receiveCellCleanup(c: CellCompleter[U]): Boolean = s.receiveCellCleanup(createLinkedCell(c))
   override private[ox] def trySatisfyWaiting(): Unit | ChannelClosed = s.trySatisfyWaiting()
   private def createLinkedCell(c: CellCompleter[U]): CellCompleter[T] = LinkedCell(c, f, u => Received(u))
 

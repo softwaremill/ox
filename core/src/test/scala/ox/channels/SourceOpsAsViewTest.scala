@@ -31,6 +31,19 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually {
     }
   }
 
+  it should "return done, if all channels are done" in {
+    val c1: Channel[Int] = Channel()
+    val c2: Channel[Int] = Channel()
+
+    c1.done()
+    c2.done()
+
+    val s1 = c1.mapAsView(_ + 1)
+    val s2 = c2.mapAsView(_ + 1)
+
+    select(s1, s2) shouldBe ChannelClosed.Done
+  }
+
   it should "select from sources mapped as view" in {
     val c1: Channel[Int] = Channel()
     val c2: Channel[Int] = Channel()

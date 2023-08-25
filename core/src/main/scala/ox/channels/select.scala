@@ -37,35 +37,10 @@ def select[T](sources: List[Source[T]])(using DummyImplicit): T | ChannelClosed 
     case _: Sink[_]#Sent       => throw new IllegalStateException()
     case _: DefaultResult[_]   => throw new IllegalStateException()
 
-private def doSelect[T](clauses: List[SelectClause[T]]): SelectResult[T] | ChannelClosed =
-  def cellTakeInterrupted(c: Cell[T], e: InterruptedException): SelectResult[T] | ChannelClosed =
-    // trying to invalidate the cell by owning it
-    if c.tryOwn() then
-      // nobody else will complete the cell, we can re-throw the exception
-      throw e
-    else
-      // somebody else completed the cell; might block, but even if, only for a short period of time, as the
-      // cell-owning thread should complete it without blocking
-      c.take() match
-        case _: Cell[T] @unchecked =>
-          // nobody else will complete the new cell, as it's not put on the channels waiting queues, we can re-throw the exception
-          throw e
-        case s: ChannelState.Error => ChannelClosed.Error(s.reason)
-        case ChannelState.Done     =>
-          // one of the channels is done, others might be not, but we simply re-throw the exception
-          throw e
-        case t: SelectResult[T] @unchecked =>
-          // completed with a value; interrupting self and returning it
-          try t
-          finally Thread.currentThread().interrupt()
-        case t: MaybeCreateResult[T] @unchecked =>
-          try
-            t() match
-              case Some(r) => r
-              case None    => throw e
-          finally Thread.currentThread().interrupt()
+//
 
-  def takeFromCellInterruptSafe(c: Cell[T]): SelectResult[T] | ChannelClosed =
+private def doSelect[T](clauses: List[SelectClause[T]]): SelectResult[T] | ChannelClosed =
+  def takeFromCellInterruptSafe(c: Cell[T], cleanUpForClauses: List[SelectClause[T]]): SelectResult[T] | ChannelClosed =
     try
       c.take() match
         case c2: Cell[T] @unchecked => offerCellAndTake(c2) // we got a new cell on which we should be waiting, add it to the channels
@@ -79,78 +54,42 @@ private def doSelect[T](clauses: List[SelectClause[T]]): SelectResult[T] | Chann
             case None    => doSelect(clauses)
     catch case e: InterruptedException => cellTakeInterrupted(c, e)
     // now that the cell has been filled, it is owned, and should be removed from the waiting lists of the other channels
-    finally cleanupCell(c, alsoWhenSingleClause = false)
-
-  def cleanupCell(cell: Cell[T], alsoWhenSingleClause: Boolean): Unit =
-    if clauses.length > 1 || alsoWhenSingleClause then
-      clauses.foreach {
-        case s: Source[_]#Receive               => s.channel.receiveCellCleanup(cell)
-        case s: BufferedChannel[_]#BufferedSend => s.channel.sendCellCleanup(cell)
-        case s: DirectChannel[_]#DirectSend     => s.channel.sendCellCleanup(cell)
-        case _: Default[_]                      => ()
-      }
-
-  @tailrec def offerAndTrySatisfy(ccs: List[SelectClause[T]], c: Cell[T], allDone: Boolean): Unit | ChannelClosed =
-    ccs match
-      case Nil if allDone => ChannelClosed.Done
-      case Nil            => ()
-      case clause :: tail =>
-        val clauseTrySatisfyResult = clause match
-          case s: Source[_]#Receive =>
-            s.channel.receiveCellOffer(c)
-            s.channel.trySatisfyWaiting()
-          case s: BufferedChannel[_]#BufferedSend =>
-            s.channel.sendCellOffer(s.v, c)
-            s.channel.trySatisfyWaiting()
-          case s: DirectChannel[_]#DirectSend =>
-            s.channel.sendCellOffer(s.v, c)
-            s.channel.trySatisfyWaiting()
-          case _: Default[_] => ()
-
-        def skipWhenDone = clause match
-          case s: Source[_]#Receive => s.skipWhenDone
-          case _                    => true
-
-        clauseTrySatisfyResult match
-          case ChannelClosed.Error(e)             => ChannelClosed.Error(e)
-          case ChannelClosed.Done if skipWhenDone => offerAndTrySatisfy(tail, c, allDone)
-          case ChannelClosed.Done                 => ChannelClosed.Done
-          // optimization: checking if the cell is already owned; if so, no need to put it on other queues
-          // TODO: this might be possibly further optimized, by returning the satisfied cells from trySatisfyWaiting()
-          // TODO: and then checking if the cell is already satisfied, instead of looking at the AtomicBoolean
-          case () if c.isAlreadyOwned => ()
-          case ()                     => offerAndTrySatisfy(tail, c, false)
+    finally cleanupCell(cleanUpForClauses, c, alsoWhenSingleClause = false)
 
   def offerCellAndTake(c: Cell[T]): SelectResult[T] | ChannelClosed =
-    offerAndTrySatisfy(clauses, c, allDone = true) match {
-      case ()               => takeFromCellInterruptSafe(c)
-      case r: ChannelClosed =>
-        // either the cell is already taken off one of the waiting queues & being completed, or it's never going to get handled
-        if c.tryOwn() then
-          // nobody else will complete the cell, we can safely remove it
-          // TODO: only cleanup the cell from channels to which it has been actually added - see the optimization above
-          cleanupCell(c, alsoWhenSingleClause = true)
-          r
-        else takeFromCellInterruptSafe(c)
+    offerAndTrySatisfy(clauses, c, allDone = true, Nil) match {
+      case ((), offeredTo)               => takeFromCellInterruptSafe(c, offeredTo)
+      case (r: ChannelClosed, offeredTo) =>
+        // Checking, if the cell was still present on all queues, on which we put it, and only if that's the case,
+        // completing the cell with the return closed state.
+        // It might happen that the cell was already taken off the queue by another process, and that process will
+        // try to complete it with an element. This might have prevented our call to `trySatisfyWaiting()` from
+        // successfully completing the cell.
+        val cleanedUpEverywhere = cleanupCell(offeredTo, c, alsoWhenSingleClause = true)
+
+        // If we've taken the cell out of each queue, then for sure it's not yet owned. Owning anyway for consistency.
+        // If it's already taken off some queue, that process will try to own it.
+        if cleanedUpEverywhere && c.tryOwn() then r
+        else takeFromCellInterruptSafe(c, Nil) // already cleaned up
     }
 
   def offerCellAndTakeWithDefault(c: Cell[T], d: Default[T]): SelectResult[T] | ChannelClosed =
-    offerAndTrySatisfy(clauses, c, allDone = true) match {
-      case () =>
+    offerAndTrySatisfy(clauses, c, allDone = true, Nil) match {
+      case ((), offeredTo) =>
         if c.tryOwn() then
           // the cell wasn't immediately satisfied, so returning the default value
-          cleanupCell(c, alsoWhenSingleClause = true)
+          cleanupCell(offeredTo, c, alsoWhenSingleClause = true)
           DefaultResult(d.value)
         else
           // the cell is already owned, a result should be available shortly
-          takeFromCellInterruptSafe(c)
+          takeFromCellInterruptSafe(c, offeredTo)
 
-      case r: ChannelClosed =>
+      case (r: ChannelClosed, offeredTo) =>
         // same as in offerCellAndTake
         if c.tryOwn() then
-          cleanupCell(c, alsoWhenSingleClause = true)
+          cleanupCell(offeredTo, c, alsoWhenSingleClause = true)
           r
-        else takeFromCellInterruptSafe(c)
+        else takeFromCellInterruptSafe(c, clauses)
     }
 
   def default: Option[Default[T]] =
@@ -162,3 +101,82 @@ private def doSelect[T](clauses: List[SelectClause[T]]): SelectResult[T] | Chann
   default match
     case None    => offerCellAndTake(Cell[T])
     case Some(d) => offerCellAndTakeWithDefault(Cell[T], d)
+
+//
+
+def cellTakeInterrupted[T](c: Cell[T], e: InterruptedException): SelectResult[T] | ChannelClosed =
+// trying to invalidate the cell by owning it
+  if c.tryOwn() then
+    // nobody else will complete the cell, we can re-throw the exception
+    throw e
+  else
+    // somebody else completed the cell; might block, but even if, only for a short period of time, as the
+    // cell-owning thread should complete it without blocking
+    c.take() match
+      case _: Cell[T] @unchecked =>
+        // nobody else will complete the new cell, as it's not put on the channels waiting queues, we can re-throw the exception
+        throw e
+      case s: ChannelState.Error => ChannelClosed.Error(s.reason)
+      case ChannelState.Done     =>
+        // one of the channels is done, others might be not, but we simply re-throw the exception
+        throw e
+      case t: SelectResult[T] @unchecked =>
+        // completed with a value; interrupting self and returning it
+        try t
+        finally Thread.currentThread().interrupt()
+      case t: MaybeCreateResult[T] @unchecked =>
+        try
+          t() match
+            case Some(r) => r
+            case None    => throw e
+        finally Thread.currentThread().interrupt()
+
+/** @return `true` if the cell was removed from all queues; `false` if there was at least one queue, from which the cell was absent */
+def cleanupCell[T](from: List[SelectClause[T]], cell: Cell[T], alsoWhenSingleClause: Boolean): Boolean =
+  if from.length > 1 || alsoWhenSingleClause then
+    from
+      .map {
+        case s: Source[_]#Receive               => s.channel.receiveCellCleanup(cell)
+        case s: BufferedChannel[_]#BufferedSend => s.channel.sendCellCleanup(cell)
+        case s: DirectChannel[_]#DirectSend     => s.channel.sendCellCleanup(cell)
+        case _: Default[_]                      => true
+      }
+      // performing a .map+.forall, instead of just .forall, as we want all cleanups to run, even if some return `false`
+      .forall(identity)
+  else true
+
+@tailrec def offerAndTrySatisfy[T](
+    ccs: List[SelectClause[T]],
+    c: Cell[T],
+    allDone: Boolean,
+    offeredTo: List[SelectClause[T]]
+): (Unit | ChannelClosed, List[SelectClause[T]]) =
+  ccs match
+    case Nil if allDone => (ChannelClosed.Done, offeredTo)
+    case Nil            => ((), offeredTo)
+    case clause :: tail =>
+      val clauseTrySatisfyResult = clause match
+        case s: Source[_]#Receive =>
+          s.channel.receiveCellOffer(c)
+          s.channel.trySatisfyWaiting()
+        case s: BufferedChannel[_]#BufferedSend =>
+          s.channel.sendCellOffer(s.v, c)
+          s.channel.trySatisfyWaiting()
+        case s: DirectChannel[_]#DirectSend =>
+          s.channel.sendCellOffer(s.v, c)
+          s.channel.trySatisfyWaiting()
+        case _: Default[_] => ()
+
+      def skipWhenDone = clause match
+        case s: Source[_]#Receive => s.skipWhenDone
+        case _                    => true
+
+      clauseTrySatisfyResult match
+        case ChannelClosed.Error(e)             => (ChannelClosed.Error(e), offeredTo)
+        case ChannelClosed.Done if skipWhenDone => offerAndTrySatisfy(tail, c, allDone, clause :: offeredTo)
+        case ChannelClosed.Done                 => (ChannelClosed.Done, offeredTo)
+        // optimization: checking if the cell is already owned; if so, no need to put it on other queues
+        // TODO: this might be possibly further optimized, by returning the satisfied cells from trySatisfyWaiting()
+        // TODO: and then checking if the cell is already satisfied, instead of looking at the AtomicBoolean
+        case () if c.isAlreadyOwned => ((), offeredTo)
+        case ()                     => offerAndTrySatisfy(tail, c, false, clause :: offeredTo)

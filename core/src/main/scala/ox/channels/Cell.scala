@@ -2,7 +2,7 @@ package ox.channels
 
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
-import scala.util.control.NonFatal
+import scala.annotation.tailrec
 
 // a lazily-created, optional result - exceptions might be throw when the function is called, hence it should be called
 // only on the thread where the value should be received
@@ -42,8 +42,8 @@ private[ox] class Cell[T] extends CellCompleter[T]:
   def isAlreadyOwned: Boolean = isOwned.get()
 
 /** Linked cells are created when creating CollectSources. */
-private[ox] class LinkedCell[T, U](linkedTo: CellCompleter[U], f: T => Option[U], createReceived: U => Source[U]#Received)
-    extends CellCompleter[T] {
+private[ox] class LinkedCell[T, U](val linkedTo: CellCompleter[U], f: T => Option[U], createReceived: U => Source[U]#Received)
+    extends CellCompleter[T]:
   override def complete(t: SelectResult[T]): Unit =
     t match
       case r: Source[T]#Received => linkedTo.complete(() => f(r.value).map(createReceived)) // f might throw exceptions, making lazy
@@ -59,7 +59,11 @@ private[ox] class LinkedCell[T, U](linkedTo: CellCompleter[U], f: T => Option[U]
   override def completeWithClosed(s: ChannelState.Closed): Unit = linkedTo.completeWithClosed(s)
   override def tryOwn(): Boolean = linkedTo.tryOwn()
 
-  // for Source/Sink cell cleanup
-  override def equals(obj: Any): Boolean = linkedTo.equals(obj)
-  override def hashCode(): Int = linkedTo.hashCode()
-}
+@tailrec
+private[ox] def sameCell(c1: CellCompleter[_], c2: CellCompleter[_]): Boolean =
+  c1 match
+    case l1: LinkedCell[_, _] => sameCell(l1.linkedTo, c2)
+    case _ =>
+      c2 match
+        case l2: LinkedCell[_, _] => sameCell(c1, l2.linkedTo)
+        case _                    => c1 == c2

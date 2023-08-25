@@ -44,6 +44,25 @@ class SourceOpsMapParTest extends AnyFlatSpec with Matchers with Eventually {
     }
   }
 
+  it should s"map over a source with parallelism limit 10 (stress test" in scoped {
+    for (i <- 1 to 100) {
+      info(s"iteration $i")
+
+      // given
+      val s = Source.fromIterable(1 to 10)
+
+      def f(i: Int) =
+        Thread.sleep(50)
+        i * 2
+
+      // when
+      val result = s.mapPar(10)(f).toList
+
+      // then
+      result should be(List(2, 4, 6, 8, 10, 12, 14, 16, 18, 20))
+    }
+  }
+
   it should "propagate errors" in scoped {
     // given
     val s = Source.fromIterable(1 to 10)
