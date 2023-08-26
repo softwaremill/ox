@@ -88,7 +88,10 @@ private def doSelect[T](clauses: List[SelectClause[T]]): SelectResult[T] | Chann
         case (ChannelClosed.Done, false) => DefaultResult(d.value)
         case (e: ChannelClosed.Error, _) => e
         case false                       => DefaultResult(d.value)
-        case true                        => takeFromCellInterruptSafe(c, Nil) // the cell hasn't been offered to any channel
+        case true                        =>
+          // the cell has been satisfied, it shouldn't yet be owned; owning it in case take() is interrupted
+          if !c.tryOwn() then throw IllegalStateException()
+          takeFromCellInterruptSafe(c, Nil) // the cell hasn't been offered to any channel
 
 //
 
