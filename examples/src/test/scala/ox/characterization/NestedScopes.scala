@@ -1,7 +1,8 @@
 package ox
 
-import jdk.incubator.concurrent.StructuredTaskScope
 import org.slf4j.LoggerFactory
+
+import java.util.concurrent.StructuredTaskScope
 
 @main def nestedScopes(): Unit =
   val log = LoggerFactory.getLogger("nestedScopes")

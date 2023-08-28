@@ -1,8 +1,8 @@
 package ox.sockets
 
 import org.slf4j.LoggerFactory
-import ox.syntax.{forever, fork}
-import ox.{Fork, scoped, Ox}
+import ox.syntax.{forever, fork, forkCancellable}
+import ox.{CancellableFork, Fork, Ox, scoped}
 
 import java.util.concurrent.{ArrayBlockingQueue, BlockingQueue}
 import scala.annotation.tailrec
@@ -18,7 +18,7 @@ object Router:
   private case class Terminated(socket: ConnectedSocket) extends RouterMessage
 
   def router(socket: Socket): Unit = scoped {
-    case class ConnectedSocketData(sendFork: Fork[Unit], receiveFork: Fork[Unit], sendQueue: BlockingQueue[String])
+    case class ConnectedSocketData(sendFork: CancellableFork[Unit], receiveFork: CancellableFork[Unit], sendQueue: BlockingQueue[String])
 
     @tailrec
     def handleMessage(queue: BlockingQueue[RouterMessage], socketSendQueues: Map[ConnectedSocket, ConnectedSocketData]): Unit =
@@ -58,7 +58,7 @@ object Router:
 
   private def clientSend(socket: ConnectedSocket, parent: BlockingQueue[RouterMessage], sendQueue: BlockingQueue[String])(using
       Ox
-  ): Fork[Unit] = {
+  ): CancellableFork[Unit] = {
     val msg = sendQueue.take
     try socket.send(msg)
     catch
@@ -67,9 +67,9 @@ object Router:
         parent.put(Terminated(socket))
         throw e
       case e => logger.error(s"Exception when sending to socket", e)
-  }.forever.fork
+  }.forever.forkCancellable
 
-  private def clientReceive(socket: ConnectedSocket, parent: BlockingQueue[RouterMessage])(using Ox): Fork[Unit] = {
+  private def clientReceive(socket: ConnectedSocket, parent: BlockingQueue[RouterMessage])(using Ox): CancellableFork[Unit] = {
     try
       val msg = socket.receive(Timeout)
       if msg != null then parent.put(Received(socket, msg))
@@ -79,4 +79,4 @@ object Router:
         parent.put(Terminated(socket))
         throw e
       case e => logger.error("Exception when receiving from a socket", e)
-  }.forever.fork
+  }.forever.forkCancellable

@@ -1,14 +1,11 @@
 package ox
 
-import jdk.incubator.concurrent.ScopedValue
-
-import java.util.concurrent.Callable
+import java.util.concurrent.{Callable, StructuredTaskScope}
 import java.util.concurrent.atomic.AtomicReference
-import jdk.incubator.concurrent.StructuredTaskScope
 
 @main def mutableScopedValues(): Unit =
   val trail = ScopedValue.newInstance[AtomicReference[List[String]]]()
-  val result = ScopedValue.where(
+  val result = ScopedValue.callWhere(
     trail,
     new AtomicReference(Nil),
     { () =>
@@ -23,9 +20,7 @@ import jdk.incubator.concurrent.StructuredTaskScope
       try
         scope1.fork(() => trail.get.updateAndGet("B" :: _))
         scope1.join()
-      finally
-        scope1.close()
-
+      finally scope1.close()
 
       trail.get.get()
     }: Callable[List[String]]

@@ -5,6 +5,8 @@ import org.scalatest.matchers.should.Matchers
 import ox.*
 import ox.util.Trail
 
+import java.util.concurrent.Semaphore
+
 class ForkTest extends AnyFlatSpec with Matchers {
   class CustomException extends RuntimeException
 
@@ -108,10 +110,10 @@ class ForkTest extends AnyFlatSpec with Matchers {
     trail.get shouldBe Vector("CustomException")
   }
 
-  it should "block on cancel until the fork completes" in {
+  "cancel" should "block until the fork completes" in {
     val trail = Trail()
     scoped {
-      val f = fork {
+      val f = forkCancellable {
         trail.add("started")
         try
           Thread.sleep(500L)
@@ -131,25 +133,29 @@ class ForkTest extends AnyFlatSpec with Matchers {
     trail.get shouldBe Vector("started", "interrupted", "interrupted done", "cancel done")
   }
 
-  it should "block on cancel until the fork completes (stress test)" in {
-    for (_ <- 1 to 10) {
+  it should "block until the fork completes (stress test)" in {
+    for (i <- 1 to 20) {
+      info(s"iteration $i")
       val trail = Trail()
+      val s = Semaphore(0)
       scoped {
-        val f = fork {
+        val f = forkCancellable {
           trail.add("started")
           try
-            Thread.sleep(500L)
+            s.acquire()
             trail.add("main done")
           catch
             case _: InterruptedException =>
               trail.add("interrupted")
-              Thread.sleep(500L)
+              Thread.sleep(100L)
               trail.add("interrupted done")
         }
 
+        if i % 2 == 0 then Thread.sleep(1) // interleave immediate cancels and after the fork starts (probably)
         f.cancel()
+        s.release(1) // the acquire should be interrupted
         trail.add("cancel done")
-        Thread.sleep(500L)
+        Thread.sleep(100L)
       }
       if trail.get.length == 1
       then trail.get shouldBe Vector("cancel done") // the fork wasn't even started
@@ -160,7 +166,7 @@ class ForkTest extends AnyFlatSpec with Matchers {
   "cancelNow" should "return immediately, and wait for forks when scope completes" in {
     val trail = Trail()
     scoped {
-      val f = fork {
+      val f = forkCancellable {
         try
           Thread.sleep(500L)
           trail.add("main done")

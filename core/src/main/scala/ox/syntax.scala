@@ -9,6 +9,7 @@ object syntax:
 
   extension [T](f: => T)(using Ox)
     def fork: Fork[T] = ox.fork(f)
+    def forkCancellable: CancellableFork[T] = ox.forkCancellable(f)
     def timeout(duration: FiniteDuration): T = ox.timeout(duration)(f)
     def timeoutOption(duration: FiniteDuration): Option[T] = ox.timeoutOption(duration)(f)
     def scopedWhere[U](fl: ForkLocal[U], u: U): T = fl.scopedWhere(u)(f)

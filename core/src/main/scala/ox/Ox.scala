@@ -1,10 +1,8 @@
 package ox
 
-import jdk.incubator.concurrent.{ScopedValue, StructuredTaskScope}
-
 import java.io.Closeable
 import java.util.concurrent.atomic.AtomicReference
-import java.util.concurrent.{ArrayBlockingQueue, Callable, CompletableFuture}
+import java.util.concurrent.{ArrayBlockingQueue, Callable, CompletableFuture, StructuredTaskScope}
 import scala.annotation.{implicitNotFound, tailrec}
 import scala.concurrent.{ExecutionException, TimeoutException}
 import scala.concurrent.duration.{Duration, FiniteDuration}

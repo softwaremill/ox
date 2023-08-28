@@ -7,7 +7,8 @@ Developer-friendly structured concurrency library for the JVM, based on:
 * [Go](https://golang.org)-like channels
 * the [Scala](https://www.scala-lang.org) programming language
 
-Requires JDK 20. Applications need the following JVM flags: `--enable-preview --add-modules jdk.incubator.concurrent`.
+Requires JDK 21. Applications need the following JVM flags: `--enable-preview`.
+Note that currently only the [Scala nightly builds](https://dotty.epfl.ch) seem to work with Java 21.
 
 [sbt](https://www.scala-sbt.org) dependency:
 
@@ -139,9 +140,15 @@ Scopes can be arbitrarily nested.
 
 ### Cancelling forks
 
-Forks can be cancelled using `.cancel`, which interrupts the fork and awaits its completion. Alternatively, `.cancelNow`
-returns immediately. Still, the enclosing scope will only complete once the fork has completed, regardless of the method
-that has been called to cancel it.
+By default forks are not cancellable by the user. Instead, all outstanding forks are cancelled (interrupted) when the
+enclosing scope finishes.
+
+If needed, a cancellable fork can be created using `forkCancellable`. However, such an operation is more expensive, as
+it involves creating a nested scope and two virtual threads, instead of one. 
+
+The `CancellableFork` trait exposes the `.cancel` method, which interrupts the fork and awaits its completion. 
+Alternatively, `.cancelNow` returns immediately. In any case, the enclosing scope will only complete once all forks have
+completed.
 
 ### Error handling
 

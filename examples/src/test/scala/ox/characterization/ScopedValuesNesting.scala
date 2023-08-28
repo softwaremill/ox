@@ -1,10 +1,10 @@
 package ox.characterization
 
-import jdk.incubator.concurrent.{ScopedValue, StructuredTaskScope}
+import java.util.concurrent.StructuredTaskScope
 
 @main def scopedValuesNesting1(): Unit =
   val v = ScopedValue.newInstance[String]()
-  ScopedValue.where(
+  ScopedValue.callWhere(
     v,
     "x",
     () => {
@@ -19,7 +19,7 @@ import jdk.incubator.concurrent.{ScopedValue, StructuredTaskScope}
 @main def scopedValuesNesting2(): Unit =
   val v = ScopedValue.newInstance[String]()
   val scope1 = new StructuredTaskScope.ShutdownOnFailure()
-  ScopedValue.where(
+  ScopedValue.callWhere(
     v,
     "x",
     () => {

@@ -1,11 +1,9 @@
 package ox
 
-import jdk.incubator.concurrent.ScopedValue
-
 import java.util.concurrent.Callable
 
 private def scopedValueWhere[T, U](sv: ScopedValue[T], t: T)(f: => U): U =
-  ScopedValue.where(sv, t, (() => f): Callable[U])
+  ScopedValue.callWhere(sv, t, (() => f): Callable[U])
 
 class ForkLocal[T](scopedValue: ScopedValue[T], default: T):
   def get(): T = scopedValue.orElse(default)

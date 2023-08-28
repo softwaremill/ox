@@ -17,7 +17,7 @@ jobs:
       uses: actions/setup-java@v3
       with:
         distribution: 'temurin'
-        java-version: '20'
+        java-version: '21-ea'
         cache: 'sbt'
     - name: Compile
       run: sbt -v compile
@@ -36,7 +36,7 @@ jobs:
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
-          java-version: '20'
+          java-version: '21-ea'
       - name: Compile
         run: sbt compile
       - name: Publish artifacts

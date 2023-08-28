@@ -54,10 +54,5 @@ private def tapException[T](t: => T)(f: Throwable => Unit): T =
       f(t)
       throw t
 
-private def joinAllOrFirstError[T](fs: Seq[Fork[T]], firstError: ArrayBlockingQueue[Throwable]): Seq[T] = raceResult {
-  fs.map(_.join())
-} {
-  val e = firstError.take()
-  fs.map(_.cancel())
-  throw e
-}
+private def joinAllOrFirstError[T](fs: Seq[Fork[T]], firstError: ArrayBlockingQueue[Throwable]): Seq[T] =
+  raceResult(fs.map(_.join()))(throw firstError.take())

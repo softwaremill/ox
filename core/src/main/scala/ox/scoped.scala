@@ -1,7 +1,6 @@
 package ox
 
-import jdk.incubator.concurrent.StructuredTaskScope
-
+import java.util.concurrent.StructuredTaskScope
 import java.util.concurrent.atomic.AtomicReference
 
 private class DoNothingScope[T] extends StructuredTaskScope[T](null, Thread.ofVirtual().factory()) {}
