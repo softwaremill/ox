@@ -1,5 +1,6 @@
 package ox
 
+import java.time.Clock
 import java.util.concurrent.{CompletableFuture, Semaphore}
 import java.util.concurrent.atomic.AtomicBoolean
 import scala.concurrent.ExecutionException
@@ -19,7 +20,16 @@ def fork[T](f: => T)(using Ox): Fork[T] =
   val result = new CompletableFuture[T]()
   val ox = summon[Ox]
   ox.supervisor.forkStarts()
-  ox.scope.fork(() => runToResult(f, result))
+  ox.scope.fork { () =>
+    val supervisor = summon[Ox].supervisor
+    try
+      result.complete(f)
+      supervisor.forkSuccess()
+    catch
+      case e: Throwable =>
+        result.completeExceptionally(e)
+        supervisor.forkError(e)
+  }
   newForkUsingResult(result)
 
 /** Starts a fork (logical thread of execution), which is guaranteed to complete before the enclosing [[supervised]] or [[scoped]] block
@@ -85,6 +95,8 @@ def forkCancellable[T](f: => T)(using Ox): CancellableFork[T] =
           if !started.getAndSet(true) then
             try result.complete(f)
             catch case e: Throwable => result.completeExceptionally(e)
+
+          done.release() // the nested scope can now finish
         }
 
         done.acquire()
@@ -100,22 +112,13 @@ def forkCancellable[T](f: => T)(using Ox): CancellableFork[T] =
       catch
         case e: ExecutionException => Left(e.getCause)
         case e: Throwable          => Left(e)
+//        case NonFatal(e)           => Left(e)
 
     override def cancelNow(): Unit =
       // will cause the scope to end, interrupting the task if it hasn't yet finished (or potentially never starting it)
       done.release()
       if !started.getAndSet(true)
       then result.completeExceptionally(new InterruptedException("fork was cancelled before it started"))
-
-private def runToResult[T](f: => T, result: CompletableFuture[T])(using Ox): Unit =
-  val supervisor = summon[Ox].supervisor
-  try
-    result.complete(f)
-    supervisor.forkSuccess()
-  catch
-    case e: Throwable =>
-      result.completeExceptionally(e)
-      supervisor.forkError(e)
 
 private def newForkUsingResult[T](result: CompletableFuture[T]): Fork[T] = new Fork[T]:
   override def join(): T = unwrapExecutionException(result.get())
