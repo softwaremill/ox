@@ -5,7 +5,19 @@ import java.util.concurrent.atomic.AtomicReference
 
 private class DoNothingScope[T] extends StructuredTaskScope[T](null, Thread.ofVirtual().factory()) {}
 
-/** Any child forks are interrupted after `f` completes. The method only completes when all child forks have completed. */
+/** Starts a new scope, which allows starting forks in the given code block `f`. Forks can be started using [[fork]].
+  *
+  * The code is ran in unsupervised mode, that is:
+  *   - the scope ends once the `f` code block completes; this causes any running forks started within `f` to be cancelled
+  *   - the scope completes (that is, this method returns) only once all forks started by `f` have completed (either successfully, or with
+  *     an exception)
+  *   - fork failures aren't handled in any special way, but can be inspected using [[Fork.join()]]
+  *
+  * Forks created using [[forkDaemon]] and [[forkUnsupervised]] will behave exactly the same as forks created using [[fork]].
+  *
+  * @see
+  *   [[supervised]] Starts a scope in supervised mode
+  */
 def scoped[T](f: Ox ?=> T): T =
   def throwWithSuppressed(es: List[Throwable]): Nothing =
     val e = es.head
@@ -33,7 +45,7 @@ def scoped[T](f: Ox ?=> T): T =
   try
     val t =
       try
-        try f(using Ox(scope, finalizers))
+        try f(using Ox(scope, finalizers, NoOpSupervisor))
         finally
           scope.shutdown()
           scope.join()
