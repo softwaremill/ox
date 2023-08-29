@@ -9,6 +9,8 @@ object syntax:
 
   extension [T](f: => T)(using Ox)
     def fork: Fork[T] = ox.fork(f)
+    def forkDaemon: Fork[T] = ox.forkDaemon(f)
+    def forkUnsupervised: Fork[T] = ox.forkUnsupervised(f)
     def forkCancellable: CancellableFork[T] = ox.forkCancellable(f)
     def timeout(duration: FiniteDuration): T = ox.timeout(duration)(f)
     def timeoutOption(duration: FiniteDuration): Option[T] = ox.timeoutOption(duration)(f)
@@ -21,3 +23,4 @@ object syntax:
   extension [T <: AutoCloseable](f: => T)(using Ox)
     def useInScope: T = ox.useCloseableInScope(f)
     def useScoped[U](p: T => U): U = ox.useScoped(f)(p)
+    def useSupervised[U](p: T => U): U = ox.useSupervised(f)(p)

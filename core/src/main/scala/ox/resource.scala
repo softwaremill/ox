@@ -12,3 +12,6 @@ def useCloseableInScope[T <: AutoCloseable](c: => T)(using Ox): T = useInScope(c
 
 def useScoped[T, U](acquire: => T)(release: T => Unit)(b: T => U): U = scoped(b(useInScope(acquire)(release)))
 def useScoped[T <: AutoCloseable, U](acquire: => T)(b: T => U): U = scoped(b(useInScope(acquire)(_.close())))
+
+def useSupervised[T, U](acquire: => T)(release: T => Unit)(b: T => U): U = supervised(b(useInScope(acquire)(release)))
+def useSupervised[T <: AutoCloseable, U](acquire: => T)(b: T => U): U = supervised(b(useInScope(acquire)(_.close())))
