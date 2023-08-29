@@ -7,7 +7,7 @@ import java.util.concurrent.CompletableFuture
   * [[forkUnsupervised]].
   *
   * The code is ran in supervised mode, that is:
-  *   - the scope ends once the all non-daemon, supervised forks (including the `f` code block) complete
+  *   - the scope ends once all non-daemon, supervised forks (including the `f` code block) succeed
   *   - the scope also ends once the first supervised fork (including the `f` code block) fails with an exception
   *   - when the scope ends, all running forks are cancelled
   *   - the scope completes (that is, this method returns) only once all forks started by `f` have completed (either successfully, or with
