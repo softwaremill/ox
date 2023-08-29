@@ -67,7 +67,7 @@ def forkAll[T](fs: Seq[() => T])(using Ox): Fork[Seq[T]] =
 /** A cancellable fork is created by starting a nested scope in a fork, and then starting a fork there. Hence, it is more expensive than
   * `fork`, as two virtual threads are started.
   *
-  * Otherwise, works same as [[fork]].
+  * Otherwise, works same as [[forkUnsupervised]].
   */
 def forkCancellable[T](f: => T)(using Ox): CancellableFork[T] =
   val result = new CompletableFuture[T]()
@@ -76,14 +76,15 @@ def forkCancellable[T](f: => T)(using Ox): CancellableFork[T] =
   // interrupt signal
   val done = new Semaphore(0)
   val ox = summon[Ox]
-  ox.supervisor.forkStarts()
   ox.scope.fork { () =>
     scoped {
       supervisor(ox.supervisor) {
         val nestedOx = summon[Ox]
         nestedOx.scope.fork { () =>
           // "else" means that the fork is already cancelled, so doing nothing in that case
-          if !started.getAndSet(true) then runToResult(f, result)
+          if !started.getAndSet(true) then
+            try result.complete(f)
+            catch case e: Throwable => result.completeExceptionally(e)
         }
 
         done.acquire()

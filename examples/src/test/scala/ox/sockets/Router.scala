@@ -1,8 +1,8 @@
 package ox.sockets
 
 import org.slf4j.LoggerFactory
-import ox.syntax.{forever, fork, forkCancellable}
-import ox.{CancellableFork, Fork, Ox, scoped}
+import ox.syntax.{forever, forkDaemon, forkCancellable}
+import ox.{CancellableFork, Fork, Ox, supervised}
 
 import java.util.concurrent.{ArrayBlockingQueue, BlockingQueue}
 import scala.annotation.tailrec
@@ -17,7 +17,7 @@ object Router:
   private case class Received(socket: ConnectedSocket, msg: String) extends RouterMessage
   private case class Terminated(socket: ConnectedSocket) extends RouterMessage
 
-  def router(socket: Socket): Unit = scoped {
+  def router(socket: Socket): Unit = supervised {
     case class ConnectedSocketData(sendFork: CancellableFork[Unit], receiveFork: CancellableFork[Unit], sendQueue: BlockingQueue[String])
 
     @tailrec
@@ -54,7 +54,7 @@ object Router:
       val connectedSocket = socket.accept(Timeout)
       if connectedSocket != null then parent.put(Connected(connectedSocket))
     catch case NonFatal(e) => logger.error(s"Exception when listening on a socket", e)
-  }.forever.fork
+  }.forever.forkDaemon
 
   private def clientSend(socket: ConnectedSocket, parent: BlockingQueue[RouterMessage], sendQueue: BlockingQueue[String])(using
       Ox

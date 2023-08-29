@@ -1,7 +1,7 @@
 package ox.supervise
 
 import org.slf4j.LoggerFactory
-import ox.{forever, fork, forkCancellable, scoped, uninterruptible}
+import ox.{forever, forkDaemon, forkCancellable, supervised, uninterruptible}
 
 import java.util.concurrent.{ArrayBlockingQueue, BlockingQueue}
 import scala.annotation.tailrec
@@ -16,13 +16,13 @@ object Broadcast {
 
   case class BroadcastResult(inbox: BlockingQueue[BroadcastMessage], cancel: () => Unit)
 
-  def broadcast[T](connector: QueueConnector)(f: BroadcastResult => T): T = scoped {
+  def broadcast[T](connector: QueueConnector)(f: BroadcastResult => T): T = supervised {
     @tailrec
     def processMessages(inbox: BlockingQueue[BroadcastMessage], consumers: Set[String => Unit]): Unit =
       inbox.take match
         case Subscribe(consumer) => processMessages(inbox, consumers + consumer)
         case Received(msg) =>
-          consumers.map(consumer => fork(consumer(msg)))
+          consumers.map(consumer => forkDaemon(consumer(msg)))
           processMessages(inbox, consumers)
 
     def consumeForever(inbox: BlockingQueue[BroadcastMessage]): Unit = forever {

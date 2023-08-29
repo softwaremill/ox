@@ -3,7 +3,7 @@ package ox.sockets.test
 import org.scalatest.concurrent.{Eventually, IntegrationPatience}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import ox.{raceResult, scoped}
+import ox.raceResult
 import ox.sockets.{ConnectedSocket, Router, Socket, SocketTerminatedException}
 
 import java.util.concurrent.{ArrayBlockingQueue, ConcurrentLinkedQueue, TimeUnit}
@@ -81,8 +81,6 @@ class RouterTest extends AnyFlatSpec with Matchers with Eventually with Integrat
         s5.sent should be(List("msg2", "msg3"))
       }
 
-    scoped {
-      raceResult(socketListen)(socketTest)
-    }
+    raceResult(socketListen)(socketTest)
   }
 }

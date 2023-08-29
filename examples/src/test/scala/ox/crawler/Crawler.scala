@@ -1,7 +1,7 @@
 package ox.crawler
 
 import org.slf4j.LoggerFactory
-import ox.{Fork, fork, scoped}
+import ox.{Fork, forkDaemon, supervised}
 
 import java.util.concurrent.{ArrayBlockingQueue, BlockingQueue}
 import scala.annotation.tailrec
@@ -9,7 +9,7 @@ import scala.annotation.tailrec
 object Crawler:
   private val logger = LoggerFactory.getLogger(this.getClass)
 
-  def crawl(crawlUrl: Url, http: Http, parseLinks: String => List[Url]): Map[Host, Int] = scoped {
+  def crawl(crawlUrl: Url, http: Http, parseLinks: String => List[Url]): Map[Host, Int] = supervised {
     @tailrec
     def crawler(crawlerQueue: BlockingQueue[CrawlerMessage], data: CrawlerData): Map[Host, Int] =
       def handleMessage(msg: CrawlerMessage, data: CrawlerData): CrawlerData = msg match {
@@ -55,9 +55,9 @@ object Crawler:
             case e: Exception =>
               logger.error(s"Cannot get contents of $url", e)
               List.empty[Url]
-        fork(crawlerQueue.put(CrawlResult(url, r)))
+        forkDaemon(crawlerQueue.put(CrawlResult(url, r)))
 
-      fork {
+      forkDaemon {
         while true do {
           val url = workerQueue.take
           handleUrl(url)
