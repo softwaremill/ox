@@ -47,7 +47,7 @@ object KafkaStage:
 
       val sendInSequence = SendInSequence(c)
 
-      fork {
+      forkDaemon {
         try
           // starting a nested scope, so that the committer is interrupted when the main process ends
           scoped {

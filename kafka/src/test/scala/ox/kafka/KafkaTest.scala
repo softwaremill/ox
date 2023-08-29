@@ -32,7 +32,7 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
     publishStringMessageToKafka(topic, "msg2")
     publishStringMessageToKafka(topic, "msg3")
 
-    scoped {
+    supervised {
       // then
       val settings = ConsumerSettings.default(group).bootstrapServers(bootstrapServer).autoOffsetReset(Earliest)
       val source = KafkaSource.subscribe(settings, topic)
@@ -55,7 +55,7 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
     val topic = "t2"
 
     // when
-    val metadatas = scoped {
+    val metadatas = supervised {
       import KafkaStage.*
 
       val settings = ProducerSettings.default.bootstrapServers(bootstrapServer)
@@ -90,9 +90,9 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
 
     val metadatas = Channel[RecordMetadata](16)
 
-    scoped {
+    supervised {
       // then
-      fork {
+      forkDaemon {
         import KafkaStage.*
 
         KafkaSource
@@ -122,7 +122,7 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
     // sending some more messages to source
     publishStringMessageToKafka(sourceTopic, "4")
 
-    scoped {
+    supervised {
       // reading from source, using the same consumer group as before, should start from the last committed offset
       val inSource = KafkaSource.subscribe(consumerSettings, sourceTopic)
       inSource.receive().orThrow.value shouldBe "4"
@@ -138,7 +138,7 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
     val topic = "t4"
 
     // when
-    scoped {
+    supervised {
       val settings = ProducerSettings.default.bootstrapServers(bootstrapServer)
       Source
         .fromIterable(List("a", "b", "c"))
@@ -166,9 +166,9 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
     publishStringMessageToKafka(sourceTopic, "25")
     publishStringMessageToKafka(sourceTopic, "92")
 
-    scoped {
+    supervised {
       // then
-      fork {
+      forkDaemon {
         KafkaSource
           .subscribe(consumerSettings, sourceTopic)
           .map(in => (in.value.toLong * 2, in))
@@ -190,7 +190,7 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
     // sending some more messages to source
     publishStringMessageToKafka(sourceTopic, "4")
 
-    scoped {
+    supervised {
       // reading from source, using the same consumer group as before, should start from the last committed offset
       val inSource = KafkaSource.subscribe(consumerSettings, sourceTopic)
       inSource.receive().orThrow.value shouldBe "4"
