@@ -13,7 +13,7 @@ Note that currently only the [Scala nightly builds](https://dotty.epfl.ch) seem 
 [sbt](https://www.scala-sbt.org) dependency:
 
 ```scala
-"com.softwaremill.ox" %% "core" % "0.0.11"
+"com.softwaremill.ox" %% "core" % "0.0.12"
 ```
 
 Introductory articles:
@@ -642,7 +642,7 @@ there's enough space in the buffer. The processing space is bound by the total s
 Dependency:
 
 ```scala
-"com.softwaremill.ox" %% "kafka" % "0.0.11"
+"com.softwaremill.ox" %% "kafka" % "0.0.12"
 ```
 
 `Source`s which read from a Kafka topic, mapping stages and drains which publish to Kafka topics are available through 
