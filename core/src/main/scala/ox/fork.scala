@@ -111,8 +111,7 @@ def forkCancellable[T](f: => T)(using Ox): CancellableFork[T] =
       try Right(result.get())
       catch
         case e: ExecutionException => Left(e.getCause)
-        case e: Throwable          => Left(e)
-//        case NonFatal(e)           => Left(e)
+        case NonFatal(e)           => Left(e)
 
     override def cancelNow(): Unit =
       // will cause the scope to end, interrupting the task if it hasn't yet finished (or potentially never starting it)

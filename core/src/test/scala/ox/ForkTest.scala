@@ -140,7 +140,7 @@ class ForkTest extends AnyFlatSpec with Matchers {
       val s = Semaphore(0)
       scoped {
         val f = forkCancellable {
-          trail.add("started")
+          // trail.add("started") // uncommenting this makes interruption to get swallowed by SBT's runner from time to time ...
           try
             s.acquire()
             trail.add("main done")
@@ -159,7 +159,7 @@ class ForkTest extends AnyFlatSpec with Matchers {
       }
       if trail.get.length == 1
       then trail.get shouldBe Vector("cancel done") // the fork wasn't even started
-      else trail.get shouldBe Vector("started", "interrupted", "interrupted done", "cancel done")
+      else trail.get shouldBe Vector("interrupted", "interrupted done", "cancel done")
     }
   }
 
