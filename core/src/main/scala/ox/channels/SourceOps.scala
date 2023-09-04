@@ -249,6 +249,22 @@ trait SourceCompanionOps:
     }
     c
 
+  /** A range of number, from `from`, to `to` (inclusive), stepped by `step`. */
+  def range(from: Int, to: Int, step: Int)(using Ox, StageCapacity): Source[Int] =
+    val c = StageCapacity.newChannel[Int]
+    forkDaemon {
+      var t = from
+      try
+        repeatWhile {
+          c.send(t)
+          t = t + step
+          t <= to
+        }
+        c.done()
+      catch case t: Throwable => c.error(t)
+    }
+    c
+
   def unfold[S, T](initial: S)(f: S => Option[(T, S)])(using Ox, StageCapacity): Source[T] =
     val c = StageCapacity.newChannel[T]
     forkDaemon {

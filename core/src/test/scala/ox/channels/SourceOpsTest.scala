@@ -264,4 +264,12 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
       s.toList shouldBe List("a", "b", "c", "d", "e", "f", "g", "h", "i")
     }
   }
+
+  it should "produce a range" in {
+    scoped {
+      Source.range(1, 5, 1).toList shouldBe List(1, 2, 3, 4, 5)
+      Source.range(1, 5, 2).toList shouldBe List(1, 3, 5)
+      Source.range(1, 11, 3).toList shouldBe List(1, 4, 7, 10)
+    }
+  }
 }
