@@ -73,6 +73,27 @@ private def doSelect[T](clauses: List[SelectClause[T]]): SelectResult[T] | Chann
         else takeFromCellInterruptSafe(c, Nil) // already cleaned up
     }
 
+  def satisfyNowOrDefault(d: Default[T]) =
+    // trying to satisfy a cell immediately (without enqueueing it to waitingSends / waitingReceives) might violate
+    // total wall-clock-time ordering - however, it won't violate causal ordering;
+    // for receives, a "now" receive might happen to get satisfied before a long-waiting receive in the queue, if a
+    // send happens concurrently
+    // for direct sends, a "now" send might happen to get satisfied before an awaiting "normal" send on another thread
+    // however, these two threads won't have a chance to communicate (as the "normal" thread is blocked), hence causal
+    // ordering isn't violated
+    // for buffered sends, a "now" send might enqueue the value before another thread, which initiated sending slightly
+    // earlier; however, delivery order won't be violated as values always end up going through the `elements` queue
+    val c = Cell[T]
+    trySatisfyNow(clauses, c, allDone = true) match
+      case (ChannelClosed.Done, true)  => ChannelClosed.Done
+      case (ChannelClosed.Done, false) => DefaultResult(d.value)
+      case (e: ChannelClosed.Error, _) => e
+      case false                       => DefaultResult(d.value)
+      case true                        =>
+        // the cell has been satisfied, it shouldn't yet be owned; owning it in case take() is interrupted
+        if !c.tryOwn() then throw IllegalStateException()
+        takeFromCellInterruptSafe(c, Nil) // the cell hasn't been offered to any channel
+
   def default: Option[Default[T]] =
     clauses.collect { case d: Default[T] => d } match
       case Nil      => None
@@ -80,18 +101,8 @@ private def doSelect[T](clauses: List[SelectClause[T]]): SelectResult[T] | Chann
       case ds       => throw new IllegalArgumentException(s"More than one default clause in select: $ds")
 
   default match
-    case None => offerCellAndTake(Cell[T])
-    case Some(d) =>
-      val c = Cell[T]
-      trySatisfyNow(clauses, c, allDone = true) match
-        case (ChannelClosed.Done, true)  => ChannelClosed.Done
-        case (ChannelClosed.Done, false) => DefaultResult(d.value)
-        case (e: ChannelClosed.Error, _) => e
-        case false                       => DefaultResult(d.value)
-        case true                        =>
-          // the cell has been satisfied, it shouldn't yet be owned; owning it in case take() is interrupted
-          if !c.tryOwn() then throw IllegalStateException()
-          takeFromCellInterruptSafe(c, Nil) // the cell hasn't been offered to any channel
+    case None    => offerCellAndTake(Cell[T])
+    case Some(d) => satisfyNowOrDefault(d)
 
 //
 
