@@ -8,7 +8,6 @@ Developer-friendly structured concurrency library for the JVM, based on:
 * the [Scala](https://www.scala-lang.org) programming language
 
 Requires JDK 21. Applications need the following JVM flags: `--enable-preview`.
-Note that currently only the [Scala nightly builds](https://dotty.epfl.ch) seem to work with Java 21.
 
 [sbt](https://www.scala-sbt.org) dependency:
 

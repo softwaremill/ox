@@ -3,7 +3,7 @@ import com.softwaremill.Publish.ossPublishSettings
 
 lazy val commonSettings = commonSmlBuildSettings ++ ossPublishSettings ++ Seq(
   organization := "com.softwaremill.ox",
-  scalaVersion := "3.4.0-RC1-bin-20230825-2616c8b-NIGHTLY"
+  scalaVersion := "3.3.1"
 )
 
 val scalaTest = "org.scalatest" %% "scalatest" % "3.2.15" % Test
