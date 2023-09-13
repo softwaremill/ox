@@ -5,7 +5,7 @@ Developer-friendly structured concurrency library for the JVM, based on:
 * structured concurrency Java APIs ([JEP 428](https://openjdk.org/jeps/428)) 
 * scoped values ([JEP 429](https://openjdk.org/jeps/429))
 * [Go](https://golang.org)-like channels
-* the [Scala](https://www.scala-lang.org) programming language
+* the [Scala 3](https://www.scala-lang.org) programming language
 
 Requires JDK 21. Applications need the following JVM flags: `--enable-preview`.
 
