@@ -7,7 +7,7 @@ Developer-friendly structured concurrency library for the JVM, based on:
 * [Go](https://golang.org)-like channels
 * the [Scala 3](https://www.scala-lang.org) programming language
 
-Requires JDK 21. Applications need the following JVM flags: `--enable-preview`.
+Requires JDK 21.
 
 [sbt](https://www.scala-sbt.org) dependency:
 
