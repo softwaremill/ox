@@ -290,15 +290,16 @@ supervised {
 Resources can also be used in a dedicated scope:
 
 ```scala
-import ox.useScoped
+import ox.useSupervised
 
 case class MyResource(c: Int)
 
-def acquire: MyResource = 
-  println("acquiring ...")
-  MyResource(5)
+def acquire(c: Int): MyResource =
+  println(s"acquiring $c ...")
+  MyResource(c)
+
 def release(resource: MyResource): Unit =
-  println(s"releasing ${resource.c}...")
+  println(s"releasing ${resource.c} ...")
 
 useSupervised(acquire(10))(release) { resource =>
   println(s"Using $resource ...")
