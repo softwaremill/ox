@@ -267,15 +267,16 @@ Resources can be allocated within a scope. They will be released in reverse acqu
 (that is, after all forks started within finish). E.g.:
 
 ```scala
-import ox.{supervised, useScoped}
+import ox.{supervised, useInScope}
 
 case class MyResource(c: Int)
 
-def acquire: MyResource = 
-  println("acquiring ...")
-  MyResource(5)
+def acquire(c: Int) : MyResource =
+  println(s"acquiring $c ...")
+  MyResource(c)
+
 def release(resource: MyResource): Unit =
-  println(s"releasing ${resource.c}...")
+  println(s"releasing ${resource.c} ...")
 
 supervised {
   val resource1 = useInScope(acquire(10))(release)
