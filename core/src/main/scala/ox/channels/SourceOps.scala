@@ -197,16 +197,17 @@ trait SourceOps[+T] { this: Source[T] =>
     */
   def interleave[U >: T](other: Source[U], segmentSize: Int = 1)(using Ox, StageCapacity): Source[U] =
     val c = StageCapacity.newChannel[U]
-    var source: Source[U] = this
-    var counter = 0
-    var neitherCompleted = true
-
-    def switchSource(): Unit = {
-      if (source == this) source = other else source = this
-      counter = 0
-    }
 
     forkDaemon {
+      var source: Source[U] = this
+      var counter = 0
+      var neitherCompleted = true
+
+      def switchSource(): Unit = {
+        if (source == this) source = other else source = this
+        counter = 0
+      }
+
       repeatWhile {
         source.receive() match
           case ChannelClosed.Done =>
