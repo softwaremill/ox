@@ -187,12 +187,12 @@ trait SourceOps[+T] { this: Source[T] =>
     *   import ox.channels.Source
     *
     *   scoped {
-    *     val s1 = Source.fromValues(1, 2, 3, 4)
+    *     val s1 = Source.fromValues(1, 2, 3, 4, 5, 6, 7)
     *     val s2 = Source.fromValues(10, 20, 30, 40)
     *     s1.interleave(s2, segmentSize = 2).toList
     *   }
     *
-    *   scala> val res0: List[Int] = List(1, 2, 10, 20, 3, 4, 30, 40)
+    *   scala> val res0: List[Int] = List(1, 2, 10, 20, 3, 4, 30, 40, 5, 6, 7)
     *   }}}
     */
   def interleave[U >: T](other: Source[U], segmentSize: Int = 1)(using Ox, StageCapacity): Source[U] =
