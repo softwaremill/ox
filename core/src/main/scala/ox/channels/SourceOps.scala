@@ -168,6 +168,75 @@ trait SourceOps[+T] { this: Source[T] =>
 
   //
 
+  /** Sends a given number of elements (determined byc `segmentSize`) from this source to the returned channel, then sends the same number
+    * of elements from the `other` source and repeats. The order of elements in both sources is preserved.
+    *
+    * If one of the sources is closed before the other, the behavior depends on the `eagerCancel` flag. When set to `true`, the other source
+    * is cancelled immediately, otherwise the remaining elements from the other source are sent to the returned channel.
+    *
+    * Must be run within a scope, since a child fork is created which receives from both sources and sends to the resulting channel.
+    *
+    * @param other
+    *   The source whose elements will be interleaved with the elements of this source.
+    * @param segmentSize
+    *   The number of elements sent from each source before switching to the other one. Default is 1.
+    * @param eagerComplete
+    *   If `true`, the returned channel is completed as soon as either of the sources completes. If 'false`, the remaining elements of the
+    *   non-completed source are sent downstream.
+    * @return
+    *   A source to which the interleaved elements from both sources would be sent.
+    * @example
+    *   {{{
+    *   scala>
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   scoped {
+    *     val s1 = Source.fromValues(1, 2, 3, 4, 5, 6, 7)
+    *     val s2 = Source.fromValues(10, 20, 30, 40)
+    *     s1.interleave(s2, segmentSize = 2).toList
+    *   }
+    *
+    *   scala> val res0: List[Int] = List(1, 2, 10, 20, 3, 4, 30, 40, 5, 6, 7)
+    *   }}}
+    */
+  def interleave[U >: T](other: Source[U], segmentSize: Int = 1, eagerComplete: Boolean = false)(using Ox, StageCapacity): Source[U] =
+    val c = StageCapacity.newChannel[U]
+
+    forkDaemon {
+      var source: Source[U] = this
+      var counter = 0
+      var neitherCompleted = true
+
+      def switchSource(): Unit = {
+        if (source == this) source = other else source = this
+        counter = 0
+      }
+
+      repeatWhile {
+        source.receive() match
+          case ChannelClosed.Done =>
+            // if one source has completed, either complete the resulting source immediately if eagerComplete is set, or:
+            // - continue with the other source if it hasn't completed yet, or
+            // - complete the resulting source if both input sources have completed
+            if (neitherCompleted && !eagerComplete) {
+              neitherCompleted = false
+              switchSource()
+              true
+            } else {
+              c.done()
+              false
+            }
+          case ChannelClosed.Error(r) => c.error(r); false
+          case value: U @unchecked =>
+            counter += 1
+            // after reaching segmentSize, only switch to the other source if it hasn't completed yet
+            if (counter == segmentSize && neitherCompleted) switchSource()
+            c.send(value).isValue
+      }
+    }
+    c
+
   /** Invokes the given function for each received element. Blocks until the channel is done.
     * @throws ChannelClosedException
     *   when there is an upstream error.
