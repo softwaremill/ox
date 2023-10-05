@@ -168,6 +168,67 @@ trait SourceOps[+T] { this: Source[T] =>
 
   //
 
+  /** Sends a given number of elements (determined byc `segmentSize`) from this source to the returned channel, then sends the same number
+    * of elements from the `other` source and repeats. If one of the sources is closed before the other, the remaining elements from the
+    * open one are sent to the returned channel. The order of elements in both sources is preserved.
+    *
+    * Must be run within a scope, since a child fork is created which receives from both sources and sends to the resulting channel.
+    *
+    * @param other
+    *   The source whose elements will be interleaved with the elements of this source.
+    * @param segmentSize
+    *   The number of elements sent from each source before switching to the other one. Default is 1.
+    * @return
+    *   A source to which the interleaved elements from both sources would be sent.
+    * @example
+    *   {{{
+    *   scala>
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   scoped {
+    *     val s1 = Source.fromValues(1, 2, 3, 4)
+    *     val s2 = Source.fromValues(10, 20, 30, 40)
+    *     s1.interleave(s2, segmentSize = 2).toList
+    *   }
+    *
+    *   scala> val res0: List[Int] = List(1, 2, 10, 20, 3, 4, 30, 40)
+    *   }}}
+    */
+  def interleave[U >: T](other: Source[U], segmentSize: Int = 1)(using Ox, StageCapacity): Source[U] =
+    val c = StageCapacity.newChannel[U]
+    var source: Source[U] = this
+    var counter = 0
+    var neitherCompleted = true
+
+    def switchSource(): Unit = {
+      if (source == this) source = other else source = this
+      counter = 0
+    }
+
+    forkDaemon {
+      repeatWhile {
+        source.receive() match
+          case ChannelClosed.Done =>
+            // if one source has completed, switch to the other one, otherwise (i.e. if both sources have completed) complete the resulting source
+            if (neitherCompleted) {
+              neitherCompleted = false
+              switchSource()
+              true
+            } else {
+              c.done()
+              false
+            }
+          case ChannelClosed.Error(r) => c.error(r); false
+          case value: U @unchecked =>
+            counter += 1
+            // after reaching segmentSize, only switch to the other source if it hasn't completed yet
+            if (counter == segmentSize && neitherCompleted) switchSource()
+            c.send(value).isValue
+      }
+    }
+    c
+
   /** Invokes the given function for each received element. Blocks until the channel is done.
     * @throws ChannelClosedException
     *   when there is an upstream error.
