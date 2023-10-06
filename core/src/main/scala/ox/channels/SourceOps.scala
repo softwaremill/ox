@@ -202,86 +202,7 @@ trait SourceOps[+T] { this: Source[T] =>
     *   }}}
     */
   def interleave[U >: T](other: Source[U], segmentSize: Int = 1, eagerComplete: Boolean = false)(using Ox, StageCapacity): Source[U] =
-    interleaveAll(List(other), segmentSize, eagerComplete)
-
-  /** Sends a given number of elements (determined byc `segmentSize`) from this source to the returned channel, then sends the same number
-    * of elements from each of the `others` sources and repeats. The order of elements in all sources is preserved.
-    *
-    * If any of the sources is done before the others, the behavior depends on the `eagerCancel` flag. When set to `true`, the returned
-    * channel is completed immediately, otherwise the interleaving continues with the remaining non-completed sources. Once all but one
-    * sources are complete, the elements of the remaining non-complete source are sent to the returned channel.
-    *
-    * Must be run within a scope, since a child fork is created which receives from both sources and sends to the resulting channel.
-    *
-    * @param others
-    *   The sources whose elements will be interleaved with the elements of this source.
-    * @param segmentSize
-    *   The number of elements sent from each source before switching to the next one. Default is 1.
-    * @param eagerComplete
-    *   If `true`, the returned channel is completed as soon as any of the sources completes. If 'false`, the interleaving continues with
-    *   the remaining non-completed sources.
-    * @return
-    *   A source to which the interleaved elements from both sources would be sent.
-    * @example
-    *   {{{
-    *   scala>
-    *   import ox.*
-    *   import ox.channels.Source
-    *
-    *   scoped {
-    *     val s1 = Source.fromValues(1, 2, 3, 4, 5, 6, 7, 8)
-    *     val s2 = Source.fromValues(10, 20, 30)
-    *     val s3 = Source.fromValues(100, 200, 300, 400, 500)
-    *     s1.interleaveAll(List(s2, s3), segmentSize = 2, eagerComplete = true).toList
-    *   }
-    *
-    *   scala> val res0: List[Int] = List(1, 2, 10, 20, 100, 200, 3, 4, 30)
-    *   }}}
-    */
-  def interleaveAll[U >: T](others: Seq[Source[U]], segmentSize: Int = 1, eagerComplete: Boolean = false)(using
-      Ox,
-      StageCapacity
-  ): Source[U] =
-    others match
-      case Nil => this
-      case _ =>
-        val c = StageCapacity.newChannel[U]
-
-        forkDaemon {
-          val availableSources = mutable.ArrayBuffer.from(this +: others)
-          var currentSourceIndex = 0
-          var elementsRead = 0
-
-          def completeCurrentSource(): Unit =
-            availableSources.remove(currentSourceIndex)
-            currentSourceIndex = if (currentSourceIndex == 0) availableSources.size - 1 else currentSourceIndex - 1
-
-          def switchToNextSource(): Unit =
-            currentSourceIndex = (currentSourceIndex + 1) % availableSources.size
-            elementsRead = 0
-
-          repeatWhile {
-            availableSources(currentSourceIndex).receive() match
-              case ChannelClosed.Done =>
-                completeCurrentSource()
-
-                if (eagerComplete || availableSources.isEmpty)
-                  c.done()
-                  false
-                else
-                  switchToNextSource()
-                  true
-              case ChannelClosed.Error(r) =>
-                c.error(r)
-                false
-              case value: U @unchecked =>
-                elementsRead += 1
-                // after reaching segmentSize, only switch to next source if there's any other available
-                if (elementsRead == segmentSize && availableSources.size > 1) switchToNextSource()
-                c.send(value).isValue
-          }
-        }
-        c
+    Source.interleaveAll(List(this, other), segmentSize, eagerComplete)
 
   /** Invokes the given function for each received element. Blocks until the channel is done.
     * @throws ChannelClosedException
@@ -452,3 +373,89 @@ trait SourceCompanionOps:
       catch case t: Throwable => c.error(t)
     }
     c
+
+  def empty[T]: Source[T] =
+    val c = DirectChannel()
+    c.done()
+    c
+
+  /** Sends a given number of elements (determined byc `segmentSize`) from each source in `sources` to the returned channel and repeats. The
+    * order of elements in all sources is preserved.
+    *
+    * If any of the sources is done before the others, the behavior depends on the `eagerCancel` flag. When set to `true`, the returned
+    * channel is completed immediately, otherwise the interleaving continues with the remaining non-completed sources. Once all but one
+    * sources are complete, the elements of the remaining non-complete source are sent to the returned channel.
+    *
+    * Must be run within a scope, since a child fork is created which receives from the subsequent sources and sends to the resulting
+    * channel.
+    *
+    * @param sources
+    *   The sources whose elements will be interleaved.
+    * @param segmentSize
+    *   The number of elements sent from each source before switching to the next one. Default is 1.
+    * @param eagerComplete
+    *   If `true`, the returned channel is completed as soon as any of the sources completes. If 'false`, the interleaving continues with
+    *   the remaining non-completed sources.
+    * @return
+    *   A source to which the interleaved elements from both sources would be sent.
+    * @example
+    *   {{{
+    *   scala>
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   scoped {
+    *     val s1 = Source.fromValues(1, 2, 3, 4, 5, 6, 7, 8)
+    *     val s2 = Source.fromValues(10, 20, 30)
+    *     val s3 = Source.fromValues(100, 200, 300, 400, 500)
+    *     Source.interleaveAll(List(s1, s2, s3), segmentSize = 2, eagerComplete = true).toList
+    *   }
+    *
+    *   scala> val res0: List[Int] = List(1, 2, 10, 20, 100, 200, 3, 4, 30)
+    *   }}}
+    */
+  def interleaveAll[T](sources: Seq[Source[T]], segmentSize: Int = 1, eagerComplete: Boolean = false)(using
+      Ox,
+      StageCapacity
+  ): Source[T] =
+    sources match
+      case Nil => Source.empty
+      case single :: Nil => single
+      case _ =>
+        val c = StageCapacity.newChannel[T]
+
+        forkDaemon {
+          val availableSources = mutable.ArrayBuffer.from(sources)
+          var currentSourceIndex = 0
+          var elementsRead = 0
+
+          def completeCurrentSource(): Unit =
+            availableSources.remove(currentSourceIndex)
+            currentSourceIndex = if (currentSourceIndex == 0) availableSources.size - 1 else currentSourceIndex - 1
+
+          def switchToNextSource(): Unit =
+            currentSourceIndex = (currentSourceIndex + 1) % availableSources.size
+            elementsRead = 0
+
+          repeatWhile {
+            availableSources(currentSourceIndex).receive() match
+              case ChannelClosed.Done =>
+                completeCurrentSource()
+
+                if (eagerComplete || availableSources.isEmpty)
+                  c.done()
+                  false
+                else
+                  switchToNextSource()
+                  true
+              case ChannelClosed.Error(r) =>
+                c.error(r)
+                false
+              case value: T @unchecked =>
+                elementsRead += 1
+                // after reaching segmentSize, only switch to next source if there's any other available
+                if (elementsRead == segmentSize && availableSources.size > 1) switchToNextSource()
+                c.send(value).isValue
+          }
+        }
+        c
