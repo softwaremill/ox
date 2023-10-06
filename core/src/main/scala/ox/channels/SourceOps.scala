@@ -172,7 +172,7 @@ trait SourceOps[+T] { this: Source[T] =>
   /** Sends a given number of elements (determined byc `segmentSize`) from this source to the returned channel, then sends the same number
     * of elements from the `other` source and repeats. The order of elements in both sources is preserved.
     *
-    * If one of the sources is closed before the other, the behavior depends on the `eagerCancel` flag. When set to `true`, the returned
+    * If one of the sources is done before the other, the behavior depends on the `eagerCancel` flag. When set to `true`, the returned
     * channel is completed immediately, otherwise the remaining elements from the other source are sent to the returned channel.
     *
     * Must be run within a scope, since a child fork is created which receives from both sources and sends to the resulting channel.
@@ -207,7 +207,7 @@ trait SourceOps[+T] { this: Source[T] =>
   /** Sends a given number of elements (determined byc `segmentSize`) from this source to the returned channel, then sends the same number
     * of elements from each of the `others` sources and repeats. The order of elements in all sources is preserved.
     *
-    * If any of the sources is closed before the others, the behavior depends on the `eagerCancel` flag. When set to `true`, the returned
+    * If any of the sources is done before the others, the behavior depends on the `eagerCancel` flag. When set to `true`, the returned
     * channel is completed immediately, otherwise the interleaving continues with the remaining non-completed sources. Once all but one
     * sources are complete, the elements of the remaining non-complete source are sent to the returned channel.
     *
