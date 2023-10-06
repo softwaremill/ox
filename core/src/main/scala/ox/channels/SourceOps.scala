@@ -244,6 +244,62 @@ trait SourceOps[+T] { this: Source[T] =>
   def drain(): Unit = foreach(_ => ())
 
   def applied[U](f: Source[T] => U): U = f(this)
+
+  /** Applies the given mapping function `f`, using additional mutable state, to each element received from this source, and sends the
+    * results to the returned channel. Optionally sends an additional element, possibly based on the final state, to the returned channel
+    * once this source is done.
+    *
+    * The `initializeState` function is called once when `statefulMap` is called.
+    *
+    * The `onComplete` function is called once when this source is done. If it returns a non-empty value, the value will be sent to the
+    * returned channel, while an empty value will be ignored.
+    *
+    * @param initializeState
+    *   A function that initializes the state.
+    * @param f
+    *   A function that transforms the element from this source and the state into an optional pair of the next state and the result. If `f`
+    *   returns a nonempty value, th result will be sent to the returned channel, otherwise it will be ignored.
+    * @param onComplete
+    *   A function that transforms the final state into an optional element sent to the returned channel. By default the final state is
+    *   ignored.
+    * @return
+    *   A source to which the results of applying `f` to the elements from this source would be sent.
+    * @example
+    *   {{{
+    *   scala>
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   scoped {
+    *     val s = Source.fromValues(1, 2, 3, 4, 5)
+    *     s.statefulMap(() => 0)((sum, element) => (sum + element, Some(sum)), Some.apply)
+    *   }
+    *
+    *   scala> val res0: List[Int] = List(0, 1, 3, 6, 10, 15)
+    *   }}}
+    */
+  def statefulMap[S, U >: T](
+      initializeState: () => S
+  )(f: (S, T) => (S, Option[U]), onComplete: S => Option[U] = (_: S) => None)(using Ox, StageCapacity): Source[U] =
+    val c = StageCapacity.newChannel[U]
+    forkDaemon {
+      var state = initializeState()
+      repeatWhile {
+        receive() match
+          case ChannelClosed.Done =>
+            onComplete(state).foreach(c.send)
+            c.done()
+            false
+          case ChannelClosed.Error(r) =>
+            c.error(r)
+            false
+          case t: T @unchecked =>
+            val (nextState, result) = f(state, t)
+            state = nextState
+            result.map(c.send(_).isValue).getOrElse(true)
+      }
+    }
+    c
 }
 
 trait SourceCompanionOps:
