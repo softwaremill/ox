@@ -419,7 +419,7 @@ trait SourceCompanionOps:
       StageCapacity
   ): Source[T] =
     sources match
-      case Nil => Source.empty
+      case Nil           => Source.empty
       case single :: Nil => single
       case _ =>
         val c = StageCapacity.newChannel[T]
