@@ -287,16 +287,24 @@ trait SourceOps[+T] { this: Source[T] =>
       repeatWhile {
         receive() match
           case ChannelClosed.Done =>
-            onComplete(state).foreach(c.send)
-            c.done()
+            try
+              onComplete(state).foreach(c.send)
+              c.done()
+            catch 
+              case t: Throwable => c.error(t)
             false
           case ChannelClosed.Error(r) =>
             c.error(r)
             false
           case t: T @unchecked =>
-            val (nextState, result) = f(state, t)
-            state = nextState
-            result.map(c.send(_).isValue).getOrElse(true)
+            try
+              val (nextState, result) = f(state, t)
+              state = nextState
+              result.map(c.send(_).isValue).getOrElse(true)
+            catch
+              case t: Throwable => 
+                c.error(t)
+                false
       }
     }
     c

@@ -34,4 +34,38 @@ class SourceOpsStatefulMapTest extends AnyFlatSpec with Matchers {
 
     s.toList shouldBe List(1, 2, 3, 4, 5)
   }
+
+  it should "propagate errors in the mapping function" in scoped {
+    // given
+    val c = Source.fromValues("a", "b", "c")
+
+    // when
+    val s = c.statefulMap(() => 0) { (index, element) =>
+      if (index < 2) (index + 1, Some(element))
+      else throw new RuntimeException("boom")
+    }
+
+    // then
+    s.receive() shouldBe "a"
+    s.receive() shouldBe "b"
+    s.receive() should matchPattern {
+      case ChannelClosed.Error(Some(reason)) if reason.getMessage == "boom" =>
+    }
+  }
+
+  it should "propagate errors in the completion callback" in scoped {
+    // given
+    val c = Source.fromValues("a", "b", "c")
+
+    // when
+    val s = c.statefulMap(() => 0)((index, element) => (index + 1, Some(element)), _ => throw new RuntimeException("boom"))
+
+    // then
+    s.receive() shouldBe "a"
+    s.receive() shouldBe "b"
+    s.receive() shouldBe "c"
+    s.receive() should matchPattern {
+      case ChannelClosed.Error(Some(reason)) if reason.getMessage == "boom" =>
+    }
+  }
 }
