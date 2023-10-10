@@ -110,7 +110,34 @@ trait SourceOps[+T] { this: Source[T] =>
       closeScope.await()
     }
 
-  def mapParUnordered[U](parallelism: Int)(f: T => U)(using Ox, StageCapacity): Source[U] = ??? // TODO
+  def mapParUnordered[U](parallelism: Int)(f: T => U)(using Ox, StageCapacity): Source[U] =
+    val c = StageCapacity.newChannel[U]
+    val s = new Semaphore(parallelism)
+    forkDaemon {
+      supervised {
+        repeatWhile {
+          s.acquire()
+          receive() match
+            case ChannelClosed.Done => false
+            case e @ ChannelClosed.Error(r) =>
+              c.error(r)
+              throw e.toThrowable
+            case t: T @unchecked =>
+              fork {
+                try
+                  c.send(f(t))
+                  s.release()
+                catch
+                  case t: Throwable =>
+                    c.error(t)
+                    throw t
+              }
+              true
+        }
+      }
+      c.done()
+    }
+    c
 
   def take(n: Int)(using Ox, StageCapacity): Source[T] = transform(_.take(n))
 
