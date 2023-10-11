@@ -2,7 +2,7 @@ package ox.channels
 
 import ox.*
 
-import java.util.concurrent.{ArrayBlockingQueue, ConcurrentLinkedQueue, CountDownLatch, LinkedBlockingQueue, Semaphore}
+import java.util.concurrent.{CountDownLatch, Semaphore}
 import scala.collection.mutable
 import scala.concurrent.duration.FiniteDuration
 
@@ -33,6 +33,67 @@ trait SourceOps[+T] { this: Source[T] =>
       }
     }
     c2
+
+  /** Intersperses this source with provided element and forwards it to the returned channel.
+    *
+    * @param inject
+    *   An element to be injected between the stream elements.
+    * @return
+    *   A source, onto which elements will be injected.
+    * @example
+    *   {{{
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   scoped {
+    *     Source.empty[String].intersperse(", ").toList            // List()
+    *     Source.fromValues("foo").intersperse(", ").toList        // List(foo)
+    *     Source.fromValues("foo", "bar").intersperse(", ").toList // List(foo, ", ", bar)
+    *   }
+    *   }}}
+    */
+  def intersperse[U >: T](inject: U)(using Ox, StageCapacity): Source[U] =
+    intersperse(None, inject, None)
+
+  /** Intersperses this source with start, end and provided elements and forwards it to the returned channel.
+    *
+    * @param start
+    *   An element to be prepended to the stream.
+    * @param inject
+    *   An element to be injected between the stream elements.
+    * @param end
+    *   An element to be appended to the end of the stream.
+    * @return
+    *   A source, onto which elements will be injected.
+    * @example
+    *   {{{
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   scoped {
+    *     Source.empty[String].intersperse("[", ", ", "]").toList            // List([, ])
+    *     Source.fromValues("foo").intersperse("[", ", ", "]").toList        // List([, foo, ])
+    *     Source.fromValues("foo", "bar").intersperse("[", ", ", "]").toList // List([, foo, ", ", bar, ])
+    *   }
+    *   }}}
+    */
+  def intersperse[U >: T](start: U, inject: U, end: U)(using Ox, StageCapacity): Source[U] =
+    intersperse(Some(start), inject, Some(end))
+
+  private def intersperse[U >: T](start: Option[U], inject: U, end: Option[U])(using Ox, StageCapacity): Source[U] =
+    val c = StageCapacity.newChannel[U]
+    forkDaemon {
+      start.foreach(c.send)
+      var firstEmitted = false
+      repeatWhile {
+        receive() match
+          case ChannelClosed.Done               => end.foreach(c.send); c.done(); false
+          case ChannelClosed.Error(e)           => c.error(e); false
+          case v: U @unchecked if !firstEmitted => firstEmitted = true; c.send(v); true
+          case v: U @unchecked                  => c.send(inject); c.send(v); true
+      }
+    }
+    c
 
   /** Applies the given mapping function `f` to each element received from this source, and sends the results to the returned channel. At
     * most `parallelism` invocations of `f` are run in parallel.
