@@ -159,6 +159,26 @@ trait SourceOps[+T] { this: Source[T] =>
     */
   def drop(n: Int)(using Ox, StageCapacity): Source[T] = transform(_.drop(n))
 
+  /** Drops elements from the source as long as predicate `f` is satisfied (returns `true`) and forwards subsequent elements to the returned
+    * channel. Note that once the predicate `f` is not satisfied (returns `false`) no elements are dropped from the source even if they
+    * could still satisfy it.
+    *
+    * @param f
+    *   A predicate function.
+    * @example
+    *   {{{
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   scoped {
+    *     Source.empty[Int].dropWhile(_ > 3).toList          // List()
+    *     Source.fromValues(1, 2, 3).dropWhile(_ < 3).toList // List(3)
+    *     Source.fromValues(1, 2, 1).dropWhile(_ < 2).toList // List(2, 1)
+    *   }
+    *   }}}
+    */
+  def dropWhile(f: T => Boolean)(using Ox, StageCapacity): Source[T] = transform(_.dropWhile(f))
+
   def filter(f: T => Boolean)(using Ox, StageCapacity): Source[T] = transform(_.filter(f))
 
   def transform[U](f: Iterator[T] => Iterator[U])(using Ox, StageCapacity): Source[U] =
