@@ -2,7 +2,7 @@ package ox.channels
 
 import ox.*
 
-import java.util.concurrent.{ArrayBlockingQueue, ConcurrentLinkedQueue, CountDownLatch, LinkedBlockingQueue, Semaphore}
+import java.util.concurrent.{CountDownLatch, Semaphore}
 import scala.collection.mutable
 import scala.concurrent.duration.FiniteDuration
 
@@ -140,6 +140,25 @@ trait SourceOps[+T] { this: Source[T] =>
     c
 
   def take(n: Int)(using Ox, StageCapacity): Source[T] = transform(_.take(n))
+
+  /** Sends elements to the returned channel until predicate `f` is satisfied (returns `true`). Note that when the predicate `f` is not
+    * satisfied (returns `false`), subsequent elements are dropped even if they could still satisfy it.
+    *
+    * @param f
+    *   A predicate function.
+    * @example
+    *   {{{
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   scoped {
+    *     Source.empty[Int].takeWhile(_ > 3).toList          // List()
+    *     Source.fromValues(1, 2, 3).takeWhile(_ < 3).toList // List(1, 2)
+    *     Source.fromValues(3, 2, 1).takeWhile(_ < 3).toList // List()
+    *   }
+    *   }}}
+    */
+  def takeWhile(f: T => Boolean)(using Ox, StageCapacity): Source[T] = transform(_.takeWhile(f))
 
   def filter(f: T => Boolean)(using Ox, StageCapacity): Source[T] = transform(_.filter(f))
 
