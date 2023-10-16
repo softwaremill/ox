@@ -2,7 +2,7 @@ package ox.channels
 
 import ox.*
 
-import java.util.concurrent.{ArrayBlockingQueue, ConcurrentLinkedQueue, CountDownLatch, LinkedBlockingQueue, Semaphore}
+import java.util.concurrent.{CountDownLatch, Semaphore}
 import scala.collection.mutable
 import scala.concurrent.duration.FiniteDuration
 
@@ -140,6 +140,24 @@ trait SourceOps[+T] { this: Source[T] =>
     c
 
   def take(n: Int)(using Ox, StageCapacity): Source[T] = transform(_.take(n))
+
+  /** Drops `n` elements from this source and forwards subsequent elements to the returned channel.
+    *
+    * @param n
+    *   Number of elements to be dropped.
+    * @example
+    *   {{{
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   scoped {
+    *     Source.empty[Int].drop(1).toList          // List()
+    *     Source.fromValues(1, 2, 3).drop(1).toList // List(2 ,3)
+    *     Source.fromValues(1).drop(2).toList       // List()
+    *   }
+    *   }}}
+    */
+  def drop(n: Int)(using Ox, StageCapacity): Source[T] = transform(_.drop(n))
 
   def filter(f: T => Boolean)(using Ox, StageCapacity): Source[T] = transform(_.filter(f))
 
