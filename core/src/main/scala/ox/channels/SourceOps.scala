@@ -2,7 +2,7 @@ package ox.channels
 
 import ox.*
 
-import java.util.concurrent.{ArrayBlockingQueue, ConcurrentLinkedQueue, CountDownLatch, LinkedBlockingQueue, Semaphore}
+import java.util.concurrent.{CountDownLatch, Semaphore}
 import scala.collection.mutable
 import scala.concurrent.duration.FiniteDuration
 
@@ -190,6 +190,46 @@ trait SourceOps[+T] { this: Source[T] =>
               case ChannelClosed.Done     => c.done(); false
               case ChannelClosed.Error(r) => c.error(r); false
               case u: U @unchecked        => c.send(t, u).isValue
+      }
+    }
+    c
+
+  /** Combines elements from this and other sources into tuples handling early completion of either source with defaults.
+    *
+    * @param other
+    *   A source of elements to be combined with.
+    * @param thisDefault
+    *   A default element to be used in the result tuple when the other source is longer.
+    * @param otherDefault
+    *   A default element to be used in the result tuple when the current source is longer.
+    * @example
+    *   {{{
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   scoped {
+    *     Source.empty[Int].zipAll(Source.empty[String], -1, "foo").toList      // List()
+    *     Source.empty[Int].zipAll(Source.fromValues("a"), -1, "foo").toList    // List((-1, "a"))
+    *     Source.fromValues(1).zipAll(Source.empty[String], -1, "foo").toList   // List((1, "foo"))
+    *     Source.fromValues(1).zipAll(Source.fromValues("a"), -1, "foo").toList // List((1, "a"))
+    *   }
+    *   }}}
+    */
+  def zipAll[U >: T, V](other: Source[V], thisDefault: U, otherDefault: V)(using Ox, StageCapacity): Source[(U, V)] =
+    val c = StageCapacity.newChannel[(U, V)]
+
+    def receiveFromOther(thisElement: U, otherClosedHandler: () => Boolean): Boolean =
+      other.receive() match
+        case ChannelClosed.Done     => otherClosedHandler()
+        case ChannelClosed.Error(r) => c.error(r); false
+        case v: V @unchecked        => c.send(thisElement, v); true
+
+    forkDaemon {
+      repeatWhile {
+        receive() match
+          case ChannelClosed.Done     => receiveFromOther(thisDefault, () => { c.done(); false })
+          case ChannelClosed.Error(r) => c.error(r); false
+          case t: T @unchecked        => receiveFromOther(t, () => { c.send(t, otherDefault); true })
       }
     }
     c
