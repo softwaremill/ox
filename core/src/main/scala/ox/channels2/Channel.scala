@@ -1,6 +1,6 @@
 package ox.channels2
 
-import java.util.concurrent.{ConcurrentSkipListSet, CountDownLatch}
+import java.util.concurrent.{ArrayBlockingQueue, ConcurrentSkipListSet, CountDownLatch}
 import java.util.concurrent.atomic.{AtomicLong, AtomicReference, AtomicReferenceArray}
 import scala.annotation.tailrec
 
@@ -8,35 +8,28 @@ class Channel[T]:
   private val senders = new AtomicLong(0L)
   private val receivers = new AtomicLong(0L)
   private val buffer: AtomicReferenceArray[State] = AtomicReferenceArray[State](20_000_000) // TODO
-
+  
   //
 
   private object Interrupted
   private class Continuation[E]():
-    private val element: AtomicReference[E | Interrupted.type | Null] = new AtomicReference()
-    private val latch = new CountDownLatch(1)
+    private val q = new ArrayBlockingQueue[E | Interrupted.type](1)
 
-    def tryResume(e: E): Boolean =
-      if element.compareAndSet(null, e)
-      then
-        latch.countDown()
-        true
-      else false
+    def tryResume(e: E): Boolean = q.offer(e)
 
     def await(onInterrupt: () => Unit): E =
       try
-        latch.await()
-        element.get().asInstanceOf[E] // can't be anything else
+        q.take().asInstanceOf[E] // can't be anything else
       catch
         case e: InterruptedException =>
-          if element.compareAndSet(null, Interrupted)
+          if q.offer(Interrupted)
           then
             try onInterrupt()
             catch case ee: Throwable => e.addSuppressed(ee)
             throw e
           else
             Thread.currentThread().interrupt() // propagating the interruption to the next blocking call
-            element.get().asInstanceOf[E] // another thread has just inserted E
+            q.poll().asInstanceOf[E] // another thread has just inserted E
 
   //
 
