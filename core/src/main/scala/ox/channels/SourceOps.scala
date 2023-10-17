@@ -5,6 +5,7 @@ import ox.*
 import java.util.concurrent.{CountDownLatch, Semaphore}
 import scala.collection.mutable
 import scala.concurrent.duration.FiniteDuration
+import scala.collection.IterableOnce
 
 trait SourceOps[+T] { this: Source[T] =>
   // view ops (lazy)
@@ -311,6 +312,113 @@ trait SourceOps[+T] { this: Source[T] =>
   def drain(): Unit = foreach(_ => ())
 
   def applied[U](f: Source[T] => U): U = f(this)
+
+  /** Applies the given mapping function `f`, using additional state, to each element received from this source, and sends the results to
+    * the returned channel. Optionally sends an additional element, possibly based on the final state, to the returned channel once this
+    * source is done.
+    *
+    * The `initializeState` function is called once when `statefulMap` is called.
+    *
+    * The `onComplete` function is called once when this source is done. If it returns a non-empty value, the value will be sent to the
+    * returned channel, while an empty value will be ignored.
+    *
+    * @param initializeState
+    *   A function that initializes the state.
+    * @param f
+    *   A function that transforms the element from this source and the state into a pair of the next state and the result which is sent
+    *   sent to the returned channel.
+    * @param onComplete
+    *   A function that transforms the final state into an optional element sent to the returned channel. By default the final state is
+    *   ignored.
+    * @return
+    *   A source to which the results of applying `f` to the elements from this source would be sent.
+    * @example
+    *   {{{
+    *   scala>
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   scoped {
+    *     val s = Source.fromValues(1, 2, 3, 4, 5)
+    *     s.mapStateful(() => 0)((sum, element) => (sum + element, sum), Some.apply)
+    *   }
+    *
+    *   scala> val res0: List[Int] = List(0, 1, 3, 6, 10, 15)
+    *   }}}
+    */
+  def mapStateful[S, U >: T](
+      initializeState: () => S
+  )(f: (S, T) => (S, U), onComplete: S => Option[U] = (_: S) => None)(using Ox, StageCapacity): Source[U] =
+    def resultToSome(s: S, t: T) =
+      val (newState, result) = f(s, t)
+      (newState, Some(result))
+
+    mapStatefulConcat(initializeState)(resultToSome, onComplete)
+
+  /** Applies the given mapping function `f`, using additional state, to each element received from this source, and sends the results one
+    * by one to the returned channel. Optionally sends an additional element, possibly based on the final state, to the returned channel
+    * once this source is done.
+    *
+    * The `initializeState` function is called once when `statefulMap` is called.
+    *
+    * The `onComplete` function is called once when this source is done. If it returns a non-empty value, the value will be sent to the
+    * returned channel, while an empty value will be ignored.
+    *
+    * @param initializeState
+    *   A function that initializes the state.
+    * @param f
+    *   A function that transforms the element from this source and the state into a pair of the next state and a
+    *   [[scala.collection.IterableOnce]] of results which are sent one by one to the returned channel. If the result of `f` is empty,
+    *   nothing is sent to the returned channel.
+    * @param onComplete
+    *   A function that transforms the final state into an optional element sent to the returned channel. By default the final state is
+    *   ignored.
+    * @return
+    *   A source to which the results of applying `f` to the elements from this source would be sent.
+    * @example
+    *   {{{
+    *   scala>
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   scoped {
+    *     val s = Source.fromValues(1, 2, 2, 3, 2, 4, 3, 1, 5)
+    *     // deduplicate the values
+    *     s.mapStatefulConcat(() => Set.empty[Int])((s, e) => (s + e, Option.unless(s.contains(e))(e)))
+    *   }
+    *
+    *   scala> val res0: List[Int] = List(1, 2, 3, 4, 5)
+    *   }}}
+    */
+  def mapStatefulConcat[S, U >: T](
+      initializeState: () => S
+  )(f: (S, T) => (S, IterableOnce[U]), onComplete: S => Option[U] = (_: S) => None)(using Ox, StageCapacity): Source[U] =
+    val c = StageCapacity.newChannel[U]
+    forkDaemon {
+      var state = initializeState()
+      repeatWhile {
+        receive() match
+          case ChannelClosed.Done =>
+            try
+              onComplete(state).foreach(c.send)
+              c.done()
+            catch case t: Throwable => c.error(t)
+            false
+          case ChannelClosed.Error(r) =>
+            c.error(r)
+            false
+          case t: T @unchecked =>
+            try
+              val (nextState, result) = f(state, t)
+              state = nextState
+              result.iterator.map(c.send).forall(_.isValue)
+            catch
+              case t: Throwable =>
+                c.error(t)
+                false
+      }
+    }
+    c
 }
 
 trait SourceCompanionOps:
