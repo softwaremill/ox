@@ -246,9 +246,9 @@ trait SourceOps[+T] { this: Source[T] =>
 
   def applied[U](f: Source[T] => U): U = f(this)
 
-  /** Applies the given mapping function `f`, using additional mutable state, to each element received from this source, and sends the
-    * results to the returned channel. Optionally sends an additional element, possibly based on the final state, to the returned channel
-    * once this source is done.
+  /** Applies the given mapping function `f`, using additional state, to each element received from this source, and sends the results to
+    * the returned channel. Optionally sends an additional element, possibly based on the final state, to the returned channel once this
+    * source is done.
     *
     * The `initializeState` function is called once when `statefulMap` is called.
     *
@@ -288,9 +288,9 @@ trait SourceOps[+T] { this: Source[T] =>
 
     mapStatefulConcat(initializeState)(resultToSome, onComplete)
 
-  /** Applies the given mapping function `f`, using additional mutable state, to each element received from this source, and sends the
-    * results one by one to the returned channel. Optionally sends an additional element, possibly based on the final state, to the returned
-    * channel once this source is done.
+  /** Applies the given mapping function `f`, using additional state, to each element received from this source, and sends the results one
+    * by one to the returned channel. Optionally sends an additional element, possibly based on the final state, to the returned channel
+    * once this source is done.
     *
     * The `initializeState` function is called once when `statefulMap` is called.
     *
