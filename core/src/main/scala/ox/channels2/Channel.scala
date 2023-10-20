@@ -1,35 +1,45 @@
 package ox.channels2
 
-import java.util.concurrent.{ArrayBlockingQueue, ConcurrentSkipListSet, CountDownLatch}
+import java.util.concurrent.{ArrayBlockingQueue, ConcurrentSkipListSet, CountDownLatch, Semaphore, SynchronousQueue}
 import java.util.concurrent.atomic.{AtomicLong, AtomicReference, AtomicReferenceArray}
+import java.util.concurrent.locks.LockSupport
 import scala.annotation.tailrec
 
 class Channel[T]:
   private val senders = new AtomicLong(0L)
   private val receivers = new AtomicLong(0L)
   private val buffer: AtomicReferenceArray[State] = AtomicReferenceArray[State](20_000_000) // TODO
-  
+
   //
 
   private object Interrupted
   private class Continuation[E]():
-    private val q = new ArrayBlockingQueue[E | Interrupted.type](1)
+    private val creatingThread = Thread.currentThread()
+    private val data = new AtomicReference[E | Interrupted.type | Null]()
 
-    def tryResume(e: E): Boolean = q.offer(e)
+    def tryResume(e: E): Boolean =
+      val result = data.compareAndSet(null, e)
+      LockSupport.unpark(creatingThread)
+      result
 
     def await(onInterrupt: () => Unit): E =
-      try
-        q.take().asInstanceOf[E] // can't be anything else
-      catch
-        case e: InterruptedException =>
-          if q.offer(Interrupted)
-          then
-            try onInterrupt()
-            catch case ee: Throwable => e.addSuppressed(ee)
-            throw e
-          else
-            Thread.currentThread().interrupt() // propagating the interruption to the next blocking call
-            q.poll().asInstanceOf[E] // another thread has just inserted E
+      var x = 0
+      while data.get() == null do
+        if x <= 0 then
+          Thread.`yield`()
+          x += 1
+        else LockSupport.park()
+
+        if Thread.interrupted() then
+          data.compareAndSet(null, Interrupted) // TODO if
+          val e = new InterruptedException()
+
+          try onInterrupt()
+          catch case ee: Throwable => e.addSuppressed(ee)
+
+          throw e
+
+      data.get().asInstanceOf[E] // another thread has just inserted E
 
   //
 

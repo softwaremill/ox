@@ -3,11 +3,8 @@ package ox.channels2.perf
 import ox.*
 import ox.channels2.*
 
+import java.util.concurrent.SynchronousQueue
 import java.util.concurrent.atomic.{AtomicLong, AtomicReferenceArray}
-import java.util.concurrent.{ArrayBlockingQueue, ConcurrentLinkedDeque, Executors}
-import scala.annotation.tailrec
-import scala.concurrent.Await
-import scala.concurrent.duration.*
 
 def usingOx(): Unit =
   val max = 10_000_000
@@ -42,7 +39,7 @@ def passingValues(): Unit =
   }
 
   val max = 10_000_000
-  val st = new AtomicReferenceArray[ArrayBlockingQueue[String]](max)
+  val st = new AtomicReferenceArray[SynchronousQueue[String]](max)
   val s = new AtomicLong(0)
   val r = new AtomicLong(0)
   timed("passingValues") {
@@ -51,11 +48,11 @@ def passingValues(): Unit =
         for (i <- 0 until max) {
           s.incrementAndGet()
           r.get()
-          val q = new ArrayBlockingQueue[String](1)
+          val q = new SynchronousQueue[String]()
           val qq = if st.compareAndSet(i, null, q) then
             q.take()
           else
-            st.get(i).offer("sender")
+            st.get(i).put("sender")
         }
       }
 
@@ -63,11 +60,11 @@ def passingValues(): Unit =
         for (i <- 0 until max) {
           r.incrementAndGet()
           s.get()
-          val q = new ArrayBlockingQueue[String](1)
+          val q = new SynchronousQueue[String]()
           val qq = if st.compareAndSet(i, null, q) then
             q.take()
           else
-            st.get(i).offer("receiver")
+            st.get(i).put("receiver")
         }
       }.join()
     }

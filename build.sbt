@@ -20,6 +20,7 @@ lazy val core: Project = (project in file("core"))
   .settings(
     name := "core",
     libraryDependencies ++= Seq(
+      "org.jctools" % "jctools-core" % "4.0.1",
       scalaTest
     )
   )
