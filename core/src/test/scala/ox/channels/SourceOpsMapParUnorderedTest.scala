@@ -86,7 +86,7 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
         started.get() should be <= 7 // 4 successful + at most 3 taking up all the permits
   }
 
-  it should "cancel other running forks when there's an error" in scoped {
+  it should "complete running forks and not start new ones when there's an error" in scoped {
     // given
     val trail = Trail()
     val s = Source.fromIterable(1 to 10)
@@ -110,7 +110,10 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
 
     // checking if the forks aren't left running
     Thread.sleep(200)
-    trail.get shouldBe Vector("done", "done", "exception")
+
+    // the fork that processes 4 would complete, thus adding "done" to the trail, 
+    // but it won't emit its result, since the channel would already be closed after the fork processing 3 failed
+    trail.get shouldBe Vector("done", "done", "exception", "done")
   }
 
   it should "emit downstream as soon as a value is ready, regardless of the incoming order" in scoped {

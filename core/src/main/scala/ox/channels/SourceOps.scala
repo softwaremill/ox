@@ -182,16 +182,14 @@ trait SourceOps[+T] { this: Source[T] =>
             case ChannelClosed.Done => false
             case e @ ChannelClosed.Error(r) =>
               c.error(r)
-              throw e.toThrowable
+              false
             case t: T @unchecked =>
               fork {
                 try
                   c.send(f(t))
                   s.release()
                 catch
-                  case t: Throwable =>
-                    c.error(t)
-                    throw t
+                  case t: Throwable => c.error(t)
               }
               true
         }
