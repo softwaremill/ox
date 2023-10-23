@@ -729,12 +729,12 @@ trait SourceCompanionOps:
         }
         c
 
-  /** Creates a source that fails immediately with the given {{java.lang.Throwable}}
+  /** Creates a source that fails immediately with the given [[java.lang.Throwable]]
     *
     * @param t
-    *   the {{java.lang.Throwable}} to fail with
+    *   The [[java.lang.Throwable]] to fail with
     * @return
-    *   the failing source
+    *   A source that would fail immediately with the given [[java.lang.Throwable]]
     */
   def failed[T](t: Throwable): Source[T] =
     val c = DirectChannel[T]()
