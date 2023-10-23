@@ -111,9 +111,36 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
     // checking if the forks aren't left running
     Thread.sleep(200)
 
-    // the fork that processes 4 would complete, thus adding "done" to the trail, 
+    // the fork that processes 4 would complete, thus adding "done" to the trail,
     // but it won't emit its result, since the channel would already be closed after the fork processing 3 failed
     trail.get shouldBe Vector("done", "done", "exception", "done")
+  }
+
+  it should "cancel running forks when the surrounding scope closes due to an error" in scoped {
+    // given
+    val trail = Trail()
+    val s = Source.fromIterable(1 to 10)
+
+    // when
+    supervised {
+      val s2 = s.mapParUnordered(2) { i =>
+        if i == 4 then
+          Thread.sleep(100)
+          trail.add("exception")
+          throw new Exception("boom")
+        else
+          Thread.sleep(200)
+          trail.add(s"done")
+          i * 2
+      }
+
+      List(s2.receive(), s2.receive()) should contain only (2, 4)
+      s2.receive() should matchPattern { case ChannelClosed.Error(Some(reason)) if reason.getMessage == "boom" => }
+      s2.isError shouldBe true
+    }
+
+    // then
+    trail.get shouldBe Vector("done", "done", "exception")
   }
 
   it should "emit downstream as soon as a value is ready, regardless of the incoming order" in scoped {
