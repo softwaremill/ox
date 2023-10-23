@@ -86,7 +86,7 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
         started.get() should be <= 7 // 4 successful + at most 3 taking up all the permits
   }
 
-  it should "cancel other running forks when there's an error" in scoped {
+  it should "complete running forks and not start new ones when the mapping function fails" in scoped {
     // given
     val trail = Trail()
     val s = Source.fromIterable(1 to 10)
@@ -110,6 +110,59 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
 
     // checking if the forks aren't left running
     Thread.sleep(200)
+
+    // the fork that processes 4 would complete, thus adding "done" to the trail,
+    // but it won't emit its result, since the channel would already be closed after the fork processing 3 failed
+    trail.get shouldBe Vector("done", "done", "exception", "done")
+  }
+
+  it should "complete running forks and not start new ones when the upstream fails" in scoped {
+    // given
+    val trail = Trail()
+    val s = Source.fromValues(1, 2, 3).concat(Source.failed(new RuntimeException("boom")))
+
+    // when
+    val s2 = s.mapParUnordered(2) { i =>
+      Thread.sleep(100)
+      trail.add(i.toString)
+      i * 2
+    }
+
+    // then
+    List(s2.receive(), s2.receive()) should contain only (2, 4)
+    s2.receive() should matchPattern { case ChannelClosed.Error(Some(reason)) if reason.getMessage == "boom" => }
+    s2.isError shouldBe true
+
+    // checking if the forks aren't left running
+    Thread.sleep(200)
+
+    trail.get should contain only ("1", "2", "3")
+  }
+
+  it should "cancel running forks when the surrounding scope closes due to an error" in scoped {
+    // given
+    val trail = Trail()
+    val s = Source.fromIterable(1 to 10)
+
+    // when
+    supervised {
+      val s2 = s.mapParUnordered(2) { i =>
+        if i == 4 then
+          Thread.sleep(100)
+          trail.add("exception")
+          throw new Exception("boom")
+        else
+          Thread.sleep(200)
+          trail.add(s"done")
+          i * 2
+      }
+
+      List(s2.receive(), s2.receive()) should contain only (2, 4)
+      s2.receive() should matchPattern { case ChannelClosed.Error(Some(reason)) if reason.getMessage == "boom" => }
+      s2.isError shouldBe true
+    }
+
+    // then
     trail.get shouldBe Vector("done", "done", "exception")
   }
 

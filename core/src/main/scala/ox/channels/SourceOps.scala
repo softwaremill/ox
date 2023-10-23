@@ -182,16 +182,13 @@ trait SourceOps[+T] { this: Source[T] =>
             case ChannelClosed.Done => false
             case e @ ChannelClosed.Error(r) =>
               c.error(r)
-              throw e.toThrowable
+              false
             case t: T @unchecked =>
               fork {
                 try
                   c.send(f(t))
                   s.release()
-                catch
-                  case t: Throwable =>
-                    c.error(t)
-                    throw t
+                catch case t: Throwable => c.error(t)
               }
               true
         }
@@ -731,3 +728,15 @@ trait SourceCompanionOps:
           }
         }
         c
+
+  /** Creates a source that fails immediately with the given [[java.lang.Throwable]]
+    *
+    * @param t
+    *   The [[java.lang.Throwable]] to fail with
+    * @return
+    *   A source that would fail immediately with the given [[java.lang.Throwable]]
+    */
+  def failed[T](t: Throwable): Source[T] =
+    val c = DirectChannel[T]()
+    c.error(t)
+    c
