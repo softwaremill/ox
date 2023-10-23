@@ -188,8 +188,7 @@ trait SourceOps[+T] { this: Source[T] =>
                 try
                   c.send(f(t))
                   s.release()
-                catch
-                  case t: Throwable => c.error(t)
+                catch case t: Throwable => c.error(t)
               }
               true
         }
@@ -729,3 +728,15 @@ trait SourceCompanionOps:
           }
         }
         c
+
+  /** Creates a source that fails immediately with the given {{java.lang.Throwable}}
+    *
+    * @param t
+    *   the {{java.lang.Throwable}} to fail with
+    * @return
+    *   the failing source
+    */
+  def failed[T](t: Throwable): Source[T] =
+    val c = DirectChannel[T]()
+    c.error(t)
+    c
