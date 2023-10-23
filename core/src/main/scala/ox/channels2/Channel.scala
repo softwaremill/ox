@@ -23,11 +23,11 @@ class Channel[T]:
       result
 
     def await(onInterrupt: () => Unit): E =
-      var x = 0
+      var firstIteration = true
       while data.get() == null do
-        if x <= 0 then
+        if firstIteration then
           Thread.`yield`()
-          x += 1
+          firstIteration = false
         else LockSupport.park()
 
         if Thread.interrupted() then
@@ -116,6 +116,7 @@ class Channel[T]:
 
 //
 
+// simple send-receive, validate results
 @main def test(): Unit =
   import ox.*
   val c = Channel[Int]()
@@ -124,6 +125,7 @@ class Channel[T]:
     fork { println(c.receive()) }
   }
 
+// send-receive 1k elements, validate results
 @main def test2(): Unit =
   import ox.*
   val c = Channel[Int]()
@@ -134,6 +136,7 @@ class Channel[T]:
   }
   println(s.size)
 
+// create 1k sending and 1k receiving forks, validate results
 @main def test3(): Unit =
   import ox.*
   val c = Channel[Int]()

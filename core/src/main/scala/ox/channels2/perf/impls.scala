@@ -6,6 +6,7 @@ import ox.channels2.*
 import java.util.concurrent.SynchronousQueue
 import java.util.concurrent.atomic.{AtomicLong, AtomicReferenceArray}
 
+// transmitting 10m values between two forks, using the experimental rendezvous channels
 def usingOx(): Unit =
   val max = 10_000_000
 
@@ -31,13 +32,8 @@ def usingOx(): Unit =
     }
   }
 
+// pass 10m values between two forks, using a synchronous queue and an "infinite array"
 def passingValues(): Unit =
-  class State {
-    var i = 0
-    def x =
-      i += 1
-  }
-
   val max = 10_000_000
   val st = new AtomicReferenceArray[SynchronousQueue[String]](max)
   val s = new AtomicLong(0)
@@ -70,6 +66,7 @@ def passingValues(): Unit =
     }
   }
 
+// same as usingOx, but without scopes - pure virtual threads
 def usingThreads(): Unit =
   val max = 10_000_000
 
