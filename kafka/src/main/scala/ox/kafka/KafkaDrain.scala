@@ -42,7 +42,8 @@ object KafkaDrain:
             true
       }
     finally
-      if closeWhenComplete then uninterruptible(producer.close())
+      try producer.flush()
+      finally if closeWhenComplete then uninterruptible(producer.close())
 
   /** @return
     *   A drain, which consumes all packets from the provided `Source`.. For each packet, first all `send` messages (producer records) are
@@ -86,9 +87,11 @@ object KafkaDrain:
         }
       }
     finally
-      if closeWhenComplete then
-        logger.debug("Closing the Kafka producer")
-        uninterruptible(producer.close())
+      try producer.flush()
+      finally
+        if closeWhenComplete then
+          logger.debug("Closing the Kafka producer")
+          uninterruptible(producer.close())
 
   private def sendPacket[K, V](
       producer: KafkaProducer[K, V],
