@@ -5,6 +5,7 @@ import ox.*
 import java.util.concurrent.{CountDownLatch, Semaphore}
 import scala.collection.{IterableOnce, mutable}
 import scala.concurrent.duration.FiniteDuration
+import scala.util.Try
 
 trait SourceOps[+T] { this: Source[T] =>
   // view ops (lazy)
@@ -513,6 +514,57 @@ trait SourceOps[+T] { this: Source[T] =>
       }
     }
     c
+
+  /** Returns the first element from this source wrapped in `Some` or `None` when the source is empty or fails during the receive operation.
+    * Note that `headOption` is not an idempotent operation on source as it receives elements from it.
+    *
+    * @return
+    *   A `Some(first element)` if source is not empty or None` otherwise.
+    * @example
+    *   {{{
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   scoped {
+    *     Source.empty[Int].headOption()  // None
+    *     val s = Source.fromValues(1, 2)
+    *     s.headOption()                  // Some(1)
+    *     s.headOption()                  // Some(2)
+    *   }
+    *   }}}
+    */
+  def headOption(): Option[T] = Try(head()).toOption
+
+  /** Returns the first element from this source or throws `NoSuchElementException` when the source is empty or `receive()` operation fails
+    * without error. In case when the `receive()` operation fails with exception that exception is re-thrown. Note that `headOption` is not
+    * an idempotent operation on source as it receives elements from it.
+    *
+    * @return
+    *   A first element if source is not empty or throws otherwise.
+    * @throws NoSuchElementException
+    *   When source is empty or `receive()` failed without error.
+    * @throws exception
+    *   When `receive()` failed with exception then this exception is re-thrown.
+    * @example
+    *   {{{
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   scoped {
+    *     Source.empty[Int].head()        // throws NoSuchElementException("cannot obtain head from an empty source")
+    *     val s = Source.fromValues(1, 2)
+    *     s.head()                        // 1
+    *     s.head()                        // 2
+    *   }
+    *   }}}
+    */
+  def head(): T =
+    supervised {
+      receive() match
+        case ChannelClosed.Done     => throw new NoSuchElementException("cannot obtain head from an empty source")
+        case ChannelClosed.Error(r) => throw r.getOrElse(new NoSuchElementException("getting head failed"))
+        case t: T @unchecked        => t
+    }
 }
 
 trait SourceCompanionOps:
@@ -739,4 +791,14 @@ trait SourceCompanionOps:
   def failed[T](t: Throwable): Source[T] =
     val c = DirectChannel[T]()
     c.error(t)
+    c
+
+  /** Creates a source that fails immediately
+    *
+    * @return
+    *   A source that would fail immediately
+    */
+  private[channels] def failedWithoutReason[T](): Source[T] =
+    val c = DirectChannel[T]()
+    c.error(None)
     c
