@@ -605,6 +605,63 @@ trait SourceOps[+T] { this: Source[T] =>
       }
     }
     c
+
+  /** Returns the last element from this source wrapped in [[Some]] or [[None]] when this source is empty. Note that `lastOption` is a
+    * terminal operation leaving the source in [[ChannelClosed.Done]] state.
+    *
+    * @return
+    *   A `Some(last element)` if source is not empty or `None` otherwise.
+    * @throws ChannelClosedException.Error
+    *   When receiving an element from this source fails.
+    * @example
+    *   {{{
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   supervised {
+    *     Source.empty[Int].lastOption()  // None
+    *     val s = Source.fromValues(1, 2)
+    *     s.lastOption()                  // Some(2)
+    *     s.receive()                     // ChannelClosed.Done
+    *   }
+    *   }}}
+    */
+  def lastOption(): Option[T] =
+    supervised {
+      var value: Option[T] = None
+      repeatWhile {
+        receive() match
+          case ChannelClosed.Done     => false
+          case e: ChannelClosed.Error => throw e.toThrowable
+          case t: T @unchecked        => value = Some(t); true
+      }
+      value
+    }
+
+  /** Returns the last element from this source or throws [[NoSuchElementException]] when this source is empty. In case when receiving an
+    * element fails then [[ChannelClosedException.Error]] exception is thrown. Note that `last` is a terminal operation leaving the source
+    * in [[ChannelClosed.Done]] state.
+    *
+    * @return
+    *   A last element if source is not empty or throws otherwise.
+    * @throws NoSuchElementException
+    *   When source is empty.
+    * @throws ChannelClosedException.Error
+    *   When receiving an element from this source fails.
+    * @example
+    *   {{{
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   supervised {
+    *     Source.empty[Int].last()        // throws NoSuchElementException("cannot obtain last element from an empty source")
+    *     val s = Source.fromValues(1, 2)
+    *     s.last()                        // 2
+    *     s.receive()                     // ChannelClosed.Done
+    *   }
+    *   }}}
+    */
+  def last(): T = lastOption().getOrElse(throw new NoSuchElementException("cannot obtain last element from an empty source"))
 }
 
 trait SourceCompanionOps:
