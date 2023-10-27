@@ -514,13 +514,13 @@ trait SourceOps[+T] { this: Source[T] =>
     }
     c
 
-  /** Returns the first element from this source wrapped in `Some` or `None` when the source is empty. Note that `headOption` is not an
+  /** Returns the first element from this source wrapped in [[Some]] or [[None]] when the source is empty. Note that `headOption` is not an
     * idempotent operation on source as it receives elements from it.
     *
     * @return
     *   A `Some(first element)` if source is not empty or `None` otherwise.
     * @throws ChannelClosedException.Error
-    *   When `receive()` fails.
+    *   When [[receive]] fails.
     * @example
     *   {{{
     *   import ox.*
@@ -542,16 +542,16 @@ trait SourceOps[+T] { this: Source[T] =>
         case t: T @unchecked        => Some(t)
     }
 
-  /** Returns the first element from this source or throws `NoSuchElementException` when the source is empty. In case when the `receive()`
-    * operation fails with exception then `ChannelClosedException.Error`` thrown. Note that `headOption` is not an idempotent operation on
+  /** Returns the first element from this source or throws [[NoSuchElementException]] when the source is empty. In case when the [[receive]]
+    * operation fails with exception then [[ChannelClosedException.Error]] is thrown. Note that `head` is not an idempotent operation on
     * source as it receives elements from it.
     *
     * @return
     *   A first element if source is not empty or throws otherwise.
     * @throws NoSuchElementException
-    *   When source is empty or `receive()` failed without error.
+    *   When a source is empty.
     * @throws ChannelClosedException.Error
-    *   When `receive()` fails.
+    *   When [[receive]] fails.
     * @example
     *   {{{
     *   import ox.*
