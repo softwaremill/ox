@@ -535,16 +535,16 @@ trait SourceOps[+T] { this: Source[T] =>
     */
   def headOption(): Option[T] = Try(head()).toOption
 
-  /** Returns the first element from this source or throws `NoSuchElementException` when the source is empty or `receive()` operation fails
-    * without error. In case when the `receive()` operation fails with exception that exception is re-thrown. Note that `headOption` is not
-    * an idempotent operation on source as it receives elements from it.
+  /** Returns the first element from this source or throws `NoSuchElementException` when the source is empty. In case when the `receive()`
+    * operation fails with exception then `ChannelClosedException.Error`` thrown. Note that `headOption` is not an idempotent operation on
+    * source as it receives elements from it.
     *
     * @return
     *   A first element if source is not empty or throws otherwise.
     * @throws NoSuchElementException
     *   When source is empty or `receive()` failed without error.
-    * @throws exception
-    *   When `receive()` failed with exception then this exception is re-thrown.
+    * @throws ChannelClosedException.Error
+    *   When `receive()` fails then this exception is thrown.
     * @example
     *   {{{
     *   import ox.*
@@ -562,7 +562,7 @@ trait SourceOps[+T] { this: Source[T] =>
     supervised {
       receive() match
         case ChannelClosed.Done     => throw new NoSuchElementException("cannot obtain head from an empty source")
-        case ChannelClosed.Error(r) => throw r.getOrElse(new NoSuchElementException("getting head failed"))
+        case e: ChannelClosed.Error => throw e.toThrowable
         case t: T @unchecked        => t
     }
 

@@ -13,18 +13,18 @@ class SourceOpsHeadTest extends AnyFlatSpec with Matchers {
     } should have message "cannot obtain head from an empty source"
   }
 
-  it should "re-throw exception that was thrown during element retrieval" in supervised {
-    the[RuntimeException] thrownBy {
+  it should "throw ChannelClosedException.Error with exception and message that was thrown during retrieval" in supervised {
+    the[ChannelClosedException.Error] thrownBy {
       Source
         .failed(new RuntimeException("source is broken"))
         .head()
-    } should have message "source is broken"
+    } should have message "java.lang.RuntimeException: source is broken"
   }
 
-  it should "throw NoSuchElementException for source failed without exception" in supervised {
-    the[NoSuchElementException] thrownBy {
+  it should "throw ChannelClosedException.Error for source failed without exception" in supervised {
+    the[ChannelClosedException.Error] thrownBy {
       Source.failedWithoutReason[Int]().head()
-    } should have message "getting head failed"
+    }
   }
 
   it should "return first value from non empty source" in supervised {
