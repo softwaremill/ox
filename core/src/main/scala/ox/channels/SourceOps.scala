@@ -46,7 +46,7 @@ trait SourceOps[+T] { this: Source[T] =>
     *   import ox.*
     *   import ox.channels.Source
     *
-    *   scoped {
+    *   supervised {
     *     Source.empty[String].intersperse(", ").toList            // List()
     *     Source.fromValues("foo").intersperse(", ").toList        // List(foo)
     *     Source.fromValues("foo", "bar").intersperse(", ").toList // List(foo, ", ", bar)
@@ -71,7 +71,7 @@ trait SourceOps[+T] { this: Source[T] =>
     *   import ox.*
     *   import ox.channels.Source
     *
-    *   scoped {
+    *   supervised {
     *     Source.empty[String].intersperse("[", ", ", "]").toList            // List([, ])
     *     Source.fromValues("foo").intersperse("[", ", ", "]").toList        // List([, foo, ])
     *     Source.fromValues("foo", "bar").intersperse("[", ", ", "]").toList // List([, foo, ", ", bar, ])
@@ -210,7 +210,7 @@ trait SourceOps[+T] { this: Source[T] =>
     *   import ox.*
     *   import ox.channels.Source
     *
-    *   scoped {
+    *   supervised {
     *     Source.empty[Int].takeWhile(_ > 3).toList          // List()
     *     Source.fromValues(1, 2, 3).takeWhile(_ < 3).toList // List(1, 2)
     *     Source.fromValues(3, 2, 1).takeWhile(_ < 3).toList // List()
@@ -228,7 +228,7 @@ trait SourceOps[+T] { this: Source[T] =>
     *   import ox.*
     *   import ox.channels.Source
     *
-    *   scoped {
+    *   supervised {
     *     Source.empty[Int].drop(1).toList          // List()
     *     Source.fromValues(1, 2, 3).drop(1).toList // List(2 ,3)
     *     Source.fromValues(1).drop(2).toList       // List()
@@ -303,7 +303,7 @@ trait SourceOps[+T] { this: Source[T] =>
     *   import ox.*
     *   import ox.channels.Source
     *
-    *   scoped {
+    *   supervised {
     *     Source.empty[Int].zipAll(Source.empty[String], -1, "foo").toList      // List()
     *     Source.empty[Int].zipAll(Source.fromValues("a"), -1, "foo").toList    // List((-1, "a"))
     *     Source.fromValues(1).zipAll(Source.empty[String], -1, "foo").toList   // List((1, "foo"))
@@ -355,7 +355,7 @@ trait SourceOps[+T] { this: Source[T] =>
     *   import ox.*
     *   import ox.channels.Source
     *
-    *   scoped {
+    *   supervised {
     *     val s1 = Source.fromValues(1, 2, 3, 4, 5, 6, 7)
     *     val s2 = Source.fromValues(10, 20, 30, 40)
     *     s1.interleave(s2, segmentSize = 2).toList
@@ -433,7 +433,7 @@ trait SourceOps[+T] { this: Source[T] =>
     *   import ox.*
     *   import ox.channels.Source
     *
-    *   scoped {
+    *   supervised {
     *     val s = Source.fromValues(1, 2, 3, 4, 5)
     *     s.mapStateful(() => 0)((sum, element) => (sum + element, sum), Some.apply)
     *   }
@@ -476,7 +476,7 @@ trait SourceOps[+T] { this: Source[T] =>
     *   import ox.*
     *   import ox.channels.Source
     *
-    *   scoped {
+    *   supervised {
     *     val s = Source.fromValues(1, 2, 2, 3, 2, 4, 3, 1, 5)
     *     // deduplicate the values
     *     s.mapStatefulConcat(() => Set.empty[Int])((s, e) => (s + e, Option.unless(s.contains(e))(e)))
@@ -525,7 +525,7 @@ trait SourceOps[+T] { this: Source[T] =>
     *   import ox.*
     *   import ox.channels.Source
     *
-    *   scoped {
+    *   supervised {
     *     Source.empty[Int].headOption()  // None
     *     val s = Source.fromValues(1, 2)
     *     s.headOption()                  // Some(1)
@@ -550,7 +550,7 @@ trait SourceOps[+T] { this: Source[T] =>
     *   import ox.*
     *   import ox.channels.Source
     *
-    *   scoped {
+    *   supervised {
     *     Source.empty[Int].head()        // throws NoSuchElementException("cannot obtain head from an empty source")
     *     val s = Source.fromValues(1, 2)
     *     s.head()                        // 1
@@ -822,7 +822,7 @@ trait SourceCompanionOps:
     *   import ox.*
     *   import ox.channels.Source
     *
-    *   scoped {
+    *   supervised {
     *     val s1 = Source.fromValues(1, 2, 3, 4, 5, 6, 7, 8)
     *     val s2 = Source.fromValues(10, 20, 30)
     *     val s3 = Source.fromValues(100, 200, 300, 400, 500)
