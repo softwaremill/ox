@@ -699,6 +699,38 @@ trait SourceOps[+T] { this: Source[T] =>
         case t: T @unchecked        => current = f(current, t); true
     }
     current
+
+  /** Uses the first and the following (if available) elements from this source and applies function `f` on them. The returned value is used
+    * as the next current value and `f` is applied again with the value received from this source. The operation is repeated until this
+    * source is drained. This is similar operation to [[fold]] but it uses the first source element as `zero`.
+    *
+    * @param f
+    *   A binary function (a function that takes two arguments) that is applied to the current and next values received from this source.
+    * @return
+    *   Combined value retrieved from running function `f` on all source elements in a cumulative manner where result of the previous call
+    *   is used as an input value to the next.
+    * @throws NoSuchElementException
+    *   When this source is empty.
+    * @throws ChannelClosedException.Error
+    *   When receiving an element from this source fails.
+    * @throws exception
+    *   When function `f` throws an `exception` then it is propagated up to the caller.
+    * @example
+    *   {{{
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   supervised {
+    *     Source.empty[Int].reduce(_ + _)    // throws NoSuchElementException("cannot reduce an empty source")
+    *     Source.fromValues(1).reduce(_ + _) // 1
+    *     val s = Source.fromValues(1, 2)
+    *     s.reduce(_ + _)                    // 3
+    *     s.receive()                        // ChannelClosed.Done
+    *   }
+    *   }}}
+    */
+  def reduce[U >: T](f: (U, U) => U): U =
+    fold(headOption().getOrElse(throw new NoSuchElementException("cannot reduce an empty source")))(f)
 }
 
 trait SourceCompanionOps:
