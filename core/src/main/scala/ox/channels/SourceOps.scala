@@ -5,7 +5,6 @@ import ox.*
 import java.util.concurrent.{CountDownLatch, Semaphore}
 import scala.collection.{IterableOnce, mutable}
 import scala.concurrent.duration.FiniteDuration
-import scala.util.Try
 
 trait SourceOps[+T] { this: Source[T] =>
   // view ops (lazy)
@@ -515,11 +514,13 @@ trait SourceOps[+T] { this: Source[T] =>
     }
     c
 
-  /** Returns the first element from this source wrapped in `Some` or `None` when the source is empty or fails during the receive operation.
-    * Note that `headOption` is not an idempotent operation on source as it receives elements from it.
+  /** Returns the first element from this source wrapped in `Some` or `None` when the source is empty. Note that `headOption` is not an
+    * idempotent operation on source as it receives elements from it.
     *
     * @return
-    *   A `Some(first element)` if source is not empty or None` otherwise.
+    *   A `Some(first element)` if source is not empty or `None` otherwise.
+    * @throws ChannelClosedException.Error
+    *   When `receive()` fails.
     * @example
     *   {{{
     *   import ox.*
@@ -533,7 +534,13 @@ trait SourceOps[+T] { this: Source[T] =>
     *   }
     *   }}}
     */
-  def headOption(): Option[T] = Try(head()).toOption
+  def headOption(): Option[T] =
+    supervised {
+      receive() match
+        case ChannelClosed.Done     => None
+        case e: ChannelClosed.Error => throw e.toThrowable
+        case t: T @unchecked        => Some(t)
+    }
 
   /** Returns the first element from this source or throws `NoSuchElementException` when the source is empty. In case when the `receive()`
     * operation fails with exception then `ChannelClosedException.Error`` thrown. Note that `headOption` is not an idempotent operation on
@@ -544,7 +551,7 @@ trait SourceOps[+T] { this: Source[T] =>
     * @throws NoSuchElementException
     *   When source is empty or `receive()` failed without error.
     * @throws ChannelClosedException.Error
-    *   When `receive()` fails then this exception is thrown.
+    *   When `receive()` fails.
     * @example
     *   {{{
     *   import ox.*
@@ -558,13 +565,7 @@ trait SourceOps[+T] { this: Source[T] =>
     *   }
     *   }}}
     */
-  def head(): T =
-    supervised {
-      receive() match
-        case ChannelClosed.Done     => throw new NoSuchElementException("cannot obtain head from an empty source")
-        case e: ChannelClosed.Error => throw e.toThrowable
-        case t: T @unchecked        => t
-    }
+  def head(): T = headOption().getOrElse(throw new NoSuchElementException("cannot obtain head from an empty source"))
 
   /** Sends elements to the returned channel limiting the throughput to specific number of elements (evenly spaced) per time unit. Note that
     * the element's `receive()` time is included in the resulting throughput. For instance having `throttle(1, 1.second)` and `receive()`
