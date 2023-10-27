@@ -121,7 +121,7 @@ trait SourceOps[+T] { this: Source[T] =>
 
   private def mapParScope[U](parallelism: Int, c2: Channel[U], f: T => U): Unit =
     val s = new Semaphore(parallelism)
-    val inProgress = Channel[Fork[U]](parallelism)
+    val inProgress = Channel[Fork[Option[U]]](parallelism)
     val closeScope = new CountDownLatch(1)
     scoped {
       // enqueueing fork
@@ -142,12 +142,12 @@ trait SourceOps[+T] { this: Source[T] =>
                 try
                   val u = f(t)
                   s.release() // not in finally, as in case of an exception, no point in starting subsequent forks
-                  u
+                  Some(u)
                 catch
                   case t: Throwable =>
                     c2.error(t)
                     closeScope.countDown()
-                    throw t
+                    None
               })
               true
         }
@@ -157,8 +157,9 @@ trait SourceOps[+T] { this: Source[T] =>
       fork {
         repeatWhile {
           inProgress.receive() match
-            case f: Fork[U] @unchecked =>
-              c2.send(f.join()).isValue
+            case f: Fork[Option[U]] @unchecked =>
+              f.join().foreach(c2.send)
+              true
             case ChannelClosed.Done =>
               closeScope.countDown()
               c2.done()
