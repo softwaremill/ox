@@ -396,7 +396,7 @@ trait SourceOps[+T] { this: Source[T] =>
     repeatWhile {
       receive() match
         case ChannelClosed.Done     => sink.done(); false
-        case e: ChannelClosed.Error => sink.error(e.reason); throw e.toThrowable
+        case e: ChannelClosed.Error => sink.error(e.reason); false
         case t: T @unchecked        => sink.send(t).orThrow; true
     }
 
