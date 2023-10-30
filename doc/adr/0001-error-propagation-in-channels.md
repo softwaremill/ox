@@ -11,9 +11,7 @@ What should happen when an error is encountered when processing channel elements
 We chose to only propagate the errors downstream, so that they are eventually thrown when the source is discharged.
 
 Won't this design cause upstream channels / sources to operate despite the consumer being gone (because of the 
-exception)?
-
-It might if there are mutliple forks running in parallel, of which one end with an error. This 
+exception)? 
 
 It depends on two factors:
 - whether there are any forks running in parallel to the failed one,
