@@ -181,7 +181,7 @@ trait SourceOps[+T] { this: Source[T] =>
           s.acquire()
           receive() match
             case ChannelClosed.Done => false
-            case e @ ChannelClosed.Error(r) =>
+            case ChannelClosed.Error(r) =>
               c.error(r)
               false
             case t: T @unchecked =>

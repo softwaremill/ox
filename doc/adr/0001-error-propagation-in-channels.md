@@ -41,7 +41,7 @@ def mapParUnordered[U](parallelism: Int)(f: T => U)(using Ox, StageCapacity): So
         s.acquire()
         receive() match
           case ChannelClosed.Done => false
-          case e @ ChannelClosed.Error(r) =>              // (2)
+          case ChannelClosed.Error(r) =>              // (2)
             c.error(r)
             false
           case t: T @unchecked =>
