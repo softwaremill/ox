@@ -12,10 +12,18 @@ class SourceOpsHeadOptionTest extends AnyFlatSpec with Matchers with OptionValue
     Source.empty[Int].headOption() shouldBe None
   }
 
-  it should "return None for the failed source" in supervised {
-    Source
-      .failed(new RuntimeException("source is broken"))
-      .headOption() shouldBe None
+  it should "throw ChannelClosedException.Error with exception and message that was thrown during retrieval" in supervised {
+    the[ChannelClosedException.Error] thrownBy {
+      Source
+        .failed(new RuntimeException("source is broken"))
+        .headOption()
+    } should have message "java.lang.RuntimeException: source is broken"
+  }
+
+  it should "throw ChannelClosedException.Error for source failed without exception" in supervised {
+    the[ChannelClosedException.Error] thrownBy {
+      Source.failedWithoutReason[Int]().headOption()
+    }
   }
 
   it should "return Some element for the non-empty source" in supervised {
