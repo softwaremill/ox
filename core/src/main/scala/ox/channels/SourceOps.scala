@@ -158,8 +158,7 @@ trait SourceOps[+T] { this: Source[T] =>
         repeatWhile {
           inProgress.receive() match
             case f: Fork[Option[U]] @unchecked =>
-              f.join().foreach(c2.send)
-              true
+              f.join().map(c2.send).isDefined
             case ChannelClosed.Done =>
               closeScope.countDown()
               c2.done()
