@@ -10,7 +10,7 @@ class SourceOpsHeadTest extends AnyFlatSpec with Matchers {
   it should "throw NoSuchElementException for the empty source" in supervised {
     the[NoSuchElementException] thrownBy {
       Source.empty[Int].head()
-    } should have message "cannot obtain head from an empty source"
+    } should have message "cannot obtain head element from an empty source"
   }
 
   it should "throw ChannelClosedException.Error with exception and message that was thrown during retrieval" in supervised {

@@ -514,13 +514,13 @@ trait SourceOps[+T] { this: Source[T] =>
     }
     c
 
-  /** Returns the first element from this source wrapped in [[Some]] or [[None]] when the source is empty. Note that `headOption` is not an
+  /** Returns the first element from this source wrapped in [[Some]] or [[None]] when this source is empty. Note that `headOption` is not an
     * idempotent operation on source as it receives elements from it.
     *
     * @return
     *   A `Some(first element)` if source is not empty or `None` otherwise.
     * @throws ChannelClosedException.Error
-    *   When [[receive]] fails.
+    *   When receiving an element from this source fails.
     * @example
     *   {{{
     *   import ox.*
@@ -542,30 +542,30 @@ trait SourceOps[+T] { this: Source[T] =>
         case t: T @unchecked        => Some(t)
     }
 
-  /** Returns the first element from this source or throws [[NoSuchElementException]] when the source is empty. In case when the [[receive]]
-    * operation fails with exception then [[ChannelClosedException.Error]] is thrown. Note that `head` is not an idempotent operation on
+  /** Returns the first element from this source or throws [[NoSuchElementException]] when this source is empty. In case when receiving an
+    * element fails with exception then [[ChannelClosedException.Error]] is thrown. Note that `head` is not an idempotent operation on
     * source as it receives elements from it.
     *
     * @return
     *   A first element if source is not empty or throws otherwise.
     * @throws NoSuchElementException
-    *   When a source is empty.
+    *   When this source is empty.
     * @throws ChannelClosedException.Error
-    *   When [[receive]] fails.
+    *   When receiving an element from this source fails.
     * @example
     *   {{{
     *   import ox.*
     *   import ox.channels.Source
     *
     *   supervised {
-    *     Source.empty[Int].head()        // throws NoSuchElementException("cannot obtain head from an empty source")
+    *     Source.empty[Int].head()        // throws NoSuchElementException("cannot obtain head element from an empty source")
     *     val s = Source.fromValues(1, 2)
     *     s.head()                        // 1
     *     s.head()                        // 2
     *   }
     *   }}}
     */
-  def head(): T = headOption().getOrElse(throw new NoSuchElementException("cannot obtain head from an empty source"))
+  def head(): T = headOption().getOrElse(throw new NoSuchElementException("cannot obtain head element from an empty source"))
 
   /** Sends elements to the returned channel limiting the throughput to specific number of elements (evenly spaced) per time unit. Note that
     * the element's `receive()` time is included in the resulting throughput. For instance having `throttle(1, 1.second)` and `receive()`
@@ -646,7 +646,7 @@ trait SourceOps[+T] { this: Source[T] =>
     * @return
     *   A last element if source is not empty or throws otherwise.
     * @throws NoSuchElementException
-    *   When source is empty.
+    *   When this source is empty.
     * @throws ChannelClosedException.Error
     *   When receiving an element from this source fails.
     * @example
