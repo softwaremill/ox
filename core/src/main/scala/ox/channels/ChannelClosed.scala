@@ -8,6 +8,6 @@ object ChannelClosed:
   case class Error(reason: Option[Throwable]) extends ChannelClosed
   case object Done extends ChannelClosed
 
-enum ChannelClosedException(reason: Option[Throwable]) extends Exception:
+enum ChannelClosedException(reason: Option[Throwable]) extends Exception(reason.orNull):
   case Error(reason: Option[Throwable]) extends ChannelClosedException(reason)
   case Done() extends ChannelClosedException(None)
