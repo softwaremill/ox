@@ -565,6 +565,46 @@ trait SourceOps[+T] { this: Source[T] =>
         case ChannelClosed.Error(r) => throw r.getOrElse(new NoSuchElementException("getting head failed"))
         case t: T @unchecked        => t
     }
+
+  /** Sends elements to the returned channel limiting the throughput to specific number of elements (evenly spaced) per time unit. Note that
+    * the element's `receive()` time is included in the resulting throughput. For instance having `throttle(1, 1.second)` and `receive()`
+    * taking `Xms` means that resulting channel will receive elements every `1s + Xms` time. Throttling is not applied to the empty source.
+    *
+    * @param elements
+    *   Number of elements to be emitted. Must be greater than 0.
+    * @param per
+    *   Per time unit. Must be greater or equal to 1 ms.
+    * @return
+    *   A source that emits at most `elements` `per` time unit.
+    * @example
+    *   {{{
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   import scala.concurrent.duration.*
+    *
+    *   scoped {
+    *     Source.empty[Int].throttle(1, 1.second).toList       // List() returned without throttling
+    *     Source.fromValues(1, 2).throttle(1, 1.second).toList // List(1, 2) returned after 2 seconds
+    *   }
+    *   }}}
+    */
+  def throttle(elements: Int, per: FiniteDuration)(using Ox, StageCapacity): Source[T] =
+    require(elements > 0, "elements must be > 0")
+    require(per.toMillis > 0, "per time must be >= 1 ms")
+
+    val c = StageCapacity.newChannel[T]
+    val emitEveryMillis = per.toMillis / elements
+
+    forkDaemon {
+      repeatWhile {
+        receive() match
+          case ChannelClosed.Done     => c.done(); false
+          case ChannelClosed.Error(r) => c.error(r); false
+          case t: T @unchecked        => Thread.sleep(emitEveryMillis); c.send(t); true
+      }
+    }
+    c
 }
 
 trait SourceCompanionOps:
