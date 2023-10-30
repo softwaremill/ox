@@ -663,6 +663,42 @@ trait SourceOps[+T] { this: Source[T] =>
     *   }}}
     */
   def last(): T = lastOption().getOrElse(throw new NoSuchElementException("cannot obtain last element from an empty source"))
+
+  /** Uses `zero` as the current value and applies function `f` on it and a value received from this source. The returned value is used as
+    * the next current value and `f` is applied again with the value received from a source. The operation is repeated until the source is
+    * drained.
+    *
+    * @param zero
+    *   An initial value to be used as the first argument to function `f` call.
+    * @param f
+    *   A binary function (a function that takes two arguments) that is applied to the current value and value received from a source.
+    * @return
+    *   Combined value retrieved from running function `f` on all source elements in a cumulative manner where result of the previous call
+    *   is used as an input value to the next.
+    * @throws ChannelClosedException.Error
+    *   When receiving an element from this source fails.
+    * @throws exception
+    *   When function `f` throws an `exception` then it is propagated up to the caller.
+    * @example
+    *   {{{
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   supervised {
+    *     Source.empty[Int].fold(0)((acc, n) => acc + n)       // 0
+    *     Source.fromValues(2, 3).fold(5)((acc, n) => acc - n) // 0
+    *   }
+    *   }}}
+    */
+  def fold[U](zero: U)(f: (U, T) => U): U =
+    var current = zero
+    repeatWhile {
+      receive() match
+        case ChannelClosed.Done     => false
+        case e: ChannelClosed.Error => throw e.toThrowable
+        case t: T @unchecked        => current = f(current, t); true
+    }
+    current
 }
 
 trait SourceCompanionOps:
