@@ -1049,12 +1049,54 @@ trait SourceCompanionOps:
     */
   def future[T](from: Future[T])(using StageCapacity, ExecutionContext): Source[T] =
     val c = StageCapacity.newChannel[T]
-    from.onComplete {
-      case Success(value)                  => c.send(value); c.done()
-      case Failure(ex: ExecutionException) => c.error(ex.getCause)
-      case Failure(ex)                     => c.error(ex)
+    receiveAndSendFromFuture(from, c)
+    c
+
+  /** Creates a source that emits elements from future source when `from` completes or fails otherwise. The `from` completion is performed
+    * on the provided [[scala.concurrent.ExecutionContext]] whereas elements are emitted through Ox. Note that when `from` fails with
+    * [[scala.concurrent.ExecutionException]] then its cause is returned as source failure.
+    *
+    * @param from
+    *   A [[scala.concurrent.Future]] that returns source upon completion.
+    * @return
+    *   A source that will emit values upon a `from` [[scala.concurrent.Future]] completion.
+    * @example
+    *   {{{
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   import scala.concurrent.ExecutionContext.Implicits.global
+    *   import scala.concurrent.Future
+    *
+    *   supervised {
+    *     Source
+    *       .futureSource(Future.failed(new RuntimeException("future failed")))
+    *       .receive()                                                           // ChannelClosed.Error(Some(java.lang.RuntimeException: future failed))
+    *     Source.futureSource(Future.successful(Source.fromValues(1, 2))).toList // List(1, 2)
+    *   }
+    *   }}}
+    */
+  def futureSource[T](from: Future[Source[T]])(using Ox, StageCapacity, ExecutionContext): Source[T] =
+    val c = StageCapacity.newChannel[T]
+    val transportChannel = StageCapacity.newChannel[Source[T]](using StageCapacity(1))
+
+    receiveAndSendFromFuture(from, transportChannel)
+
+    forkDaemon {
+      transportChannel.receive() match
+        case ChannelClosed.Done           => c.done()
+        case ChannelClosed.Error(r)       => c.error(r)
+        case source: Source[T] @unchecked => source.pipeTo(c)
     }
     c
+
+  private def receiveAndSendFromFuture[T](from: Future[T], to: Channel[T])(using ExecutionContext): Unit = {
+    from.onComplete {
+      case Success(value)                  => to.send(value); to.done()
+      case Failure(ex: ExecutionException) => to.error(ex.getCause)
+      case Failure(ex)                     => to.error(ex)
+    }
+  }
 
   /** Creates a source that fails immediately with the given [[java.lang.Throwable]]
     *
