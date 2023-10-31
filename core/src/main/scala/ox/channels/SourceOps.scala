@@ -6,6 +6,8 @@ import java.util
 import java.util.concurrent.{CountDownLatch, Semaphore}
 import scala.collection.{IterableOnce, mutable}
 import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.{ExecutionContext, ExecutionException, Future}
+import scala.util.{Failure, Success}
 
 trait SourceOps[+T] { this: Source[T] =>
   // view ops (lazy)
@@ -992,6 +994,39 @@ trait SourceCompanionOps:
           }
         }
         c
+
+  /** Creates a source that emits a single value when `from` completes or fails otherwise. The `from` completion is performed on the
+    * provided [[scala.concurrent.ExecutionContext]]. Note that when `from` fails with [[scala.concurrent.ExecutionException]] then its
+    * cause is returned as source failure.
+    *
+    * @param from
+    *   A [[scala.concurrent.Future]] that returns value upon completion.
+    * @return
+    *   A source that will emit value upon a `from` [[scala.concurrent.Future]] completion.
+    * @example
+    *   {{{
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   import scala.concurrent.ExecutionContext.Implicits.global
+    *   import scala.concurrent.Future
+    *
+    *   supervised {
+    *     Source
+    *       .future(Future.failed(new RuntimeException("future failed")))
+    *       .receive()                               // ChannelClosed.Error(Some(java.lang.RuntimeException: future failed))
+    *     Source.future(Future.successful(1)).toList // List(1)
+    *   }
+    *   }}}
+    */
+  def future[T](from: Future[T])(using StageCapacity, ExecutionContext): Source[T] =
+    val c = StageCapacity.newChannel[T]
+    from.onComplete {
+      case Success(value)                  => c.send(value); c.done()
+      case Failure(ex: ExecutionException) => c.error(ex.getCause)
+      case Failure(ex)                     => c.error(ex)
+    }
+    c
 
   /** Creates a source that fails immediately with the given [[java.lang.Throwable]]
     *
