@@ -2,6 +2,7 @@ package ox.channels
 
 import ox.*
 
+import java.util
 import java.util.concurrent.{CountDownLatch, Semaphore}
 import scala.collection.{IterableOnce, mutable}
 import scala.concurrent.duration.FiniteDuration
@@ -731,6 +732,51 @@ trait SourceOps[+T] { this: Source[T] =>
     */
   def reduce[U >: T](f: (U, U) => U): U =
     fold(headOption().getOrElse(throw new NoSuchElementException("cannot reduce an empty source")))(f)
+
+  /** Returns the list of up to `n` last elements from this source. Less than `n` elements is returned when this source contains less
+    * elements than requested. The [[List.empty]] is returned when `takeLast` is called on an empty source.
+    *
+    * @param n
+    *   Number of elements to be taken from the end of this source. It is expected that `n >= 0`.
+    * @return
+    *   A list of up to `n` last elements from this source.
+    * @throws ChannelClosedException.Error
+    *   When receiving an element from this source fails.
+    * @example
+    *   {{{
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   supervised {
+    *     Source.empty[Int].takeLast(5)    // List.empty
+    *     Source.fromValues(1).takeLast(0) // List.empty
+    *     Source.fromValues(1).takeLast(2) // List(1)
+    *     val s = Source.fromValues(1, 2, 3, 4)
+    *     s.takeLast(2)                    // List(4, 5)
+    *     s.receive()                      // ChannelClosed.Done
+    *   }
+    *   }}}
+    */
+  def takeLast(n: Int): List[T] =
+    require(n >= 0, "n must be >= 0")
+    if (n == 0)
+      drain()
+      List.empty
+    else if (n == 1) lastOption().map(List(_)).getOrElse(List.empty)
+    else
+      supervised {
+        val buffer: mutable.ListBuffer[T] = mutable.ListBuffer()
+        buffer.sizeHint(n)
+        repeatWhile {
+          receive() match
+            case ChannelClosed.Done     => false
+            case e: ChannelClosed.Error => throw e.toThrowable
+            case t: T @unchecked =>
+              if (buffer.size == n) buffer.dropInPlace(1)
+              buffer.append(t); true
+        }
+        buffer.result()
+      }
 }
 
 trait SourceCompanionOps:
