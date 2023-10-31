@@ -23,11 +23,11 @@ class Channel[T]:
       result
 
     def await(onInterrupt: () => Unit): E =
-      var firstIteration = true
+      var spinIterations = 1000
       while data.get() == null do
-        if firstIteration then
-          Thread.`yield`()
-          firstIteration = false
+        if spinIterations > 0 then
+          Thread.onSpinWait()
+          spinIterations -= 1
         else LockSupport.park()
 
         if Thread.interrupted() then
