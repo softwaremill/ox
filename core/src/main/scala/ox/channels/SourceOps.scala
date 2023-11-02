@@ -122,7 +122,7 @@ trait SourceOps[+T] { this: Source[T] =>
 
   private def mapParScope[U](parallelism: Int, c2: Channel[U], f: T => U): Unit =
     val s = new Semaphore(parallelism)
-    val inProgress = Channel[Fork[U]](parallelism)
+    val inProgress = Channel[Fork[Option[U]]](parallelism)
     val closeScope = new CountDownLatch(1)
     scoped {
       // enqueueing fork
@@ -143,12 +143,12 @@ trait SourceOps[+T] { this: Source[T] =>
                 try
                   val u = f(t)
                   s.release() // not in finally, as in case of an exception, no point in starting subsequent forks
-                  u
+                  Some(u)
                 catch
                   case t: Throwable =>
                     c2.error(t)
                     closeScope.countDown()
-                    throw t
+                    None
               })
               true
         }
@@ -158,8 +158,8 @@ trait SourceOps[+T] { this: Source[T] =>
       fork {
         repeatWhile {
           inProgress.receive() match
-            case f: Fork[U] @unchecked =>
-              c2.send(f.join()).isValue
+            case f: Fork[Option[U]] @unchecked =>
+              f.join().map(c2.send).isDefined
             case ChannelClosed.Done =>
               closeScope.countDown()
               c2.done()
@@ -181,7 +181,7 @@ trait SourceOps[+T] { this: Source[T] =>
           s.acquire()
           receive() match
             case ChannelClosed.Done => false
-            case e @ ChannelClosed.Error(r) =>
+            case ChannelClosed.Error(r) =>
               c.error(r)
               false
             case t: T @unchecked =>
@@ -396,7 +396,7 @@ trait SourceOps[+T] { this: Source[T] =>
     repeatWhile {
       receive() match
         case ChannelClosed.Done     => sink.done(); false
-        case e: ChannelClosed.Error => sink.error(e.reason); throw e.toThrowable
+        case e: ChannelClosed.Error => sink.error(e.reason); false
         case t: T @unchecked        => sink.send(t).orThrow; true
     }
 

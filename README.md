@@ -625,13 +625,9 @@ There can be at most one default clause in a `select` invocation.
 Errors are only propagated downstream, ultimately reaching the point where the source is discharged, leading to an
 exception being thrown there.
 
-Won't this design cause upstream channels / sources to operate despite the consumer being gone (because of the 
-exception)?
-
-No: the exception should cause the containing scope to finish (or a supervised fork to fail), cancelling any forks 
-that are operating in the background. Any unused channels can then be garbage-collected.
-
-The role of the exception handler is then to re-create the entire processing pipeline, or escalate the error further.
+The approach we decided to take (only propagating errors downstream) is one of the two possible designs - 
+with the other being re-throwing an exception when it's encountered.
+Please see [the respective ADR](doc/adr/0001-error-propagation-in-channels.md) for a discussion.
 
 ## Backpressure
 
