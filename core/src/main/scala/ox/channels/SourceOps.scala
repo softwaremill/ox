@@ -779,6 +779,34 @@ trait SourceOps[+T] { this: Source[T] =>
         }
         buffer.result()
       }
+
+  /** If this source has no elements then elements from an `alternative` source are emitted to the returned channel. If this source is
+    * failed then failure is passed to the returned channel.
+    *
+    * @param alternative
+    *   An alternative source of elements used when this source is empty.
+    * @return
+    *   A source that emits either elements from this source or from `alternative` (when this source is empty).
+    * @example
+    *   {{{
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   supervised {
+    *     Source.fromValues(1).orElse(Source.fromValues(2, 3)).toList // List(1)
+    *     Source.empty.orElse(Source.fromValues(2, 3)).toList         // List(2, 3)
+    *   }
+    *   }}}
+    */
+  def orElse[U >: T](alternative: Source[U])(using Ox, StageCapacity): Source[U] =
+    val c = StageCapacity.newChannel[U]
+    forkDaemon {
+      receive() match
+        case ChannelClosed.Done     => alternative.pipeTo(c)
+        case ChannelClosed.Error(r) => c.error(r)
+        case t: T @unchecked        => c.send(t); pipeTo(c)
+    }
+    c
 }
 
 trait SourceCompanionOps:
