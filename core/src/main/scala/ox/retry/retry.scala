@@ -13,11 +13,17 @@ object Jitter:
 
 trait RetryPolicy:
   def maxRetries: Int
+  def nextDelay(attempt: Int): FiniteDuration
 
 object RetryPolicy:
-  case class Direct(maxRetries: Int) extends RetryPolicy
-  case class Delay(maxRetries: Int, delay: FiniteDuration) extends RetryPolicy
-  case class Backoff(maxRetries: Int, initialDelay: FiniteDuration, jitter: Jitter = Jitter.None) extends RetryPolicy
+  case class Direct(maxRetries: Int) extends RetryPolicy:
+    def nextDelay(attempt: Int): FiniteDuration = Duration.Zero
+
+  case class Delay(maxRetries: Int, delay: FiniteDuration) extends RetryPolicy:
+    def nextDelay(attempt: Int): FiniteDuration = delay
+
+  case class Backoff(maxRetries: Int, initialDelay: FiniteDuration, jitter: Jitter = Jitter.None) extends RetryPolicy:
+    def nextDelay(attempt: Int): FiniteDuration = initialDelay * Math.pow(2, attempt).toLong // TODO jitter
 
 def retry[T](f: => T)(policy: RetryPolicy): T =
   retry(f, _ => true)(policy)
@@ -32,7 +38,8 @@ def retry[E, T](f: => Either[E, T], isSuccess: T => Boolean)(policy: RetryPolicy
   def loop(remainingAttempts: Int): Either[E, T] =
     def nextAttemptOr(e: => Either[E, T]) =
       if remainingAttempts > 0 then
-        // TODO sleep if needed
+        val delay = policy.nextDelay(policy.maxRetries - remainingAttempts).toMillis
+        if delay > 0 then Thread.sleep(delay)
         loop(remainingAttempts - 1)
       else e
 
