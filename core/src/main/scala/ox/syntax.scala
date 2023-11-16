@@ -3,9 +3,7 @@ package ox
 import scala.concurrent.duration.FiniteDuration
 
 object syntax:
-  extension [T](f: => T)
-    def forever: Fork[Nothing] = ox.forever(f)
-    def retry(times: Int, sleep: FiniteDuration): T = ox.retry(times, sleep)(f)
+  extension [T](f: => T) def forever: Fork[Nothing] = ox.forever(f)
 
   extension [T](f: => T)(using Ox)
     def fork: Fork[T] = ox.fork(f)
