@@ -34,7 +34,9 @@ def retry[T](f: => T, isSuccess: T => Boolean)(policy: RetryPolicy): T =
 def retry[E, T](f: => Either[E, T])(policy: RetryPolicy)(using dummy: DummyImplicit): Either[E, T] =
   retry(f, _ => true)(policy)(using dummy)
 
-def retry[E, T](f: => Either[E, T], isSuccess: T => Boolean)(policy: RetryPolicy)(using dummy: DummyImplicit): Either[E, T] =
+def retry[E, T](f: => Either[E, T], isSuccess: T => Boolean, isWorthRetrying: E => Boolean = (_: E) => true)(policy: RetryPolicy)(using
+    dummy: DummyImplicit
+): Either[E, T] =
   def loop(remainingAttempts: Int): Either[E, T] =
     def nextAttemptOr(e: => Either[E, T]) =
       if remainingAttempts > 0 then
@@ -44,9 +46,11 @@ def retry[E, T](f: => Either[E, T], isSuccess: T => Boolean)(policy: RetryPolicy
       else e
 
     f match
-      case Left(error)                         => nextAttemptOr(Left(error))
-      case Right(result) if !isSuccess(result) => nextAttemptOr(Right(result))
-      case right                               => right
+      case left @ Left(error) =>
+        if isWorthRetrying(error) then nextAttemptOr(left)
+        else left
+      case right @ Right(result) if !isSuccess(result) => nextAttemptOr(right)
+      case right                                       => right
 
   loop(policy.maxRetries)
 

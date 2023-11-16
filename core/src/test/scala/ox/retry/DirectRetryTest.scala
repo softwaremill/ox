@@ -75,6 +75,23 @@ class DirectRetryTest extends AnyFlatSpec with EitherValues with TryValues with 
     counter shouldBe 1
   }
 
+  it should "fail fast when an Either is not worth retrying" in {
+    // given
+    var counter = 0
+    val errorMessage = "boom"
+
+    def f: Either[String, Int] =
+      counter += 1
+      Left(errorMessage)
+
+    // when
+    val result = retry(f, _ => true, _ => false)(RetryPolicy.Direct(3))
+
+    // then
+    result.left.value shouldBe errorMessage
+    counter shouldBe 1
+  }
+
   it should "retry a succeeding Either with a custom success condition" in {
     // given
     var counter = 0
