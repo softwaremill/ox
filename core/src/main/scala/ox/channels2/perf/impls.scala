@@ -45,10 +45,9 @@ def passingValues(): Unit =
           s.incrementAndGet()
           r.get()
           val q = new SynchronousQueue[String]()
-          val qq = if st.compareAndSet(i, null, q) then
-            q.take()
-          else
-            st.get(i).put("sender")
+          val qq =
+            if st.compareAndSet(i, null, q) then q.take()
+            else st.get(i).put("sender")
         }
       }
 
@@ -57,10 +56,9 @@ def passingValues(): Unit =
           r.incrementAndGet()
           s.get()
           val q = new SynchronousQueue[String]()
-          val qq = if st.compareAndSet(i, null, q) then
-            q.take()
-          else
-            st.get(i).put("receiver")
+          val qq =
+            if st.compareAndSet(i, null, q) then q.take()
+            else st.get(i).put("receiver")
         }
       }.join()
     }

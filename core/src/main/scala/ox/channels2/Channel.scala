@@ -1,7 +1,8 @@
 package ox.channels2
 
-import java.util.concurrent.{ArrayBlockingQueue, ConcurrentSkipListSet, CountDownLatch, Semaphore, SynchronousQueue}
-import java.util.concurrent.atomic.{AtomicLong, AtomicReference, AtomicReferenceArray}
+import java.lang.invoke.{MethodHandles, VarHandle}
+import java.util.concurrent.ConcurrentSkipListSet
+import java.util.concurrent.atomic.{AtomicLong, AtomicReferenceArray}
 import java.util.concurrent.locks.LockSupport
 import scala.annotation.tailrec
 
@@ -9,37 +10,6 @@ class Channel[T]:
   private val senders = new AtomicLong(0L)
   private val receivers = new AtomicLong(0L)
   private val buffer: AtomicReferenceArray[State] = AtomicReferenceArray[State](20_000_000) // TODO
-
-  //
-
-  private object Interrupted
-  private class Continuation[E]():
-    private val creatingThread = Thread.currentThread()
-    private val data = new AtomicReference[E | Interrupted.type | Null]()
-
-    def tryResume(e: E): Boolean =
-      val result = data.compareAndSet(null, e)
-      LockSupport.unpark(creatingThread)
-      result
-
-    def await(onInterrupt: () => Unit): E =
-      var spinIterations = 1000
-      while data.get() == null do
-        if spinIterations > 0 then
-          Thread.onSpinWait()
-          spinIterations -= 1
-        else LockSupport.park()
-
-        if Thread.interrupted() then
-          data.compareAndSet(null, Interrupted) // TODO if
-          val e = new InterruptedException()
-
-          try onInterrupt()
-          catch case ee: Throwable => e.addSuppressed(ee)
-
-          throw e
-
-      data.get().asInstanceOf[E] // another thread has just inserted E
 
   //
 
@@ -113,6 +83,41 @@ class Channel[T]:
       case State.Buffered(v)                                                         => v
       case State.Interrupted                                                         => Restart
       case State.Done | State.Buffered(_) | State.SuspendedReceive(_) | State.Broken => throw new IllegalStateException(state.toString)
+
+private object Interrupted
+private class Continuation[E]():
+  private val creatingThread = Thread.currentThread()
+  @volatile private var data: E | Interrupted.type | Null = _
+
+  def tryResume(e: E): Boolean =
+    val result = Continuation.DATA.compareAndSet(this, null, e)
+    LockSupport.unpark(creatingThread)
+    result
+
+  def await(onInterrupt: () => Unit): E =
+    var spinIterations = 10000
+    while data == null do
+      if spinIterations > 0 then
+        Thread.onSpinWait()
+        spinIterations -= 1
+      else
+        LockSupport.park()
+        if Thread.interrupted() then
+          Continuation.DATA.compareAndSet(this, null, Interrupted) // TODO if
+          val e = new InterruptedException()
+
+          try onInterrupt()
+          catch case ee: Throwable => e.addSuppressed(ee)
+
+          throw e
+
+    data.asInstanceOf[E] // another thread has just inserted E
+
+private object Continuation:
+  private val DATA: VarHandle = {
+    val l = MethodHandles.lookup()
+    MethodHandles.privateLookupIn(classOf[Continuation[_]], l).findVarHandle(classOf[Continuation[_]], "data", classOf[Any])
+  }
 
 //
 
