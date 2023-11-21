@@ -79,4 +79,15 @@ class ExceptionTest extends AnyFlatSpec with Matchers {
 
     trail.get shouldBe Vector("CustomException(suppressed=CustomException2)")
   }
+
+  "joinEither" should "catch the exception with which a fork ends" in {
+    val r = supervised {
+      val f = forkUnsupervised {
+        throw CustomException()
+      }
+      f.joinEither()
+    }
+
+    r should matchPattern { case Left(e: CustomException) => }
+  }
 }
