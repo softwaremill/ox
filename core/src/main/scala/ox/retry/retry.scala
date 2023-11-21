@@ -22,8 +22,13 @@ object RetryPolicy:
   case class Delay(maxRetries: Int, delay: FiniteDuration) extends RetryPolicy:
     def nextDelay(attempt: Int): FiniteDuration = delay
 
-  case class Backoff(maxRetries: Int, initialDelay: FiniteDuration, jitter: Jitter = Jitter.None) extends RetryPolicy:
-    def nextDelay(attempt: Int): FiniteDuration = initialDelay * Math.pow(2, attempt).toLong // TODO jitter
+  case class Backoff(
+      maxRetries: Int,
+      initialDelay: FiniteDuration,
+      maxDelay: FiniteDuration = 1.day,
+      jitter: Jitter = Jitter.None
+  ) extends RetryPolicy:
+    def nextDelay(attempt: Int): FiniteDuration = (initialDelay * Math.pow(2, attempt).toLong).min(maxDelay) // TODO jitter
 
 def retry[T](f: => T)(policy: RetryPolicy): T =
   retry(f, _ => true)(policy)
