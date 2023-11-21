@@ -20,8 +20,8 @@ def supervised[T](f: Ox ?=> T): T =
   scoped {
     val s = DefaultSupervisor()
     val r = supervisor(s)(fork(f))
-    s.join()
-    r.join() // the fork must be done by now
+    s.join() // might throw if any supervised fork threw
+    r.join() // if no exceptions, the main f-fork must be done by now
   }
 
 trait Supervisor:
