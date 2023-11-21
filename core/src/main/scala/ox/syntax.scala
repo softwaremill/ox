@@ -12,6 +12,8 @@ object syntax:
     def forkDaemon: Fork[T] = ox.forkDaemon(f)
     def forkUnsupervised: Fork[T] = ox.forkUnsupervised(f)
     def forkCancellable: CancellableFork[T] = ox.forkCancellable(f)
+
+  extension [T](f: => T)
     def timeout(duration: FiniteDuration): T = ox.timeout(duration)(f)
     def timeoutOption(duration: FiniteDuration): Option[T] = ox.timeoutOption(duration)(f)
     def scopedWhere[U](fl: ForkLocal[U], u: U): T = fl.scopedWhere(u)(f)
