@@ -80,6 +80,23 @@ class SupervisedTest extends AnyFlatSpec with Matchers {
     trail.get shouldBe Vector("b", "done")
   }
 
+  it should "interrupt main fork once a fork ends with an exception" in {
+    val trail = Trail()
+
+    val result = Try(supervised {
+      fork {
+        Thread.sleep(200)
+        throw new RuntimeException("x")
+      }
+
+      Thread.sleep(300)
+      trail.add("a")
+    })
+
+    result should matchPattern { case Failure(e) if e.getMessage == "x" => }
+    trail.add("done")
+    trail.get shouldBe Vector("done")
+  }
 
   it should "not interrupt if an unsupervised fork ends with an exception" in {
     val trail = Trail()

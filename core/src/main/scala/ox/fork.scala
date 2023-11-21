@@ -1,10 +1,8 @@
 package ox
 
-import java.time.Clock
 import java.util.concurrent.{CompletableFuture, Semaphore}
 import java.util.concurrent.atomic.AtomicBoolean
 import scala.concurrent.ExecutionException
-import scala.util.Try
 import scala.util.control.NonFatal
 
 /** Starts a fork (logical thread of execution), which is guaranteed to complete before the enclosing [[supervised]] or [[scoped]] block
@@ -110,8 +108,11 @@ def forkCancellable[T](f: => T)(using Ox): CancellableFork[T] =
       cancelNow()
       try Right(result.get())
       catch
-        case e: ExecutionException => Left(e.getCause)
-        case NonFatal(e)           => Left(e)
+        // we don't want to catch fatal exceptions (excluding IE, which is fatal for the cancelled thread only)
+        case e: ExecutionException if e.getCause.isInstanceOf[InterruptedException] => Left(e.getCause)
+        case e: ExecutionException if NonFatal.unapply(e.getCause).isDefined        => Left(e.getCause)
+        case e: InterruptedException                                                => Left(e)
+        case NonFatal(e)                                                            => Left(e)
 
     override def cancelNow(): Unit =
       // will cause the scope to end, interrupting the task if it hasn't yet finished (or potentially never starting it)
@@ -136,7 +137,12 @@ trait Fork[T]:
   def join(): T
 
   /** Blocks until the fork completes with a result. */
-  def joinEither(): Either[Throwable, T] = Try(join()).toEither
+  def joinEither(): Either[Throwable, T] =
+    try Right(join())
+    catch
+      // normally IE is fatal, but here it was meant to cancel the fork, not the joining parent, hence we catch it
+      case e: InterruptedException => Left(e)
+      case NonFatal(e)             => Left(e)
 
 /** A fork started using [[forkCancellable]], backed by a (virtual) thread. */
 trait CancellableFork[T] extends Fork[T]:

@@ -1,7 +1,7 @@
 package ox
 
 import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.CompletableFuture
+import java.util.concurrent.{CompletableFuture, ConcurrentHashMap}
 
 /** Starts a new scope, which allows starting forks in the given code block `f`. Forks can be started using [[fork]], [[forkDaemon]] and
   * [[forkUnsupervised]].
@@ -17,12 +17,19 @@ import java.util.concurrent.CompletableFuture
   *   [[scoped]] Starts a scope in unsupervised mode
   */
 def supervised[T](f: Ox ?=> T): T =
-  scoped {
-    val s = DefaultSupervisor()
-    val r = supervisor(s)(fork(f))
-    s.join()
-    r.join() // the fork must be done by now
-  }
+  val s = DefaultSupervisor()
+  try
+    scoped {
+      val r = supervisor(s)(fork(f))
+      s.join() // might throw if any supervised fork threw
+      r.join() // if no exceptions, the main f-fork must be done by now
+    }
+  catch
+    case e: Throwable =>
+      // all forks are guaranteed to have finished: some might have ended up throwing exceptions (InterruptedException or
+      // others), but only the first one is propagated. That's wait, adding the others as suppressed.
+      s.addSuppressed(e)
+      throw e
 
 trait Supervisor:
   def forkStarts(): Unit
@@ -47,6 +54,7 @@ object NoOpSupervisor extends Supervisor:
 class DefaultSupervisor() extends Supervisor:
   private val running: AtomicInteger = AtomicInteger(0)
   private val result: CompletableFuture[Unit] = new CompletableFuture()
+  private val otherExceptions: java.util.Set[Throwable] = ConcurrentHashMap.newKeySet()
 
   override def forkStarts(): Unit = running.incrementAndGet()
 
@@ -54,9 +62,13 @@ class DefaultSupervisor() extends Supervisor:
     val v = running.decrementAndGet()
     if v == 0 then result.complete(())
 
-  override def forkError(e: Throwable): Unit = result.completeExceptionally(e)
+  override def forkError(e: Throwable): Unit = if !result.completeExceptionally(e) then otherExceptions.add(e)
 
   override def join(): Unit = unwrapExecutionException(result.get())
+
+  def addSuppressed(e: Throwable): Throwable =
+    otherExceptions.forEach(e.addSuppressed)
+    e
 
 /** Change the supervisor that is being used when running `f`. Doesn't affect existing usages of the current supervisor, or forks ran
   * outside of `f`.
