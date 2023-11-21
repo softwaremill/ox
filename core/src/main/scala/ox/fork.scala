@@ -1,6 +1,5 @@
 package ox
 
-import java.time.Clock
 import java.util.concurrent.{CompletableFuture, Semaphore}
 import java.util.concurrent.atomic.AtomicBoolean
 import scala.concurrent.ExecutionException

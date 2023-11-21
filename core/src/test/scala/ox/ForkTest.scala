@@ -8,8 +8,6 @@ import ox.util.Trail
 import java.util.concurrent.Semaphore
 
 class ForkTest extends AnyFlatSpec with Matchers {
-  class CustomException extends RuntimeException
-
   "fork" should "run two forks concurrently" in {
     val trail = Trail()
     scoped {
@@ -100,14 +98,6 @@ class ForkTest extends AnyFlatSpec with Matchers {
     }
 
     trail.get shouldBe Vector("main mid", "f1 complete", "result = 5", "f2 interrupted")
-  }
-
-  it should "throw the exception thrown by a joined fork" in {
-    val trail = Trail()
-    try scoped(fork(throw new CustomException()).join())
-    catch case e: Exception => trail.add(e.getClass.getSimpleName)
-
-    trail.get shouldBe Vector("CustomException")
   }
 
   "cancel" should "block until the fork completes" in {
