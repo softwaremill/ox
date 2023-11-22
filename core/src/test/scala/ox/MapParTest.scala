@@ -5,8 +5,18 @@ import org.scalatest.matchers.should.Matchers
 import ox.syntax.mapParWith
 import ox.util.Trail
 
+import scala.collection.IterableFactory
+import scala.collection.immutable.Iterable
+import scala.List
+
 class MapParTest extends AnyFlatSpec with Matchers {
-  "mapPar" should "run computations in parallel" in {
+  "mapPar" should "output the same type as input" in {
+    val input = List(1, 2, 3)
+    val result = input.mapParWith(1)(identity)
+    result shouldBe a[List[_]]
+  }
+
+  it should "run computations in parallel" in {
     val InputElements = 17
     val TransformationMillis: Long = 100
 

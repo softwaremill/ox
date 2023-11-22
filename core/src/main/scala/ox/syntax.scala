@@ -27,5 +27,5 @@ object syntax:
     def useScoped[U](p: T => U): U = ox.useScoped(f)(p)
     def useSupervised[U](p: T => U): U = ox.useSupervised(f)(p)
 
-  extension [I](f: => Iterable[I])
-    def mapParWith[O](parallelism: Int)(transform: I => O): Iterable[O] = ox.mapPar(parallelism)(f)(transform)
+  extension [I, C[E] <: Iterable[E]](f: => C[I])
+    def mapParWith[O](parallelism: Int)(transform: I => O) = ox.mapPar(parallelism)(f)(transform)
