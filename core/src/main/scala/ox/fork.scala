@@ -25,8 +25,10 @@ def fork[T](f: => T)(using Ox): Fork[T] =
       supervisor.forkSuccess()
     catch
       case e: Throwable =>
+        // we notify the supervisor first, so that if this is the first failing fork in the scope, the supervisor will 
+        // get first notified of the exception by the "original" (this) fork
+        supervisor.forkError(e)  
         result.completeExceptionally(e)
-        supervisor.forkError(e)
   }
   newForkUsingResult(result)
 
