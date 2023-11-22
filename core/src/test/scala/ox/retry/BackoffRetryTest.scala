@@ -51,6 +51,27 @@ class BackoffRetryTest extends AnyFlatSpec with Matchers with EitherValues with 
     counter shouldBe 4
   }
 
+  it should "use jitter" in {
+    // given
+    val maxRetries = 3
+    val initialDelay = 100.millis
+    val maxDelay = 200.millis
+    var counter = 0
+    def f =
+      counter += 1
+      if true then throw new RuntimeException("boom")
+
+    // when
+    val (result, elapsedTime) =
+      measure(the[RuntimeException] thrownBy retry(f)(RetryPolicy.Backoff(maxRetries, initialDelay, maxDelay, Jitter.Equal)))
+
+    // then
+    result should have message "boom"
+    elapsedTime.toMillis should be >= expectedTotalBackoffTimeMillis(maxRetries, initialDelay, maxDelay) / 2
+    elapsedTime.toMillis should be < initialDelay.toMillis + maxRetries * maxDelay.toMillis
+    counter shouldBe 4
+  }
+
   it should "retry an Either" in {
     // given
     val maxRetries = 3
@@ -92,4 +113,4 @@ class BackoffRetryTest extends AnyFlatSpec with Matchers with EitherValues with 
   }
 
   private def expectedTotalBackoffTimeMillis(maxRetries: Int, initialDelay: FiniteDuration, maxDelay: FiniteDuration = 1.day): Long =
-    (0 until maxRetries).map(attempt => (initialDelay * Math.pow(2, attempt)).min(maxDelay).toMillis).sum
+    (0 until maxRetries).map(RetryPolicy.Backoff.delay(_, initialDelay, maxDelay).toMillis).sum
