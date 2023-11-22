@@ -27,8 +27,8 @@ def supervised[T](f: Ox ?=> T): T =
   catch
     case e: Throwable =>
       // all forks are guaranteed to have finished: some might have ended up throwing exceptions (InterruptedException or
-      // others), but only the first one is propagated. That's wait, adding the others as suppressed.
-      s.addSuppressed(e)
+      // others), but only the first one is propagated below. That's why we add all the other exceptions as suppressed.
+      s.addOtherExceptionsAsSuppressedTo(e)
       throw e
 
 trait Supervisor:
@@ -66,8 +66,8 @@ class DefaultSupervisor() extends Supervisor:
 
   override def join(): Unit = unwrapExecutionException(result.get())
 
-  def addSuppressed(e: Throwable): Throwable =
-    otherExceptions.forEach(e.addSuppressed)
+  def addOtherExceptionsAsSuppressedTo(e: Throwable): Throwable =
+    otherExceptions.forEach(e2 => if e != e2 then e.addSuppressed(e2))
     e
 
 /** Change the supervisor that is being used when running `f`. Doesn't affect existing usages of the current supervisor, or forks ran
