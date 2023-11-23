@@ -25,7 +25,7 @@ jobs:
       run: sbt -v test
     - name: Test Report
       uses: dorny/test-reporter@v1
-      if: success() || failure()
+      if: success() || failure() # run regardless previous step succeeded or failed
       with:
         name: 'Tests results'
         path: '**/test-reports/TEST*.xml'
