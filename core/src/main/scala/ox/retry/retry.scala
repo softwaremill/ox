@@ -41,7 +41,7 @@ object RetryPolicy:
           val last = lastDelay.getOrElse(initialDelay).toMillis
           Random.between(initialDelay.toMillis, last * 3).millis
 
-  private[retry]   object Backoff:
+  private[retry] object Backoff:
     def delay(attempt: Int, initialDelay: FiniteDuration, maxDelay: FiniteDuration): FiniteDuration =
       (initialDelay * Math.pow(2, attempt).toLong).min(maxDelay)
 
