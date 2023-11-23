@@ -56,7 +56,8 @@ val result: List[Int] = mapPar(input)(4)(_ + 1)
 // (2, 3, 4, 5, 6, 7, 8, 9, 10)
 ```
 
-If any transformation fails, others are interrupted and `mapPar` throws exception. Parallelism
+If any transformation fails, others are interrupted and `mapPar` rethrows exception that was
+thrown by the transformation. Parallelism
 limits how many concurrent forks are going to process the collection.
 
 ## Race two computations
