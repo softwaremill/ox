@@ -23,6 +23,13 @@ jobs:
       run: sbt -v compile
     - name: Test
       run: sbt -v test
+    - name: Test Report
+      uses: dorny/test-reporter@v1
+      if: success() || failure() # run regardless previous step succeeded or failed
+      with:
+        name: 'Tests results'
+        path: '**/test-reports/TEST*.xml'
+        reporter: java-junit
 
   publish:
     name: Publish release
