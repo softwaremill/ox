@@ -62,7 +62,7 @@ class JitterTest extends AnyFlatSpec with Matchers {
     Inspectors.forEvery(delays.sliding(2).toList) {
       case Seq(previousDelay, delay) =>
         delay should (be >= policy.initialDelay and be <= previousDelay * 3)
-      case _ => succeed // so that the match is exhaustive
+      case _ => fail("should never happen") // so that the match is exhaustive
     }
   }
 }
