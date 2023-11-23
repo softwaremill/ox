@@ -2,7 +2,7 @@ package ox
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import ox.syntax.mapParWith
+import ox.syntax.mapPar
 import ox.util.Trail
 
 import java.util.concurrent.atomic.AtomicInteger
@@ -13,7 +13,7 @@ import scala.List
 class MapParTest extends AnyFlatSpec with Matchers {
   "mapPar" should "output the same type as input" in {
     val input = List(1, 2, 3)
-    val result = input.mapParWith(1)(identity)
+    val result = input.mapPar(1)(identity)
     result shouldBe a[List[_]]
   }
 
@@ -28,7 +28,7 @@ class MapParTest extends AnyFlatSpec with Matchers {
     }
 
     val start = System.currentTimeMillis()
-    val result = input.to(Iterable).mapParWith(5)(transformation)
+    val result = input.to(Iterable).mapPar(5)(transformation)
     val end = System.currentTimeMillis()
 
     result.toList should contain theSameElementsInOrderAs (input.map(_ + 1))
@@ -63,7 +63,7 @@ class MapParTest extends AnyFlatSpec with Matchers {
       maxCounter.decrement()
     }
 
-    input.to(Iterable).mapParWith(Parallelism)(transformation)
+    input.to(Iterable).mapPar(Parallelism)(transformation)
 
     maxCounter.max should be <= Parallelism
   }
@@ -87,7 +87,7 @@ class MapParTest extends AnyFlatSpec with Matchers {
     }
 
     try {
-      input.to(Iterable).mapParWith(5)(transformation)
+      input.to(Iterable).mapPar(5)(transformation)
     } catch {
       case e: Exception if e.getMessage == "boom" => trail.add("catch")
     }

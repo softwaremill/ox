@@ -28,4 +28,4 @@ object syntax:
     def useSupervised[U](p: T => U): U = ox.useSupervised(f)(p)
 
   extension [I, C[E] <: Iterable[E]](f: => C[I])
-    def mapParWith[O](parallelism: Int)(transform: I => O) = ox.mapPar(parallelism)(f)(transform)
+    def mapPar[O](parallelism: Int)(transform: I => O) = ox.mapPar(parallelism)(f)(transform)
