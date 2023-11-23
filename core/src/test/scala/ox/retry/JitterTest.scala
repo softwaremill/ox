@@ -59,8 +59,8 @@ class JitterTest extends AnyFlatSpec with Matchers {
     val delays = (1 to 5).map(policy.nextDelay(_, None))
 
     // then
-    Inspectors.forEvery(delays.sliding(2).map(_.toList).toList) {
-      case List(previousDelay, delay) =>
+    Inspectors.forEvery(delays.sliding(2).toList) {
+      case Seq(previousDelay, delay) =>
         delay should (be >= policy.initialDelay and be <= previousDelay * 3)
       case _ => succeed // so that the match is exhaustive
     }
