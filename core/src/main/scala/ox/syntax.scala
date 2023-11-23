@@ -29,3 +29,6 @@ object syntax:
 
   extension [I, C[E] <: Iterable[E]](f: => C[I])
     def mapPar[O](parallelism: Int)(transform: I => O) = ox.mapPar(parallelism)(f)(transform)
+    def collectPar[O](parallelism: Int)(pf: PartialFunction[I, O]) = ox.collectPar(parallelism)(f)(pf)
+    def foreachPar(parallelism: Int)(operation: I => Any) = ox.foreachPar(parallelism)(f)(operation)
+    def filterPar(parallelism: Int)(predicate: I => Boolean) = ox.filterPar(parallelism)(f)(predicate)
