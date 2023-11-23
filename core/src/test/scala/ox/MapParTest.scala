@@ -5,6 +5,7 @@ import org.scalatest.matchers.should.Matchers
 import ox.syntax.mapParWith
 import ox.util.Trail
 
+import java.util.concurrent.atomic.AtomicInteger
 import scala.collection.IterableFactory
 import scala.collection.immutable.Iterable
 import scala.List
@@ -37,14 +38,34 @@ class MapParTest extends AnyFlatSpec with Matchers {
   it should "run not more computations than limit" in {
     val Parallelism = 5
 
-    val input = (1 to 17)
+    val input = (1 to 158)
 
-    def transformation(i: Int) = {
-      Thread.currentThread().threadId()
+    class MaxCounter {
+      val counter = new AtomicInteger(0)
+      var max = 0
+      def increment() = {
+        counter.updateAndGet { c =>
+          val inc = c + 1
+          max = if (inc > max) inc else max
+          inc
+        }
+      }
+      def decrement() = {
+        counter.decrementAndGet()
+      }
     }
 
-    val result = input.to(Iterable).mapParWith(Parallelism)(transformation)
-    result.toSet.size shouldBe Parallelism
+    val maxCounter = new MaxCounter
+
+    def transformation(i: Int) = {
+      maxCounter.increment()
+      Thread.sleep(10)
+      maxCounter.decrement()
+    }
+
+    input.to(Iterable).mapParWith(Parallelism)(transformation)
+
+    maxCounter.max should be <= Parallelism
   }
 
   it should "interrupt other computations in one fails" in {
