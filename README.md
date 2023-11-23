@@ -45,6 +45,21 @@ val result: (Int, String) = par(computation1)(computation2)
 
 If one of the computations fails, the other is interrupted, and `par` waits until both branches complete.
 
+## Parallelize collection transformation
+
+```scala
+import ox.mapPar
+
+val input: List[Int] = List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+
+val result: List[Int] = mapPar(input)(4)(_ + 1)
+// (2, 3, 4, 5, 6, 7, 8, 9, 10)
+```
+
+If any transformation fails, others are interrupted and `mapPar` rethrows exception that was
+thrown by the transformation. Parallelism
+limits how many concurrent forks are going to process the collection.
+
 ## Race two computations
 
 ```scala

@@ -12,6 +12,8 @@ object syntax:
     def forkDaemon: Fork[T] = ox.forkDaemon(f)
     def forkUnsupervised: Fork[T] = ox.forkUnsupervised(f)
     def forkCancellable: CancellableFork[T] = ox.forkCancellable(f)
+
+  extension [T](f: => T)
     def timeout(duration: FiniteDuration): T = ox.timeout(duration)(f)
     def timeoutOption(duration: FiniteDuration): Option[T] = ox.timeoutOption(duration)(f)
     def scopedWhere[U](fl: ForkLocal[U], u: U): T = fl.scopedWhere(u)(f)
@@ -24,3 +26,6 @@ object syntax:
     def useInScope: T = ox.useCloseableInScope(f)
     def useScoped[U](p: T => U): U = ox.useScoped(f)(p)
     def useSupervised[U](p: T => U): U = ox.useSupervised(f)(p)
+
+  extension [I, C[E] <: Iterable[E]](f: => C[I])
+    def mapPar[O](parallelism: Int)(transform: I => O) = ox.mapPar(parallelism)(f)(transform)
