@@ -1,5 +1,6 @@
 package ox
 
+import scala.annotation.unused
 import scala.collection.IterableFactory
 
 /** Runs partial function in parallel on each element of `iterable` for which the partial function is defined.
