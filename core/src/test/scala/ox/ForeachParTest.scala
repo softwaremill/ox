@@ -2,35 +2,30 @@ package ox
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import ox.syntax.mapPar
+import ox.syntax.foreachPar
 import ox.util.{MaxCounter, Trail}
 
+import scala.List
 import scala.collection.IterableFactory
 import scala.collection.immutable.Iterable
-import scala.List
 
-class MapParTest extends AnyFlatSpec with Matchers {
-  "mapPar" should "output the same type as input" in {
-    val input = List(1, 2, 3)
-    val result = input.mapPar(1)(identity)
-    result shouldBe a[List[_]]
-  }
-
-  it should "run computations in parallel" in {
+class ForeachParTest extends AnyFlatSpec with Matchers {
+  "foreachPar" should "run computations in parallel" in {
     val InputElements = 17
     val TransformationMillis: Long = 100
+    val trail = new Trail()
 
     val input = (0 to InputElements)
     def transformation(i: Int) = {
       Thread.sleep(TransformationMillis)
-      i + 1
+      trail.add(i.toString)
     }
 
     val start = System.currentTimeMillis()
-    val result = input.to(Iterable).mapPar(5)(transformation)
+    input.to(Iterable).foreachPar(5)(transformation)
     val end = System.currentTimeMillis()
 
-    result.toList should contain theSameElementsInOrderAs (input.map(_ + 1))
+    trail.get should contain theSameElementsAs input.map(_.toString)
     (end - start) should be < (InputElements * TransformationMillis)
   }
 
@@ -39,7 +34,7 @@ class MapParTest extends AnyFlatSpec with Matchers {
 
     val input = (1 to 158)
 
-    val maxCounter = new MaxCounter()
+    val maxCounter = MaxCounter()
 
     def transformation(i: Int) = {
       maxCounter.increment()
@@ -47,7 +42,7 @@ class MapParTest extends AnyFlatSpec with Matchers {
       maxCounter.decrement()
     }
 
-    input.to(Iterable).mapPar(Parallelism)(transformation)
+    input.to(Iterable).foreachPar(Parallelism)(transformation)
 
     maxCounter.max should be <= Parallelism
   }
@@ -71,7 +66,7 @@ class MapParTest extends AnyFlatSpec with Matchers {
     }
 
     try {
-      input.to(Iterable).mapPar(5)(transformation)
+      input.to(Iterable).foreachPar(5)(transformation)
     } catch {
       case e: Exception if e.getMessage == "boom" => trail.add("catch")
     }
