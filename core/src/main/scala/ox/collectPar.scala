@@ -2,7 +2,7 @@ package ox
 
 import scala.collection.IterableFactory
 
-/** Runs partial function in parallel on each element of `iterable` for which the partiel function is defined.
+/** Runs partial function in parallel on each element of `iterable` for which the partial function is defined.
  * If function is not defined for an element such element is skipped.
  * Using not more than `parallelism` forks concurrently.
  *

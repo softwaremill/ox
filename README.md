@@ -69,7 +69,7 @@ import ox.syntax.foreachPar
 
 val input: List[Int] = List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
 
-input.mapPar(4)(i => println())
+input.foreachPar(4)(i => println())
 // Prints each element of the list, might be in any order
 ```
 
