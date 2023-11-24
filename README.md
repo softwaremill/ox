@@ -12,7 +12,7 @@ Requires JDK 21.
 [sbt](https://www.scala-sbt.org) dependency:
 
 ```scala
-"com.softwaremill.ox" %% "core" % "0.0.14"
+"com.softwaremill.ox" %% "core" % "0.0.15"
 ```
 
 Introductory articles:
@@ -699,7 +699,7 @@ there's enough space in the buffer. The processing space is bound by the total s
 Dependency:
 
 ```scala
-"com.softwaremill.ox" %% "kafka" % "0.0.14"
+"com.softwaremill.ox" %% "kafka" % "0.0.15"
 ```
 
 `Source`s which read from a Kafka topic, mapping stages and drains which publish to Kafka topics are available through 
