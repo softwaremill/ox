@@ -4,7 +4,7 @@ import java.util.concurrent.atomic.AtomicInteger
 
 class MaxCounter() {
   val counter = new AtomicInteger(0)
-  var max = 0
+  @volatile var max = 0
 
   def increment() = {
     counter.updateAndGet { c =>
