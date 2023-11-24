@@ -89,7 +89,9 @@ class ExceptionTest extends AnyFlatSpec with Matchers {
       }
     catch case e: Exception => addExceptionWithSuppressedTo(trail, e)
 
-    trail.get shouldBe Vector("CustomException(suppressed=)")
+    // either join() might throw the original exception (shouldn't be suppressed), or it might be interrupted before
+    // throwing (should be suppressed then)
+    trail.get should (be(Vector("CustomException(suppressed=)")) or be(Vector("CustomException(suppressed=InterruptedException)")))
   }
 
   it should "add an exception as suppressed, even if it wraps the original exception" in {
@@ -99,7 +101,8 @@ class ExceptionTest extends AnyFlatSpec with Matchers {
         val f = fork {
           throw new CustomException()
         }
-        try f.join() catch {
+        try f.join()
+        catch {
           case e: Exception => throw new CustomException3(e)
         }
       }
