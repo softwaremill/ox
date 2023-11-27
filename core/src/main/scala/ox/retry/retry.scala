@@ -1,5 +1,6 @@
 package ox.retry
 
+import scala.annotation.tailrec
 import scala.concurrent.duration.*
 import scala.util.{Random, Try}
 
@@ -12,23 +13,54 @@ object Jitter:
   case object Decorrelated extends Jitter
 
 trait RetryPolicy:
-  def maxRetries: Int
   def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration
 
 object RetryPolicy:
-  case class Direct(maxRetries: Int) extends RetryPolicy:
-    def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration = Duration.Zero
 
-  case class Delay(maxRetries: Int, delay: FiniteDuration) extends RetryPolicy:
-    def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration = delay
+  trait Finite extends RetryPolicy:
+    def maxRetries: Int
+
+  trait Infinite extends RetryPolicy
+
+  case class Direct(maxRetries: Int) extends Finite:
+    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration = Duration.Zero
+
+  object Direct:
+    def forever: Infinite = DirectForever
+
+  case object DirectForever extends Infinite:
+    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration = Duration.Zero
+
+  case class Delay(maxRetries: Int, delay: FiniteDuration) extends Finite:
+    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration = delay
+
+  object Delay:
+    def forever(delay: FiniteDuration): Infinite = DelayForever(delay)
+
+  private case class DelayForever(delay: FiniteDuration) extends Infinite:
+    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration = delay
 
   case class Backoff(
       maxRetries: Int,
       initialDelay: FiniteDuration,
       maxDelay: FiniteDuration = 1.day,
       jitter: Jitter = Jitter.None
-  ) extends RetryPolicy:
-    def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration =
+  ) extends Finite:
+    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration =
+      Backoff.nextDelay(attempt, initialDelay, maxDelay, jitter, lastDelay)
+
+  object Backoff:
+    private[retry] def delay(attempt: Int, initialDelay: FiniteDuration, maxDelay: FiniteDuration): FiniteDuration =
+      // converting Duration <-> Long back and forth to avoid exceeding maximum duration
+      (initialDelay.toMillis * Math.pow(2, attempt)).toLong.min(maxDelay.toMillis).millis
+
+    private[retry] def nextDelay(
+        attempt: Int,
+        initialDelay: FiniteDuration,
+        maxDelay: FiniteDuration,
+        jitter: Jitter,
+        lastDelay: Option[FiniteDuration]
+    ): FiniteDuration =
       def backoffDelay = Backoff.delay(attempt, initialDelay, maxDelay)
 
       jitter match
@@ -41,9 +73,13 @@ object RetryPolicy:
           val last = lastDelay.getOrElse(initialDelay).toMillis
           Random.between(initialDelay.toMillis, last * 3).millis
 
-  private[retry] object Backoff:
-    def delay(attempt: Int, initialDelay: FiniteDuration, maxDelay: FiniteDuration): FiniteDuration =
-      (initialDelay * Math.pow(2, attempt).toLong).min(maxDelay)
+    def forever(initialDelay: FiniteDuration, maxDelay: FiniteDuration = 1.day, jitter: Jitter = Jitter.None): Infinite =
+      BackoffForever(initialDelay, maxDelay, jitter)
+
+  private case class BackoffForever(initialDelay: FiniteDuration, maxDelay: FiniteDuration = 1.day, jitter: Jitter = Jitter.None)
+      extends Infinite:
+    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration =
+      Backoff.nextDelay(attempt, initialDelay, maxDelay, jitter, lastDelay)
 
 def retry[T](f: => T)(policy: RetryPolicy): T =
   retry(f, _ => true)(policy)
@@ -55,24 +91,32 @@ def retry[E, T](f: => Either[E, T])(policy: RetryPolicy)(using dummy: DummyImpli
   retry(f, _ => true)(policy)(using dummy)
 
 def retry[E, T](f: => Either[E, T], isSuccess: T => Boolean, isWorthRetrying: E => Boolean = (_: E) => true)(policy: RetryPolicy)(using
-    dummy: DummyImplicit
+    DummyImplicit
 ): Either[E, T] =
-  def loop(remainingAttempts: Int, lastDelay: Option[FiniteDuration] = None): Either[E, T] =
-    def nextAttemptOr(e: => Either[E, T]) =
-      if remainingAttempts > 0 then
-        val delay = policy.nextDelay(policy.maxRetries - remainingAttempts, lastDelay).toMillis
-        if delay > 0 then Thread.sleep(delay)
-        loop(remainingAttempts - 1, Some(delay.millis))
-      else e
+  @tailrec
+  def loop(attempt: Int, remainingAttempts: Option[Int], lastDelay: Option[FiniteDuration]): Either[E, T] =
+    def sleepIfNeeded =
+      val delay = policy.nextDelay(attempt + 1, lastDelay).toMillis
+      if (delay > 0) Thread.sleep(delay)
+      delay
 
     f match
       case left @ Left(error) =>
-        if isWorthRetrying(error) then nextAttemptOr(left)
+        if isWorthRetrying(error) && remainingAttempts.forall(_ > 0) then
+          val delay = sleepIfNeeded
+          loop(attempt + 1, remainingAttempts.map(_ - 1), Some(delay.millis))
         else left
-      case right @ Right(result) if !isSuccess(result) => nextAttemptOr(right)
-      case right                                       => right
+      case right @ Right(result) =>
+        if !isSuccess(result) && remainingAttempts.forall(_ > 0) then
+          val delay = sleepIfNeeded
+          loop(attempt + 1, remainingAttempts.map(_ - 1), Some(delay.millis))
+        else right
 
-  loop(policy.maxRetries)
+  val remainingAttempts = policy match
+    case policy: RetryPolicy.Finite => Some(policy.maxRetries)
+    case _                          => None
+
+  loop(0, remainingAttempts, None)
 
 def retry[T](f: => Try[T])(policy: RetryPolicy)(using dummy1: DummyImplicit, dummy2: DummyImplicit): Try[T] =
   retry(f, _ => true)(policy)(using dummy1, dummy2)

@@ -31,6 +31,25 @@ class DelayedRetryTest extends AnyFlatSpec with Matchers with EitherValues with 
     counter shouldBe 4
   }
 
+  it should "retry a failing function forever" in {
+    // given
+    var counter = 0
+    val sleep = 2.millis
+    val retriesUntilSuccess = 1_000
+    val successfulResult = 42
+
+    def f =
+      counter += 1
+      if counter <= retriesUntilSuccess then throw new RuntimeException("boom") else successfulResult
+
+    // when
+    val result = retry(f)(RetryPolicy.Delay.forever(sleep))
+
+    // then
+    result shouldBe successfulResult
+    counter shouldBe retriesUntilSuccess + 1
+  }
+
   it should "retry an Either" in {
     // given
     val maxRetries = 3

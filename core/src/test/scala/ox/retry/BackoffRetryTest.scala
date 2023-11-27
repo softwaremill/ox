@@ -31,6 +31,25 @@ class BackoffRetryTest extends AnyFlatSpec with Matchers with EitherValues with 
     counter shouldBe 4
   }
 
+  it should "retry a failing function forever" in {
+    // given
+    var counter = 0
+    val initialDelay = 100.millis
+    val retriesUntilSuccess = 1_000
+    val successfulResult = 42
+
+    def f =
+      counter += 1
+      if counter <= retriesUntilSuccess then throw new RuntimeException("boom") else successfulResult
+
+    // when
+    val result = retry(f)(RetryPolicy.Backoff.forever(initialDelay, maxDelay = 2.millis))
+
+    // then
+    result shouldBe successfulResult
+    counter shouldBe retriesUntilSuccess + 1
+  }
+
   it should "respect maximum delay" in {
     // given
     val maxRetries = 3

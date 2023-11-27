@@ -58,6 +58,24 @@ class DirectRetryTest extends AnyFlatSpec with EitherValues with TryValues with 
     counter shouldBe 4
   }
 
+  it should "retry a failing function forever" in {
+    // given
+    var counter = 0
+    val retriesUntilSuccess = 10_000
+    val successfulResult = 42
+
+    def f =
+      counter += 1
+      if counter <= retriesUntilSuccess then throw new RuntimeException("boom") else successfulResult
+
+    // when
+    val result = retry(f)(RetryPolicy.Direct.forever)
+
+    // then
+    result shouldBe successfulResult
+    counter shouldBe retriesUntilSuccess + 1
+  }
+
   it should "retry a succeeding Either" in {
     // given
     var counter = 0
