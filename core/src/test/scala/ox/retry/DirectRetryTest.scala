@@ -28,6 +28,20 @@ class DirectRetryTest extends AnyFlatSpec with EitherValues with TryValues with 
     counter shouldBe 1
   }
 
+  it should "fail fast when a function is not worth retrying" in {
+    // given
+    var counter = 0
+    val errorMessage = "boom"
+
+    def f =
+      counter += 1
+      if true then throw new RuntimeException(errorMessage)
+
+    // when/then
+    the[RuntimeException] thrownBy retry(f, isWorthRetrying = _ => false)(RetryPolicy.Direct(3)) should have message errorMessage
+    counter shouldBe 1
+  }
+
   it should "retry a succeeding function with a custom success condition" in {
     // given
     var counter = 0
@@ -38,7 +52,7 @@ class DirectRetryTest extends AnyFlatSpec with EitherValues with TryValues with 
       unsuccessfulResult
 
     // when
-    val result = retry(f, _ > 0)(RetryPolicy.Direct(3))
+    val result = retry(f, isSuccess = _ > 0)(RetryPolicy.Direct(3))
 
     // then
     result shouldBe unsuccessfulResult
@@ -48,13 +62,14 @@ class DirectRetryTest extends AnyFlatSpec with EitherValues with TryValues with 
   it should "retry a failing function" in {
     // given
     var counter = 0
+    val errorMessage = "boom"
 
     def f =
       counter += 1
-      if true then throw new RuntimeException("boom")
+      if true then throw new RuntimeException(errorMessage)
 
     // when/then
-    the[RuntimeException] thrownBy retry(f)(RetryPolicy.Direct(3)) should have message "boom"
+    the[RuntimeException] thrownBy retry(f)(RetryPolicy.Direct(3)) should have message errorMessage
     counter shouldBe 4
   }
 
@@ -103,7 +118,7 @@ class DirectRetryTest extends AnyFlatSpec with EitherValues with TryValues with 
       Left(errorMessage)
 
     // when
-    val result = retry(f, _ => true, _ => false)(RetryPolicy.Direct(3))
+    val result = retry(f, isWorthRetrying = (_: String) => false)(RetryPolicy.Direct(3))
 
     // then
     result.left.value shouldBe errorMessage
@@ -120,7 +135,7 @@ class DirectRetryTest extends AnyFlatSpec with EitherValues with TryValues with 
       Right(unsuccessfulResult)
 
     // when
-    val result = retry(f, (res: Int) => res > 0)(RetryPolicy.Direct(3))
+    val result = retry(f, isSuccess = (res: Int) => res > 0)(RetryPolicy.Direct(3))
 
     // then
     result.value shouldBe unsuccessfulResult
@@ -154,10 +169,27 @@ class DirectRetryTest extends AnyFlatSpec with EitherValues with TryValues with 
       Success(successfulResult)
 
     // when
-    val result = retry(f, (res: Int) => res > 0)(RetryPolicy.Direct(3))
+    val result = retry(f)(RetryPolicy.Direct(3))
 
     // then
     result.success.value shouldBe successfulResult
+    counter shouldBe 1
+  }
+
+  it should "fail fast when a Try is not worth retrying" in {
+    // given
+    var counter = 0
+    val errorMessage = "boom"
+
+    def f =
+      counter += 1
+      Failure(new RuntimeException(errorMessage))
+
+    // when
+    val result = retry(f, isWorthRetrying = (_: Throwable) => false)(RetryPolicy.Direct(3))
+
+    // then
+    result.failure.exception should have message errorMessage
     counter shouldBe 1
   }
 
@@ -171,7 +203,7 @@ class DirectRetryTest extends AnyFlatSpec with EitherValues with TryValues with 
       Success(unsuccessfulResult)
 
     // when
-    val result = retry(f, (res: Int) => res > 0)(RetryPolicy.Direct(3))
+    val result = retry(f, isSuccess = (res: Int) => res > 0)(RetryPolicy.Direct(3))
 
     // then
     result.success.value shouldBe unsuccessfulResult

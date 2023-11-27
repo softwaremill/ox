@@ -76,16 +76,32 @@ object RetryPolicy:
     override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration =
       Backoff.nextDelay(attempt, initialDelay, maxDelay, jitter, lastDelay)
 
+// overloaded variants for function
 def retry[T](f: => T)(policy: RetryPolicy): T =
-  retry(f, _ => true)(policy)
+  retry(f, _ => true, _ => true)(policy)
 
 def retry[T](f: => T, isSuccess: T => Boolean)(policy: RetryPolicy): T =
-  retry(Try(f), isSuccess)(policy).get
+  retry(f, isSuccess, _ => true)(policy)
 
+def retry[T](f: => T, isWorthRetrying: Throwable => Boolean)(policy: RetryPolicy)(using DummyImplicit): T =
+  retry(f, _ => true, isWorthRetrying)(policy)
+
+def retry[T](f: => T, isSuccess: T => Boolean, isWorthRetrying: Throwable => Boolean)(policy: RetryPolicy): T =
+  retry(Try(f), isSuccess, isWorthRetrying)(policy).get
+
+// overloaded variants for Either
 def retry[E, T](f: => Either[E, T])(policy: RetryPolicy)(using dummy: DummyImplicit): Either[E, T] =
-  retry(f, _ => true)(policy)(using dummy)
+  retry(f, _ => true, _ => true)(policy)(using dummy)
 
-def retry[E, T](f: => Either[E, T], isSuccess: T => Boolean, isWorthRetrying: E => Boolean = (_: E) => true)(policy: RetryPolicy)(using
+def retry[E, T](f: => Either[E, T], isSuccess: T => Boolean)(policy: RetryPolicy)(using dummy: DummyImplicit): Either[E, T] =
+  retry(f, isSuccess, _ => true)(policy)(using dummy)
+
+def retry[E, T](f: => Either[E, T], isWorthRetrying: E => Boolean)(
+    policy: RetryPolicy
+)(using dummy1: DummyImplicit, dummy2: DummyImplicit): Either[E, T] =
+  retry(f, _ => true, isWorthRetrying)(policy)(using dummy1)
+
+def retry[E, T](f: => Either[E, T], isSuccess: T => Boolean, isWorthRetrying: E => Boolean)(policy: RetryPolicy)(using
     DummyImplicit
 ): Either[E, T] =
   @tailrec
@@ -113,8 +129,19 @@ def retry[E, T](f: => Either[E, T], isSuccess: T => Boolean, isWorthRetrying: E 
 
   loop(0, remainingAttempts, None)
 
+// overloaded variants for Try
 def retry[T](f: => Try[T])(policy: RetryPolicy)(using dummy1: DummyImplicit, dummy2: DummyImplicit): Try[T] =
-  retry(f, _ => true)(policy)(using dummy1, dummy2)
+  retry(f, _ => true, _ => true)(policy)(using dummy1, dummy2)
 
 def retry[T](f: => Try[T], isSuccess: T => Boolean)(policy: RetryPolicy)(using dummy1: DummyImplicit, dummy2: DummyImplicit): Try[T] =
-  retry(f.toEither, isSuccess)(policy)(using dummy1).toTry
+  retry(f, isSuccess, _ => true)(policy)(using dummy1, dummy2)
+
+def retry[T](f: => Try[T], isWorthRetrying: Throwable => Boolean)(
+    policy: RetryPolicy
+)(using dummy1: DummyImplicit, dummy2: DummyImplicit, dummy3: DummyImplicit): Try[T] =
+  retry(f, _ => true, isWorthRetrying)(policy)(using dummy1, dummy2)
+
+def retry[T](f: => Try[T], isSuccess: T => Boolean, isWorthRetrying: Throwable => Boolean)(
+    policy: RetryPolicy
+)(using dummy1: DummyImplicit, dummy2: DummyImplicit): Try[T] =
+  retry(f.toEither, isSuccess, isWorthRetrying)(policy)(using dummy1).toTry
