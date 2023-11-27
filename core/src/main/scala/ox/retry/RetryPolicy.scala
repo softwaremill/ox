@@ -37,7 +37,7 @@ object RetryPolicy:
   case class Backoff(
       maxRetries: Int,
       initialDelay: FiniteDuration,
-      maxDelay: FiniteDuration = 1.day,
+      maxDelay: FiniteDuration = 1.minute,
       jitter: Jitter = Jitter.None
   ) extends Finite:
     override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration =
