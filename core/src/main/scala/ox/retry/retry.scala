@@ -4,13 +4,8 @@ import scala.annotation.tailrec
 import scala.concurrent.duration.*
 import scala.util.{Random, Try}
 
-sealed trait Jitter
-
-object Jitter:
-  case object None extends Jitter
-  case object Full extends Jitter
-  case object Equal extends Jitter
-  case object Decorrelated extends Jitter
+enum Jitter:
+  case None, Full, Equal, Decorrelated
 
 trait RetryPolicy:
   def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration
