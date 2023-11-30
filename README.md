@@ -315,7 +315,6 @@ There are some helper methods which might be useful when writing forked code:
 
 * `forever { ... }` repeatedly evaluates the given code block forever
 * `repeatWhile { ... }` repeatedly evaluates the given code block, as long as it returns `true`
-* `retry(times, sleep) { ... }` retries the given block up to the given number of times
 * `uninterruptible { ... }` evaluates the given code block making sure it can't be interrupted
 
 ## Syntax
@@ -633,6 +632,10 @@ Please see [the respective ADR](doc/adr/0001-error-propagation-in-channels.md) f
 
 Channels are back-pressured, as the `.send` operation is blocking until there's a receiver thread available, or if 
 there's enough space in the buffer. The processing space is bound by the total size of channel buffers.
+
+## Retries
+
+The retries mechanism allows to retry a failing operation according to a given policy (e.g. retry 3 times with a 100ms delay between attempts). See the [full docs](doc/retries.md) for details.
 
 ## Kafka sources & drains
 
