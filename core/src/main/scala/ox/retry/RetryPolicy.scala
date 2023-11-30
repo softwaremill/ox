@@ -3,18 +3,42 @@ package ox.retry
 import scala.concurrent.duration.*
 import scala.util.Random
 
+case class RetryPolicy[E, T](schedule: Schedule, resultPolicy: ResultPolicy[E, T] = ResultPolicy.default[E, T])
+
+object RetryPolicy:
+  def direct[E, T](maxRetries: Int): RetryPolicy[E, T] = RetryPolicy(Schedule.Direct(maxRetries))
+  def directForever[E, T]: RetryPolicy[E, T] = RetryPolicy(Schedule.Direct.forever)
+
+  def delay[E, T](maxRetries: Int, delay: FiniteDuration): RetryPolicy[E, T] = RetryPolicy(Schedule.Delay(maxRetries, delay))
+  def delayForever[E, T](delay: FiniteDuration): RetryPolicy[E, T] = RetryPolicy(Schedule.Delay.forever(delay))
+
+  def backoff[E, T](
+      maxRetries: Int,
+      initialDelay: FiniteDuration,
+      maxDelay: FiniteDuration = 1.minute,
+      jitter: Jitter = Jitter.None
+  ): RetryPolicy[E, T] =
+    RetryPolicy(Schedule.Backoff(maxRetries, initialDelay, maxDelay, jitter))
+
+  def backoffForever[E, T](
+      initialDelay: FiniteDuration,
+      maxDelay: FiniteDuration = 1.minute,
+      jitter: Jitter = Jitter.None
+  ): RetryPolicy[E, T] =
+    RetryPolicy(Schedule.Backoff.forever(initialDelay, maxDelay, jitter))
+
 enum Jitter:
   case None, Full, Equal, Decorrelated
 
-trait RetryPolicy:
+sealed trait Schedule:
   def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration
 
-object RetryPolicy:
+object Schedule:
 
-  trait Finite extends RetryPolicy:
+  sealed trait Finite extends Schedule:
     def maxRetries: Int
 
-  trait Infinite extends RetryPolicy
+  sealed trait Infinite extends Schedule
 
   case class Direct(maxRetries: Int) extends Finite:
     override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration = Duration.Zero
@@ -74,3 +98,14 @@ object RetryPolicy:
       extends Infinite:
     override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration =
       Backoff.nextDelay(attempt, initialDelay, maxDelay, jitter, lastDelay)
+
+case class ResultPolicy[E, T](isSuccess: T => Boolean = (_: T) => true, isWorthRetrying: E => Boolean = (_: E) => true)
+
+object ResultPolicy:
+  def default[E, T]: ResultPolicy[E, T] = ResultPolicy()
+
+  def successfulWhen[E, T](f: T => Boolean): ResultPolicy[E, T] = ResultPolicy(isSuccess = f)
+
+  def retryWhen[E, T](f: E => Boolean): ResultPolicy[E, T] = ResultPolicy(isWorthRetrying = f)
+
+  def neverRetry[E, T]: ResultPolicy[E, T] = ResultPolicy(isWorthRetrying = _ => false)
