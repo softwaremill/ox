@@ -32,7 +32,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
     // given
     var counter = 0
     val errorMessage = "boom"
-    val policy = RetryPolicy[Throwable, Unit](Schedule.Immediate(3), ResultPolicy.retryWhen(_ => false))
+    val policy = RetryPolicy[Throwable, Unit](Schedule.Immediate(3), ResultPolicy.retryWhen(_.getMessage != errorMessage))
 
     def f =
       counter += 1
@@ -114,7 +114,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
     // given
     var counter = 0
     val errorMessage = "boom"
-    val policy: RetryPolicy[String, Int] = RetryPolicy(Schedule.Immediate(3), ResultPolicy.neverRetry)
+    val policy: RetryPolicy[String, Int] = RetryPolicy(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != errorMessage))
 
     def f: Either[String, Int] =
       counter += 1
