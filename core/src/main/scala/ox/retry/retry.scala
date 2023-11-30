@@ -7,10 +7,10 @@ import scala.util.Try
 def retry[T](f: => T)(policy: RetryPolicy[Throwable, T]): T =
   retry(Try(f))(policy).get
 
-def retry[T](f: => Try[T])(policy: RetryPolicy[Throwable, T])(using DummyImplicit): Try[T] =
+def retry[T](f: => Try[T])(policy: RetryPolicy[Throwable, T]): Try[T] =
   retry(f.toEither)(policy).toTry
 
-def retry[E, T](f: => Either[E, T])(policy: RetryPolicy[E, T])(using dummy1: DummyImplicit, dummy2: DummyImplicit): Either[E, T] =
+def retry[E, T](f: => Either[E, T])(policy: RetryPolicy[E, T]): Either[E, T] =
   @tailrec
   def loop(attempt: Int, remainingAttempts: Option[Int], lastDelay: Option[FiniteDuration]): Either[E, T] =
     def sleepIfNeeded =
