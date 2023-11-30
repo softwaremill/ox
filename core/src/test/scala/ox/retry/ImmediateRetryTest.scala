@@ -9,7 +9,7 @@ import scala.util.{Failure, Success}
 
 class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues with Matchers:
 
-  behavior of "Direct retry"
+  behavior of "Immediate retry"
 
   it should "retry a succeeding function" in {
     // given
