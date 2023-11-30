@@ -55,7 +55,7 @@ A result policy allows to customize how the results of the `operation` are treat
   With finite schedules (i.e. those with `maxRetries` defined), if `isSuccess` keeps returning `false` when `maxRetries` are reached, the result is returned as-is, even though it's considered "unsuccessful",
 - `isWorthRetrying: E => Boolean` (default: `true`) - determines whether another attempt would be made if the `operation` results in an error `E`. When it evaluates to `true` - we'd keep retrying, otherwise - we'd fail fast with the error.
 
-The `ResultPolicy[E, T]` is generic both over the error (`E`) and result (`T`) type. Note, however, that For the direct and `Try` variants of the `operation`, the error type `E` is fixed to `Throwable`, while for the `Either` variant, `E` can ba an arbitrary type.
+The `ResultPolicy[E, T]` is generic both over the error (`E`) and result (`T`) type. Note, however, that for the direct and `Try` variants of the `operation`, the error type `E` is fixed to `Throwable`, while for the `Either` variant, `E` can ba an arbitrary type.
 
 ### API shorthands
 
