@@ -7,7 +7,7 @@ import ox.retry.*
 
 import scala.util.{Failure, Success}
 
-class DirectRetryTest extends AnyFlatSpec with EitherValues with TryValues with Matchers:
+class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues with Matchers:
 
   behavior of "Direct retry"
 
@@ -21,7 +21,7 @@ class DirectRetryTest extends AnyFlatSpec with EitherValues with TryValues with 
       successfulResult
 
     // when
-    val result = retry(f)(RetryPolicy.direct(3))
+    val result = retry(f)(RetryPolicy.immediate(3))
 
     // then
     result shouldBe successfulResult
@@ -32,7 +32,7 @@ class DirectRetryTest extends AnyFlatSpec with EitherValues with TryValues with 
     // given
     var counter = 0
     val errorMessage = "boom"
-    val policy = RetryPolicy[Throwable, Unit](Schedule.Direct(3), ResultPolicy.retryWhen(_ => false))
+    val policy = RetryPolicy[Throwable, Unit](Schedule.Immediate(3), ResultPolicy.retryWhen(_ => false))
 
     def f =
       counter += 1
@@ -47,7 +47,7 @@ class DirectRetryTest extends AnyFlatSpec with EitherValues with TryValues with 
     // given
     var counter = 0
     val unsuccessfulResult = -1
-    val policy = RetryPolicy[Throwable, Int](Schedule.Direct(3), ResultPolicy.successfulWhen(_ > 0))
+    val policy = RetryPolicy[Throwable, Int](Schedule.Immediate(3), ResultPolicy.successfulWhen(_ > 0))
 
     def f =
       counter += 1
@@ -71,7 +71,7 @@ class DirectRetryTest extends AnyFlatSpec with EitherValues with TryValues with 
       if true then throw new RuntimeException(errorMessage)
 
     // when/then
-    the[RuntimeException] thrownBy retry(f)(RetryPolicy.direct(3)) should have message errorMessage
+    the[RuntimeException] thrownBy retry(f)(RetryPolicy.immediate(3)) should have message errorMessage
     counter shouldBe 4
   }
 
@@ -86,7 +86,7 @@ class DirectRetryTest extends AnyFlatSpec with EitherValues with TryValues with 
       if counter <= retriesUntilSuccess then throw new RuntimeException("boom") else successfulResult
 
     // when
-    val result = retry(f)(RetryPolicy.directForever)
+    val result = retry(f)(RetryPolicy.immediateForever)
 
     // then
     result shouldBe successfulResult
@@ -103,7 +103,7 @@ class DirectRetryTest extends AnyFlatSpec with EitherValues with TryValues with 
       Right(successfulResult)
 
     // when
-    val result = retry(f)(RetryPolicy.direct(3))
+    val result = retry(f)(RetryPolicy.immediate(3))
 
     // then
     result.value shouldBe successfulResult
@@ -114,7 +114,7 @@ class DirectRetryTest extends AnyFlatSpec with EitherValues with TryValues with 
     // given
     var counter = 0
     val errorMessage = "boom"
-    val policy: RetryPolicy[String, Int] = RetryPolicy(Schedule.Direct(3), ResultPolicy.neverRetry)
+    val policy: RetryPolicy[String, Int] = RetryPolicy(Schedule.Immediate(3), ResultPolicy.neverRetry)
 
     def f: Either[String, Int] =
       counter += 1
@@ -132,7 +132,7 @@ class DirectRetryTest extends AnyFlatSpec with EitherValues with TryValues with 
     // given
     var counter = 0
     val unsuccessfulResult = -1
-    val policy: RetryPolicy[String, Int] = RetryPolicy(Schedule.Direct(3), ResultPolicy.successfulWhen(_ > 0))
+    val policy: RetryPolicy[String, Int] = RetryPolicy(Schedule.Immediate(3), ResultPolicy.successfulWhen(_ > 0))
 
     def f: Either[String, Int] =
       counter += 1
@@ -156,7 +156,7 @@ class DirectRetryTest extends AnyFlatSpec with EitherValues with TryValues with 
       Left(errorMessage)
 
     // when
-    val result = retry(f)(RetryPolicy.direct(3))
+    val result = retry(f)(RetryPolicy.immediate(3))
 
     // then
     result.left.value shouldBe errorMessage
@@ -173,7 +173,7 @@ class DirectRetryTest extends AnyFlatSpec with EitherValues with TryValues with 
       Success(successfulResult)
 
     // when
-    val result = retry(f)(RetryPolicy.direct(3))
+    val result = retry(f)(RetryPolicy.immediate(3))
 
     // then
     result.success.value shouldBe successfulResult
@@ -184,7 +184,7 @@ class DirectRetryTest extends AnyFlatSpec with EitherValues with TryValues with 
     // given
     var counter = 0
     val errorMessage = "boom"
-    val policy: RetryPolicy[Throwable, Int] = RetryPolicy(Schedule.Direct(3), ResultPolicy.neverRetry)
+    val policy: RetryPolicy[Throwable, Int] = RetryPolicy(Schedule.Immediate(3), ResultPolicy.neverRetry)
 
     def f =
       counter += 1
@@ -202,7 +202,7 @@ class DirectRetryTest extends AnyFlatSpec with EitherValues with TryValues with 
     // given
     var counter = 0
     val unsuccessfulResult = -1
-    val policy: RetryPolicy[Throwable, Int] = RetryPolicy(Schedule.Direct(3), ResultPolicy.successfulWhen(_ > 0))
+    val policy: RetryPolicy[Throwable, Int] = RetryPolicy(Schedule.Immediate(3), ResultPolicy.successfulWhen(_ > 0))
 
     def f =
       counter += 1
@@ -226,7 +226,7 @@ class DirectRetryTest extends AnyFlatSpec with EitherValues with TryValues with 
       Failure(new RuntimeException(errorMessage))
 
     // when
-    val result = retry(f)(RetryPolicy.direct(3))
+    val result = retry(f)(RetryPolicy.immediate(3))
 
     // then
     result.failure.exception should have message errorMessage

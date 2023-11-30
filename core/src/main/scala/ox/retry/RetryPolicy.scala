@@ -6,8 +6,8 @@ import scala.util.Random
 case class RetryPolicy[E, T](schedule: Schedule, resultPolicy: ResultPolicy[E, T] = ResultPolicy.default[E, T])
 
 object RetryPolicy:
-  def direct[E, T](maxRetries: Int): RetryPolicy[E, T] = RetryPolicy(Schedule.Direct(maxRetries))
-  def directForever[E, T]: RetryPolicy[E, T] = RetryPolicy(Schedule.Direct.forever)
+  def immediate[E, T](maxRetries: Int): RetryPolicy[E, T] = RetryPolicy(Schedule.Immediate(maxRetries))
+  def immediateForever[E, T]: RetryPolicy[E, T] = RetryPolicy(Schedule.Immediate.forever)
 
   def delay[E, T](maxRetries: Int, delay: FiniteDuration): RetryPolicy[E, T] = RetryPolicy(Schedule.Delay(maxRetries, delay))
   def delayForever[E, T](delay: FiniteDuration): RetryPolicy[E, T] = RetryPolicy(Schedule.Delay.forever(delay))
@@ -40,10 +40,10 @@ object Schedule:
 
   sealed trait Infinite extends Schedule
 
-  case class Direct(maxRetries: Int) extends Finite:
+  case class Immediate(maxRetries: Int) extends Finite:
     override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration = Duration.Zero
 
-  object Direct:
+  object Immediate:
     def forever: Infinite = DirectForever
 
   case object DirectForever extends Infinite:
