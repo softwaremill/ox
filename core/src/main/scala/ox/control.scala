@@ -1,7 +1,5 @@
 package ox
 
-import scala.concurrent.duration.FiniteDuration
-
 def forever(f: => Unit): Nothing =
   while true do f
   throw new RuntimeException("can't get here")
@@ -15,25 +13,6 @@ def repeatWhile(f: => Boolean): Unit =
 def repeatUntil(f: => Boolean): Unit =
   var loop = true
   while loop do loop = !f
-
-// TODO: retry schedules
-def retry[T](times: Int, sleep: FiniteDuration)(f: => T): T =
-  try f
-  catch
-    case e: Throwable =>
-      if times > 0
-      then
-        Thread.sleep(sleep.toMillis)
-        retry(times - 1, sleep)(f)
-      else throw e
-
-def retryEither[E, T](times: Int, sleep: FiniteDuration)(f: => Either[E, T]): Either[E, T] =
-  f match
-    case r: Right[E, T] => r
-    case Left(_) if times > 0 =>
-      Thread.sleep(sleep.toMillis)
-      retry(times - 1, sleep)(f)
-    case l: Left[E, T] => l
 
 def uninterruptible[T](f: => T): T =
   scoped {

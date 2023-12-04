@@ -5,8 +5,9 @@ import org.scalatest.matchers.should.Matchers
 import ox.*
 
 import scala.concurrent.duration.*
+import ox.ElapsedTime
 
-class SourceOpsThrottleTest extends AnyFlatSpec with Matchers {
+class SourceOpsThrottleTest extends AnyFlatSpec with Matchers with ElapsedTime {
   behavior of "Source.throttle"
 
   it should "not throttle the empty source" in supervised {
@@ -36,10 +37,4 @@ class SourceOpsThrottleTest extends AnyFlatSpec with Matchers {
       s.throttle(1, 50.nanos)
     } should have message "requirement failed: per time must be >= 1 ms"
   }
-
-  private def measure[T](f: => T): (T, Duration) =
-    val before = System.currentTimeMillis()
-    val result = f
-    val after = System.currentTimeMillis();
-    (result, (after - before).millis)
 }
