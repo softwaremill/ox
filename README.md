@@ -1,6 +1,7 @@
 # Ox
 
-Developer-friendly structured concurrency library for the JVM, based on:
+Safe direct-style concurrency and resiliency for Scala on the JVM, based on:
+
 * [Project Loom](https://openjdk.org/projects/loom/) (virtual threads)
 * structured concurrency Java APIs ([JEP 428](https://openjdk.org/jeps/428)) 
 * scoped values ([JEP 429](https://openjdk.org/jeps/429))
@@ -19,6 +20,19 @@ Introductory articles:
 
 * [Prototype Loom-based concurrency API for Scala](https://softwaremill.com/prototype-loom-based-concurrency-api-for-scala/) 
 * [Go-like channels using project Loom and Scala](https://softwaremill.com/go-like-channels-using-project-loom-and-scala/)
+
+# Scope of the project
+
+The areas that we'd like to cover with Ox are:
+
+* concurrency: developer-friendly structured concurrency, high-level concurrency operators, safe low-level primitives, communication between concurrently running computations
+* error management: retries, timeouts, a safe approach to error propagation, safe resource management
+* scheduling & timers
+* resiliency: circuit breakers, bulkheads, rate limiters, backpressure
+
+All of the above should allow for observability of the orchestrated business logic. We aim to enable writing simple, expression-oriented code in functional style. We'd like to keep the syntax overhead to a minimum, preserving developer-friendly stack traces, and without compromising performance.
+
+Some of the above are already addressed in the API, some are coming up in the future. We'd love your help in shaping the project!
 
 # Community
 
