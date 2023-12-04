@@ -1,9 +1,16 @@
 package ox
 
+import ox.retry.RetryPolicy
+
 import scala.concurrent.duration.FiniteDuration
+import scala.util.Try
 
 object syntax:
   extension [T](f: => T) def forever: Fork[Nothing] = ox.forever(f)
+
+  extension [T](f: => T) def retry(policy: RetryPolicy[Throwable, T]): T = ox.retry.retry(f)(policy)
+  extension [T](f: => Try[T]) def retry(policy: RetryPolicy[Throwable, T]): Try[T] = ox.retry.retry(f)(policy)
+  extension [E, T](f: => Either[E, T]) def retry(policy: RetryPolicy[E, T]): Either[E, T] = ox.retry.retry(f)(policy)
 
   extension [T](f: => T)(using Ox)
     def fork: Fork[T] = ox.fork(f)

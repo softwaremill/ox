@@ -5,7 +5,14 @@ The retries mechanism allows to retry a failing operation according to a given p
 ## API
 The basic syntax for retries is:
 ```scala
-retry[T](operation)(policy)
+retry(operation)(policy)
+```
+
+or, using a syntax sugar:
+```scala
+import ox.syntax.*
+
+operation.retry(policy)
 ```
 
 ## Operation definition
