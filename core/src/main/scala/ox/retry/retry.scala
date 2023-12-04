@@ -61,7 +61,7 @@ def retry[E, T](operation: => Either[E, T])(policy: RetryPolicy[E, T]): Either[E
         else right
 
   val remainingAttempts = policy.schedule match
-    case policy: Schedule.Finite => Some(policy.maxRetries)
-    case _                       => None
+    case finiteSchedule: Schedule.Finite => Some(finiteSchedule.maxRetries)
+    case _                               => None
 
   loop(0, remainingAttempts, None)
