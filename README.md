@@ -828,7 +828,7 @@ sbt test
 
 ## Project sponsor
 
-We offer commercial development services. [Contact us](https://softwaremill.com) to learn more about our offer!
+We offer commercial development services. [Contact us](https://softwaremill.com) to learn more about us!
 
 ## Copyright
 
