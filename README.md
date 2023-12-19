@@ -825,3 +825,11 @@ To compile and test, run:
 sbt compile
 sbt test
 ```
+
+## Project sponsor
+
+We offer commercial development services. [Contact us](https://softwaremill.com) to learn more about our offer!
+
+## Copyright
+
+Copyright (C) 2023 SoftwareMill [https://softwaremill.com](https://softwaremill.com).
