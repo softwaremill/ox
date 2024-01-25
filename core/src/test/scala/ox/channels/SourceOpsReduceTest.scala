@@ -24,7 +24,7 @@ class SourceOpsReduceTest extends AnyFlatSpec with Matchers {
   it should "throw ChannelClosedException.Error for source failed without exception" in supervised {
     the[ChannelClosedException.Error] thrownBy {
       Source
-        .failedWithoutReason[Int]()
+        .failed[Int](new RuntimeException())
         .reduce(_ + _)
     }
   }

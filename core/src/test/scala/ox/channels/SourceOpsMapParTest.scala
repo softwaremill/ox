@@ -80,7 +80,7 @@ class SourceOpsMapParTest extends AnyFlatSpec with Matchers with Eventually {
       s2.toList
       fail("should have thrown")
     catch
-      case ChannelClosedException.Error(Some(reason)) if reason.getMessage == "boom" =>
+      case ChannelClosedException.Error(reason) if reason.getMessage == "boom" =>
         started.get() should be >= 4
         started.get() should be <= 7 // 4 successful + at most 3 taking up all the permits
   }
@@ -105,7 +105,7 @@ class SourceOpsMapParTest extends AnyFlatSpec with Matchers with Eventually {
     // then
     s2.receive() shouldBe 2
     s2.receive() shouldBe 4
-    s2.receive() should matchPattern { case ChannelClosed.Error(Some(reason)) if reason.getMessage == "boom" => }
+    s2.receive() should matchPattern { case ChannelClosed.Error(reason) if reason.getMessage == "boom" => }
 
     // checking if the forks aren't left running
     Thread.sleep(200)

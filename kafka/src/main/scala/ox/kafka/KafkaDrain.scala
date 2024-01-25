@@ -22,7 +22,7 @@ object KafkaDrain:
   def publish[K, V](producer: KafkaProducer[K, V], closeWhenComplete: Boolean): Source[ProducerRecord[K, V]] => Unit = source =>
     // if sending multiple records ends in an exception, we'll receive at most one anyway; we don't want to block the
     // producers, hence creating an unbounded channel
-    val producerExceptions = Channel[Exception](Int.MaxValue)
+    val producerExceptions = Channel.unlimited[Throwable]
 
     try
       repeatWhile {
@@ -58,7 +58,7 @@ object KafkaDrain:
     *   sent. Then, all `commit` messages (consumer records) up to their offsets are committed.
     */
   def publishAndCommit[K, V](producer: KafkaProducer[K, V], closeWhenComplete: Boolean): Source[SendPacket[K, V]] => Unit = source =>
-    val exceptions = Channel[Throwable](Int.MaxValue)
+    val exceptions = Channel.unlimited[Throwable]
     val toCommit = Channel[SendPacket[_, _]](128)
 
     try

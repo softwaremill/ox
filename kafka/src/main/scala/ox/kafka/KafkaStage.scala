@@ -41,7 +41,7 @@ object KafkaStage:
         Ox
     ): Source[RecordMetadata] =
       val c = StageCapacity.newChannel[RecordMetadata]
-      val exceptions = Channel[Exception](Int.MaxValue)
+      val exceptions = Channel.unlimited[Exception]
       val metadata = Channel[(Long, RecordMetadata)](128)
       val toCommit = Channel[SendPacket[_, _]](128)
 
