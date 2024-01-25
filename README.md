@@ -421,7 +421,7 @@ import ox.channels.*
 val c = Channel[String](5)
 ```
 
-Unbounded channels can be created by providing a capacity of `Int.MaxValue`.
+Unbounded channels can be created using `Channel.unlimited[T]`.
 
 Channels implement two traits: `Source` and `Sink`.
 
