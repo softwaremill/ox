@@ -13,7 +13,7 @@ Requires JDK 21.
 [sbt](https://www.scala-sbt.org) dependency:
 
 ```scala
-"com.softwaremill.ox" %% "core" % "0.0.16"
+"com.softwaremill.ox" %% "core" % "0.0.17"
 ```
 
 Introductory articles:
@@ -716,7 +716,7 @@ The retries mechanism allows to retry a failing operation according to a given p
 Dependency:
 
 ```scala
-"com.softwaremill.ox" %% "kafka" % "0.0.16"
+"com.softwaremill.ox" %% "kafka" % "0.0.17"
 ```
 
 `Source`s which read from a Kafka topic, mapping stages and drains which publish to Kafka topics are available through 
