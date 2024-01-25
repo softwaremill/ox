@@ -23,7 +23,7 @@ class SourceOpsHeadTest extends AnyFlatSpec with Matchers {
 
   it should "throw ChannelClosedException.Error for source failed without exception" in supervised {
     the[ChannelClosedException.Error] thrownBy {
-      Source.failedWithoutReason[Int]().head()
+      Source.failed[Int](new RuntimeException()).head()
     }
   }
 

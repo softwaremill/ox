@@ -81,7 +81,7 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
       s2.toList
       fail("should have thrown")
     catch
-      case ChannelClosedException.Error(Some(reason)) if reason.getMessage == "boom" =>
+      case ChannelClosedException.Error(reason) if reason.getMessage == "boom" =>
         started.get() should be >= 4
         started.get() should be <= 7 // 4 successful + at most 3 taking up all the permits
   }
@@ -105,7 +105,7 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
 
     // then
     List(s2.receive(), s2.receive()) should contain only (2, 4)
-    s2.receive() should matchPattern { case ChannelClosed.Error(Some(reason)) if reason.getMessage == "boom" => }
+    s2.receive() should matchPattern { case ChannelClosed.Error(reason) if reason.getMessage == "boom" => }
     s2.isError shouldBe true
 
     // checking if the forks aren't left running
@@ -130,7 +130,7 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
 
     // then
     List(s2.receive(), s2.receive()) should contain only (2, 4)
-    s2.receive() should matchPattern { case ChannelClosed.Error(Some(reason)) if reason.getMessage == "boom" => }
+    s2.receive() should matchPattern { case ChannelClosed.Error(reason) if reason.getMessage == "boom" => }
     s2.isError shouldBe true
 
     // checking if the forks aren't left running
@@ -158,7 +158,7 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
       }
 
       List(s2.receive(), s2.receive()) should contain only (2, 4)
-      s2.receive() should matchPattern { case ChannelClosed.Error(Some(reason)) if reason.getMessage == "boom" => }
+      s2.receive() should matchPattern { case ChannelClosed.Error(reason) if reason.getMessage == "boom" => }
       s2.isError shouldBe true
     }
 

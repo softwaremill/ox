@@ -22,7 +22,7 @@ class SourceOpsLastOptionTest extends AnyFlatSpec with Matchers with OptionValue
 
   it should "throw ChannelClosedException.Error for source failed without exception" in supervised {
     the[ChannelClosedException.Error] thrownBy {
-      Source.failedWithoutReason[Int]().lastOption()
+      Source.failed[Int](new RuntimeException()).lastOption()
     }
   }
 

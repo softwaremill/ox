@@ -1,415 +1,238 @@
 package ox.channels
 
-import java.util
-import java.util.concurrent.atomic.AtomicReference
-import java.util.concurrent.{ArrayBlockingQueue, BlockingQueue, ConcurrentLinkedQueue, LinkedBlockingQueue}
-import java.util.function.Predicate
-import scala.annotation.tailrec
+import com.softwaremill.jox.{
+  Channel as JChannel,
+  CloseableChannel as JCloseableChannel,
+  Select as JSelect,
+  SelectClause as JSelectClause,
+  Sink as JSink,
+  Source as JSource
+}
+
 import scala.annotation.unchecked.uncheckedVariance
 
-// results
+// select result: needs to be defined here, as implementations are defined here as well
 
+/** Results of a [[select]] call, when clauses are passed (instead of a number of [[Source]]s). Each result corresponds to a clause, and can
+  * be pattern-matched (using a path-dependent type)) to inspect which clause was selected.
+  */
 sealed trait SelectResult[+T]:
   def value: T
+
+/** The result returned in case a [[Default]] clause was selected in [[select]]. */
 case class DefaultResult[T](value: T) extends SelectResult[T]
+
+// select clauses: needs to be defined here, as implementations are defined here as well
+
+/** A clause to use as part of [[select]]. Clauses can be created having a channel instance, using [[Source.receiveClause]] and
+  * [[Sink.sendClause]].
+  *
+  * A clause instance is immutable and can be reused in multiple [[select]] calls.
+  */
+sealed trait SelectClause[+T]:
+  private[ox] def delegate: JSelectClause[Any]
+  type Result <: SelectResult[T]
+
+/** A default clause, which will be chosen if no other clause can be selected immediately, during a [[select]] call.
+  *
+  * There should be at most one default clause, and it should always come last in the list of clauses.
+  */
+case class Default[T](value: T) extends SelectClause[T]:
+  override private[ox] def delegate: JSelectClause[Any] = JSelect.defaultClause(() => DefaultResult(value))
+  type Result = DefaultResult[T]
 
 // extensions
 
 extension [T](v: T | ChannelClosed)
-  def map[U](f: T => U): U | ChannelClosed = v match
+  inline def map[U](f: T => U): U | ChannelClosed = v match
     case ChannelClosed.Done     => ChannelClosed.Done
     case e: ChannelClosed.Error => e
     case t: T @unchecked        => f(t)
 
-  def orThrow: T = v match
+  /** Throw a [[ChannelClosedException]] if the provided value represents a closed channel (one of [[ChannelClosed]] values). */
+  inline def orThrow: T = v match
     case c: ChannelClosed => throw c.toThrowable
     case t: T @unchecked  => t
 
-  def isValue: Boolean = v match
+  inline def isValue: Boolean = v match
     case _: ChannelClosed => false
     case _: T @unchecked  => true
 
-// clauses
+//
 
-sealed trait SelectClause[+T]:
-  type Result <: SelectResult[T]
+/** Allows querying the channel for its closed status.
+  *
+  * A channel can be closed in two ways:
+  *
+  *   - using [[Sink.done]], indicating that no more elements will be sent
+  *   - using [[Sink.error]], indicating an error
+  */
+trait ChannelState:
+  protected def delegate: JCloseableChannel
 
-case class Default[T](value: T) extends SelectClause[T]:
-  type Result = DefaultResult[T]
+  /** @return `true` if the channel is closed using [[Sink.done()]] or [[Sink.error()]]. */
+  def isClosed: Boolean = delegate.isClosed
 
-trait Stateful:
-  private[ox] def state: CurrentChannelState
-  def isClosed: Boolean = state.get() != ChannelState.Open
-  def isDone: Boolean = state.get() == ChannelState.Done
-  def isError: Boolean = state.get().isInstanceOf[ChannelState.Error]
-  def isClosedDetail: Option[ChannelClosed] = state.get() match
-    case c: ChannelState.Closed => Some(c.toResult)
-    case _                      => None
-  def isErrorDetail: Option[ChannelClosed.Error] = state.get() match
-    case ChannelState.Error(r) => Some(ChannelClosed.Error(r))
-    case _                     => None
+  /** @return `true` if the channel is closed using [[Sink.done()]]. `false` if it's not closed, or closed with an error. */
+  def isDone: Boolean = delegate.isDone
 
-trait Source[+T] extends SourceOps[T] with Stateful:
-  // Skipping variance checks here is fine, as the only way a `Received` instance is created is by the original channel,
-  // so no values of super-types of T which are not the original T will ever be provided
-  case class Received private[channels] (value: T @uncheckedVariance) extends SelectResult[T]
-  case class Receive private[channels] (skipWhenDone: Boolean) extends SelectClause[T]:
-    type Result = Received
-    def channel: Source[T] = Source.this
+  /** @return `true` if the channel is closed using [[Sink.error()]]. `false` if it's not closed, or is done. */
+  def isError: Boolean = delegate.isError != null
 
-  val receiveClause: Receive = Receive(skipWhenDone = true)
-  def receiveOrDoneClause: Receive = Receive(skipWhenDone = false)
-
-  def receive(): T | ChannelClosed
-
-  private[ox] def receiveCellOffer(c: CellCompleter[T]): Unit
-
-  /** @return `true` if the cell was removed from the queue; `false` if the cell was absent from the queue. */
-  private[ox] def receiveCellCleanup(c: CellCompleter[T]): Boolean
-
-  private[ox] def trySatisfyWaiting(): Unit | ChannelClosed
-
-  /** Try to immediately satisfy the given cell, without owning it.
-    * @return
-    *   true if the cell has been satisfied.
+  /** @return
+    *   `Some`, with details on why the channel is closed (using [[Sink.done()]] or [[Sink.error()]]), or `None` if the channel is not
+    *   closed.
     */
-  private[ox] def trySatisfyReceive(c: CellCompleter[T]): Boolean | ChannelClosed
+  def isClosedDetail: Option[ChannelClosed] =
+    if delegate.isDone then Some(ChannelClosed.Done)
+    else isErrorDetail
 
+  /** @return
+    *   `Some`, with details on the channel's error (provided using [[Sink.error()]]), or `None` if the channel is not closed or is done.
+    */
+  def isErrorDetail: Option[ChannelClosed.Error] =
+    delegate.isError match
+      case null => None
+      case t    => Some(ChannelClosed.Error(t))
+
+/** A channel source, which can be used to receive values from the channel. See [[Channel]] for more details. */
+trait Source[+T] extends SourceOps[T] with ChannelState:
+  protected override def delegate: JSource[Any] // we need to use `Any` as the java types are invariant (they use use-site variance)
+
+  // Skipping variance checks here is fine, as the only way a `Received` instance is created is by this Source (Channel),
+  // so no values of super-types of T which are not the original T will ever be provided
+  /** Holds the result of a [[receiveClause]] that was selected during a call to [[select]]. */
+  case class Received private[channels] (value: T @uncheckedVariance) extends SelectResult[T]
+
+  /** The clause passed to [[select]], created using [[receiveClause]] or [[receiveOrDoneClause]]. */
+  case class Receive private[channels] (delegate: JSelectClause[Any]) extends SelectClause[T]:
+    type Result = Received
+
+  /** Create a clause which can be used in [[select]]. The clause will receive a value from the current channel.
+    *
+    * If the source is/becomes done, [[select]] will restart with channels that are not done yet.
+    */
+  def receiveClause: Receive = Receive(delegate.receiveClause(t => Received(t.asInstanceOf[T])))
+
+  /** Create a clause which can be used in [[select]]. The clause will receive a value from the current channel.
+    *
+    * If the source is/becomes done, [[select]] will stop and return a [[ChannelClosed.Done]] value.
+    */
+  def receiveOrDoneClause: Receive = Receive(delegate.receiveOrDoneClause(t => Received(t.asInstanceOf[T])))
+
+  /** Receive a value from the channel. To throw an exception when the channel is closed, use [[orThrow]].
+    *
+    * @return
+    *   Either a value of type `T`, or [[ChannelClosed]], when the channel is closed.
+    */
+  def receive(): T | ChannelClosed = ChannelClosed.fromJoxOrT(delegate.receiveSafe())
+
+/** Various operations which allow creating [[Source]] instances.
+  *
+  * Some need to be run within a concurrency scope, such as [[supervised]].
+  */
 object Source extends SourceCompanionOps
 
 //
 
-trait Sink[-T] extends Stateful:
+/** A channel sink, which can be used to send values to the channel. See [[Channel]] for more details. */
+trait Sink[-T] extends ChannelState:
+  protected override def delegate: JSink[Any] // we need to use `Any` as the java types are invariant (they use use-site variance)
+
+  /** Holds the result of a [[sendClause]] that was selected during a call to [[select]]. */
   case class Sent private[channels] () extends SelectResult[Unit]:
     override def value: Unit = ()
-  // The Send trait is needed to "hide" the value of type T, so that it's not accessible after construction & casting.
-  // Otherwise we could do `val x = Sink[Superclass].Send(); val y: Sink[Subclass#Send] = x`, and then we could access
-  // the value through `y`, which is not necessarily of type `Subclass`.
-  sealed trait Send extends SelectClause[Unit]:
+
+  /** The clause passed to [[select]], created using [[sendClause]]. */
+  case class Send private[channels] (delegate: JSelectClause[Any]) extends SelectClause[Unit]:
     type Result = Sent
-    def channel: Sink[T] = Sink.this
 
-  def sendClause(v: T): Send
-  def send(t: T): Unit | ChannelClosed
-
-  def error(): Unit | ChannelClosed = error(None)
-  def error(reason: Throwable): Unit | ChannelClosed = error(Some(reason))
-  def error(reason: Option[Throwable]): Unit | ChannelClosed
-
-  /** Completes the channel with a "done" state.
-    *
-    * Any elements that have been sent can be received. After that, receivers will learn that the channel is done.
-    *
-    * No new elements can be sent to this channel. Sending will end with a [[ChannelClosedException.Done]] exception.
-    *
-    * @note
-    *   If a [[send]] is ran concurrently with [[done]], it can happen that a receiver first learns that the channel is done, and then it
-    *   can receive the element that was sent concurrently.
+  /** Create a clause which can be used in [[select]]. The clause will send the given value to the current channel, and return `()` as the
+    * clause's result.
     */
-  def done(): Unit | ChannelClosed
+  def sendClause(t: T): Send = Send(delegate.asInstanceOf[JSink[T]].sendClause(t, () => Sent()))
 
-  private[ox] def sendCellOffer(v: T, c: CellCompleter[Unit]): Unit
-
-  /** @return `true` if the cell was removed from the queue; `false` if the cell was absent from the queue. */
-  private[ox] def sendCellCleanup(c: CellCompleter[Unit]): Boolean
-
-  private[ox] def trySatisfyWaiting(): Unit | ChannelClosed
-
-  /** Try to immediately satisfy the given cell, without owning it.
+  /** Send a value to the channel. To throw an exception when the channel is closed, use [[orThrow]].
+    *
+    * @param t
+    *   The value to send. Not `null`.
     * @return
-    *   true if the cell has been satisfied.
+    *   Either `()`, or [[ChannelClosed]], when the channel is closed.
     */
-  private[ox] def trySatisfySend(v: T, c: CellCompleter[Unit]): Boolean | ChannelClosed
+  def send(t: T): Unit | ChannelClosed =
+    val r = ChannelClosed.fromJoxOrUnit(delegate.asInstanceOf[JSink[T]].sendSafe(t))
+    if r == null then () else r
+
+  /** Close the channel, indicating an error.
+    *
+    * Any elements that are already buffered won't be delivered. Any send or receive operations that are in progress will complete with a
+    * channel closed result.
+    *
+    * Subsequent [[send()]] and [[Source.receive()]] operations will return [[ChannelClosed]]..
+    *
+    * @param reason
+    *   The reason of the error.
+    *
+    * @return
+    *   Either `()`, or [[ChannelClosed]], when the channel is already closed.
+    */
+  def error(reason: Throwable): Unit | ChannelClosed = ChannelClosed.fromJoxOrUnit(delegate.errorSafe(reason))
+
+  /** Close the channel, indicating that no more elements will be sent. Doesn't throw exceptions when the channel is closed, but returns a
+    * value.
+    *
+    * Any elements that are already buffered will be delivered. Any send operations that are in progress will complete normally, when a
+    * receiver arrives. Any pending receive operations will complete with a channel closed result.
+    *
+    * Subsequent [[send()]] operations will return [[ChannelClosed]].
+    *
+    * @return
+    *   Either `()`, or [[ChannelClosed]], when the channel is already closed.
+    */
+  def done(): Unit | ChannelClosed = ChannelClosed.fromJoxOrUnit(delegate.doneSafe())
 
 //
 
-trait Channel[T] extends Source[T] with Sink[T]:
-  override def receive(): T | ChannelClosed = select(List(receiveClause)).map(_.value)
-  override def send(v: T): Unit | ChannelClosed = select(List(sendClause(v))).map(_.value)
-
-/** A channel with capacity 0, requiring that senders & receivers meet to exchange a value. */
-class DirectChannel[T] extends Channel[T]:
-
-  case class DirectSend(v: T) extends Send
-  override def sendClause(v: T): Send = DirectSend(v)
-
-  private val waitingReceives = ConcurrentLinkedQueue[CellCompleter[T]]()
-  private val waitingSends = ConcurrentLinkedQueue[(T, CellCompleter[Unit])]()
-  private[ox] val state = CurrentChannelState()
-
-  override private[ox] def receiveCellOffer(c: CellCompleter[T]): Unit = waitingReceives.offer(c)
-  override private[ox] def receiveCellCleanup(c: CellCompleter[T]): Boolean = waitingReceives.removeIf(c0 => sameCell(c0, c))
-
-  override private[ox] def sendCellOffer(v: T, c: CellCompleter[Unit]): Unit = waitingSends.offer((v, c))
-  override private[ox] def sendCellCleanup(c: CellCompleter[Unit]): Boolean =
-    waitingSends.removeIf((t: (T, CellCompleter[Unit])) => sameCell(t._2, c))
-
-  override private[ox] def trySatisfyWaiting(): Unit | ChannelClosed =
-    state.asResult() match
-      case () =>
-        while tryPairingSendsAndReceives() do ()
-        ()
-      case d @ ChannelClosed.Done =>
-        // when the channel is done, we still allow outstanding elements to be delivered
-        while tryPairingSendsAndReceives() do ()
-        d
-      case e: ChannelClosed.Error => e
-
-  @tailrec private def ownedWaitingSend(): (T, CellCompleter[Unit]) =
-    val cv = waitingSends.poll()
-    if cv == null then null
-    else if !cv._2.tryOwn() then ownedWaitingSend()
-    else cv
-
-  /** @return `true` if a send was paired up with a `receive` */
-  @tailrec private def tryPairingSendsAndReceives(): Boolean =
-    if waitingReceives.peek() != null && waitingSends.peek() != null
-    then
-      val c = waitingReceives.poll()
-      if c == null then false // somebody already handles the cell that we peeked at - we're done, no more cells
-      else if !c.tryOwn() then tryPairingSendsAndReceives() // cell already owned - try again
-      else
-        val cv2 = ownedWaitingSend()
-        if cv2 == null then
-          // somebody else already took the waiting send off the queue - creating a new cell as `c` is already used up
-          c.completeWithNewCell()
-          false // no more sends to pair up with
-        else
-          // both cells are "ours"
-          c.complete(Received(cv2._1))
-          cv2._2.complete(Sent())
-          true
-    else false
-
-  override private[ox] def trySatisfyReceive(c: CellCompleter[T]): Boolean | ChannelClosed =
-    def doTry(resultWhenNotSatisfied: Boolean | ChannelClosed) =
-      val cv2 = ownedWaitingSend()
-      if cv2 == null then resultWhenNotSatisfied
-      else
-        c.complete(Received(cv2._1))
-        cv2._2.complete(Sent())
-        true
-
-    state.asResult() match
-      case ()                     => doTry(false)
-      case ChannelClosed.Done     => doTry(ChannelClosed.Done)
-      case e: ChannelClosed.Error => e
-
-  override private[ox] def trySatisfySend(v: T, c: CellCompleter[Unit]): Boolean | ChannelClosed =
-    state.asResult() match
-      case () =>
-        val c2 = waitingReceives.poll()
-        if c2 == null then false
-        else
-          c.complete(Sent())
-          c2.complete(Received(v))
-          true
-      case ChannelClosed.Done     => ChannelClosed.Done
-      case e: ChannelClosed.Error => e
-
-  override def error(reason: Option[Throwable]): Unit | ChannelClosed =
-    state.error(reason).map { s =>
-      // completing all waiting cells
-      drainWaiting(waitingReceives, identity, s)
-      drainWaiting(waitingSends, _._2, s)
-    }
-
-  override def done(): Unit | ChannelClosed =
-    state.done().map { s =>
-      // we need a special method to drain `waitingReceives` to handle the cases when `done()` is called concurrently
-      // with `select(receive)`, so that any non-satisfiable receives are completed with a `Done`
-      drainWaitingReceivesWhenDone()
-
-      drainWaiting(waitingSends, _._2, s)
-    }
-
-  @tailrec private def drainWaitingReceivesWhenDone(): Unit =
-    val c = waitingReceives.poll()
-    if c == null then () // no more receives
-    else if !c.tryOwn() then drainWaitingReceivesWhenDone() // cell already owned - continue with next
-    else
-      val cv2 = ownedWaitingSend()
-      if cv2 == null
-      then c.completeWithClosed(ChannelState.Done) // no more elements - completing the cell with `Done`
-      else
-        c.complete(Received(cv2._1))
-        cv2._2.complete(Sent())
-      drainWaitingReceivesWhenDone()
-
-class BufferedChannel[T](capacity: Int = 1) extends Channel[T]:
-  require(capacity >= 1)
-
-  case class BufferedSend(v: T) extends Send
-  override def sendClause(v: T): Send = BufferedSend(v)
-
-  private val elements: BlockingQueue[T] = if capacity <= 1024 then ArrayBlockingQueue[T](capacity) else LinkedBlockingQueue[T](capacity)
-  private val waitingReceives = ConcurrentLinkedQueue[CellCompleter[T]]()
-  private val waitingSends = ConcurrentLinkedQueue[(T, CellCompleter[Unit])]()
-  private[ox] val state = CurrentChannelState()
-
-  override private[ox] def receiveCellOffer(c: CellCompleter[T]): Unit = waitingReceives.offer(c)
-  override private[ox] def receiveCellCleanup(c: CellCompleter[T]): Boolean = waitingReceives.removeIf(c0 => sameCell(c0, c))
-
-  override private[ox] def sendCellOffer(v: T, c: CellCompleter[Unit]): Unit = waitingSends.offer((v, c))
-  override private[ox] def sendCellCleanup(c: CellCompleter[Unit]): Boolean =
-    waitingSends.removeIf((t: (T, CellCompleter[Unit])) => sameCell(t._2, c))
-
-  // TODO invariant for send & select: either `elements` is empty or `waiting.filter(_.isOwned.get() == false)` is empty
-
-  override private[ox] def trySatisfyWaiting(): Unit | ChannelClosed =
-    state.asResult() match
-      case () =>
-        // any receive must be followed by an attempt to satisfy a send, and vice versa; an invocation of `trySatisfyWaiting()`
-        // from another thread might end up being a no-op, as the `elements` queue is full/empty, but because of concurrently
-        // running `select()`s, we might have both a pending receive/send that can be satisfied
-        while trySatisfyWaitingReceives() | trySatisfyWaitingSends() do () // important: a non-short-circuiting or
-        ()
-      case d @ ChannelClosed.Done =>
-        // when the channel is done, we still allow outstanding elements to be delivered; no new elements can be sent, though
-        // we have to try satisfying receives as long as there are any waiting ones, as the `trySatisfyWaiting()` calls for
-        // other `select()`s might be scheduled later
-        while trySatisfyWaitingReceives() do ()
-        d
-      case e: ChannelClosed.Error => e
-
-  /** @return `true` if a value was taken off the `elements` queue */
-  @tailrec private def trySatisfyWaitingReceives(): Boolean =
-    if waitingReceives.peek() != null && elements.peek() != null
-    then
-      // first trying to dequeue a cell; we might need to put back a new one & suspend the thread again, and this is
-      // only possible with cells: enqueueing back dequeued values into `elements` would break processing ordering
-      val c = waitingReceives.poll()
-      if c == null then false // somebody already handles the cell that we peeked at - we're done, no more cells
-      else if !c.tryOwn() then trySatisfyWaitingReceives() // cell already owned - try again
-      else
-        // the cell is "ours" - obtaining the element
-        val w = elements.poll()
-        if w == null then
-          // Somebody else already took the element; since this is "our" cell (we completed it), we can be sure that
-          // there's somebody waiting on it. Creating a new cell, and completing the old with a reference to it.
-          c.completeWithNewCell()
-          // Any new elements added while the cell was out of the waiting queue will be paired with cells when the
-          // `select` receives the clone
-          false
-        else
-          c.complete(Received(w)) // sending the element
-          true
-    else false
-
-  override private[ox] def trySatisfyReceive(c: CellCompleter[T]): Boolean | ChannelClosed =
-    def doTry(resultWhenNotSatisfied: Boolean | ChannelClosed) =
-      val w = elements.poll()
-      if w == null then resultWhenNotSatisfied
-      else
-        c.complete(Received(w))
-        true
-
-    state.asResult() match
-      case ()                     => doTry(false)
-      case ChannelClosed.Done     => doTry(ChannelClosed.Done)
-      case e: ChannelClosed.Error => e
-
-  /** @return `true` if a value was added to the `elements` queue */
-  @tailrec private def trySatisfyWaitingSends(): Boolean =
-    // the algorithm is similar as with trySatisfyWaitingReceives()
-    if waitingSends.peek() != null && elements.remainingCapacity() > 0
-    then
-      val cv = waitingSends.poll()
-      if cv == null then false // somebody already handles the cell that we peeked at - we're done, no more cells
-      else if !cv._2.tryOwn() then trySatisfyWaitingSends() // cell already owned - try again
-      // trying to append the element to the queue in a non-blocking way
-      else if elements.offer(cv._1) then
-        cv._2.complete(Sent())
-        true
-      else
-        cv._2.completeWithNewCell()
-        false
-    else false
-
-  override private[ox] def trySatisfySend(v: T, c: CellCompleter[Unit]): Boolean | ChannelClosed =
-    state.asResult() match
-      case () =>
-        if elements.offer(v) then
-          c.complete(Sent())
-          true
-        else false
-      case ChannelClosed.Done     => ChannelClosed.Done
-      case e: ChannelClosed.Error => e
-
-  override def error(reason: Option[Throwable]): Unit | ChannelClosed =
-    state.error(reason).map { s =>
-      // not delivering enqueued elements
-      elements.clear()
-      // completing all waiting cells
-      drainWaiting(waitingReceives, identity, s)
-      drainWaiting(waitingSends, _._2, s)
-    }
-
-  override def done(): Unit | ChannelClosed =
-    state.done().map { s =>
-      // leaving the elements intact so that they get delivered
-
-      // we need a special method to drain `waitingReceives` to handle the cases when `done()` is called concurrently
-      // with `select(receive)`; this method satisfies any waiting receives with pending elements, if they are available
-      drainWaitingReceivesWhenDone()
-
-      drainWaiting(waitingSends, _._2, s)
-    }
-
-  @tailrec private def drainWaitingReceivesWhenDone(): Unit =
-    val c = waitingReceives.poll()
-    if c == null then () // no more receives
-    else {
-      if !c.tryOwn()
-      then drainWaitingReceivesWhenDone() // cell already owned - continue with next
-      else
-        val w = elements.poll()
-        if w == null
-        then c.completeWithClosed(ChannelState.Done) // no more elements - completing the cell with `Done`
-        else c.complete(Received(w)) // sending the element
-        drainWaitingReceivesWhenDone()
-    }
-
-class CollectSource[T, U](s: Source[T], f: T => Option[U]) extends Source[U]:
-  private[ox] def state: CurrentChannelState = s.state
-  @tailrec final override def receive(): U | ChannelClosed = select(List(s.receiveClause)).map(_.value).map(f) match
-    case Some(u)          => u
-    case None             => receive()
-    case c: ChannelClosed => c
-  override private[ox] def receiveCellOffer(c: CellCompleter[U]): Unit = s.receiveCellOffer(createLinkedCell(c))
-  override private[ox] def receiveCellCleanup(c: CellCompleter[U]): Boolean = s.receiveCellCleanup(createLinkedCell(c))
-  override private[ox] def trySatisfyWaiting(): Unit | ChannelClosed = s.trySatisfyWaiting()
-  override private[ox] def trySatisfyReceive(c: CellCompleter[U]): Boolean | ChannelClosed = s.trySatisfyReceive(createLinkedCell(c))
-  private def createLinkedCell(c: CellCompleter[U]): CellCompleter[T] = LinkedCell(c, f, u => Received(u))
+/** Channel is a thread-safe data structure which exposes three basic operations:
+  *
+  *   - [[send]]-ing a value to the channel. Values can't be `null`.
+  *   - [[receive]]-ing a value from the channel
+  *   - closing the channel using [[done]] or [[error]]
+  *
+  * There are three channel flavors:
+  *
+  *   - rendezvous channels, where senders and receivers must meet to exchange values
+  *   - buffered channels, where a given number of sent values might be buffered, before subsequent `send`s block
+  *   - unlimited channels, where an unlimited number of values might be buffered, hence `send` never blocks
+  *
+  * Channels can be created using the channel's companion object. When no arguments are given, a rendezvous channel is created, while a
+  * buffered channel can be created by providing a positive integer to the [[Channel.apply]] method. A rendezvous channel behaves like a
+  * buffered channel with buffer size 0. An unlimited channel can be created using [[Channel.unlimited]].
+  *
+  * In a rendezvous channel, senders and receivers block, until a matching party arrives (unless one is already waiting). Similarly,
+  * buffered channels block if the buffer is full (in case of senders), or in case of receivers, if the buffer is empty and there are no
+  * waiting senders.
+  *
+  * All blocking operations behave properly upon interruption.
+  *
+  * Channels might be closed, either because no more values will be produced by the source (using [[done]]), or because there was an error
+  * while producing or processing the received values (using [[error]]).
+  *
+  * After closing, no more values can be sent to the channel. If the channel is "done", any pending sends will be completed normally. If the
+  * channel is in an "error" state, pending sends will be interrupted and will return with the reason for the closure.
+  *
+  * In case the channel is closed, one of the [[ChannelClosed]] values are returned. These can be converted to an exception by calling
+  * [[orThrow]] on a result which includes [[ChannelClosed]] as one of the components of the union type.
+  *
+  * @tparam T
+  *   The type of the values processed by the channel.
+  */
+class Channel[T](capacity: Int) extends Source[T] with Sink[T]:
+  protected override val delegate: JChannel[Any] = new JChannel(capacity)
 
 object Channel:
-  /** Creates direct or buffered channels. Channels up to a certain limit use an fixed-size-array backed queue otherwise they use a
-    * linked-list-based queue. To create an unbounded channel, pass in `Int.MaxValue` as the capacity.
-    */
-  def apply[T](capacity: Int = 0): Channel[T] = if capacity == 0 then DirectChannel() else BufferedChannel(capacity)
+  /** Creates a buffered channel (when capacity is positive), or a rendezvous channel if the capacity is 0. */
+  def apply[T](capacity: Int = 0): Channel[T] = new Channel(capacity)
 
-private class CurrentChannelState:
-  private val state = AtomicReference[ChannelState](ChannelState.Open)
-
-  def asResult(): Unit | ChannelClosed = state.get() match
-    case ChannelState.Open     => ()
-    case ChannelState.Done     => ChannelClosed.Done
-    case ChannelState.Error(r) => ChannelClosed.Error(r)
-
-  def get(): ChannelState = state.get()
-
-  private def set(s: ChannelState.Closed): ChannelState.Closed | ChannelClosed =
-    // only first state change from open is valid
-    if !state.compareAndSet(ChannelState.Open, s) then state.get().asInstanceOf[ChannelState.Closed].toResult
-    else s
-
-  def error(reason: Option[Throwable]): ChannelState.Closed | ChannelClosed = set(ChannelState.Error(reason))
-  def done(): ChannelState.Closed | ChannelClosed = set(ChannelState.Done)
-
-@tailrec
-private def drainWaiting[T](waiting: ConcurrentLinkedQueue[T], toCell: T => CellCompleter[_], s: ChannelState.Closed): Unit =
-  val c = waiting.poll()
-  if c != null then
-    val cell = toCell(c)
-    if cell.tryOwn() then cell.completeWithClosed(s)
-    drainWaiting(waiting, toCell, s)
+  /** Creates an unlimited channel (which can buffer an arbitrary number of elements). */
+  def unlimited[T]: Channel[T] = new Channel(-1)

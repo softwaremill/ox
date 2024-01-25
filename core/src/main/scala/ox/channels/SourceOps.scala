@@ -1,5 +1,6 @@
 package ox.channels
 
+import com.softwaremill.jox.Source as JSource
 import ox.*
 
 import java.util
@@ -9,15 +10,68 @@ import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{ExecutionContext, ExecutionException, Future}
 import scala.util.{Failure, Success}
 
-trait SourceOps[+T] { this: Source[T] =>
+trait SourceOps[+T] { outer: Source[T] =>
   // view ops (lazy)
 
-  def mapAsView[U](f: T => U): Source[U] = CollectSource(this, t => Some(f(t)))
-  def filterAsView(f: T => Boolean): Source[T] = CollectSource(this, t => if f(t) then Some(t) else None)
-  def collectAsView[U](f: PartialFunction[T, U]): Source[U] = CollectSource(this, f.lift)
+  /** Lazily-evaluated map: creates a view of this source, where the results of [[receive]] will be transformed using the given function
+    * `f`. For an eager version, see [[map]].
+    *
+    * The same logic applies to receive clauses created using this source, which can be used in [[select]].
+    *
+    * @param f
+    *   The mapping function. Results should not be `null`.
+    * @return
+    *   A source which is a view of this source, with the mapping function applied.
+    */
+  def mapAsView[U](f: T => U): Source[U] = new Source[U] {
+    override val delegate: JSource[Any] = outer.delegate.asInstanceOf[JSource[T]].collectAsView(t => f(t))
+  }
+
+  /** Lazily-evaluated filter: Creates a view of this source, where the results of [[receive]] will be filtered using the given predicate
+    * `p`. For an eager version, see [[filter]].
+    *
+    * The same logic applies to receive clauses created using this source, which can be used in [[select]].
+    *
+    * @param p
+    *   The predicate to use for filtering.
+    * @return
+    *   A source which is a view of this source, with the filtering function applied.
+    */
+  def filterAsView(f: T => Boolean): Source[T] = new Source[T] {
+    override val delegate: JSource[Any] = outer.delegate.filterAsView(t => f(t.asInstanceOf[T]))
+  }
+
+  /** Creates a view of this source, where the results of [[receive]] will be transformed using the given function `f`. If the function is
+    * not defined at an element, the element will be skipped.
+    *
+    * The same logic applies to receive clauses created using this source, which can be used in [[select]].
+    *
+    * @param f
+    *   The collecting function. Results should not be `null`.
+    * @return
+    *   A source which is a view of this source, with the collecting function applied.
+    */
+  def collectAsView[U](f: PartialFunction[T, U]): Source[U] = new Source[U] {
+    override val delegate: JSource[Any] = outer.delegate.collectAsView(t => f.applyOrElse(t.asInstanceOf[T], _ => null))
+  }
 
   // run ops (eager)
 
+  /** Applies the given mapping function `f` to each element received from this source, and sends the results to the returned channel.
+    *
+    * Errors from this channel are propagated to the returned channel. Any exceptions that occur when invoking `f` are propagated as errors
+    * to the returned channel as wel.
+    *
+    * Must be run within a scope, as a child fork is created, which receives from this source and sends the mapped values to the resulting
+    * one.
+    *
+    * For a lazily-evaluated version, see [[mapAsView]].
+    *
+    * @param f
+    *   The mapping function.
+    * @return
+    *   A source, onto which results of the mapping function will be sent.
+    */
   def map[U](f: T => U)(using Ox, StageCapacity): Source[U] =
     val c2 = StageCapacity.newChannel[U]
     forkDaemon {
@@ -332,8 +386,6 @@ trait SourceOps[+T] { this: Source[T] =>
     }
     c
 
-  //
-
   /** Sends a given number of elements (determined byc `segmentSize`) from this source to the returned channel, then sends the same number
     * of elements from the `other` source and repeats. The order of elements in both sources is preserved.
     *
@@ -368,6 +420,8 @@ trait SourceOps[+T] { this: Source[T] =>
     */
   def interleave[U >: T](other: Source[U], segmentSize: Int = 1, eagerComplete: Boolean = false)(using Ox, StageCapacity): Source[U] =
     Source.interleaveAll(List(this, other), segmentSize, eagerComplete)
+
+  //
 
   /** Invokes the given function for each received element. Blocks until the channel is done.
     * @throws ChannelClosedException
@@ -938,7 +992,7 @@ trait SourceCompanionOps:
     c
 
   def empty[T]: Source[T] =
-    val c = DirectChannel()
+    val c = Channel[T]()
     c.done()
     c
 
@@ -1042,7 +1096,7 @@ trait SourceCompanionOps:
     *   supervised {
     *     Source
     *       .future(Future.failed(new RuntimeException("future failed")))
-    *       .receive()                               // ChannelClosed.Error(Some(java.lang.RuntimeException: future failed))
+    *       .receive()                               // ChannelClosed.Error(java.lang.RuntimeException: future failed)
     *     Source.future(Future.successful(1)).toList // List(1)
     *   }
     *   }}}
@@ -1071,7 +1125,7 @@ trait SourceCompanionOps:
     *   supervised {
     *     Source
     *       .futureSource(Future.failed(new RuntimeException("future failed")))
-    *       .receive()                                                           // ChannelClosed.Error(Some(java.lang.RuntimeException: future failed))
+    *       .receive()                                                           // ChannelClosed.Error(java.lang.RuntimeException: future failed)
     *     Source.futureSource(Future.successful(Source.fromValues(1, 2))).toList // List(1, 2)
     *   }
     *   }}}
@@ -1106,16 +1160,6 @@ trait SourceCompanionOps:
     *   A source that would fail immediately with the given [[java.lang.Throwable]]
     */
   def failed[T](t: Throwable): Source[T] =
-    val c = DirectChannel[T]()
+    val c = Channel[T]()
     c.error(t)
-    c
-
-  /** Creates a source that fails immediately
-    *
-    * @return
-    *   A source that would fail immediately
-    */
-  private[channels] def failedWithoutReason[T](): Source[T] =
-    val c = DirectChannel[T]()
-    c.error(None)
     c

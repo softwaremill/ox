@@ -38,7 +38,7 @@ class SourceOpsMapStatefulTest extends AnyFlatSpec with Matchers {
     s.receive() shouldBe "a"
     s.receive() shouldBe "b"
     s.receive() should matchPattern {
-      case ChannelClosed.Error(Some(reason)) if reason.getMessage == "boom" =>
+      case ChannelClosed.Error(reason) if reason.getMessage == "boom" =>
     }
   }
 
@@ -54,7 +54,7 @@ class SourceOpsMapStatefulTest extends AnyFlatSpec with Matchers {
     s.receive() shouldBe "b"
     s.receive() shouldBe "c"
     s.receive() should matchPattern {
-      case ChannelClosed.Error(Some(reason)) if reason.getMessage == "boom" =>
+      case ChannelClosed.Error(reason) if reason.getMessage == "boom" =>
     }
   }
 }

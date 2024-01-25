@@ -21,6 +21,6 @@ class SourceOpsOrElseTest extends AnyFlatSpec with Matchers {
 
   it should "return failed source when the original source is failed" in supervised {
     val failure = new RuntimeException()
-    Source.failed(failure).orElse(Source.fromValues(2, 3)).receive() shouldBe ChannelClosed.Error(Some(failure))
+    Source.failed(failure).orElse(Source.fromValues(2, 3)).receive() shouldBe ChannelClosed.Error(failure)
   }
 }

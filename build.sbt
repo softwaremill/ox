@@ -8,7 +8,7 @@ lazy val commonSettings = commonSmlBuildSettings ++ ossPublishSettings ++ Seq(
 
 val scalaTest = "org.scalatest" %% "scalatest" % "3.2.15" % Test
 val slf4j = "org.slf4j" % "slf4j-api" % "2.0.7"
-val logback = "ch.qos.logback" % "logback-classic" % "1.4.7"
+val logback = "ch.qos.logback" % "logback-classic" % "1.4.12"
 
 lazy val rootProject = (project in file("."))
   .settings(commonSettings)
@@ -20,6 +20,7 @@ lazy val core: Project = (project in file("core"))
   .settings(
     name := "core",
     libraryDependencies ++= Seq(
+      "com.softwaremill.jox" % "core" % "0.0.6",
       scalaTest
     )
   )

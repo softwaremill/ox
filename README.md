@@ -5,7 +5,7 @@ Safe direct-style concurrency and resiliency for Scala on the JVM, based on:
 * [Project Loom](https://openjdk.org/projects/loom/) (virtual threads)
 * structured concurrency Java APIs ([JEP 428](https://openjdk.org/jeps/428)) 
 * scoped values ([JEP 429](https://openjdk.org/jeps/429))
-* [Go](https://golang.org)-like channels
+* fast, scalable [Go](https://golang.org)-like channels using [jox](https://github.com/softwaremill/jox)
 * the [Scala 3](https://www.scala-lang.org) programming language
 
 Requires JDK 21.
@@ -803,6 +803,7 @@ supervised {
 
 How we use various terms throughout the codebase (or at least try to):
 
+* **concurrency scope**: either `supervised` (default) or `scoped` ("advanced")
 * a scope **ends**: when unsupervised, the main code block is entirely evaluated; when supervised, all non-daemon, 
   supervised forks completed successfully, or at least one supervised fork failed. When the scope ends, all running
   forks are interrupted
@@ -832,4 +833,4 @@ We offer commercial development services. [Contact us](https://softwaremill.com)
 
 ## Copyright
 
-Copyright (C) 2023 SoftwareMill [https://softwaremill.com](https://softwaremill.com).
+Copyright (C) 2023-2024 SoftwareMill [https://softwaremill.com](https://softwaremill.com).
