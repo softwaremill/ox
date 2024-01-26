@@ -20,7 +20,7 @@ lazy val core: Project = (project in file("core"))
   .settings(
     name := "core",
     libraryDependencies ++= Seq(
-      "com.softwaremill.jox" % "core" % "0.0.6",
+      "com.softwaremill.jox" % "core" % "0.0.7",
       scalaTest
     )
   )

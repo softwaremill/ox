@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import scala.jdk.CollectionConverters.*
 
 class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
-  List(0, 1, 2, 10000).foreach { capacity =>
+  List(0, 1, 2, 100, 10000).foreach { capacity =>
     s"channel with capacity $capacity" should "send and receive two spaced elements" in {
       val c = Channel[Int](capacity)
       scoped {
