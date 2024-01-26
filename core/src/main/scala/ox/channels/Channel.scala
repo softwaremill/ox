@@ -229,6 +229,7 @@ trait Sink[-T] extends ChannelState:
   */
 class Channel[T](capacity: Int) extends Source[T] with Sink[T]:
   protected override val delegate: JChannel[Any] = new JChannel(capacity)
+  override def toString: String = delegate.toString
 
 object Channel:
   /** Creates a buffered channel (when capacity is positive), or a rendezvous channel if the capacity is 0. */
