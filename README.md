@@ -515,10 +515,9 @@ To run multiple transformations within one virtual thread / fork, the `.transfor
 
 ```scala
 import ox.supervised
-import ox.channels.{Channel, Source}
+import ox.channels.Source
 
 supervised {
-  val c = Channel[Int]()
   fork {
     Source.iterate(0)(_ + 1) // natural numbers
       .transform(_.filter(_ % 2 == 0).map(_ + 1).take(10)) // take the 10 first even numbers, incremented by 1
