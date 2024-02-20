@@ -26,7 +26,7 @@ object KafkaDrain:
 
     try
       repeatWhile {
-        select(producerExceptions.receiveClause, source.receiveOrDoneClause) match // bias on exceptions
+        select(producerExceptions.receiveClause, source.receiveClause) match // bias on exceptions
           case e: ChannelClosed.Error         => throw e.toThrowable
           case ChannelClosed.Done             => false // source must be done, as producerExceptions is never done
           case producerExceptions.Received(e) => throw e
@@ -71,7 +71,7 @@ object KafkaDrain:
         })
 
         repeatWhile {
-          select(exceptions.receiveClause, source.receiveOrDoneClause) match
+          select(exceptions.receiveClause, source.receiveClause) match
             case e: ChannelClosed.Error =>
               logger.debug(s"Stopping publishing: upstream closed due to an error ($e).")
               throw e.toThrowable

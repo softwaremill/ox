@@ -317,10 +317,21 @@ trait SourceOps[+T] { outer: Source[T] =>
 
   def merge[U >: T](other: Source[U])(using Ox, StageCapacity): Source[U] =
     val c = StageCapacity.newChannel[U]
+
+    def drainFrom(toDrain: Source[U]): Unit =
+      repeatWhile {
+        toDrain.receive() match
+          case ChannelClosed.Done     => c.done(); false
+          case ChannelClosed.Error(r) => c.error(r); false
+          case t: U @unchecked        => c.send(t).isValue
+      }
+
     forkDaemon {
       repeatWhile {
         select(this, other) match
-          case ChannelClosed.Done     => c.done(); false
+          case ChannelClosed.Done =>
+            if this.isClosedForReceive then drainFrom(other) else drainFrom(this)
+            false
           case ChannelClosed.Error(r) => c.error(r); false
           case r: U @unchecked        => c.send(r).isValue
       }

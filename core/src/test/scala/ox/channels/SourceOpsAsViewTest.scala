@@ -31,12 +31,11 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually {
     }
   }
 
-  it should "return done, if all channels are done" in {
+  it should "return done, if a channels is done immediately" in {
     val c1: Channel[Int] = Channel()
     val c2: Channel[Int] = Channel()
 
     c1.done()
-    c2.done()
 
     val s1 = c1.mapAsView(_ + 1)
     val s2 = c2.mapAsView(_ + 1)
@@ -53,27 +52,19 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually {
         c1.send(10)
         c1.send(20)
         c1.send(30)
-        c1.done()
       }
 
       fork {
         c2.send(100)
         c2.send(200)
         c2.send(300)
-        c2.done()
       }
 
       val s1 = c1.mapAsView(_ + 1)
       val s2 = c2.mapAsView(_ + 1)
 
-      (for (_ <- 1 to 7) yield select(s1.receiveClause, s2.receiveClause).map(_.value)).toSet shouldBe Set(
-        101,
-        201,
-        301,
-        11,
-        21,
-        31,
-        ChannelClosed.Done
+      (for (_ <- 1 to 6) yield select(s1.receiveClause, s2.receiveClause).map(_.value)).toSet shouldBe Set(
+        101, 201, 301, 11, 21, 31
       )
     }
   }
@@ -101,35 +92,33 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually {
     val c1: Channel[Int] = Channel()
     val c2: Channel[Int] = Channel()
 
-    scoped {
-      fork {
+    supervised {
+      forkDaemon {
         c1.send(1)
         c1.send(2)
         c1.send(3)
         c1.send(4)
-        c1.done()
       }
 
-      fork {
+      forkDaemon {
         c2.send(11)
         c2.send(12)
         c2.send(13)
         c2.send(14)
-        c2.done()
       }
 
       val s1 = c1.filterAsView(_ % 2 == 0)
       val s2 = c2.filterAsView(_ % 2 == 0)
 
-      (for (_ <- 1 to 5) yield select(s1.receiveClause, s2.receiveClause).map(_.value)).toSet shouldBe Set(2, 4, 12, 14, ChannelClosed.Done)
+      (for (_ <- 1 to 4) yield select(s1.receiveClause, s2.receiveClause).map(_.value)).toSet shouldBe Set(2, 4, 12, 14)
     }
   }
 
   it should "propagate exceptions to the calling select" in {
     val c: Channel[Int] = Channel()
 
-    scoped {
-      fork {
+    supervised {
+      forkDaemon {
         c.send(1)
         c.send(2)
         c.send(3)
@@ -137,7 +126,7 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually {
         c.done()
       }
 
-      val c1 = Channel(); c1.done()
+      val c1 = Channel();
       val s2 = c.filterAsView(v => if v % 2 == 0 then true else throw new RuntimeException("test"))
 
       Try(select(c1.receiveClause, s2.receiveClause)) should matchPattern { case Failure(e) if e.getMessage == "test" => }

@@ -2,7 +2,6 @@ package ox.channels
 
 import com.softwaremill.jox.{
   Channel as JChannel,
-  CloseableChannel as JCloseableChannel,
   Select as JSelect,
   SelectClause as JSelectClause,
   Sink as JSink,
@@ -60,44 +59,9 @@ extension [T](v: T | ChannelClosed)
 
 //
 
-/** Allows querying the channel for its closed status.
-  *
-  * A channel can be closed in two ways:
-  *
-  *   - using [[Sink.done]], indicating that no more elements will be sent
-  *   - using [[Sink.error]], indicating an error
-  */
-trait ChannelState:
-  protected def delegate: JCloseableChannel
-
-  /** @return `true` if the channel is closed using [[Sink.done()]] or [[Sink.error()]]. */
-  def isClosed: Boolean = delegate.isClosed
-
-  /** @return `true` if the channel is closed using [[Sink.done()]]. `false` if it's not closed, or closed with an error. */
-  def isDone: Boolean = delegate.isDone
-
-  /** @return `true` if the channel is closed using [[Sink.error()]]. `false` if it's not closed, or is done. */
-  def isError: Boolean = delegate.isError != null
-
-  /** @return
-    *   `Some`, with details on why the channel is closed (using [[Sink.done()]] or [[Sink.error()]]), or `None` if the channel is not
-    *   closed.
-    */
-  def isClosedDetail: Option[ChannelClosed] =
-    if delegate.isDone then Some(ChannelClosed.Done)
-    else isErrorDetail
-
-  /** @return
-    *   `Some`, with details on the channel's error (provided using [[Sink.error()]]), or `None` if the channel is not closed or is done.
-    */
-  def isErrorDetail: Option[ChannelClosed.Error] =
-    delegate.isError match
-      case null => None
-      case t    => Some(ChannelClosed.Error(t))
-
 /** A channel source, which can be used to receive values from the channel. See [[Channel]] for more details. */
-trait Source[+T] extends SourceOps[T] with ChannelState:
-  protected override def delegate: JSource[Any] // we need to use `Any` as the java types are invariant (they use use-site variance)
+trait Source[+T] extends SourceOps[T]:
+  protected def delegate: JSource[Any] // we need to use `Any` as the java types are invariant (they use use-site variance)
 
   // Skipping variance checks here is fine, as the only way a `Received` instance is created is by this Source (Channel),
   // so no values of super-types of T which are not the original T will ever be provided
@@ -108,17 +72,8 @@ trait Source[+T] extends SourceOps[T] with ChannelState:
   case class Receive private[channels] (delegate: JSelectClause[Any]) extends SelectClause[T]:
     type Result = Received
 
-  /** Create a clause which can be used in [[select]]. The clause will receive a value from the current channel.
-    *
-    * If the source is/becomes done, [[select]] will restart with channels that are not done yet.
-    */
+  /** Create a clause which can be used in [[select]]. The clause will receive a value from the current channel. */
   def receiveClause: Receive = Receive(delegate.receiveClause(t => Received(t.asInstanceOf[T])))
-
-  /** Create a clause which can be used in [[select]]. The clause will receive a value from the current channel.
-    *
-    * If the source is/becomes done, [[select]] will stop and return a [[ChannelClosed.Done]] value.
-    */
-  def receiveOrDoneClause: Receive = Receive(delegate.receiveOrDoneClause(t => Received(t.asInstanceOf[T])))
 
   /** Receive a value from the channel. To throw an exception when the channel is closed, use [[orThrow]].
     *
@@ -126,6 +81,18 @@ trait Source[+T] extends SourceOps[T] with ChannelState:
     *   Either a value of type `T`, or [[ChannelClosed]], when the channel is closed.
     */
   def receive(): T | ChannelClosed = ChannelClosed.fromJoxOrT(delegate.receiveSafe())
+
+  /** @return
+   *   `true` if no more values can be received from this channel; [[Source.receive()]] will return [[ChannelClosed]]. When closed for
+   *   receive, sending values is also not possible, [[isClosedForSend]] will return `true`.
+   */
+  def isClosedForReceive: Boolean = delegate.isClosedForReceive
+
+  /** @return
+   *   `Some` if no more values can be received from this channel; [[Source.receive()]] will return [[ChannelClosed]]. When closed for
+   *   receive, sending values is also not possible, [[isClosedForSend]] will return `true`.
+   */
+  def isClosedForReceiveDetail: Option[ChannelClosed] = Option(ChannelClosed.fromJoxOrT(delegate.closedForReceive()))
 
 /** Various operations which allow creating [[Source]] instances.
   *
@@ -136,8 +103,8 @@ object Source extends SourceCompanionOps
 //
 
 /** A channel sink, which can be used to send values to the channel. See [[Channel]] for more details. */
-trait Sink[-T] extends ChannelState:
-  protected override def delegate: JSink[Any] // we need to use `Any` as the java types are invariant (they use use-site variance)
+trait Sink[-T]:
+  protected def delegate: JSink[Any] // we need to use `Any` as the java types are invariant (they use use-site variance)
 
   /** Holds the result of a [[sendClause]] that was selected during a call to [[select]]. */
   case class Sent private[channels] () extends SelectResult[Unit]:
@@ -190,6 +157,20 @@ trait Sink[-T] extends ChannelState:
     *   Either `()`, or [[ChannelClosed]], when the channel is already closed.
     */
   def done(): Unit | ChannelClosed = ChannelClosed.fromJoxOrUnit(delegate.doneSafe())
+
+  /** @return
+   * `true` if no more values can be sent to this channel; [[Sink.send()]] will return [[ChannelClosed]]. When closed for send, receiving
+   * using [[Source.receive()]] might still be possible, if the channel is done, and not in an error. This can be verified using
+   * [[isClosedForReceive]].
+   */
+  def isClosedForSend: Boolean = delegate.isClosedForSend
+
+  /** @return
+   * `Some` if no more values can be sent to this channel; [[Sink.send()]] will return [[ChannelClosed]]. When closed for send, receiving
+   * using [[Source.receive()]] might still be possible, if the channel is done, and not in an error. This can be verified using
+   * [[isClosedForReceive]].
+   */
+  def isClosedForSendDetail: Option[ChannelClosed] = Option(ChannelClosed.fromJoxOrT(delegate.closedForSend()))
 
 //
 

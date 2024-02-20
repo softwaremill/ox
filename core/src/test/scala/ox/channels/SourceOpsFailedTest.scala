@@ -17,6 +17,6 @@ class SourceOpsFailedTest extends AnyFlatSpec with Matchers {
   }
 
   it should "be in error" in scoped {
-    Source.failed(RuntimeException("boom")).isError shouldBe true
+    Source.failed(RuntimeException("boom")).isClosedForReceive shouldBe true
   }
 }
