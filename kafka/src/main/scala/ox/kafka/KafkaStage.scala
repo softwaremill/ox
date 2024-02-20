@@ -55,7 +55,7 @@ object KafkaStage:
             if commitOffsets then fork(tapException(doCommit(toCommit))(c.error))
 
             repeatWhile {
-              select(exceptions.receiveClause, metadata.receiveClause, source.receiveOrDoneClause) match
+              select(exceptions.receiveClause, metadata.receiveClause, source.receiveClause) match
                 case ChannelClosed.Error(r)    => c.error(r); false
                 case ChannelClosed.Done        => sendInSequence.drainFromThenDone(exceptions, metadata); false
                 case exceptions.Received(e)    => c.error(e); false

@@ -665,14 +665,10 @@ what is missing. Similarly, there will be a warning in case of an unneeded, extr
 
 ### Closed channels (done / error)
 
-If any of the channels is (or becomes) in an error state, `select` returns with that error. If all channels are done,
-by default `select` returns with a `Done` as well.
+If any of the channels is, or becomes, closed (in an error state / done), `select` returns with that error / done state.
 
-However, a variant of the receive clause, namely `source.receiveOrDoneClause`, will cause a `Done` to be returned from
-the select, if that source is done (instead of waiting for another clause to become satisfied).
-
-It is possible to inspect which channel is in a closed state by using the `.isDone`, `.isError` and `.isClosed` methods
-(plus detailed variants).
+It is possible to inspect which channel is in a closed state by using the `.isClosedForSend` and `.isClosedForReceive` 
+methods (plus detailed variants).
 
 ### Default clauses
 

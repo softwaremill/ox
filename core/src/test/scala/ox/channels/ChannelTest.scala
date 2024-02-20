@@ -129,62 +129,57 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
       val c1 = Channel[Int](capacity)
       val c2 = Channel[Int](capacity)
       val c3 = Channel[Int](capacity)
+      val c4 = Channel[Int](capacity)
 
-      // when
-      c1.done()
-      c2.error(new RuntimeException())
+      supervised {
+        forkDaemon {
+          c2.send(10)
+        }
+        Thread.sleep(100) // wait for the send to suspend
 
-      // then
-      c1.isDone shouldBe true
-      c2.isDone shouldBe false
-      c3.isDone shouldBe false
+        // when
+        c1.done() // done, and no values pending to receive
+        c2.done() // done, and values pending
+        c3.error(new RuntimeException())
 
-      c1.isError shouldBe false
-      c2.isError shouldBe true
-      c3.isError shouldBe false
+        // then
+        c1.isClosedForReceive shouldBe true
+        c2.isClosedForReceive shouldBe false
+        c3.isClosedForReceive shouldBe true
+        c4.isClosedForReceive shouldBe false
 
-      c1.isClosed shouldBe true
-      c2.isClosed shouldBe true
-      c3.isClosed shouldBe false
+        c1.isClosedForSend shouldBe true
+        c2.isClosedForSend shouldBe true
+        c3.isClosedForSend shouldBe true
+        c4.isClosedForSend shouldBe false
 
-      c1.isClosedDetail should matchPattern { case Some(_) => }
-      c2.isClosedDetail should matchPattern { case Some(_) => }
-      c3.isClosedDetail shouldBe None
+        c1.isClosedForReceiveDetail should matchPattern { case Some(_) => }
+        c2.isClosedForReceiveDetail shouldBe None
+        c3.isClosedForReceiveDetail should matchPattern { case Some(_) => }
+        c4.isClosedForReceiveDetail shouldBe None
 
-      c1.isErrorDetail shouldBe None
-      c2.isErrorDetail should matchPattern { case Some(_) => }
-      c3.isErrorDetail shouldBe None
+        c1.isClosedForSendDetail should matchPattern { case Some(_) => }
+        c2.isClosedForSendDetail should matchPattern { case Some(_) => }
+        c3.isClosedForSendDetail should matchPattern { case Some(_) => }
+        c4.isClosedForSendDetail shouldBe None
+      }
     }
 
-    it should "skip channels, which are done immediately" in {
+    it should "select from a non-done channel, if a value is immediately available" in {
       val c1 = Channel[Int](capacity)
       val c2 = Channel[Int](capacity)
       scoped {
         fork {
-          c1.done()
-          c2.send(1)
+          c1.send(1)
+          c2.done()
         }
 
         Thread.sleep(100) // let the fork progress
-        select(c1.receiveClause, c2.receiveClause).orThrow shouldBe c2.Received(1)
+        select(c1.receiveClause, c2.receiveClause).orThrow shouldBe c1.Received(1)
       }
     }
 
-    it should "skip channels, which become done" in {
-      val c1 = Channel[Int](capacity)
-      val c2 = Channel[Int](capacity)
-      scoped {
-        fork {
-          Thread.sleep(100) // let the select block
-          c1.done()
-          c2.send(1)
-        }
-
-        select(c1.receiveClause, c2.receiveClause).orThrow shouldBe c2.Received(1)
-      }
-    }
-
-    it should "not skip channels, which are done immediately, when requested" in {
+    it should "select a done channel, when the channel is done immediately" in {
       val c1 = Channel[Int](capacity)
       val c2 = Channel[Int](capacity)
       scoped {
@@ -193,11 +188,11 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
         }
 
         Thread.sleep(100) // let the fork progress
-        select(c1.receiveClause, c2.receiveOrDoneClause) shouldBe ChannelClosed.Done
+        select(c1, c2) shouldBe ChannelClosed.Done
       }
     }
 
-    it should "not skip channels, which become done, when requested" in {
+    it should "select a done channel, when the channel becomes done" in {
       val c1 = Channel[Int](capacity)
       val c2 = Channel[Int](capacity)
       scoped {
@@ -206,7 +201,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
           c2.done()
         }
 
-        select(c1.receiveClause, c2.receiveOrDoneClause) shouldBe ChannelClosed.Done
+        select(c1, c2) shouldBe ChannelClosed.Done
       }
     }
   }
@@ -240,16 +235,6 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
 
     c.receive() should matchPattern { case _: ChannelClosed.Error => }
     c.receive() should matchPattern { case _: ChannelClosed.Error => } // repeat
-  }
-
-  it should "select a receive from a channel if one is not done" in {
-    val c1 = Channel[Int]()
-    c1.done()
-
-    val c2 = Channel[Int](1)
-    c2.send(1)
-
-    select(c1.receiveClause, c2.receiveClause).map(_.value) shouldBe 1
   }
 
   "direct channel" should "wait until elements are transmitted" in {
@@ -322,12 +307,6 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     select(c2.receiveClause, Default(10)) shouldBe DefaultResult(10)
   }
 
-  it should "use the default value if all channels are done" in {
-    val c1 = Channel[Int](0)
-    c1.done()
-    select(c1.receiveClause, Default(10)) shouldBe DefaultResult(10)
-  }
-
   it should "not use the default value if a clause is satisfiable" in {
     val c1 = Channel[Int](1)
     c1.send(5)
@@ -337,10 +316,10 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     select(c2.sendClause(5), Default(10)) shouldBe c2.Sent()
   }
 
-  it should "not use the default value if the channel is done, and a receiveOrDone clause is used" in {
+  it should "not use the default value if the channel is done" in {
     val c1 = Channel[Int](1)
     c1.done()
-    select(c1.receiveOrDoneClause, Default(10)) shouldBe ChannelClosed.Done
+    select(c1.receiveClause, Default(10)) shouldBe ChannelClosed.Done
   }
 
   it should "use the default value once a source is done (buffered channel, stress test)" in {

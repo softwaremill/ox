@@ -9,7 +9,7 @@ class SourceOpsEmptyTest extends AnyFlatSpec with Matchers {
   behavior of "Source.empty"
 
   it should "be done" in scoped {
-    Source.empty.isDone shouldBe true
+    Source.empty.isClosedForReceive shouldBe true
   }
 
   it should "be empty" in scoped {
