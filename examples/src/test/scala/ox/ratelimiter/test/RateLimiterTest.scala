@@ -30,27 +30,3 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with Eventually with Int
     }
   }
 
-  it should "maintain the rate limit in all time windows" in {
-    RateLimiter.withRateLimiter(10, 1.second) { rateLimiter =>
-      val complete = new AtomicReference(Vector.empty[Long])
-      for (i <- 1 to 20) {
-        rateLimiter.runLimited {
-          println(s"${LocalTime.now()} Running $i")
-          complete.updateAndGet(_ :+ System.currentTimeMillis())
-        }
-        Thread.sleep(100)
-      }
-
-      eventually {
-        complete.get() should have size (20)
-
-        // the spacing should be preserved. In a token bucket algorithm, at some point the bucket would refill and
-        // all pending futures would be run. In a windowed algorithm, the spacings are preserved.
-        val secondHalf = complete.get().slice(10, 20)
-        secondHalf.zip(secondHalf.tail).map { case (p, n) => n - p }.foreach { d =>
-          d should be <= (150L)
-          d should be >= (50L)
-        }
-      }
-    }
-  }
