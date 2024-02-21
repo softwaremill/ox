@@ -1,12 +1,6 @@
 package ox.channels
 
-import com.softwaremill.jox.{
-  Channel as JChannel,
-  Select as JSelect,
-  SelectClause as JSelectClause,
-  Sink as JSink,
-  Source as JSource
-}
+import com.softwaremill.jox.{Channel as JChannel, Select as JSelect, SelectClause as JSelectClause, Sink as JSink, Source as JSource}
 
 import scala.annotation.unchecked.uncheckedVariance
 
@@ -83,15 +77,20 @@ trait Source[+T] extends SourceOps[T]:
   def receive(): T | ChannelClosed = ChannelClosed.fromJoxOrT(delegate.receiveSafe())
 
   /** @return
-   *   `true` if no more values can be received from this channel; [[Source.receive()]] will return [[ChannelClosed]]. When closed for
-   *   receive, sending values is also not possible, [[isClosedForSend]] will return `true`.
-   */
+    *   `true` if no more values can be received from this channel; [[Source.receive()]] will return [[ChannelClosed]]. When closed for
+    *   receive, sending values is also not possible, [[isClosedForSend]] will return `true`.
+    *
+    * @return
+    *   `false`, if more values '''might''' be received from the channel, when calling [[Source.receive()]]. However, it's not guaranteed
+    *   that some values will be available. They might be received concurrently, or filtered out if the channel is created using
+    *   [[Source.mapAsView()]], [[Source.filterAsView()]] or [[Source.collectAsView()]].
+    */
   def isClosedForReceive: Boolean = delegate.isClosedForReceive
 
   /** @return
-   *   `Some` if no more values can be received from this channel; [[Source.receive()]] will return [[ChannelClosed]]. When closed for
-   *   receive, sending values is also not possible, [[isClosedForSend]] will return `true`.
-   */
+    *   `Some` if no more values can be received from this channel; [[Source.receive()]] will return [[ChannelClosed]]. When closed for
+    *   receive, sending values is also not possible, [[isClosedForSend]] will return `true`.
+    */
   def isClosedForReceiveDetail: Option[ChannelClosed] = Option(ChannelClosed.fromJoxOrT(delegate.closedForReceive()))
 
 /** Various operations which allow creating [[Source]] instances.
@@ -159,17 +158,17 @@ trait Sink[-T]:
   def done(): Unit | ChannelClosed = ChannelClosed.fromJoxOrUnit(delegate.doneSafe())
 
   /** @return
-   * `true` if no more values can be sent to this channel; [[Sink.send()]] will return [[ChannelClosed]]. When closed for send, receiving
-   * using [[Source.receive()]] might still be possible, if the channel is done, and not in an error. This can be verified using
-   * [[isClosedForReceive]].
-   */
+    *   `true` if no more values can be sent to this channel; [[Sink.send()]] will return [[ChannelClosed]]. When closed for send, receiving
+    *   using [[Source.receive()]] might still be possible, if the channel is done, and not in an error. This can be verified using
+    *   [[isClosedForReceive]].
+    */
   def isClosedForSend: Boolean = delegate.isClosedForSend
 
   /** @return
-   * `Some` if no more values can be sent to this channel; [[Sink.send()]] will return [[ChannelClosed]]. When closed for send, receiving
-   * using [[Source.receive()]] might still be possible, if the channel is done, and not in an error. This can be verified using
-   * [[isClosedForReceive]].
-   */
+    *   `Some` if no more values can be sent to this channel; [[Sink.send()]] will return [[ChannelClosed]]. When closed for send, receiving
+    *   using [[Source.receive()]] might still be possible, if the channel is done, and not in an error. This can be verified using
+    *   [[isClosedForReceive]].
+    */
   def isClosedForSendDetail: Option[ChannelClosed] = Option(ChannelClosed.fromJoxOrT(delegate.closedForSend()))
 
 //

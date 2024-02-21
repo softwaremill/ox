@@ -13,12 +13,12 @@ class SupervisedTest extends AnyFlatSpec with Matchers {
     val trail = Trail()
 
     val result = supervised {
-      fork {
+      forkUser {
         Thread.sleep(200)
         trail.add("a")
       }
 
-      fork {
+      forkUser {
         Thread.sleep(100)
         trail.add("b")
       }
@@ -31,16 +31,16 @@ class SupervisedTest extends AnyFlatSpec with Matchers {
     trail.get shouldBe Vector("b", "a", "done")
   }
 
-  it should "not wait until daemon forks complete" in {
+  it should "only wait until user forks complete" in {
     val trail = Trail()
 
     val result = supervised {
-      forkDaemon {
+      fork {
         Thread.sleep(200)
         trail.add("a")
       }
 
-      fork {
+      forkUser {
         Thread.sleep(100)
         trail.add("b")
       }
@@ -57,17 +57,17 @@ class SupervisedTest extends AnyFlatSpec with Matchers {
     val trail = Trail()
 
     val result = Try(supervised {
-      fork {
+      forkUser {
         Thread.sleep(300)
         trail.add("a")
       }
 
-      fork {
+      forkUser {
         Thread.sleep(200)
         throw new RuntimeException("x")
       }
 
-      fork {
+      forkUser {
         Thread.sleep(100)
         trail.add("b")
       }
@@ -80,11 +80,11 @@ class SupervisedTest extends AnyFlatSpec with Matchers {
     trail.get shouldBe Vector("b", "done")
   }
 
-  it should "interrupt main fork once a fork ends with an exception" in {
+  it should "interrupt main body once a fork ends with an exception" in {
     val trail = Trail()
 
     val result = Try(supervised {
-      fork {
+      forkUser {
         Thread.sleep(200)
         throw new RuntimeException("x")
       }
@@ -102,7 +102,7 @@ class SupervisedTest extends AnyFlatSpec with Matchers {
     val trail = Trail()
 
     val result = supervised {
-      fork {
+      forkUser {
         Thread.sleep(300)
         trail.add("a")
       }
@@ -112,7 +112,7 @@ class SupervisedTest extends AnyFlatSpec with Matchers {
         throw new RuntimeException("x")
       }
 
-      fork {
+      forkUser {
         Thread.sleep(100)
         trail.add("b")
       }

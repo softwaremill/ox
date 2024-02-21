@@ -1,7 +1,7 @@
 package ox.supervise
 
 import org.slf4j.LoggerFactory
-import ox.{forever, forkDaemon, forkCancellable, supervised, uninterruptible}
+import ox.{forever, fork, forkCancellable, supervised, uninterruptible}
 
 import java.util.concurrent.{ArrayBlockingQueue, BlockingQueue}
 import scala.annotation.tailrec
@@ -22,7 +22,7 @@ object Broadcast {
       inbox.take match
         case Subscribe(consumer) => processMessages(inbox, consumers + consumer)
         case Received(msg) =>
-          consumers.map(consumer => forkDaemon(consumer(msg)))
+          consumers.map(consumer => fork(consumer(msg)))
           processMessages(inbox, consumers)
 
     def consumeForever(inbox: BlockingQueue[BroadcastMessage]): Unit = forever {

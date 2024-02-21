@@ -176,16 +176,16 @@ Hence, it is guaranteed that all forks started within `supervised` or `scoped` w
 exception, or due to an interrupt.
 
 ```scala
-import ox.{fork, supervised}
+import ox.{forkUser, supervised}
 
 // same as `par`
 supervised {
-  val f1 = fork {
+  val f1 = forkUser {
     Thread.sleep(2000)
     1
   }
 
-  val f2 = fork {
+  val f2 = forkUser {
     Thread.sleep(1000)
     2
   }
@@ -194,13 +194,13 @@ supervised {
 }
 ```
 
-It is a compile-time error to use `fork` outside of a `supervised` or `scoped` block. Helper methods might require to be 
-run within a scope by requiring the `Ox` capability:
+It is a compile-time error to use `fork`/`forkUser` outside of a `supervised` or `scoped` block. Helper methods might 
+require to be run within a scope by requiring the `Ox` capability:
 
 ```scala
-import ox.{fork, Fork, Ox, supervised}
+import ox.{forkUser, Fork, Ox, supervised}
 
-def forkComputation(p: Int)(using Ox): Fork[Int] = fork {
+def forkComputation(p: Int)(using Ox): Fork[Int] = forkUser {
   Thread.sleep(p * 1000)
   p + 1
 }
@@ -217,22 +217,22 @@ Scopes can be arbitrarily nested.
 ### Supervision
 
 The default scope, created with `supervised`, watches over the forks that are started within. Any forks started with
-`fork` are by default supervised.
+`fork` and `forkUser` are by default supervised.
 
 This means that the scope will end only when either:
 
-* all (non-daemon, supervised) forks, including the code block passed to `supervised`, succeed
-* or any (supervised) fork, including the code block passed to `supervised`, fails
+* all (user, supervised) forks, including the main body passed to `supervised`, succeed
+* or any (supervised) fork, including the main body passed to `supervised`, fails
 
 Hence an exception in any of the forks will cause the whole scope to end. Ending the scope means that all running forks
-are cancelled (interrupted). Once all forks complete, the exception is propagated further, that is re-thrown by the 
-`supervised` method invocation:
+are cancelled (using interruption). Once all forks complete, the exception is propagated further, that is re-thrown by 
+the `supervised` method invocation:
 
 ```scala
-import ox.{fork, Fork, Ox, supervised}
+import ox.{fork, forkUser, Fork, Ox, supervised}
 
 supervised {
-  fork {
+  forkUser {
     Thread.sleep(1000)
     println("Hello!")
   }
@@ -245,16 +245,21 @@ supervised {
 // doesn't print "Hello", instead throws "boom!"
 ```
 
-### Daemon forks
+### User, daemon and unsupervised forks
 
-In supervised mode, daemon forks can be created using `forkDaemon`. Their failure will still end the scope. However,
-the scope will also end once all non-daemon forks succeed, regardless if the daemon fork is still running.
+In supervised scoped, forks created using `fork` behave as daemon threads. That is, their failure ends the scope, but
+the scope will also end once the main body and all user forks succeed, regardless if the (daemon) fork is still running.
+
+Alternatively, a user fork can be created using `forkUser`. Such a fork is required to complete successfully, in order
+for the scope to end successfully. Hence when the main body of the scope completes, the scope will wait until all user
+forks have completed as well.
 
 Finally, entirely unsupervised forks can be ran using `forkUnsupervised`.
 
 ### Unsupervised scopes
 
-An unsupervised scope can be created using `scoped`. Any forks started within are unsupervised. 
+An unsupervised scope can be created using `scoped`. Any forks started within are unsupervised. This is considered an
+advanced feature, and should be used with caution.
 
 Such a scope ends, once the code block passed to `scoped` completes. Then, all running forks are cancelled. Still, the
 scope completes (that is, the `scoped` block returns) only once all forks have completed.
@@ -345,7 +350,7 @@ import ox.{supervised, useInScope}
 
 case class MyResource(c: Int)
 
-def acquire(c: Int) : MyResource =
+def acquire(c: Int): MyResource =
   println(s"acquiring $c ...")
   MyResource(c)
 
@@ -518,11 +523,9 @@ import ox.supervised
 import ox.channels.Source
 
 supervised {
-  fork {
-    Source.iterate(0)(_ + 1) // natural numbers
-      .transform(_.filter(_ % 2 == 0).map(_ + 1).take(10)) // take the 10 first even numbers, incremented by 1
-      .foreach(n => println(n.toString))
-  }
+  Source.iterate(0)(_ + 1) // natural numbers
+    .transform(_.filter(_ % 2 == 0).map(_ + 1).take(10)) // take the 10 first even numbers, incremented by 1
+    .foreach(n => println(n.toString))
 }
 ```
 
@@ -799,19 +802,22 @@ supervised {
 How we use various terms throughout the codebase (or at least try to):
 
 * **concurrency scope**: either `supervised` (default) or `scoped` ("advanced")
-* a scope **ends**: when unsupervised, the main code block is entirely evaluated; when supervised, all non-daemon, 
-  supervised forks completed successfully, or at least one supervised fork failed. When the scope ends, all running
+* a scope **ends**: when unsupervised, the main body is entirely evaluated; when supervised, all user (non-daemon), 
+  supervised forks complete successfully, or at least one supervised fork fails. When the scope ends, all running
   forks are interrupted
 * scope **completes**, once all forks complete and finalizers are run. In other words, the `supervised` or `scoped`
   method returns.
 * forks are **started**, and then they are **running**
 * forks **complete**: either a fork **succeeds**, or a fork **fails** with an exception
 * **cancellation** (`Fork.cancel()`) interrupts the fork and waits until it completes
+* scope **body**: the code block passed to a `supervised` or `scoped` method
 
 # Performance
 
-Performance is unknown, hasn't been measured and the code hasn't been optimized. We'd welcome contributions in this
-area!
+Some performance tests have been done around channels, see:
+
+* [Limits of Loom's performance](https://softwaremill.com/limits-of-looms-performance/)
+* [Go-like selects using jox channels in Java](https://softwaremill.com/go-like-selects-using-jox-channels-in-java/)
 
 # Development
 

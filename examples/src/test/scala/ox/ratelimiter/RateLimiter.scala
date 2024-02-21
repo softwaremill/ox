@@ -1,7 +1,7 @@
 package ox.ratelimiter
 
 import org.slf4j.LoggerFactory
-import ox.{Fork, forkDaemon, supervised, Ox}
+import ox.{Fork, fork, supervised, Ox}
 import ox.ratelimiter.RateLimiterQueue.{Run, RunAfter}
 
 import java.util.concurrent.{ArrayBlockingQueue, BlockingQueue, CompletableFuture, Future}
@@ -22,7 +22,7 @@ object RateLimiter:
 
   def withRateLimiter[T](maxRuns: Int, per: FiniteDuration)(f: RateLimiter => T): T = supervised {
     val queue = new ArrayBlockingQueue[RateLimiterMsg](32)
-    forkDaemon {
+    fork {
       try runQueue(RateLimiterQueue(maxRuns, per.toMillis), queue)
       finally logger.info("Stopping rate limiter")
     }
@@ -45,9 +45,9 @@ object RateLimiter:
 
     // (4) run each rate-limiter-task in the background
     tasks.foreach {
-      case Run(run) => forkDaemon(run())
+      case Run(run) => fork(run())
       case RunAfter(millis) =>
-        forkDaemon {
+        fork {
           Thread.sleep(millis)
           queue.put(ScheduledRunQueue)
         }

@@ -92,7 +92,7 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
 
     supervised {
       // then
-      forkDaemon {
+      fork {
         import KafkaStage.*
 
         KafkaSource
@@ -168,7 +168,7 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
 
     supervised {
       // then
-      forkDaemon {
+      fork {
         KafkaSource
           .subscribe(consumerSettings, sourceTopic)
           .map(in => (in.value.toLong * 2, in))

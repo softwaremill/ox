@@ -15,7 +15,7 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually {
   it should "map over a source as a view" in {
     val c: Channel[Int] = Channel()
 
-    scoped {
+    supervised {
       fork {
         c.send(10)
         c.send(20)
@@ -47,7 +47,7 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually {
     val c1: Channel[Int] = Channel()
     val c2: Channel[Int] = Channel()
 
-    scoped {
+    supervised {
       fork {
         c1.send(10)
         c1.send(20)
@@ -72,7 +72,7 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually {
   it should "filter over a source as a view" in {
     val c: Channel[Int] = Channel()
 
-    scoped {
+    supervised {
       fork {
         c.send(1)
         c.send(2)
@@ -93,14 +93,14 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually {
     val c2: Channel[Int] = Channel()
 
     supervised {
-      forkDaemon {
+      fork {
         c1.send(1)
         c1.send(2)
         c1.send(3)
         c1.send(4)
       }
 
-      forkDaemon {
+      fork {
         c2.send(11)
         c2.send(12)
         c2.send(13)
@@ -118,7 +118,7 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually {
     val c: Channel[Int] = Channel()
 
     supervised {
-      forkDaemon {
+      fork {
         c.send(1)
         c.send(2)
         c.send(3)

@@ -13,8 +13,8 @@ object syntax:
   extension [E, T](f: => Either[E, T]) def retry(policy: RetryPolicy[E, T]): Either[E, T] = ox.retry.retry(f)(policy)
 
   extension [T](f: => T)(using Ox)
+    def forkUser: Fork[T] = ox.forkUser(f)
     def fork: Fork[T] = ox.fork(f)
-    def forkDaemon: Fork[T] = ox.forkDaemon(f)
     def forkUnsupervised: Fork[T] = ox.forkUnsupervised(f)
     def forkCancellable: CancellableFork[T] = ox.forkCancellable(f)
 

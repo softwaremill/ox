@@ -9,7 +9,7 @@ class SourceOpsMapTest extends AnyFlatSpec with Matchers {
   behavior of "Source.map"
 
   it should "map over a source" in {
-    scoped {
+    supervised {
       val c = Channel[Int]()
       fork {
         c.send(1)
@@ -31,7 +31,7 @@ class SourceOpsMapTest extends AnyFlatSpec with Matchers {
     // this demonstrated a race condition where a cell was added by select to the waiting list by T1, completed by T2,
     // which then subsequently completed the stream; only then T1 wakes up, and checks if no new elements have been added
     for (_ <- 1 to 100000) {
-      scoped {
+      supervised {
         val c = Channel[Int]()
         fork {
           c.send(1)
@@ -47,7 +47,7 @@ class SourceOpsMapTest extends AnyFlatSpec with Matchers {
   }
 
   it should "map over a source using for-syntax" in {
-    scoped {
+    supervised {
       val c = Channel[Int]()
       fork {
         c.send(1)

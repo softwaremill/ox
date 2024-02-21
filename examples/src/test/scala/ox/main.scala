@@ -4,7 +4,7 @@ import org.slf4j.LoggerFactory
 
 @main def test1 =
   val log = LoggerFactory.getLogger("test1")
-  val r = scoped {
+  val r = supervised {
     val f1 = fork {
       Thread.sleep(1000L)
       log.info("f1 done")

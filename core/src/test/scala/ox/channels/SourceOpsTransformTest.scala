@@ -15,7 +15,7 @@ class SourceOpsTransformTest extends AnyFlatSpec with Matchers {
     c.send(3)
     c.done()
 
-    scoped {
+    supervised {
       c.transform(_.map(_ * 2)).toList shouldBe List(2, 4, 6)
     }
   }
@@ -28,14 +28,14 @@ class SourceOpsTransformTest extends AnyFlatSpec with Matchers {
     c.send(4)
     c.done()
 
-    scoped {
+    supervised {
       c.transform(_.drop(2).flatMap(i => List(i, i + 1, i + 2)).filter(_ % 2 == 0)).toList shouldBe List(4, 4, 6)
     }
   }
 
   it should "transform an infinite source" in {
     val c = Channel[Int]()
-    scoped {
+    supervised {
       fork {
         var i = 0
         while true do
@@ -53,7 +53,7 @@ class SourceOpsTransformTest extends AnyFlatSpec with Matchers {
   it should "transform an infinite source (stress test)" in {
     for (_ <- 1 to 1000) { // this nicely demonstrated two race conditions
       val c = Channel[Int]()
-      scoped {
+      supervised {
         fork {
           var i = 0
           while true do

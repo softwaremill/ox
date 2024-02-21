@@ -15,7 +15,7 @@ object KafkaConsumerActor:
   def apply[K, V](consumer: KafkaConsumer[K, V], closeWhenComplete: Boolean)(using Ox): Sink[KafkaConsumerRequest[K, V]] =
     val c = Channel[KafkaConsumerRequest[K, V]]()
 
-    forkDaemon {
+    fork {
       try
         repeatWhile {
           c.receive() match
