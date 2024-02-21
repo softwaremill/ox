@@ -211,7 +211,7 @@ trait SourceOps[+T] { outer: Source[T] =>
       }
 
       // sending fork
-      forkUser {
+      fork {
         repeatWhile {
           inProgress.receive() match
             case f: Fork[Option[U]] @unchecked =>

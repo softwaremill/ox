@@ -15,7 +15,7 @@ def par[T1, T2, T3](t1: => T1)(t2: => T2)(t3: => T3): (T1, T2, T3) =
 /** Runs the given computations in parallel. If any fails, interrupts the others, and re-throws the exception. */
 def par[T](ts: Seq[() => T]): Seq[T] =
   supervised {
-    val fs = ts.map(t => forkUser(t()))
+    val fs = ts.map(t => fork(t()))
     fs.map(_.join())
   }
 
@@ -26,7 +26,7 @@ def parLimit[T](parallelism: Int)(ts: Seq[() => T]): Seq[T] =
   supervised {
     val s = new Semaphore(parallelism)
     val fs = ts.map(t =>
-      forkUser {
+      fork {
         s.acquire()
         val r = t()
         // no try-finally as there's no point in releasing in case of an exception, as any newly started forks will be interrupted

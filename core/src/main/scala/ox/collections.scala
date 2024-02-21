@@ -11,7 +11,7 @@ private[ox] def commonPar[I, O, C[E] <: Iterable[E], FO](parallelism: Int, itera
   supervised {
     val forks = iterable.map { elem =>
       s.acquire()
-      forkUser {
+      fork {
         val o = transform(elem)
         s.release()
         o

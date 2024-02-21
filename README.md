@@ -176,16 +176,16 @@ Hence, it is guaranteed that all forks started within `supervised` or `scoped` w
 exception, or due to an interrupt.
 
 ```scala
-import ox.{forkUser, supervised}
+import ox.{fork, supervised}
 
 // same as `par`
 supervised {
-  val f1 = forkUser {
+  val f1 = fork {
     Thread.sleep(2000)
     1
   }
 
-  val f2 = forkUser {
+  val f2 = fork {
     Thread.sleep(1000)
     2
   }
@@ -198,9 +198,9 @@ It is a compile-time error to use `fork`/`forkUser` outside of a `supervised` or
 require to be run within a scope by requiring the `Ox` capability:
 
 ```scala
-import ox.{forkUser, Fork, Ox, supervised}
+import ox.{fork, Fork, Ox, supervised}
 
-def forkComputation(p: Int)(using Ox): Fork[Int] = forkUser {
+def forkComputation(p: Int)(using Ox): Fork[Int] = fork {
   Thread.sleep(p * 1000)
   p + 1
 }
