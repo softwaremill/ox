@@ -1,7 +1,7 @@
 package ox.sockets
 
 import org.slf4j.LoggerFactory
-import ox.syntax.{forever, forkDaemon, forkCancellable}
+import ox.syntax.{forever, fork, forkCancellable}
 import ox.{CancellableFork, Fork, Ox, supervised}
 
 import java.util.concurrent.{ArrayBlockingQueue, BlockingQueue}
@@ -54,7 +54,7 @@ object Router:
       val connectedSocket = socket.accept(Timeout)
       if connectedSocket != null then parent.put(Connected(connectedSocket))
     catch case NonFatal(e) => logger.error(s"Exception when listening on a socket", e)
-  }.forever.forkDaemon
+  }.forever.fork
 
   private def clientSend(socket: ConnectedSocket, parent: BlockingQueue[RouterMessage], sendQueue: BlockingQueue[String])(using
       Ox

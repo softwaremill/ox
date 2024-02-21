@@ -12,7 +12,7 @@ class SourceOpsMapParTest extends AnyFlatSpec with Matchers with Eventually {
   behavior of "mapPar"
 
   for (parallelism <- 1 to 10) {
-    it should s"map over a source with parallelism limit $parallelism" in scoped {
+    it should s"map over a source with parallelism limit $parallelism" in supervised {
       // given
       val s = Source.fromIterable(1 to 10)
       val running = new AtomicInteger(0)
@@ -44,7 +44,7 @@ class SourceOpsMapParTest extends AnyFlatSpec with Matchers with Eventually {
     }
   }
 
-  it should s"map over a source with parallelism limit 10 (stress test)" in scoped {
+  it should s"map over a source with parallelism limit 10 (stress test)" in supervised {
     for (i <- 1 to 100) {
       info(s"iteration $i")
 
@@ -63,7 +63,7 @@ class SourceOpsMapParTest extends AnyFlatSpec with Matchers with Eventually {
     }
   }
 
-  it should "propagate errors" in scoped {
+  it should "propagate errors" in supervised {
     // given
     val s = Source.fromIterable(1 to 10)
     val started = new AtomicInteger()
@@ -85,7 +85,7 @@ class SourceOpsMapParTest extends AnyFlatSpec with Matchers with Eventually {
         started.get() should be <= 7 // 4 successful + at most 3 taking up all the permits
   }
 
-  it should "cancel other running forks when there's an error" in scoped {
+  it should "cancel other running forks when there's an error" in supervised {
     // given
     val trail = Trail()
     val s = Source.fromIterable(1 to 10)

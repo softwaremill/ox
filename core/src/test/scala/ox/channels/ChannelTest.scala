@@ -132,7 +132,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
       val c4 = Channel[Int](capacity)
 
       supervised {
-        forkDaemon {
+        fork {
           c2.send(10)
         }
         Thread.sleep(100) // wait for the send to suspend

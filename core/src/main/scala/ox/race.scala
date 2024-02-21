@@ -21,7 +21,7 @@ def timeout[T](duration: FiniteDuration)(t: => T): T =
 def raceSuccess[T](fs: Seq[() => T]): T =
   scoped {
     val result = new ArrayBlockingQueue[Try[T]](fs.size)
-    fs.foreach(f => fork(result.put(Try(f()))))
+    fs.foreach(f => forkUser(result.put(Try(f()))))
 
     @tailrec
     def takeUntilSuccess(firstException: Option[Throwable], left: Int): T =

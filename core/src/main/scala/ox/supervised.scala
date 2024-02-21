@@ -3,12 +3,13 @@ package ox
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.{CompletableFuture, ConcurrentHashMap}
 
-/** Starts a new scope, which allows starting forks in the given code block `f`. Forks can be started using [[fork]], [[forkDaemon]] and
-  * [[forkUnsupervised]].
+/** Starts a new scope, which allows starting forks in the given code block `f`. Forks can be started using [[fork]], [[forkUser]],
+  * [[forkCancellable]] and [[forkUnsupervised]]. All forks are guaranteed to complete before this scope completes.
   *
-  * The code is ran in supervised mode, that is:
-  *   - the scope ends once all non-daemon, supervised forks (including the `f` code block) succeed
-  *   - the scope also ends once the first supervised fork (including the `f` code block) fails with an exception
+  * The scope is ran in supervised mode, that is:
+  *   - the scope ends once all user, supervised forks (started using [[forkUser]]), including the `f` main body, succeed. Forks started
+  *     using [[fork]] (daemon) don't have to complete successfully for the scope to end.
+  *   - the scope also ends once the first supervised fork (including the `f` main body) fails with an exception
   *   - when the scope ends, all running forks are cancelled
   *   - the scope completes (that is, this method returns) only once all forks started by `f` have completed (either successfully, or with
   *     an exception)
@@ -20,7 +21,7 @@ def supervised[T](f: Ox ?=> T): T =
   val s = DefaultSupervisor()
   try
     scoped {
-      val r = supervisor(s)(fork(f))
+      val r = supervisor(s)(forkUser(f))
       s.join() // might throw if any supervised fork threw
       r.join() // if no exceptions, the main f-fork must be done by now
     }
@@ -36,12 +37,11 @@ trait Supervisor:
   def forkSuccess(): Unit
   def forkError(e: Throwable): Unit
 
-  /** Wait until the count of all supervised, non-daemon forks that are running reaches 0, or until any supervised fork fails with an
-    * exception.
+  /** Wait until the count of all supervised, user forks that are running reaches 0, or until any supervised fork fails with an exception.
     *
     * The completion of this method is typically followed by ending the scope, which cancels any forks that are still running.
     *
-    * Note that daemon forks can still start supervised non-daemon forks after this method returns.
+    * Note that (daemon) forks can still start supervised user forks after this method returns.
     */
   def join(): Unit
 

@@ -13,7 +13,7 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
   behavior of "Source.mapParUnordered"
 
   for (parallelism <- 1 to 10) {
-    it should s"map over a source with parallelism limit $parallelism" in scoped {
+    it should s"map over a source with parallelism limit $parallelism" in supervised {
       // given
       val s = Source.fromIterable(1 to 10)
       val running = new AtomicInteger(0)
@@ -45,7 +45,7 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
     }
   }
 
-  it should s"map over a source with parallelism limit 10 (stress test)" in scoped {
+  it should s"map over a source with parallelism limit 10 (stress test)" in supervised {
     for (i <- 1 to 100) {
       info(s"iteration $i")
 
@@ -64,7 +64,7 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
     }
   }
 
-  it should "propagate errors" in scoped {
+  it should "propagate errors" in supervised {
     // given
     val s = Source.fromIterable(1 to 10)
     val started = new AtomicInteger()
@@ -86,7 +86,7 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
         started.get() should be <= 7 // 4 successful + at most 3 taking up all the permits
   }
 
-  it should "complete running forks and not start new ones when the mapping function fails" in scoped {
+  it should "complete running forks and not start new ones when the mapping function fails" in supervised {
     // given
     val trail = Trail()
     val s = Source.fromIterable(1 to 10)
@@ -116,7 +116,7 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
     trail.get shouldBe Vector("done", "done", "exception", "done")
   }
 
-  it should "complete running forks and not start new ones when the upstream fails" in scoped {
+  it should "complete running forks and not start new ones when the upstream fails" in supervised {
     // given
     val trail = Trail()
     val s = Source.fromValues(1, 2, 3).concat(Source.failed(new RuntimeException("boom")))
@@ -139,34 +139,32 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
     trail.get should contain only ("1", "2", "3")
   }
 
-  it should "cancel running forks when the surrounding scope closes due to an error" in scoped {
+  it should "cancel running forks when the surrounding scope closes due to an error" in supervised {
     // given
     val trail = Trail()
     val s = Source.fromIterable(1 to 10)
 
     // when
-    supervised {
-      val s2 = s.mapParUnordered(2) { i =>
-        if i == 4 then
-          Thread.sleep(100)
-          trail.add("exception")
-          throw new Exception("boom")
-        else
-          Thread.sleep(200)
-          trail.add(s"done")
-          i * 2
-      }
-
-      List(s2.receive(), s2.receive()) should contain only (2, 4)
-      s2.receive() should matchPattern { case ChannelClosed.Error(reason) if reason.getMessage == "boom" => }
-      s2.isClosedForReceive shouldBe true
+    val s2 = s.mapParUnordered(2) { i =>
+      if i == 4 then
+        Thread.sleep(100)
+        trail.add("exception")
+        throw new Exception("boom")
+      else
+        Thread.sleep(200)
+        trail.add(s"done")
+        i * 2
     }
+
+    List(s2.receive(), s2.receive()) should contain only (2, 4)
+    s2.receive() should matchPattern { case ChannelClosed.Error(reason) if reason.getMessage == "boom" => }
+    s2.isClosedForReceive shouldBe true
 
     // then
     trail.get shouldBe Vector("done", "done", "exception")
   }
 
-  it should "emit downstream as soon as a value is ready, regardless of the incoming order" in scoped {
+  it should "emit downstream as soon as a value is ready, regardless of the incoming order" in supervised {
     // given
     val s = Source.fromIterable(1 to 5)
     val delays = Map(

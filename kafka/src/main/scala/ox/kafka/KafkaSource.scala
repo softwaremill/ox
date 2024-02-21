@@ -29,7 +29,7 @@ object KafkaSource:
 
     val c = StageCapacity.newChannel[ReceivedMessage[K, V]]
 
-    forkDaemon {
+    fork {
       try
         val pollResults = Channel[ConsumerRecords[K, V]]()
         forever {

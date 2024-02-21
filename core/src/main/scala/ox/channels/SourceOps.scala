@@ -74,7 +74,7 @@ trait SourceOps[+T] { outer: Source[T] =>
     */
   def map[U](f: T => U)(using Ox, StageCapacity): Source[U] =
     val c2 = StageCapacity.newChannel[U]
-    forkDaemon {
+    fork {
       repeatWhile {
         receive() match
           case ChannelClosed.Done     => c2.done(); false
@@ -139,7 +139,7 @@ trait SourceOps[+T] { outer: Source[T] =>
 
   private def intersperse[U >: T](start: Option[U], inject: U, end: Option[U])(using Ox, StageCapacity): Source[U] =
     val c = StageCapacity.newChannel[U]
-    forkDaemon {
+    fork {
       start.foreach(c.send)
       var firstEmitted = false
       repeatWhile {
@@ -173,7 +173,7 @@ trait SourceOps[+T] { outer: Source[T] =>
     */
   def mapPar[U](parallelism: Int)(f: T => U)(using Ox, StageCapacity): Source[U] =
     val c2 = StageCapacity.newChannel[U]
-    forkDaemon(mapParScope(parallelism, c2, f))
+    fork(mapParScope(parallelism, c2, f))
     c2
 
   private def mapParScope[U](parallelism: Int, c2: Channel[U], f: T => U): Unit =
@@ -211,7 +211,7 @@ trait SourceOps[+T] { outer: Source[T] =>
       }
 
       // sending fork
-      fork {
+      forkUser {
         repeatWhile {
           inProgress.receive() match
             case f: Fork[Option[U]] @unchecked =>
@@ -231,7 +231,7 @@ trait SourceOps[+T] { outer: Source[T] =>
   def mapParUnordered[U](parallelism: Int)(f: T => U)(using Ox, StageCapacity): Source[U] =
     val c = StageCapacity.newChannel[U]
     val s = new Semaphore(parallelism)
-    forkDaemon {
+    fork {
       supervised {
         repeatWhile {
           s.acquire()
@@ -241,7 +241,7 @@ trait SourceOps[+T] { outer: Source[T] =>
               c.error(r)
               false
             case t: T @unchecked =>
-              fork {
+              forkUser {
                 try
                   c.send(f(t))
                   s.release()
@@ -326,7 +326,7 @@ trait SourceOps[+T] { outer: Source[T] =>
           case t: U @unchecked        => c.send(t).isValue
       }
 
-    forkDaemon {
+    fork {
       repeatWhile {
         select(this, other) match
           case ChannelClosed.Done =>
@@ -343,7 +343,7 @@ trait SourceOps[+T] { outer: Source[T] =>
 
   def zip[U](other: Source[U])(using Ox, StageCapacity): Source[(T, U)] =
     val c = StageCapacity.newChannel[(T, U)]
-    forkDaemon {
+    fork {
       repeatWhile {
         receive() match
           case ChannelClosed.Done     => c.done(); false
@@ -387,7 +387,7 @@ trait SourceOps[+T] { outer: Source[T] =>
         case ChannelClosed.Error(r) => c.error(r); false
         case v: V @unchecked        => c.send(thisElement, v); true
 
-    forkDaemon {
+    fork {
       repeatWhile {
         receive() match
           case ChannelClosed.Done     => receiveFromOther(thisDefault, () => { c.done(); false })
@@ -556,7 +556,7 @@ trait SourceOps[+T] { outer: Source[T] =>
       initializeState: () => S
   )(f: (S, T) => (S, IterableOnce[U]), onComplete: S => Option[U] = (_: S) => None)(using Ox, StageCapacity): Source[U] =
     val c = StageCapacity.newChannel[U]
-    forkDaemon {
+    fork {
       var state = initializeState()
       repeatWhile {
         receive() match
@@ -665,7 +665,7 @@ trait SourceOps[+T] { outer: Source[T] =>
     val c = StageCapacity.newChannel[T]
     val emitEveryMillis = per.toMillis / elements
 
-    forkDaemon {
+    fork {
       repeatWhile {
         receive() match
           case ChannelClosed.Done     => c.done(); false
@@ -865,7 +865,7 @@ trait SourceOps[+T] { outer: Source[T] =>
     */
   def orElse[U >: T](alternative: Source[U])(using Ox, StageCapacity): Source[U] =
     val c = StageCapacity.newChannel[U]
-    forkDaemon {
+    fork {
       receive() match
         case ChannelClosed.Done     => alternative.pipeTo(c)
         case ChannelClosed.Error(r) => c.error(r)
@@ -881,7 +881,7 @@ trait SourceCompanionOps:
 
   def fromIterator[T](it: => Iterator[T])(using Ox, StageCapacity): Source[T] =
     val c = StageCapacity.newChannel[T]
-    forkDaemon {
+    fork {
       val theIt = it
       try
         while theIt.hasNext do c.send(theIt.next())
@@ -892,7 +892,7 @@ trait SourceCompanionOps:
 
   def fromFork[T](f: Fork[T])(using Ox, StageCapacity): Source[T] =
     val c = StageCapacity.newChannel[T]
-    forkDaemon {
+    fork {
       try
         c.send(f.join())
         c.done()
@@ -902,7 +902,7 @@ trait SourceCompanionOps:
 
   def iterate[T](zero: T)(f: T => T)(using Ox, StageCapacity): Source[T] =
     val c = StageCapacity.newChannel[T]
-    forkDaemon {
+    fork {
       var t = zero
       try
         forever {
@@ -916,7 +916,7 @@ trait SourceCompanionOps:
   /** A range of number, from `from`, to `to` (inclusive), stepped by `step`. */
   def range(from: Int, to: Int, step: Int)(using Ox, StageCapacity): Source[Int] =
     val c = StageCapacity.newChannel[Int]
-    forkDaemon {
+    fork {
       var t = from
       try
         repeatWhile {
@@ -931,7 +931,7 @@ trait SourceCompanionOps:
 
   def unfold[S, T](initial: S)(f: S => Option[(T, S)])(using Ox, StageCapacity): Source[T] =
     val c = StageCapacity.newChannel[T]
-    forkDaemon {
+    fork {
       var s = initial
       try
         repeatWhile {
@@ -950,7 +950,7 @@ trait SourceCompanionOps:
 
   def tick[T](interval: FiniteDuration, element: T = ())(using Ox, StageCapacity): Source[T] =
     val c = StageCapacity.newChannel[T]
-    forkDaemon {
+    fork {
       forever {
         c.send(element)
         Thread.sleep(interval.toMillis)
@@ -960,7 +960,7 @@ trait SourceCompanionOps:
 
   def repeat[T](element: T = ())(using Ox, StageCapacity): Source[T] =
     val c = StageCapacity.newChannel[T]
-    forkDaemon {
+    fork {
       forever {
         c.send(element)
       }
@@ -969,7 +969,7 @@ trait SourceCompanionOps:
 
   def timeout[T](interval: FiniteDuration, element: T = ())(using Ox, StageCapacity): Source[T] =
     val c = StageCapacity.newChannel[T]
-    forkDaemon {
+    fork {
       Thread.sleep(interval.toMillis)
       c.send(element)
       c.done()
@@ -978,7 +978,7 @@ trait SourceCompanionOps:
 
   def concat[T](sources: Seq[() => Source[T]])(using Ox, StageCapacity): Source[T] =
     val c = StageCapacity.newChannel[T]
-    forkDaemon {
+    fork {
       var currentSource: Option[Source[T]] = None
       val sourcesIterator = sources.iterator
       var continue = true
@@ -1052,7 +1052,7 @@ trait SourceCompanionOps:
       case _ =>
         val c = StageCapacity.newChannel[T]
 
-        forkDaemon {
+        fork {
           val availableSources = mutable.ArrayBuffer.from(sources)
           var currentSourceIndex = 0
           var elementsRead = 0
@@ -1147,7 +1147,7 @@ trait SourceCompanionOps:
 
     receiveAndSendFromFuture(from, transportChannel)
 
-    forkDaemon {
+    fork {
       transportChannel.receive() match
         case ChannelClosed.Done           => c.done()
         case ChannelClosed.Error(r)       => c.error(r)

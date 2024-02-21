@@ -8,7 +8,7 @@ class SourceOpsMapStatefulConcatTest extends AnyFlatSpec with Matchers {
 
   behavior of "Source.mapStatefulConcat"
 
-  it should "deduplicate" in scoped {
+  it should "deduplicate" in supervised {
     // given
     val c = Source.fromValues(1, 2, 2, 3, 2, 4, 3, 1, 5)
 
@@ -19,7 +19,7 @@ class SourceOpsMapStatefulConcatTest extends AnyFlatSpec with Matchers {
     s.toList shouldBe List(1, 2, 3, 4, 5)
   }
 
-  it should "count consecutive" in scoped {
+  it should "count consecutive" in supervised {
     // given
     val c = Source.fromValues("apple", "apple", "apple", "banana", "orange", "orange", "apple")
 
@@ -43,7 +43,7 @@ class SourceOpsMapStatefulConcatTest extends AnyFlatSpec with Matchers {
     )
   }
 
-  it should "propagate errors in the mapping function" in scoped {
+  it should "propagate errors in the mapping function" in supervised {
     // given
     val c = Source.fromValues("a", "b", "c")
 
@@ -61,7 +61,7 @@ class SourceOpsMapStatefulConcatTest extends AnyFlatSpec with Matchers {
     }
   }
 
-  it should "propagate errors in the completion callback" in scoped {
+  it should "propagate errors in the completion callback" in supervised {
     // given
     val c = Source.fromValues("a", "b", "c")
 

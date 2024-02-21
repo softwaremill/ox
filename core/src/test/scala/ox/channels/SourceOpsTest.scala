@@ -13,7 +13,7 @@ import scala.jdk.CollectionConverters.*
 class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
 
   it should "tick regularly" in {
-    scoped {
+    supervised {
       val c = Source.tick(100.millis)
       val start = System.currentTimeMillis()
       c.receive() shouldBe ()
@@ -31,7 +31,7 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
   }
 
   it should "timeout" in {
-    scoped {
+    supervised {
       val c = Source.timeout(100.millis)
       val start = System.currentTimeMillis()
       c.receive() shouldBe ()
@@ -41,7 +41,7 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
   }
 
   it should "zip two sources" in {
-    scoped {
+    supervised {
       val c1 = Source.fromValues(1, 2, 3, 0)
       val c2 = Source.fromValues(4, 5, 6)
 
@@ -55,7 +55,7 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
   }
 
   it should "merge two sources" in {
-    scoped {
+    supervised {
       val c1 = Source.fromValues(1, 2, 3)
       val c2 = Source.fromValues(4, 5, 6)
 
@@ -66,7 +66,7 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
   }
 
   it should "pipe one source to another" in {
-    scoped {
+    supervised {
       val c1 = Source.fromValues(1, 2, 3)
       val c2 = Channel[Int]()
 
@@ -77,7 +77,7 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
   }
 
   it should "concatenate sources" in {
-    scoped {
+    supervised {
       val s1 = Source.fromValues("a", "b", "c")
       val s2 = Source.fromValues("d", "e", "f")
       val s3 = Source.fromValues("g", "h", "i")

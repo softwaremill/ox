@@ -5,15 +5,19 @@ import java.util.concurrent.atomic.AtomicReference
 
 private class DoNothingScope[T] extends StructuredTaskScope[T](null, Thread.ofVirtual().factory()) {}
 
-/** Starts a new scope, which allows starting forks in the given code block `f`. Forks can be started using [[fork]].
+/** Starts a new scope, which allows starting forks in the given code block `f`. Forks can be started using [[fork]], [[forkUser]],
+  * [[forkCancellable]] and [[forkUnsupervised]]. All forks are guaranteed to complete before this scope completes.
   *
-  * The code is ran in unsupervised mode, that is:
-  *   - the scope ends once the `f` code block completes; this causes any running forks started within `f` to be cancelled
+  * '''Warning:''' It is advisable to use [[supevised]] scopes if possible, as they minimise the chances of an error to go unnoticed.
+  * [[scoped]] scopes are considered an advanced feature, and should be used with caution.
+  *
+  * The scope is ran in unsupervised mode, that is:
+  *   - the scope ends once the `f` main body completes; this causes any running forks started within `f` to be cancelled
   *   - the scope completes (that is, this method returns) only once all forks started by `f` have completed (either successfully, or with
   *     an exception)
   *   - fork failures aren't handled in any special way, but can be inspected using [[Fork.join()]]
   *
-  * Forks created using [[forkDaemon]] and [[forkUnsupervised]] will behave exactly the same as forks created using [[fork]].
+  * Forks created using [[fork]], [[forkUser]] and [[forkUnsupervised]] will behave exactly the same.
   *
   * @see
   *   [[supervised]] Starts a scope in supervised mode

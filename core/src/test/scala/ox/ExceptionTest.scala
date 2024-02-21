@@ -29,7 +29,7 @@ class ExceptionTest extends AnyFlatSpec with Matchers {
 
   it should "throw the exception thrown by a failing fork" in {
     val trail = Trail()
-    try supervised(fork(throw CustomException()))
+    try supervised(forkUser(throw CustomException()))
     catch case e: Exception => trail.add(e.getClass.getSimpleName)
 
     trail.get shouldBe Vector("CustomException")
@@ -40,13 +40,13 @@ class ExceptionTest extends AnyFlatSpec with Matchers {
     val s = Semaphore(0)
     try
       supervised {
-        fork {
+        forkUser {
           s.acquire() // will never complete
         }
-        fork {
+        forkUser {
           s.acquire() // will never complete
         }
-        fork {
+        forkUser {
           Thread.sleep(100)
           throw CustomException()
         }
@@ -64,11 +64,11 @@ class ExceptionTest extends AnyFlatSpec with Matchers {
     val s = Semaphore(0)
     try
       supervised {
-        fork {
+        forkUser {
           try s.acquire() // will never complete
           finally throw CustomException2()
         }
-        fork {
+        forkUser {
           Thread.sleep(100)
           throw CustomException()
         }
