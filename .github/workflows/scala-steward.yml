@@ -24,5 +24,4 @@ jobs:
           author-name: scala-steward
           author-email: scala-steward
           github-token: ${{ secrets.REPO_GITHUB_TOKEN }}
-          repo-config: .scala-steward.conf
           ignore-opts-files: false
