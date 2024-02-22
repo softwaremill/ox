@@ -62,7 +62,7 @@ object Schedule:
     *   The maximum delay between subsequent retries.
     * @param jitter
     *   A random factor used for calculating the delay between subsequent retries. See [[Jitter]] for more details. Defaults to no jitter,
-    * i.e. an exponential backoff with no adjustments.
+    *   i.e. an exponential backoff with no adjustments.
     */
   case class Backoff(
       maxRetries: Int,
@@ -108,7 +108,7 @@ object Schedule:
       *   The maximum delay between subsequent retries.
       * @param jitter
       *   A random factor used for calculating the delay between subsequent retries. See [[Jitter]] for more details. Defaults to no jitter,
-      * i.e. an exponential backoff with no adjustments.
+      *   i.e. an exponential backoff with no adjustments.
       */
     def forever(initialDelay: FiniteDuration, maxDelay: FiniteDuration = 1.minute, jitter: Jitter = Jitter.None): Infinite =
       BackoffForever(initialDelay, maxDelay, jitter)
