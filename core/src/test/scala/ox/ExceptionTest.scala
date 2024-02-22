@@ -87,10 +87,11 @@ class ExceptionTest extends AnyFlatSpec with Matchers {
         }
         f.join()
       }
-    catch case e: Exception => addExceptionWithSuppressedTo(trail, e)
+    catch
+      case e: Exception => addExceptionWithSuppressedTo(trail, e)
 
-    // either join() might throw the original exception (shouldn't be suppressed), or it might be interrupted before
-    // throwing (should be suppressed then)
+      // either join() might throw the original exception (shouldn't be suppressed), or it might be interrupted before
+      // throwing (should be suppressed then)
     trail.get should (be(Vector("CustomException(suppressed=)")) or be(Vector("CustomException(suppressed=InterruptedException)")))
   }
 

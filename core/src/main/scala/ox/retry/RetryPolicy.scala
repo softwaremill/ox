@@ -72,7 +72,7 @@ object RetryPolicy:
     *   The maximum delay between subsequent retries. Defaults to 1 minute.
     * @param jitter
     *   A random factor used for calculating the delay between subsequent retries. See [[Jitter]] for more details. Defaults to no jitter,
-    * i.e. an exponential backoff with no adjustments.
+    *   i.e. an exponential backoff with no adjustments.
     */
   def backoff[E, T](
       maxRetries: Int,
@@ -96,7 +96,7 @@ object RetryPolicy:
     *   The maximum delay between subsequent retries. Defaults to 1 minute.
     * @param jitter
     *   A random factor used for calculating the delay between subsequent retries. See [[Jitter]] for more details. Defaults to no jitter,
-    * i.e. an exponential backoff with no adjustments.
+    *   i.e. an exponential backoff with no adjustments.
     */
   def backoffForever[E, T](
       initialDelay: FiniteDuration,

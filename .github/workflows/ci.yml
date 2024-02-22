@@ -1,14 +1,17 @@
 name: CI
 on:
   pull_request:
-    branches: ['**']
   push:
     branches: ['**']
     tags: [v*]
 jobs:
   ci:
-    # run on external PRs, but not on internal PRs since those will be run by push to branch
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
+    # run on 1) push, 2) external PRs, 3) softwaremill-ci PRs
+    # do not run on internal, non-steward PRs since those will be run by push to branch
+    if: |
+      github.event_name == 'push' || 
+      github.event.pull_request.head.repo.full_name != github.repository ||
+      github.event.pull_request.user.login == 'softwaremill-ci'
     runs-on: ubuntu-22.04
     steps:
     - name: Checkout

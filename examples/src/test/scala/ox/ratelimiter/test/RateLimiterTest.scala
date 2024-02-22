@@ -29,4 +29,3 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with Eventually with Int
       }
     }
   }
-
