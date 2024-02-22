@@ -4,11 +4,15 @@ The retries mechanism allows to retry a failing operation according to a given p
 
 ## API
 The basic syntax for retries is:
+
 ```scala
+import ox.retry.retry
+
 retry(operation)(policy)
 ```
 
 or, using a syntax sugar:
+
 ```scala
 import ox.syntax.*
 
@@ -47,8 +51,8 @@ The supported schedules (specifically - their finite variants) are:
 - `Backoff(maxRetries: Int, initialDelay: FiniteDuration, maxDelay: FiniteDuration, jitter: Jitter)` - retries up to `maxRetries` times , sleeping for `initialDelay` before the first retry, increasing the sleep between subsequent attempts exponentially (with base `2`) up to an optional `maxDelay` (default: 1 minute). 
 
   Optionally, a random factor (jitter) can be used when calculating the delay before the next attempt. The purpose of jitter is to avoid clustering of subsequent retries, i.e. to reduce the number of clients calling a service exactly at the same time, which can result in subsequent failures, contrary to what you would expect from retrying. By introducing randomness to the delays, the retries become more evenly distributed over time. 
-- 
-- See the [AWS Architecture Blog article on backoff and jitter](https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/) for a more in-depth explanation. 
+
+  See the [AWS Architecture Blog article on backoff and jitter](https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/) for a more in-depth explanation. 
 
   The following jitter strategies are available (defined in the `Jitter` enum):
   - `None` - the default one, when no randomness is added, i.e. a pure exponential backoff is used,
@@ -83,9 +87,12 @@ If you want to customize a part of the result policy, you can use the following 
 - `ResultPolicy.neverRetry[E, T]` - uses the default `isSuccess` and fails fast on any error.
 
 ## Examples
-```scala
-import ox.retry
+
+```scala mdoc:compile-only
+import ox.retry.retry
+import ox.retry.{Jitter, ResultPolicy, RetryPolicy, Schedule}
 import scala.concurrent.duration.*
+import scala.util.Try
 
 def directOperation: Int = ???
 def eitherOperation: Either[String, Int] = ???
@@ -110,7 +117,7 @@ retry(directOperation)(RetryPolicy.backoffForever(100.millis, 5.minutes, Jitter.
 retry(directOperation)(RetryPolicy(Schedule.Immediate(3), ResultPolicy.successfulWhen(_ > 0)))
 // fail fast on certain errors
 retry(directOperation)(RetryPolicy(Schedule.Immediate(3), ResultPolicy.retryWhen(_.getMessage != "fatal error")))
-retry(eitherOperation)(RetryPolicy(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error"))(3))
+retry(eitherOperation)(RetryPolicy(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")))
 ```
 
 See the tests in `ox.retry.*` for more.
