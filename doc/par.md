@@ -1,6 +1,6 @@
 # Running computations in parallel
 
-```scala
+```scala mdoc:compile-only
 import ox.par
 
 def computation1: Int =

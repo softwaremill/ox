@@ -21,10 +21,12 @@ def select[T1, T2](source1: Source[T1], source2: Source[T2]): T1 | T2 | ChannelC
 
 As an example, this can be used as follows:
 
-```scala
-import ox.{Source, supervised}
+```scala mdoc:compile-only
+import ox.supervised
 import ox.channels.*
-import scala.concurrent.duration.FiniteDuration
+
+import scala.annotation.tailrec
+import scala.concurrent.duration.*
 
 case object Tick
 def consumer(strings: Source[String]): Nothing =
@@ -35,7 +37,7 @@ def consumer(strings: Source[String]): Nothing =
     def doConsume(acc: Int): Nothing =
       select(tick, strings).orThrow match
         case Tick =>
-          log.info(s"Characters received this second: $acc")
+          println(s"Characters received this second: $acc")
           doConsume(0)
         case s: String => doConsume(acc + s.length)
 
@@ -54,8 +56,8 @@ channels).
 
 For example:
 
-```scala
-import ox.channels.Channel
+```scala mdoc:compile-only
+import ox.channels.{Channel, select}
 
 val c = Channel[Int]()
 val d = Channel[Int]()
@@ -79,7 +81,7 @@ Channel closed values can be inspected, or converted to an exception using `.orT
 
 The results of a `select` can be inspected using a pattern match:
 
-```scala
+```scala mdoc:compile-only
 import ox.channels.*
 
 val c = Channel[Int]()
@@ -106,7 +108,7 @@ A default clause can be provided, which specifies the return value of the `selec
 immediately satisfied. The clause can be created with `Default`, and in case the value is used, it is returned wrapped
 in `DefaultResult`. For example:
 
-```scala
+```scala mdoc:compile-only
 import ox.channels.*
 
 val c = Channel[Int]()

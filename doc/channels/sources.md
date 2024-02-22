@@ -3,7 +3,7 @@
 A source can be used to receive elements from a channel. The `.receive()` method can block, and the result might be
 one of the following:
 
-```scala
+```scala mdoc:compile-only
 trait Source[+T]:
   def receive(): T | ChannelClosed
 

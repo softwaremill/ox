@@ -2,7 +2,7 @@
 
 ## mapPar
 
-```scala
+```scala mdoc:silent
 import ox.syntax.mapPar
 
 val input: List[Int] = List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
@@ -17,20 +17,20 @@ limits how many concurrent forks are going to process the collection.
 
 ## foreachPar
 
-```scala
+```scala mdoc:silent:reset
 import ox.syntax.foreachPar
 
 val input: List[Int] = List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
 
 input.foreachPar(4)(i => println())
-// Prints each element of the list, might be in any order
+// prints each element of the list, might be in any order
 ```
 
 Similar to `mapPar` but doesn't return anything.
 
 ## filterPar
 
-```scala
+```scala mdoc:silent:reset
 import ox.syntax.filterPar
 
 val input: List[Int] = List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
@@ -44,7 +44,7 @@ and other forks calculating predicates are interrupted.
 
 ## collectPar
 
-```scala
+```scala mdoc:silent:reset
 import ox.syntax.collectPar
 
 val input: List[Int] = List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)

@@ -5,7 +5,7 @@
 Resources can be allocated within a scope. They will be released in reverse acquisition order, after the scope completes
 (that is, after all forks started within finish). E.g.:
 
-```scala
+```scala mdoc:compile-only
 import ox.{supervised, useInScope}
 
 case class MyResource(c: Int)
@@ -29,7 +29,7 @@ supervised {
 
 Resources can also be used in a dedicated scope:
 
-```scala
+```scala mdoc:compile-only
 import ox.useSupervised
 
 case class MyResource(c: Int)

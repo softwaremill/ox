@@ -1,6 +1,6 @@
 # Race two computations
 
-```scala
+```scala mdoc:compile-only
 import ox.raceSuccess
 
 def computation1: Int =

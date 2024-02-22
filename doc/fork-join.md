@@ -13,7 +13,7 @@ The whole block will complete only once all forks have completed (successfully, 
 Hence, it is guaranteed that all forks started within `supervised` or `scoped` will finish successfully, with an
 exception, or due to an interrupt.
 
-```scala
+```scala mdoc:compile-only
 import ox.{fork, supervised}
 
 // same as `par`
@@ -35,7 +35,7 @@ supervised {
 It is a compile-time error to use `fork`/`forkUser` outside of a `supervised` or `scoped` block. Helper methods might
 require to be run within a scope by requiring the `Ox` capability:
 
-```scala
+```scala mdoc:compile-only
 import ox.{fork, Fork, Ox, supervised}
 
 def forkComputation(p: Int)(using Ox): Fork[Int] = fork {
@@ -66,7 +66,7 @@ Hence an exception in any of the forks will cause the whole scope to end. Ending
 are cancelled (using interruption). Once all forks complete, the exception is propagated further, that is re-thrown by
 the `supervised` method invocation:
 
-```scala
+```scala mdoc:compile-only
 import ox.{fork, forkUser, Fork, Ox, supervised}
 
 supervised {

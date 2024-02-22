@@ -8,7 +8,7 @@ highest flexibility and allows creating arbitrary channel topologies.
 However, there's a number of common operations that are built-in as methods on `Source`, which allow transforming the
 source. For example:
 
-```scala
+```scala mdoc:compile-only
 import ox.supervised
 import ox.channels.{Channel, Source}
 
@@ -30,7 +30,7 @@ Some other available combinators include `.filter`, `.take`, `.zip(otherSource)`
 
 To run multiple transformations within one virtual thread / fork, the `.transform` method is available:
 
-```scala
+```scala mdoc:compile-only
 import ox.supervised
 import ox.channels.Source
 
@@ -57,7 +57,7 @@ computes the transformation. These include: `.mapAsView`, `.filterAsView` and `.
 
 For example:
 
-```scala
+```scala mdoc:compile-only
 import ox.channels.{Channel, Source}
 
 val c = Channel[String]()

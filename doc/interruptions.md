@@ -6,9 +6,13 @@ complete.
 
 A good solution is to catch only non-fatal exception using `NonFatal`, e.g.:
 
-```scala
+```scala mdoc:compile-only
 import ox.{forever, fork, supervised}
 
+import org.slf4j.LoggerFactory
+import scala.util.control.NonFatal
+
+val logger = LoggerFactory.getLogger(this.getClass)
 def processSingleItem(): Unit = ()
 
 supervised {

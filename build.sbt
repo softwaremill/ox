@@ -77,7 +77,8 @@ lazy val documentation: Project = (project in file("generated-doc")) // importan
     mdocOut := file("generated-doc/out"),
     mdocExtraArguments := Seq("--clean-target"),
     publishArtifact := false,
-    name := "doc"
+    name := "doc",
+    libraryDependencies ++= Seq(logback % Test)
   )
   .dependsOn(
     core,

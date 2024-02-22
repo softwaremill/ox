@@ -8,7 +8,7 @@ A channel is like a queue (data can be sent/received), but additionally channels
 
 Creating a channel is a light-weight operation:
 
-```scala
+```scala mdoc:compile-only
 import ox.channels.*
 val c = Channel[String]()
 ```
@@ -18,7 +18,7 @@ always blocks, unless there's another thread waiting on a `.receive`.
 
 Buffered channels can be created by providing a non-zero capacity:
 
-```scala
+```scala mdoc:compile-only
 import ox.channels.*
 val c = Channel[String](5)
 ```

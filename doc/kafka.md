@@ -13,26 +13,26 @@ bootstrap servers, consumer group id, key / value serializers, etc.
 
 To read from a Kafka topic, use:
 
-```scala
-import ox.channel.ChannelClosed
-import ox.kafka.{ConsumerSettings, KafkaSource}
-import ox.kafka.ConsumerSettings.AutoOffsetReset.Earliest
+```scala mdoc:compile-only
+import ox.channels.ChannelClosed
+import ox.kafka.{ConsumerSettings, KafkaSource, ReceivedMessage}
+import ox.kafka.ConsumerSettings.AutoOffsetReset
 import ox.supervised
-import org.apache.kafka.clients.consumer.ConsumerRecord
 
 supervised {
-  val settings = ConsumerSettings.default("my_group").bootstrapServers("localhost:9092").autoOffsetReset(Earliest)
+  val settings = ConsumerSettings.default("my_group").bootstrapServers("localhost:9092").autoOffsetReset(AutoOffsetReset.Earliest)
+  val topic = "my_topic"
   val source = KafkaSource.subscribe(settings, topic)
 
-  source.receive(): ConsumerRecord[String, String] | ChannelClosed
+  source.receive(): ReceivedMessage[String, String] | ChannelClosed
 }
 ```
 
 To publish data to a Kafka topic:
 
-```scala
-import ox.channel.Source
-import ox.kafka.{ProducerSettings, KafkaSink}
+```scala mdoc:compile-only
+import ox.channels.Source
+import ox.kafka.{ProducerSettings, KafkaDrain}
 import ox.supervised
 import org.apache.kafka.clients.producer.ProducerRecord
 
@@ -47,20 +47,23 @@ supervised {
 
 To publish data and commit offsets of messages, basing on which the published data is computed:
 
-```scala
-import ox.kafka.{KafkaSink, KafkaSource, ProducerSettings, SendPacket}
+```scala mdoc:compile-only
+import ox.kafka.{ConsumerSettings, KafkaDrain, KafkaSource, ProducerSettings, SendPacket}
+import ox.kafka.ConsumerSettings.AutoOffsetReset
 import ox.supervised
 import org.apache.kafka.clients.producer.ProducerRecord
 
 supervised {
-  val consumerSettings = ConsumerSettings.default("my_group").bootstrapServers("localhost:9092").autoOffsetReset(Earliest)
+  val consumerSettings = ConsumerSettings.default("my_group").bootstrapServers("localhost:9092").autoOffsetReset(AutoOffsetReset.Earliest)
   val producerSettings = ProducerSettings.default.bootstrapServers("localhost:9092")
+  val sourceTopic = "source_topic"
+  val destTopic = "dest_topic"
 
   KafkaSource
     .subscribe(consumerSettings, sourceTopic)
-    .map(in => (in.value().toLong * 2, in))
+    .map(in => (in.value.toLong * 2, in))
     .map((value, original) => SendPacket(ProducerRecord[String, String](destTopic, value.toString), original))
-    .applied(KafkaDrain.publishAndCommit(consumerSettings, producerSettings))
+    .applied(KafkaDrain.publishAndCommit(producerSettings))
 }
 ```
 
@@ -68,9 +71,9 @@ The offsets are committed every second in a background process.
 
 To publish data as a mapping stage:
 
-```scala
-import ox.channel.Source
-import ox.kafka.{ProducerSettings, KafkaSink}
+```scala mdoc:compile-only
+import ox.channels.Source
+import ox.kafka.{ProducerSettings, KafkaDrain}
 import ox.kafka.KafkaStage.*
 import ox.supervised
 import org.apache.kafka.clients.producer.{ProducerRecord, RecordMetadata}
