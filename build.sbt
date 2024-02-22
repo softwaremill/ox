@@ -59,7 +59,7 @@ lazy val kafka: Project = (project in file("kafka"))
       "org.apache.kafka" % "kafka-clients" % "3.5.0",
       slf4j,
       logback % Test,
-      "io.github.embeddedkafka" %% "embedded-kafka" % "3.5.1" % Test,
+      "io.github.embeddedkafka" %% "embedded-kafka" % "3.6.1" % Test,
       scalaTest
     )
   )
