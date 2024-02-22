@@ -3,7 +3,7 @@
 Dependency:
 
 ```scala
-"com.softwaremill.ox" %% "kafka" % "0.0.19+3-a8305f46-SNAPSHOT"
+"com.softwaremill.ox" %% "kafka" % "0.0.20"
 ```
 
 `Source`s which read from a Kafka topic, mapping stages and drains which publish to Kafka topics are available through

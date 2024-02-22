@@ -10,7 +10,7 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
 ## sbt dependency
 
 ```scala
-"com.softwaremill.ox" %% "core" % "0.0.19+3-a8305f46-SNAPSHOT"
+"com.softwaremill.ox" %% "core" % "0.0.20"
 ```
 
 ## Scope of the project
