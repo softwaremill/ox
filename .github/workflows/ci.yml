@@ -100,7 +100,7 @@ jobs:
     name: Auto merge
     # only for PRs by softwaremill-ci
     if: github.event.pull_request.user.login == 'softwaremill-ci'
-    needs: [ ci, mima, label ]
+    needs: [ ci, label ]
     runs-on: ubuntu-22.04
     steps:
       - id: automerge
