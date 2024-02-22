@@ -14,7 +14,7 @@ lazy val commonSettings = commonSmlBuildSettings ++ ossPublishSettings ++ Seq(
   }.value
 )
 
-val scalaTest = "org.scalatest" %% "scalatest" % "3.2.15" % Test
+val scalaTest = "org.scalatest" %% "scalatest" % "3.2.18" % Test
 val slf4j = "org.slf4j" % "slf4j-api" % "2.0.7"
 val logback = "ch.qos.logback" % "logback-classic" % "1.4.12"
 
