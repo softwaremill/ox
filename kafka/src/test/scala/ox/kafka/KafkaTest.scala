@@ -53,6 +53,8 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
   "stage" should "publish messages to a topic" in {
     // given
     val topic = "t2"
+    val count = 1000
+    val msgs = (1 to count).map(n => s"msg$n").toList
 
     // when
     val metadatas = supervised {
@@ -60,17 +62,17 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
 
       val settings = ProducerSettings.default.bootstrapServers(bootstrapServer)
       Source
-        .fromIterable(List("a", "b", "c"))
+        .fromIterable(msgs)
         .mapAsView(msg => ProducerRecord[String, String](topic, msg))
         .mapPublish(settings)
         .toList
     }
 
     // then
-    metadatas.map(_.offset()) shouldBe List(0L, 1L, 2L)
+    metadatas.map(_.offset()) shouldBe (0 until count).toList
 
     given Deserializer[String] = new StringDeserializer()
-    consumeNumberMessagesFrom[String](topic, 3, timeout = 30.seconds) shouldBe List("a", "b", "c")
+    consumeNumberMessagesFrom[String](topic, count, timeout = 30.seconds) shouldBe msgs
   }
 
   it should "commit offsets of processed messages" in {
