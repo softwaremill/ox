@@ -82,7 +82,7 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
       fail("should have thrown")
     catch
       case ChannelClosedException.Error(reason) if reason.getMessage == "boom" =>
-        started.get() should be >= 4
+        started.get() should be >= 2 // 1 needs to start & finish; 2 other need to start; and then the failing one has to start & proceed
         started.get() should be <= 7 // 4 successful + at most 3 taking up all the permits
   }
 
