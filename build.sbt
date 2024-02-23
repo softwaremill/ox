@@ -16,7 +16,7 @@ lazy val commonSettings = commonSmlBuildSettings ++ ossPublishSettings ++ Seq(
 
 val scalaTest = "org.scalatest" %% "scalatest" % "3.2.18" % Test
 val slf4j = "org.slf4j" % "slf4j-api" % "2.0.12"
-val logback = "ch.qos.logback" % "logback-classic" % "1.4.14"
+val logback = "ch.qos.logback" % "logback-classic" % "1.5.0"
 
 // used during CI to verify that the documentation compiles
 val compileDocumentation: TaskKey[Unit] = taskKey[Unit]("Compiles documentation throwing away its output")
