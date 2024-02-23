@@ -45,7 +45,23 @@ supervised {
 }
 ```
 
-To publish data and commit offsets of messages, basing on which the published data is computed:
+Quite often data to be published to a topic (`topic1`) is computed basing on data received from another topic 
+(`topic2`). In such a case, it's possible to commit messages from `topic2`, after the messages to `topic1` are 
+successfully published. 
+
+In order to do so, a `Source[SendPacket]` needs to be created. The definition of `SendPacket` is:
+
+```scala mdoc:compile-only
+import org.apache.kafka.clients.producer.ProducerRecord
+import ox.kafka.ReceivedMessage
+
+case class SendPacket[K, V](send: List[ProducerRecord[K, V]], commit: List[ReceivedMessage[_, _]])
+```
+
+The `send` list contains the messages to be sent (each message is a Kafka `ProducerRecord`). The `commit` list contains
+the messages, basing on which the data to be sent was computed. These are the received messages, as produced by a 
+`KafkaSource`. When committing, for each topic-partition that appears in the received messages, the maximum offset is
+computed. For example:
 
 ```scala mdoc:compile-only
 import ox.kafka.{ConsumerSettings, KafkaDrain, KafkaSource, ProducerSettings, SendPacket}
