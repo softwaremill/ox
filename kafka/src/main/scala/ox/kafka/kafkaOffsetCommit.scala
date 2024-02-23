@@ -13,14 +13,17 @@ private[kafka] def doCommit(packets: Source[SendPacket[_, _]])(using Ox): Unit =
   val ticks = Source.tick(commitInterval)
   val toCommit = mutable.Map[TopicPartition, Long]()
   var consumer: Sink[KafkaConsumerRequest[_, _]] = null // assuming all packets come from the same consumer
+  val commitDone = Channel[Unit]()
 
   repeatWhile {
     select(ticks, packets) match
-      case ChannelClosed.Error(e)    => throw e
-      case ChannelClosed.Done        => false
+      case ChannelClosed.Error(e) => throw e
+      case ChannelClosed.Done     => false
       case () =>
         if consumer != null && toCommit.nonEmpty then
-          consumer.send(KafkaConsumerRequest.Commit(toCommit.toMap))
+          consumer.send(KafkaConsumerRequest.Commit(toCommit.toMap, commitDone))
+          // waiting for the commit to happen
+          commitDone.receive()
           toCommit.clear()
         true
       case packet: SendPacket[_, _] =>

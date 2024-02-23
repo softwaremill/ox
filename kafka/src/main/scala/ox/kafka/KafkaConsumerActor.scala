@@ -42,14 +42,17 @@ object KafkaConsumerActor:
                 case NonFatal(e) =>
                   logger.error("Exception when polling for records in Kafka", e)
                   results.error(e)
+                  c.error(e)
                   false
-            case KafkaConsumerRequest.Commit(offsets) =>
+            case KafkaConsumerRequest.Commit(offsets, result) =>
               try
                 consumer.commitSync(offsets.view.mapValues(o => new OffsetAndMetadata(o + 1)).toMap.asJava)
+                result.send(())
                 true
               catch
                 case NonFatal(e) =>
                   logger.error("Exception when committing offsets", e)
+                  result.error(e)
                   c.error(e)
                   false
         }
@@ -64,4 +67,4 @@ object KafkaConsumerActor:
 enum KafkaConsumerRequest[K, V]:
   case Subscribe(topics: Seq[String])
   case Poll(results: Sink[ConsumerRecords[K, V]])
-  case Commit(offsets: Map[TopicPartition, Long])
+  case Commit(offsets: Map[TopicPartition, Long], results: Sink[Unit])

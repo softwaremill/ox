@@ -1,16 +1,10 @@
 package ox.kafka
 
-import org.apache.kafka.clients.consumer.{ConsumerRecord, KafkaConsumer, OffsetAndMetadata}
 import org.apache.kafka.clients.producer.{Callback, KafkaProducer, ProducerRecord, RecordMetadata}
-import org.apache.kafka.common.TopicPartition
 import org.slf4j.LoggerFactory
 import ox.*
 import ox.channels.*
 
-import java.util.concurrent.atomic.AtomicInteger
-import scala.annotation.tailrec
-import scala.collection.mutable
-import scala.concurrent.duration.*
 import scala.jdk.CollectionConverters.*
 
 object KafkaDrain:
@@ -58,54 +52,7 @@ object KafkaDrain:
     *   sent. Then, all `commit` messages (consumer records) up to their offsets are committed.
     */
   def publishAndCommit[K, V](producer: KafkaProducer[K, V], closeWhenComplete: Boolean): Source[SendPacket[K, V]] => Unit = source =>
-    val exceptions = Channel.unlimited[Throwable]
-    val toCommit = Channel[SendPacket[_, _]](128)
-
-    try
-      // starting a nested scope, so that the committer is interrupted when the main process ends
-      scoped {
-        // committer
-        fork(tapException(doCommit(toCommit)) { e =>
-          logger.error("Exception when committing offsets", e)
-          exceptions.send(e)
-        })
-
-        repeatWhile {
-          select(exceptions.receiveClause, source.receiveClause) match
-            case e: ChannelClosed.Error =>
-              logger.debug(s"Stopping publishing: upstream closed due to an error ($e).")
-              throw e.toThrowable
-            case ChannelClosed.Done =>
-              logger.debug(s"Stopping publishing: upstream done.")
-              false
-            case exceptions.Received(e) =>
-              throw e
-            case source.Received(packet) =>
-              sendPacket(producer, packet, toCommit, exceptions)
-              true
-        }
-      }
-    finally
-      if closeWhenComplete then
-        logger.debug("Closing the Kafka producer")
-        uninterruptible(producer.close())
-
-  private def sendPacket[K, V](
-      producer: KafkaProducer[K, V],
-      packet: SendPacket[K, V],
-      toCommit: Sink[SendPacket[_, _]],
-      exceptions: Sink[Throwable]
-  ): Unit =
-    val leftToSend = new AtomicInteger(packet.send.size)
-    packet.send.foreach { toSend =>
-      producer.send(
-        toSend,
-        (_: RecordMetadata, exception: Exception) => {
-          if exception == null
-          then { if leftToSend.decrementAndGet() == 0 then toCommit.send(packet) }
-          else
-            logger.error("Exception when sending record", exception)
-            exceptions.send(exception)
-        }
-      )
+    supervised {
+      import KafkaStage.*
+      source.mapPublishAndCommit(producer, closeWhenComplete).drain()
     }
