@@ -32,8 +32,7 @@ case class RateLimiterQueue[F](maxRuns: Int, perMillis: Long, lastTimestamps: Qu
     if lastTimestamps.size < maxRuns then {
       waiting.dequeueOption match {
         case Some((io, w)) =>
-          val (tasks, next) = copy(lastTimestamps = lastTimestamps.enqueue(now), waiting = w).run(now)
-          (Run(io) :: tasks, next)
+          val (tasks, next) = copy(lastTimestamps = lastTimestamps.enqueue(now), waiting = w).run(now)(Run(io) :: tasks, next)
         case None =>
           (Nil, this)
       }

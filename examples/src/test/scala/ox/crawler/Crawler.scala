@@ -38,8 +38,7 @@ object Crawler:
         data.workers.get(host) match {
           case None =>
             val workerQueue = new ArrayBlockingQueue[Url](32)
-            worker(workerQueue, crawlerQueue)
-            (data.copy(workers = data.workers + (host -> workerQueue)), workerQueue)
+            worker(workerQueue, crawlerQueue)(data.copy(workers = data.workers + (host -> workerQueue)), workerQueue)
           case Some(queue) => (data, queue)
         }
 
