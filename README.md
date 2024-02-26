@@ -44,3 +44,5 @@ We offer commercial development services. [Contact us](https://softwaremill.com)
 ## Copyright
 
 Copyright (C) 2023-2024 SoftwareMill [https://softwaremill.com](https://softwaremill.com).
+
+This is a test PR.
