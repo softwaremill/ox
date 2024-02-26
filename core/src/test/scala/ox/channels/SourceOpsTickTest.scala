@@ -13,8 +13,8 @@ import scala.jdk.CollectionConverters.*
 class SourceOpsTickTest extends AnyFlatSpec with Matchers with Eventually {
   it should "tick regularly" in {
     supervised {
-      val c = Source.tick(100.millis)
       val start = System.currentTimeMillis()
+      val c = Source.tick(100.millis)
       c.receive() shouldBe ()
       (System.currentTimeMillis() - start) shouldBe >=(0L)
       (System.currentTimeMillis() - start) shouldBe <=(50L)
@@ -31,8 +31,8 @@ class SourceOpsTickTest extends AnyFlatSpec with Matchers with Eventually {
 
   it should "tick immediately in case of a slow consumer, and then resume normal " in {
     supervised {
-      val c = Source.tick(100.millis)
       val start = System.currentTimeMillis()
+      val c = Source.tick(100.millis)
 
       // simulating a slow consumer
       Thread.sleep(200)
