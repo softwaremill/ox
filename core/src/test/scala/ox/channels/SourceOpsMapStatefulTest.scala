@@ -26,6 +26,7 @@ class SourceOpsMapStatefulTest extends AnyFlatSpec with Matchers {
 
   it should "propagate errors in the mapping function" in supervised {
     // given
+    given StageCapacity = StageCapacity(0) // so that the error isn't created too early
     val c = Source.fromValues("a", "b", "c")
 
     // when
