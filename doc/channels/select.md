@@ -59,8 +59,8 @@ For example:
 ```scala mdoc:compile-only
 import ox.channels.{Channel, select}
 
-val c = Channel[Int]()
-val d = Channel[Int]()
+val c = Channel.rendezvous[Int]
+val d = Channel.rendezvous[Int]
 
 select(c.sendClause(10), d.receiveClause)
 ```
@@ -84,8 +84,8 @@ The results of a `select` can be inspected using a pattern match:
 ```scala mdoc:compile-only
 import ox.channels.*
 
-val c = Channel[Int]()
-val d = Channel[Int]()
+val c = Channel.rendezvous[Int]
+val d = Channel.rendezvous[Int]
 
 select(c.sendClause(10), d.receiveClause).orThrow match
   case c.Sent()      => println("Sent to c")
@@ -111,7 +111,7 @@ in `DefaultResult`. For example:
 ```scala mdoc:compile-only
 import ox.channels.*
 
-val c = Channel[Int]()
+val c = Channel.rendezvous[Int]
 
 select(c.receiveClause, Default(5)).orThrow match
   case c.Received(v)    => println(s"Received from d: $v")

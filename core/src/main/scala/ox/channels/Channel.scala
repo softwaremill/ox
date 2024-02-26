@@ -212,8 +212,14 @@ class Channel[T](capacity: Int) extends Source[T] with Sink[T]:
   override def toString: String = delegate.toString
 
 object Channel:
-  /** Creates a buffered channel (when capacity is positive), or a rendezvous channel if the capacity is 0. */
-  def apply[T](capacity: Int = 0): Channel[T] = new Channel(capacity)
+  /** Creates a buffered channel with the default capacity (16). */
+  def bufferedDefault[T]: Channel[T] = StageCapacity.newChannel[T]
+
+  /** Creates a buffered channel with the given capacity. */
+  def buffered[T](capacity: Int): Channel[T] = new Channel(capacity)
+
+  /** Creates a rendezvous channel (without a buffer, senders & receivers must meet to exchange values). */
+  def rendezvous[T]: Channel[T] = new Channel(0)
 
   /** Creates an unlimited channel (which can buffer an arbitrary number of elements). */
   def unlimited[T]: Channel[T] = new Channel(-1)

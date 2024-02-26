@@ -13,7 +13,7 @@ private[kafka] def doCommit(packets: Source[SendPacket[_, _]])(using Ox): Unit =
   val ticks = Source.tick(commitInterval)
   val toCommit = mutable.Map[TopicPartition, Long]()
   var consumer: Sink[KafkaConsumerRequest[_, _]] = null // assuming all packets come from the same consumer
-  val commitDone = Channel[Unit]()
+  val commitDone = Channel.rendezvous[Unit]
 
   repeatWhile {
     select(ticks, packets) match

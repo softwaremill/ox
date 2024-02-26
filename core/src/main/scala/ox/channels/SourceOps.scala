@@ -1003,7 +1003,7 @@ trait SourceCompanionOps:
     c
 
   def empty[T]: Source[T] =
-    val c = Channel[T]()
+    val c = Channel.rendezvous[T]
     c.done()
     c
 
@@ -1171,6 +1171,6 @@ trait SourceCompanionOps:
     *   A source that would fail immediately with the given [[java.lang.Throwable]]
     */
   def failed[T](t: Throwable): Source[T] =
-    val c = Channel[T]()
+    val c = Channel.rendezvous[T]
     c.error(t)
     c

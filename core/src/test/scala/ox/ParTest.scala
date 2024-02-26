@@ -47,29 +47,24 @@ class ParTest extends AnyFlatSpec with Matchers {
   }
 
   "parLimit" should "run up to the given number of computations in parallel" in {
-    val trail = Trail()
+    val running = new AtomicInteger(0)
+    val max = new AtomicInteger(0)
     val result = scoped {
-      fork {
-        forever {
-          Thread.sleep(200)
-          trail.add("y")
-        }
-      }
-
-      Thread.sleep(100)
       parLimit(2)(
-        (1 to 5).map(i =>
+        (1 to 9).map(i =>
           () => {
-            Thread.sleep(200)
-            trail.add("x")
+            val current = running.incrementAndGet()
+            max.updateAndGet(m => if current > m then current else m)
+            Thread.sleep(100)
+            running.decrementAndGet()
             i * 2
           }
         )
       )
     }
 
-    result shouldBe List(2, 4, 6, 8, 10)
-    trail.get shouldBe Vector("y", "x", "x", "y", "x", "x", "y", "x")
+    result shouldBe List(2, 4, 6, 8, 10, 12, 14, 16, 18)
+    max.get() shouldBe 2
   }
 
   it should "interrupt other computations in one fails" in {

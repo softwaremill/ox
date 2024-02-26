@@ -31,7 +31,7 @@ class ControlTest extends AnyFlatSpec with Matchers {
     scoped {
       try
         timeout(1.second) {
-          Thread.sleep(500)
+          Thread.sleep(100)
           trail.add("no timeout")
         }
       catch case _: TimeoutException => trail.add("timeout")

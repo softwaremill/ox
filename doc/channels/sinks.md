@@ -7,7 +7,7 @@ Data can be sent to a channel using `.send`. Once no more data items are availab
 import ox.{fork, supervised}
 import ox.channels.*
 
-val c = Channel[String]()
+val c = Channel.rendezvous[String]
 supervised {
   fork {
     c.send("Hello")
