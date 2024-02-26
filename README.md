@@ -18,14 +18,14 @@ ScalaDocs can be browsed at [https://javadoc.io](https://www.javadoc.io/doc/com.
 
 ## Contributing
 
+All suggestions welcome :)
+
 To compile and test, run:
 
 ```
 sbt compile
 sbt test
 ```
-
-All suggestions welcome :)
 
 See the list of [issues](https://github.com/softwaremill/ox/issues) and pick one! Or report your own.
 
