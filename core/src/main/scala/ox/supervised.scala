@@ -14,6 +14,10 @@ import java.util.concurrent.{CompletableFuture, ConcurrentHashMap}
   *   - the scope completes (that is, this method returns) only once all forks started by `f` have completed (either successfully, or with
   *     an exception)
   *
+  * Upon successful completion, returns the result of evaluating `f`. Upon failure, the exception that caused the scope to end is re-thrown
+  * (regardless if the exception was thrown from the main body, or from a fork). Any other exceptions that occur when completing the scope
+  * are added as suppressed.
+  *
   * @see
   *   [[scoped]] Starts a scope in unsupervised mode
   */

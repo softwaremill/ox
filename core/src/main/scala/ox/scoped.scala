@@ -8,7 +8,7 @@ private class DoNothingScope[T] extends StructuredTaskScope[T](null, Thread.ofVi
 /** Starts a new scope, which allows starting forks in the given code block `f`. Forks can be started using [[fork]], [[forkUser]],
   * [[forkCancellable]] and [[forkUnsupervised]]. All forks are guaranteed to complete before this scope completes.
   *
-  * **Warning:** It is advisable to use [[supevised]] scopes if possible, as they minimise the chances of an error to go unnoticed.
+  * **Warning:** It is advisable to use [[supervised]] scopes if possible, as they minimise the chances of an error to go unnoticed.
   * [[scoped]] scopes are considered an advanced feature, and should be used with caution.
   *
   * The scope is ran in unsupervised mode, that is:
@@ -18,6 +18,8 @@ private class DoNothingScope[T] extends StructuredTaskScope[T](null, Thread.ofVi
   *   - fork failures aren't handled in any special way, but can be inspected using [[Fork.join()]]
   *
   * Forks created using [[fork]], [[forkUser]] and [[forkUnsupervised]] will behave exactly the same.
+  *
+  * Upon successful completion, returns the result of evaluating `f`. Upon failure, that is an exception thrown by `f`, it is re-thrown.
   *
   * @see
   *   [[supervised]] Starts a scope in supervised mode
