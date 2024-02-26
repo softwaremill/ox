@@ -948,12 +948,44 @@ trait SourceCompanionOps:
     }
     c
 
-  def tick[T](interval: FiniteDuration, element: T = ())(using Ox, StageCapacity): Source[T] =
-    val c = StageCapacity.newChannel[T]
+  /** Creates a rendezvous channel (without a buffer, regardless of the [[StageCapacity]] in scope), to which the given value is sent
+    * repeatedly, at least [[interval]] apart between each two elements. The first value is sent immediately.
+    *
+    * The interval is measured between the subsequent invocations of the `send(value)` method. Hence, if there's a slow consumer, the next
+    * tick can be sent right after the previous one is received (if it was received later than the inter-tick interval duration). However,
+    * ticks don't accumulate, e.g. when the consumer is so slow that multiple intervals pass between `send` invocations.
+    *
+    * Must be run within a scope, since a child fork is created which sends the ticks, and waits until the next tick can be sent.
+    *
+    * @param interval
+    *   The temporal spacing between subsequent ticks.
+    * @param value
+    *   The value to send to the channel on every tick.
+    * @return
+    *   A source to which the tick values are sent.
+    * @example
+    *   {{{
+    *   scala>
+    *   import ox.*
+    *   import ox.channels.Source
+    *   import scala.concurrent.duration.DurationInt
+    *
+    *   supervised {
+    *     val s1 = Source.tick(100.millis)
+    *     s1.receive()
+    *     s2.receive() // this will complete at least 100 milliseconds later
+    *   }
+    *   }}}
+    */
+  def tick[T](interval: FiniteDuration, value: T = ())(using Ox): Source[T] =
+    val c = Channel.rendezvous[T]
     fork {
       forever {
-        c.send(element)
-        Thread.sleep(interval.toMillis)
+        val start = System.nanoTime()
+        c.send(value)
+        val end = System.nanoTime()
+        val sleep = interval.toNanos - (end - start)
+        if sleep > 0 then Thread.sleep(sleep / 1_000_000, (sleep % 1_000_000).toInt)
       }
     }
     c

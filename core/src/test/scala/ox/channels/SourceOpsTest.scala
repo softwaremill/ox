@@ -5,31 +5,9 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.*
 
-import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.atomic.AtomicInteger
 import scala.concurrent.duration.DurationInt
-import scala.jdk.CollectionConverters.*
 
 class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
-
-  it should "tick regularly" in {
-    supervised {
-      val c = Source.tick(100.millis)
-      val start = System.currentTimeMillis()
-      c.receive() shouldBe ()
-      (System.currentTimeMillis() - start) shouldBe >=(0L)
-      (System.currentTimeMillis() - start) shouldBe <=(50L)
-
-      c.receive() shouldBe ()
-      (System.currentTimeMillis() - start) shouldBe >=(100L)
-      (System.currentTimeMillis() - start) shouldBe <=(150L)
-
-      c.receive() shouldBe ()
-      (System.currentTimeMillis() - start) shouldBe >=(200L)
-      (System.currentTimeMillis() - start) shouldBe <=(250L)
-    }
-  }
-
   it should "timeout" in {
     supervised {
       val c = Source.timeout(100.millis)

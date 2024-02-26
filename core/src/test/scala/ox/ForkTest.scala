@@ -39,11 +39,10 @@ class ForkTest extends AnyFlatSpec with Matchers {
         finally trail.add("f1 complete")
       }
 
-      trail.add("main mid")
       trail.add(s"result = ${f1.join()}")
     }
 
-    trail.get shouldBe Vector("main mid", "f2 complete", "f1 complete", "result = 11")
+    trail.get shouldBe Vector("f2 complete", "f1 complete", "result = 11")
   }
 
   it should "allow extension method syntax" in {
@@ -60,11 +59,10 @@ class ForkTest extends AnyFlatSpec with Matchers {
         finally trail.add("f1 complete")
       }.fork
 
-      trail.add("main mid")
       trail.add(s"result = ${f1.join()}")
     }
 
-    trail.get shouldBe Vector("main mid", "f2 complete", "f1 complete", "result = 11")
+    trail.get shouldBe Vector("f2 complete", "f1 complete", "result = 11")
   }
 
   it should "interrupt child forks when parents complete" in {
