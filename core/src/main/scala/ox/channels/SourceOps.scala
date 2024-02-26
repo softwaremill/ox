@@ -985,7 +985,7 @@ trait SourceCompanionOps:
         c.send(value)
         val end = System.nanoTime()
         val sleep = interval.toNanos - (end - start)
-        if sleep > 0 then Thread.sleep(sleep / 1_000_000)
+        if sleep > 0 then Thread.sleep(sleep / 1_000_000, (sleep % 1_000_000).toInt)
       }
     }
     c
