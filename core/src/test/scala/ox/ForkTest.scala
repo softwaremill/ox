@@ -59,7 +59,6 @@ class ForkTest extends AnyFlatSpec with Matchers {
         finally trail.add("f1 complete")
       }.fork
 
-      trail.add("main mid")
       trail.add(s"result = ${f1.join()}")
     }
 
