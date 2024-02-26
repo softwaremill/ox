@@ -31,7 +31,7 @@ object KafkaSource:
 
     fork {
       try
-        val pollResults = Channel[ConsumerRecords[K, V]]()
+        val pollResults = Channel.rendezvous[ConsumerRecords[K, V]]
         forever {
           kafkaConsumer.send(KafkaConsumerRequest.Poll(pollResults))
           val records = pollResults.receive().orThrow

@@ -5,8 +5,6 @@ import org.scalatest.matchers.should.Matchers
 import ox.*
 import ox.util.Trail
 
-import java.util.concurrent.Semaphore
-
 class ForkTest extends AnyFlatSpec with Matchers {
   "fork" should "run two forks concurrently" in {
     val trail = Trail()
@@ -33,21 +31,19 @@ class ForkTest extends AnyFlatSpec with Matchers {
     scoped {
       val f1 = fork {
         val f2 = fork {
-          Thread.sleep(1000)
-          trail.add("f2 complete")
-          6
+          try 6
+          finally trail.add("f2 complete")
         }
 
-        Thread.sleep(500)
-        trail.add("f1 complete")
-        5 + f2.join()
+        try 5 + f2.join()
+        finally trail.add("f1 complete")
       }
 
       trail.add("main mid")
       trail.add(s"result = ${f1.join()}")
     }
 
-    trail.get shouldBe Vector("main mid", "f1 complete", "f2 complete", "result = 11")
+    trail.get shouldBe Vector("main mid", "f2 complete", "f1 complete", "result = 11")
   }
 
   it should "allow extension method syntax" in {
@@ -56,21 +52,19 @@ class ForkTest extends AnyFlatSpec with Matchers {
     scoped {
       val f1 = {
         val f2 = {
-          Thread.sleep(1000)
-          trail.add("f2 complete")
-          6
+          try 6
+          finally trail.add("f2 complete")
         }.fork
 
-        Thread.sleep(500)
-        trail.add("f1 complete")
-        5 + f2.join()
+        try 5 + f2.join()
+        finally trail.add("f1 complete")
       }.fork
 
       trail.add("main mid")
       trail.add(s"result = ${f1.join()}")
     }
 
-    trail.get shouldBe Vector("main mid", "f1 complete", "f2 complete", "result = 11")
+    trail.get shouldBe Vector("main mid", "f2 complete", "f1 complete", "result = 11")
   }
 
   it should "interrupt child forks when parents complete" in {

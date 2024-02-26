@@ -13,7 +13,7 @@ import scala.util.{Failure, Try}
 
 class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually {
   it should "map over a source as a view" in {
-    val c: Channel[Int] = Channel()
+    val c: Channel[Int] = Channel.rendezvous
 
     supervised {
       fork {
@@ -32,8 +32,8 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually {
   }
 
   it should "return done, if a channels is done immediately" in {
-    val c1: Channel[Int] = Channel()
-    val c2: Channel[Int] = Channel()
+    val c1: Channel[Int] = Channel.rendezvous
+    val c2: Channel[Int] = Channel.rendezvous
 
     c1.done()
 
@@ -44,8 +44,8 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually {
   }
 
   it should "select from sources mapped as view" in {
-    val c1: Channel[Int] = Channel()
-    val c2: Channel[Int] = Channel()
+    val c1: Channel[Int] = Channel.rendezvous
+    val c2: Channel[Int] = Channel.rendezvous
 
     supervised {
       fork {
@@ -70,7 +70,7 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually {
   }
 
   it should "filter over a source as a view" in {
-    val c: Channel[Int] = Channel()
+    val c: Channel[Int] = Channel.rendezvous
 
     supervised {
       fork {
@@ -89,8 +89,8 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually {
   }
 
   it should "select from sources filtered as a view" in {
-    val c1: Channel[Int] = Channel()
-    val c2: Channel[Int] = Channel()
+    val c1: Channel[Int] = Channel.rendezvous
+    val c2: Channel[Int] = Channel.rendezvous
 
     supervised {
       fork {
@@ -115,7 +115,7 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually {
   }
 
   it should "propagate exceptions to the calling select" in {
-    val c: Channel[Int] = Channel()
+    val c: Channel[Int] = Channel.rendezvous
 
     supervised {
       fork {
@@ -126,7 +126,7 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually {
         c.done()
       }
 
-      val c1 = Channel();
+      val c1 = Channel.rendezvous
       val s2 = c.filterAsView(v => if v % 2 == 0 then true else throw new RuntimeException("test"))
 
       Try(select(c1.receiveClause, s2.receiveClause)) should matchPattern { case Failure(e) if e.getMessage == "test" => }

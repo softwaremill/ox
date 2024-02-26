@@ -13,7 +13,7 @@ import ox.supervised
 import ox.channels.{Channel, Source}
 
 supervised {
-  val c = Channel[String]()
+  val c = Channel.rendezvous[String]
   val c2: Source[Int] = c.map(s => s.length())
 }
 ```
@@ -44,7 +44,7 @@ supervised {
 ## Capacity of transformation stages
 
 Most source transformation methods create new channels, on which the transformed values are produced. The capacity of
-these channels by default is 0 (unbuffered). This can be overridden by providing `StageCapacity` given, e.g.:
+these channels by default is 16 (buffered). This can be overridden by providing `StageCapacity` given, e.g.:
 
 ```scala
 (v: Source[Int]).map(_ + 1)(using StageCapacity(10))
@@ -60,7 +60,7 @@ For example:
 ```scala mdoc:compile-only
 import ox.channels.{Channel, Source}
 
-val c = Channel[String]()
+val c = Channel.rendezvous[String]
 val c2: Source[Int] = c.mapAsView(s => s.length())
 ```
 

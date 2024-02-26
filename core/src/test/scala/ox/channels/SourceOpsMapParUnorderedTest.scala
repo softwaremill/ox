@@ -118,6 +118,7 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
 
   it should "complete running forks and not start new ones when the upstream fails" in supervised {
     // given
+    given StageCapacity = StageCapacity(0)
     val trail = Trail()
     val s = Source.fromValues(1, 2, 3).concat(Source.failed(new RuntimeException("boom")))
 

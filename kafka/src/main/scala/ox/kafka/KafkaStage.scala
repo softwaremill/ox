@@ -64,11 +64,13 @@ object KafkaStage:
       // the result, where metadata of published records is sent in the same order, as the received packets
       val c = StageCapacity.newChannel[RecordMetadata]
       // a helper channel to signal any exceptions that occur while publishing or committing offsets
+      // the exceptions & metadata channels are unlimited so as to only block the Kafka callback thread in the smallest
+      // possible way
       val exceptions = Channel.unlimited[Exception]
       // possible out-of-order metadata of the records published from `packet.send`
-      val metadata = Channel[(Long, RecordMetadata)](128)
+      val metadata = Channel.unlimited[(Long, RecordMetadata)]
       // packets which are fully sent, and should be committed
-      val toCommit = Channel[SendPacket[_, _]](128)
+      val toCommit = StageCapacity.newChannel[SendPacket[_, _]]
       // used to reorder values received from `metadata` using the assigned sequence numbers
       val sendInSequence = SendInSequence(c)
 

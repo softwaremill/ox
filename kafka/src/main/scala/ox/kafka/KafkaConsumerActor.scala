@@ -13,7 +13,7 @@ object KafkaConsumerActor:
   private val logger = LoggerFactory.getLogger(classOf[KafkaConsumerActor.type])
 
   def apply[K, V](consumer: KafkaConsumer[K, V], closeWhenComplete: Boolean)(using Ox): Sink[KafkaConsumerRequest[K, V]] =
-    val c = Channel[KafkaConsumerRequest[K, V]]()
+    val c = Channel.rendezvous[KafkaConsumerRequest[K, V]]
 
     fork {
       try

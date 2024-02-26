@@ -44,6 +44,7 @@ class SourceOpsMapStatefulTest extends AnyFlatSpec with Matchers {
 
   it should "propagate errors in the completion callback" in supervised {
     // given
+    given StageCapacity = StageCapacity(0)
     val c = Source.fromValues("a", "b", "c")
 
     // when

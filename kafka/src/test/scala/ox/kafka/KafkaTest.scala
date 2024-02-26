@@ -90,7 +90,7 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
     publishStringMessageToKafka(sourceTopic, "25")
     publishStringMessageToKafka(sourceTopic, "92")
 
-    val metadatas = Channel[RecordMetadata](16)
+    val metadatas = StageCapacity.newChannel[RecordMetadata]
 
     supervised {
       // then

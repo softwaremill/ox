@@ -10,7 +10,7 @@ class SourceOpsMapTest extends AnyFlatSpec with Matchers {
 
   it should "map over a source" in {
     supervised {
-      val c = Channel[Int]()
+      val c = Channel.rendezvous[Int]
       fork {
         c.send(1)
         c.send(2)
@@ -32,7 +32,7 @@ class SourceOpsMapTest extends AnyFlatSpec with Matchers {
     // which then subsequently completed the stream; only then T1 wakes up, and checks if no new elements have been added
     for (_ <- 1 to 100000) {
       supervised {
-        val c = Channel[Int]()
+        val c = Channel.rendezvous[Int]
         fork {
           c.send(1)
           c.done()
@@ -48,7 +48,7 @@ class SourceOpsMapTest extends AnyFlatSpec with Matchers {
 
   it should "map over a source using for-syntax" in {
     supervised {
-      val c = Channel[Int]()
+      val c = Channel.rendezvous[Int]
       fork {
         c.send(1)
         c.send(2)

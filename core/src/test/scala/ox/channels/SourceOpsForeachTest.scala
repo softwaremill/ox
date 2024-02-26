@@ -9,7 +9,7 @@ class SourceOpsForeachTest extends AnyFlatSpec with Matchers {
   behavior of "Source.foreach"
 
   it should "iterate over a source" in {
-    val c = Channel[Int](10)
+    val c = Channel.buffered[Int](10)
     c.send(1)
     c.send(2)
     c.send(3)
@@ -22,7 +22,7 @@ class SourceOpsForeachTest extends AnyFlatSpec with Matchers {
   }
 
   it should "iterate over a source using for-syntax" in {
-    val c = Channel[Int](10)
+    val c = Channel.buffered[Int](10)
     c.send(1)
     c.send(2)
     c.send(3)
@@ -37,7 +37,7 @@ class SourceOpsForeachTest extends AnyFlatSpec with Matchers {
   }
 
   it should "convert source to a list" in {
-    val c = Channel[Int](10)
+    val c = Channel.buffered[Int](10)
     c.send(1)
     c.send(2)
     c.send(3)

@@ -12,8 +12,6 @@ import ox.kafka.*
     supervised {
       import KafkaStage.*
 
-      given StageCapacity = StageCapacity(16)
-
       val bootstrapServer = "localhost:29092"
       val settings = ProducerSettings.default.bootstrapServers(bootstrapServer)
       Source

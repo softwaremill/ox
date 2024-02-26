@@ -9,7 +9,7 @@ class SourceOpsTransformTest extends AnyFlatSpec with Matchers {
   behavior of "Source.transform"
 
   it should "transform a source using a simple map" in {
-    val c = Channel[Int](10)
+    val c = Channel.buffered[Int](10)
     c.send(1)
     c.send(2)
     c.send(3)
@@ -21,7 +21,7 @@ class SourceOpsTransformTest extends AnyFlatSpec with Matchers {
   }
 
   it should "transform a source using a complex chain of operations" in {
-    val c = Channel[Int](10)
+    val c = Channel.buffered[Int](10)
     c.send(1)
     c.send(2)
     c.send(3)
@@ -34,7 +34,7 @@ class SourceOpsTransformTest extends AnyFlatSpec with Matchers {
   }
 
   it should "transform an infinite source" in {
-    val c = Channel[Int]()
+    val c = Channel.rendezvous[Int]
     supervised {
       fork {
         var i = 0
@@ -52,7 +52,7 @@ class SourceOpsTransformTest extends AnyFlatSpec with Matchers {
 
   it should "transform an infinite source (stress test)" in {
     for (_ <- 1 to 1000) { // this nicely demonstrated two race conditions
-      val c = Channel[Int]()
+      val c = Channel.rendezvous[Int]
       supervised {
         fork {
           var i = 0

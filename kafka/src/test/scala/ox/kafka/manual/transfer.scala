@@ -15,8 +15,6 @@ import ox.kafka.ConsumerSettings.AutoOffsetReset
     supervised {
       import KafkaStage.*
 
-      given StageCapacity = StageCapacity(16)
-
       val bootstrapServer = "localhost:29092"
       val consumerSettings = ConsumerSettings.default(group).bootstrapServers(bootstrapServer).autoOffsetReset(AutoOffsetReset.Earliest)
       val producerSettings = ProducerSettings.default.bootstrapServers(bootstrapServer)
