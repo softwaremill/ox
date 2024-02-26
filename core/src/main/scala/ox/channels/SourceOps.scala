@@ -32,7 +32,7 @@ trait SourceOps[+T] { outer: Source[T] =>
     *
     * The same logic applies to receive clauses created using this source, which can be used in [[select]].
     *
-    * @param p
+    * @param f
     *   The predicate to use for filtering.
     * @return
     *   A source which is a view of this source, with the filtering function applied.
@@ -178,7 +178,7 @@ trait SourceOps[+T] { outer: Source[T] =>
 
   private def mapParScope[U](parallelism: Int, c2: Channel[U], f: T => U): Unit =
     val s = new Semaphore(parallelism)
-    val inProgress = Channel[Fork[Option[U]]](parallelism)
+    val inProgress = Channel.withCapacity[Fork[Option[U]]](parallelism)
     val closeScope = new CountDownLatch(1)
     scoped {
       // enqueueing fork

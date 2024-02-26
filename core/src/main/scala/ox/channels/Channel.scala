@@ -207,7 +207,7 @@ trait Sink[-T]:
   * @tparam T
   *   The type of the values processed by the channel.
   */
-class Channel[T](capacity: Int) extends Source[T] with Sink[T]:
+class Channel[T] private (capacity: Int) extends Source[T] with Sink[T]:
   protected override val delegate: JChannel[Any] = new JChannel(capacity)
   override def toString: String = delegate.toString
 
@@ -223,3 +223,8 @@ object Channel:
 
   /** Creates an unlimited channel (which can buffer an arbitrary number of elements). */
   def unlimited[T]: Channel[T] = new Channel(-1)
+
+  /** Creates a channel with the given capacity; -1 creates an [[unlimited]] channel, 0 creates a [[rendezvous]], positive values create a
+    * [[buffered]] channel.
+    */
+  def withCapacity[T](capacity: Int): Channel[T] = new Channel(capacity)

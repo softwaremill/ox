@@ -89,7 +89,7 @@ To publish data as a mapping stage:
 
 ```scala mdoc:compile-only
 import ox.channels.Source
-import ox.kafka.{ProducerSettings, KafkaDrain}
+import ox.kafka.ProducerSettings
 import ox.kafka.KafkaStage.*
 import ox.supervised
 import org.apache.kafka.clients.producer.{ProducerRecord, RecordMetadata}

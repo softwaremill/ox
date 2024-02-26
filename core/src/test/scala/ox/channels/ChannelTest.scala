@@ -12,7 +12,7 @@ import scala.jdk.CollectionConverters.*
 class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
   List(0, 1, 2, 100, 10000).foreach { capacity =>
     s"channel with capacity $capacity" should "send and receive two spaced elements" in {
-      val c = Channel[Int](capacity)
+      val c = Channel.withCapacity[Int](capacity)
       scoped {
         val f1 = fork {
           c.receive().orThrow
@@ -35,7 +35,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
 
     it should "send and receive many elements, with concurrent senders & receivers" in {
       val n = 10000
-      val c = Channel[Int](capacity)
+      val c = Channel.withCapacity[Int](capacity)
       scoped {
         val fs = (1 to 2 * n).map { i =>
           if i % 2 == 0 then
@@ -53,15 +53,15 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     }
 
     it should "select from two receives, if the last one has elements" in scoped {
-      val c1 = Channel[String](capacity)
+      val c1 = Channel.withCapacity[String](capacity)
       val c2 = Source.fromIterable(List("a"))
 
       select(c1, c2) shouldBe "a"
     }
 
     it should "select from three receives, if the last one has elements" in scoped {
-      val c1 = Channel[String](capacity)
-      val c2 = Channel[String](capacity)
+      val c1 = Channel.withCapacity[String](capacity)
+      val c2 = Channel.withCapacity[String](capacity)
       val c3 = Source.fromIterable(List("a"))
 
       select(c1, c2, c3) shouldBe "a"
@@ -71,7 +71,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
       val n = 100
       val cn = 10
 
-      val cs = (1 to cn).map(_ => Channel[Int](capacity)).toList
+      val cs = (1 to cn).map(_ => Channel.withCapacity[Int](capacity)).toList
       scoped {
         cs.foreach { c =>
           (1 to n).foreach { i =>
@@ -97,7 +97,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
       val n = 10
       val cn = 10
 
-      val cs = (1 to cn).map(_ => Channel[Int](capacity)).toList
+      val cs = (1 to cn).map(_ => Channel.withCapacity[Int](capacity)).toList
       scoped {
         cs.foreach { c =>
           fork {
@@ -126,10 +126,10 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
 
     it should "properly report channel state" in {
       // given
-      val c1 = Channel[Int](capacity)
-      val c2 = Channel[Int](capacity)
-      val c3 = Channel[Int](capacity)
-      val c4 = Channel[Int](capacity)
+      val c1 = Channel.withCapacity[Int](capacity)
+      val c2 = Channel.withCapacity[Int](capacity)
+      val c3 = Channel.withCapacity[Int](capacity)
+      val c4 = Channel.withCapacity[Int](capacity)
 
       supervised {
         fork {
@@ -166,8 +166,8 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     }
 
     it should "select from a non-done channel, if a value is immediately available" in {
-      val c1 = Channel[Int](capacity)
-      val c2 = Channel[Int](capacity)
+      val c1 = Channel.withCapacity[Int](capacity)
+      val c2 = Channel.withCapacity[Int](capacity)
       scoped {
         fork {
           c1.send(1)
@@ -180,8 +180,8 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     }
 
     it should "select a done channel, when the channel is done immediately" in {
-      val c1 = Channel[Int](capacity)
-      val c2 = Channel[Int](capacity)
+      val c1 = Channel.withCapacity[Int](capacity)
+      val c2 = Channel.withCapacity[Int](capacity)
       scoped {
         fork {
           c2.done()
@@ -193,8 +193,8 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     }
 
     it should "select a done channel, when the channel becomes done" in {
-      val c1 = Channel[Int](capacity)
-      val c2 = Channel[Int](capacity)
+      val c1 = Channel.withCapacity[Int](capacity)
+      val c2 = Channel.withCapacity[Int](capacity)
       scoped {
         fork {
           Thread.sleep(100) // let the select block

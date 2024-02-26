@@ -67,7 +67,7 @@ are cancelled (using interruption). Once all forks complete, the exception is pr
 the `supervised` method invocation:
 
 ```scala mdoc:compile-only
-import ox.{fork, forkUser, Fork, Ox, supervised}
+import ox.{fork, forkUser, Ox, supervised}
 
 supervised {
   forkUser {
