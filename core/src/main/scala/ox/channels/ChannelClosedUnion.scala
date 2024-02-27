@@ -4,6 +4,7 @@ import scala.util.{Failure, Success, Try}
 
 /** Extension methods on union types which includes [[ChannelClosed]]. */
 object ChannelClosedUnion:
+
   extension [T](v: T | ChannelClosed)
     inline def map[U](f: T => U): U | ChannelClosed = v match
       case ChannelClosed.Done     => ChannelClosed.Done
@@ -26,3 +27,8 @@ object ChannelClosedUnion:
     inline def isValue: Boolean = v match
       case _: ChannelClosed => false
       case _: T @unchecked  => true
+
+  extension [T](v: T | ChannelClosed.Error)(using DummyImplicit)
+    inline def mapUnlessError[U](f: T => U): U | ChannelClosed.Error = v match
+      case e: ChannelClosed.Error => e
+      case t: T @unchecked        => f(t)

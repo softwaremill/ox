@@ -431,49 +431,6 @@ trait SourceOps[+T] { outer: Source[T] =>
   def interleave[U >: T](other: Source[U], segmentSize: Int = 1, eagerComplete: Boolean = false)(using Ox, StageCapacity): Source[U] =
     Source.interleaveAll(List(this, other), segmentSize, eagerComplete)
 
-  //
-
-  /** Invokes the given function for each received element. Blocks until the channel is done.
-    * @throws ChannelClosedException
-    *   when there is an upstream error.
-    */
-  def foreach(f: T => Unit): Unit =
-    repeatWhile {
-      receiveSafe() match
-        case ChannelClosed.Done     => false
-        case e: ChannelClosed.Error => throw e.toThrowable
-        case t: T @unchecked        => f(t); true
-    }
-
-  /** Accumulates all elements received from the channel into a list. Blocks until the channel is done.
-    * @throws ChannelClosedException
-    *   when there is an upstream error.
-    */
-  def toList: List[T] =
-    val b = List.newBuilder[T]
-    foreach(b += _)
-    b.result()
-
-  /** Passes each received element from this channel to the given sink. Blocks until the channel is done.
-    * @throws ChannelClosedException
-    *   when there is an upstream error, or when the sink is closed.
-    */
-  def pipeTo(sink: Sink[T]): Unit =
-    repeatWhile {
-      receiveSafe() match
-        case ChannelClosed.Done     => sink.doneSafe(); false
-        case e: ChannelClosed.Error => sink.errorSafe(e.reason); false
-        case t: T @unchecked        => sink.send(t); true
-    }
-
-  /** Receives all elements from the channel. Blocks until the channel is done.
-    * @throws ChannelClosedException
-    *   when there is an upstream error.
-    */
-  def drain(): Unit = foreach(_ => ())
-
-  def applied[U](f: Source[T] => U): U = f(this)
-
   /** Applies the given mapping function `f`, using additional state, to each element received from this source, and sends the results to
     * the returned channel. Optionally sends an additional element, possibly based on the final state, to the returned channel once this
     * source is done.
@@ -608,32 +565,7 @@ trait SourceOps[+T] { outer: Source[T] =>
         case e: ChannelClosed.Error => throw e.toThrowable
         case t: T @unchecked        => Some(t)
     }
-
-  /** Returns the first element from this source or throws [[NoSuchElementException]] when this source is empty. In case when receiving an
-    * element fails with exception then [[ChannelClosedException.Error]] is thrown. Note that `head` is not an idempotent operation on
-    * source as it receives elements from it.
-    *
-    * @return
-    *   A first element if source is not empty or throws otherwise.
-    * @throws NoSuchElementException
-    *   When this source is empty.
-    * @throws ChannelClosedException.Error
-    *   When receiving an element from this source fails.
-    * @example
-    *   {{{
-    *   import ox.*
-    *   import ox.channels.Source
-    *
-    *   supervised {
-    *     Source.empty[Int].head()        // throws NoSuchElementException("cannot obtain head element from an empty source")
-    *     val s = Source.fromValues(1, 2)
-    *     s.head()                        // 1
-    *     s.head()                        // 2
-    *   }
-    *   }}}
-    */
-  def head(): T = headOption().getOrElse(throw new NoSuchElementException("cannot obtain head element from an empty source"))
-
+    
   /** Sends elements to the returned channel limiting the throughput to specific number of elements (evenly spaced) per time unit. Note that
     * the element's `receive()` time is included in the resulting throughput. For instance having `throttle(1, 1.second)` and `receive()`
     * taking `Xms` means that resulting channel will receive elements every `1s + Xms` time. Throttling is not applied to the empty source.
@@ -674,176 +606,6 @@ trait SourceOps[+T] { outer: Source[T] =>
     }
     c
 
-  /** Returns the last element from this source wrapped in [[Some]] or [[None]] when this source is empty. Note that `lastOption` is a
-    * terminal operation leaving the source in [[ChannelClosed.Done]] state.
-    *
-    * @return
-    *   A `Some(last element)` if source is not empty or `None` otherwise.
-    * @throws ChannelClosedException.Error
-    *   When receiving an element from this source fails.
-    * @example
-    *   {{{
-    *   import ox.*
-    *   import ox.channels.Source
-    *
-    *   supervised {
-    *     Source.empty[Int].lastOption()  // None
-    *     val s = Source.fromValues(1, 2)
-    *     s.lastOption()                  // Some(2)
-    *     s.receive()                     // ChannelClosed.Done
-    *   }
-    *   }}}
-    */
-  def lastOption(): Option[T] =
-    supervised {
-      var value: Option[T] = None
-      repeatWhile {
-        receiveSafe() match
-          case ChannelClosed.Done     => false
-          case e: ChannelClosed.Error => throw e.toThrowable
-          case t: T @unchecked        => value = Some(t); true
-      }
-      value
-    }
-
-  /** Returns the last element from this source or throws [[NoSuchElementException]] when this source is empty. In case when receiving an
-    * element fails then [[ChannelClosedException.Error]] exception is thrown. Note that `last` is a terminal operation leaving the source
-    * in [[ChannelClosed.Done]] state.
-    *
-    * @return
-    *   A last element if source is not empty or throws otherwise.
-    * @throws NoSuchElementException
-    *   When this source is empty.
-    * @throws ChannelClosedException.Error
-    *   When receiving an element from this source fails.
-    * @example
-    *   {{{
-    *   import ox.*
-    *   import ox.channels.Source
-    *
-    *   supervised {
-    *     Source.empty[Int].last()        // throws NoSuchElementException("cannot obtain last element from an empty source")
-    *     val s = Source.fromValues(1, 2)
-    *     s.last()                        // 2
-    *     s.receive()                     // ChannelClosed.Done
-    *   }
-    *   }}}
-    */
-  def last(): T = lastOption().getOrElse(throw new NoSuchElementException("cannot obtain last element from an empty source"))
-
-  /** Uses `zero` as the current value and applies function `f` on it and a value received from this source. The returned value is used as
-    * the next current value and `f` is applied again with the value received from a source. The operation is repeated until the source is
-    * drained.
-    *
-    * @param zero
-    *   An initial value to be used as the first argument to function `f` call.
-    * @param f
-    *   A binary function (a function that takes two arguments) that is applied to the current value and value received from a source.
-    * @return
-    *   Combined value retrieved from running function `f` on all source elements in a cumulative manner where result of the previous call
-    *   is used as an input value to the next.
-    * @throws ChannelClosedException.Error
-    *   When receiving an element from this source fails.
-    * @throws exception
-    *   When function `f` throws an `exception` then it is propagated up to the caller.
-    * @example
-    *   {{{
-    *   import ox.*
-    *   import ox.channels.Source
-    *
-    *   supervised {
-    *     Source.empty[Int].fold(0)((acc, n) => acc + n)       // 0
-    *     Source.fromValues(2, 3).fold(5)((acc, n) => acc - n) // 0
-    *   }
-    *   }}}
-    */
-  def fold[U](zero: U)(f: (U, T) => U): U =
-    var current = zero
-    repeatWhile {
-      receiveSafe() match
-        case ChannelClosed.Done     => false
-        case e: ChannelClosed.Error => throw e.toThrowable
-        case t: T @unchecked        => current = f(current, t); true
-    }
-    current
-
-  /** Uses the first and the following (if available) elements from this source and applies function `f` on them. The returned value is used
-    * as the next current value and `f` is applied again with the value received from this source. The operation is repeated until this
-    * source is drained. This is similar operation to [[fold]] but it uses the first source element as `zero`.
-    *
-    * @param f
-    *   A binary function (a function that takes two arguments) that is applied to the current and next values received from this source.
-    * @return
-    *   Combined value retrieved from running function `f` on all source elements in a cumulative manner where result of the previous call
-    *   is used as an input value to the next.
-    * @throws NoSuchElementException
-    *   When this source is empty.
-    * @throws ChannelClosedException.Error
-    *   When receiving an element from this source fails.
-    * @throws exception
-    *   When function `f` throws an `exception` then it is propagated up to the caller.
-    * @example
-    *   {{{
-    *   import ox.*
-    *   import ox.channels.Source
-    *
-    *   supervised {
-    *     Source.empty[Int].reduce(_ + _)    // throws NoSuchElementException("cannot reduce an empty source")
-    *     Source.fromValues(1).reduce(_ + _) // 1
-    *     val s = Source.fromValues(1, 2)
-    *     s.reduce(_ + _)                    // 3
-    *     s.receive()                        // ChannelClosed.Done
-    *   }
-    *   }}}
-    */
-  def reduce[U >: T](f: (U, U) => U): U =
-    fold(headOption().getOrElse(throw new NoSuchElementException("cannot reduce an empty source")))(f)
-
-  /** Returns the list of up to `n` last elements from this source. Less than `n` elements is returned when this source contains less
-    * elements than requested. The [[List.empty]] is returned when `takeLast` is called on an empty source.
-    *
-    * @param n
-    *   Number of elements to be taken from the end of this source. It is expected that `n >= 0`.
-    * @return
-    *   A list of up to `n` last elements from this source.
-    * @throws ChannelClosedException.Error
-    *   When receiving an element from this source fails.
-    * @example
-    *   {{{
-    *   import ox.*
-    *   import ox.channels.Source
-    *
-    *   supervised {
-    *     Source.empty[Int].takeLast(5)    // List.empty
-    *     Source.fromValues(1).takeLast(0) // List.empty
-    *     Source.fromValues(1).takeLast(2) // List(1)
-    *     val s = Source.fromValues(1, 2, 3, 4)
-    *     s.takeLast(2)                    // List(4, 5)
-    *     s.receive()                      // ChannelClosed.Done
-    *   }
-    *   }}}
-    */
-  def takeLast(n: Int): List[T] =
-    require(n >= 0, "n must be >= 0")
-    if (n == 0)
-      drain()
-      List.empty
-    else if (n == 1) lastOption().map(List(_)).getOrElse(List.empty)
-    else
-      supervised {
-        val buffer: mutable.ListBuffer[T] = mutable.ListBuffer()
-        buffer.sizeHint(n)
-        repeatWhile {
-          receiveSafe() match
-            case ChannelClosed.Done     => false
-            case e: ChannelClosed.Error => throw e.toThrowable
-            case t: T @unchecked =>
-              if (buffer.size == n) buffer.dropInPlace(1)
-              buffer.append(t); true
-        }
-        buffer.result()
-      }
-
   /** If this source has no elements then elements from an `alternative` source are emitted to the returned channel. If this source is
     * failed then failure is passed to the returned channel.
     *
@@ -871,4 +633,6 @@ trait SourceOps[+T] { outer: Source[T] =>
         case t: T @unchecked        => c.sendSafe(t); pipeTo(c)
     }
     c
+
+  def applied[U](f: Source[T] => U): U = f(this)
 }
