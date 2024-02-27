@@ -4,6 +4,7 @@ import org.scalatest.concurrent.Eventually
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.*
+import ox.channels.ChannelClosedUnion.{map, orThrow}
 
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
@@ -15,16 +16,16 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
       val c = Channel.withCapacity[Int](capacity)
       scoped {
         val f1 = fork {
-          c.receive().orThrow
+          c.receive()
         }
         val f2 = fork {
-          c.receive().orThrow
+          c.receive()
         }
 
         Thread.sleep(100L)
-        c.send(1).orThrow
+        c.send(1)
         Thread.sleep(100L)
-        c.send(2).orThrow
+        c.send(2)
 
         val r1 = f1.join()
         val r2 = f2.join()
@@ -40,11 +41,11 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
         val fs = (1 to 2 * n).map { i =>
           if i % 2 == 0 then
             fork {
-              c.send(i / 2).orThrow; 0
+              c.send(i / 2); 0
             }
           else
             fork {
-              c.receive().orThrow
+              c.receive()
             }
         }
 
@@ -75,7 +76,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
       scoped {
         cs.foreach { c =>
           (1 to n).foreach { i =>
-            fork(c.send(i).orThrow)
+            fork(c.send(i))
           }
         }
 
@@ -212,7 +213,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     select(c1.sendClause(1), c2.sendClause(2)).orThrow should matchPattern { case _: Channel[_]#Sent => }
     select(c1.sendClause(1), c2.sendClause(2)).orThrow should matchPattern { case _: Channel[_]#Sent => }
 
-    Set(c1.receive().orThrow, c2.receive().orThrow) shouldBe Set(1, 2)
+    Set(c1.receive(), c2.receive()) shouldBe Set(1, 2)
   }
 
   "channel" should "receive from a channel until done" in {
@@ -221,10 +222,10 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     c.send(2)
     c.done()
 
-    c.receive().orThrow shouldBe 1
-    c.receive().orThrow shouldBe 2
-    c.receive() shouldBe ChannelClosed.Done
-    c.receive() shouldBe ChannelClosed.Done // repeat
+    c.receive() shouldBe 1
+    c.receive() shouldBe 2
+    c.receiveSafe() shouldBe ChannelClosed.Done
+    c.receiveSafe() shouldBe ChannelClosed.Done // repeat
   }
 
   it should "not receive from a channel in case of an error" in {
@@ -233,8 +234,8 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     c.send(2)
     c.error(new RuntimeException())
 
-    c.receive() should matchPattern { case _: ChannelClosed.Error => }
-    c.receive() should matchPattern { case _: ChannelClosed.Error => } // repeat
+    c.receiveSafe() should matchPattern { case _: ChannelClosed.Error => }
+    c.receiveSafe() should matchPattern { case _: ChannelClosed.Error => } // repeat
   }
 
   "rendezvous channel" should "wait until elements are transmitted" in {
@@ -242,20 +243,20 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     val trail = ConcurrentLinkedQueue[String]()
     scoped {
       fork {
-        c.send("x").orThrow
+        c.send("x")
         trail.add("S")
       }
       fork {
-        c.send("y").orThrow
+        c.send("y")
         trail.add("S")
       }
       val f3 = fork {
         Thread.sleep(100L)
         trail.add("R1")
-        val r1 = c.receive().orThrow
+        val r1 = c.receive()
         Thread.sleep(100L)
         trail.add("R2")
-        val r2 = c.receive().orThrow
+        val r2 = c.receive()
         Set(r1, r2) shouldBe Set("x", "y")
       }
 
@@ -271,11 +272,11 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     val c2 = Channel.rendezvous[Int]
 
     scoped {
-      val f1 = fork(c1.receive().orThrow)
+      val f1 = fork(c1.receive())
       select(c1.sendClause(1), c2.sendClause(2)).orThrow
       f1.join() shouldBe 1
 
-      val f2 = fork(c2.receive().orThrow)
+      val f2 = fork(c2.receive())
       select(c1.sendClause(1), c2.sendClause(2)).orThrow
       f2.join() shouldBe 2
     }
@@ -286,11 +287,11 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     val c2 = Channel.rendezvous[Int]
 
     scoped {
-      val f1 = fork(c1.receive().orThrow)
+      val f1 = fork(c1.receive())
       select(c1.sendClause(1), c2.receiveClause).orThrow shouldBe c1.Sent()
       f1.join() shouldBe 1
 
-      val f2 = fork(c2.send(2).orThrow)
+      val f2 = fork(c2.send(2))
       select(c1.sendClause(1), c2.receiveClause).orThrow shouldBe c2.Received(2)
       f2.join() shouldBe ()
     }

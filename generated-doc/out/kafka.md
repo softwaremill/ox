@@ -24,7 +24,7 @@ supervised {
   val topic = "my_topic"
   val source = KafkaSource.subscribe(settings, topic)
 
-  source.receive(): ReceivedMessage[String, String] | ChannelClosed
+  source.receiveSafe(): ReceivedMessage[String, String] | ChannelClosed
 }
 ```
 

@@ -4,6 +4,7 @@ import org.scalatest.concurrent.Eventually
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.*
+import ox.channels.ChannelClosedUnion.map
 
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
@@ -27,7 +28,7 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually {
       s2.receive() shouldBe 11
       s2.receive() shouldBe 21
       s2.receive() shouldBe 31
-      s2.receive() shouldBe ChannelClosed.Done
+      s2.receiveSafe() shouldBe ChannelClosed.Done
     }
   }
 
@@ -84,7 +85,7 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually {
       val s2 = c.filterAsView(_ % 2 == 0)
       s2.receive() shouldBe 2
       s2.receive() shouldBe 4
-      s2.receive() shouldBe ChannelClosed.Done
+      s2.receiveSafe() shouldBe ChannelClosed.Done
     }
   }
 

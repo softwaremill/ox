@@ -2,6 +2,8 @@ package ox.channels
 
 import com.softwaremill.jox.Select as JSelect
 
+import ox.channels.ChannelClosedUnion.map
+
 /** @see [[select(List[SelectClause])]]. */
 def select(clause1: SelectClause[_], clause2: SelectClause[_]): clause1.Result | clause2.Result | ChannelClosed =
   select(List(clause1, clause2)).asInstanceOf[clause1.Result | clause2.Result | ChannelClosed]

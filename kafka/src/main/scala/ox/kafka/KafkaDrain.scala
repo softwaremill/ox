@@ -30,7 +30,7 @@ object KafkaDrain:
               (_: RecordMetadata, exception: Exception) => {
                 if exception != null then
                   logger.error("Exception when sending record", exception)
-                  producerExceptions.send(exception)
+                  producerExceptions.sendSafe(exception)
               }
             )
             true

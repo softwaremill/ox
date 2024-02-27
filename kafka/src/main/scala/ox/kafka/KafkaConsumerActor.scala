@@ -18,7 +18,7 @@ object KafkaConsumerActor:
     fork {
       try
         repeatWhile {
-          c.receive() match
+          c.receiveSafe() match
             case ChannelClosed.Done =>
               logger.debug("Stopping Kafka consumer actor: upstream done")
               false
@@ -32,7 +32,7 @@ object KafkaConsumerActor:
               catch
                 case NonFatal(e) =>
                   logger.error(s"Exception when subscribing to $topics", e)
-                  c.error(e)
+                  c.errorSafe(e)
                   false
             case KafkaConsumerRequest.Poll(results) =>
               try
@@ -41,19 +41,19 @@ object KafkaConsumerActor:
               catch
                 case NonFatal(e) =>
                   logger.error("Exception when polling for records in Kafka", e)
-                  results.error(e)
-                  c.error(e)
+                  results.errorSafe(e)
+                  c.errorSafe(e)
                   false
             case KafkaConsumerRequest.Commit(offsets, result) =>
               try
                 consumer.commitSync(offsets.view.mapValues(o => new OffsetAndMetadata(o + 1)).toMap.asJava)
-                result.send(())
+                result.sendSafe(())
                 true
               catch
                 case NonFatal(e) =>
                   logger.error("Exception when committing offsets", e)
-                  result.error(e)
-                  c.error(e)
+                  result.errorSafe(e)
+                  c.errorSafe(e)
                   false
         }
       finally

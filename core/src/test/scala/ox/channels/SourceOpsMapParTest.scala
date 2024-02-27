@@ -105,7 +105,7 @@ class SourceOpsMapParTest extends AnyFlatSpec with Matchers with Eventually {
     // then
     s2.receive() shouldBe 2
     s2.receive() shouldBe 4
-    s2.receive() should matchPattern { case ChannelClosed.Error(reason) if reason.getMessage == "boom" => }
+    s2.receiveSafe() should matchPattern { case ChannelClosed.Error(reason) if reason.getMessage == "boom" => }
 
     // checking if the forks aren't left running
     Thread.sleep(200)
