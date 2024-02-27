@@ -6,7 +6,7 @@ import ox.channels.ChannelClosedUnion.isValue
 
 import java.util
 import java.util.concurrent.{CountDownLatch, Semaphore}
-import scala.collection.{IterableOnce, mutable}
+import scala.collection.IterableOnce
 import scala.concurrent.duration.FiniteDuration
 
 trait SourceOps[+T] { outer: Source[T] =>
