@@ -18,7 +18,7 @@ supervised {
 }
 ```
 
-The `.map` needs to be run within a scope, as it starts a new virtual thread (using `forkDaemon`), which:
+The `.map` needs to be run within a scope, as it starts a new virtual thread (using `fork`), which:
 
 * immediately starts receiving values from the given source
 * applies the given function

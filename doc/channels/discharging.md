@@ -1,7 +1,6 @@
 # Discharging channels
 
-Values of a source can be terminated using methods such as `.foreach`, `.toList`, `.pipeTo` or `.drain`. These methods
-are blocking, and hence don't need to be run within a scope:
+Values of a source can be discharged using methods such as `.foreach`, `.toList`, `.pipeTo` or `.drain`:
 
 ```scala mdoc:compile-only
 import ox.supervised
@@ -12,3 +11,5 @@ supervised {
   s.toList // List(1, 2, 3)
 }
 ```
+
+These methods are blocking, as they drain the channel until no more values are available (when the channel is done).
