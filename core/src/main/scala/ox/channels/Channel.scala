@@ -2,6 +2,8 @@ package ox.channels
 
 import com.softwaremill.jox.{Channel as JChannel, Select as JSelect, SelectClause as JSelectClause, Sink as JSink, Source as JSource}
 
+import ChannelClosedUnion.orThrow
+
 import scala.annotation.unchecked.uncheckedVariance
 
 // select result: needs to be defined here, as implementations are defined here as well
@@ -34,27 +36,10 @@ case class Default[T](value: T) extends SelectClause[T]:
   override private[ox] def delegate: JSelectClause[Any] = JSelect.defaultClause(() => DefaultResult(value))
   type Result = DefaultResult[T]
 
-// extensions
-
-extension [T](v: T | ChannelClosed)
-  inline def map[U](f: T => U): U | ChannelClosed = v match
-    case ChannelClosed.Done     => ChannelClosed.Done
-    case e: ChannelClosed.Error => e
-    case t: T @unchecked        => f(t)
-
-  /** Throw a [[ChannelClosedException]] if the provided value represents a closed channel (one of [[ChannelClosed]] values). */
-  inline def orThrow: T = v match
-    case c: ChannelClosed => throw c.toThrowable
-    case t: T @unchecked  => t
-
-  inline def isValue: Boolean = v match
-    case _: ChannelClosed => false
-    case _: T @unchecked  => true
-
 //
 
 /** A channel source, which can be used to receive values from the channel. See [[Channel]] for more details. */
-trait Source[+T] extends SourceOps[T]:
+trait Source[+T] extends SourceOps[T] with SourceDrainOps[T]:
   protected def delegate: JSource[Any] // we need to use `Any` as the java types are invariant (they use use-site variance)
 
   // Skipping variance checks here is fine, as the only way a `Received` instance is created is by this Source (Channel),
@@ -69,17 +54,25 @@ trait Source[+T] extends SourceOps[T]:
   /** Create a clause which can be used in [[select]]. The clause will receive a value from the current channel. */
   def receiveClause: Receive = Receive(delegate.receiveClause(t => Received(t.asInstanceOf[T])))
 
-  /** Receive a value from the channel. To throw an exception when the channel is closed, use [[orThrow]].
+  /** Receive a value from the channel. For a variant which throws exceptions when the channel is closed, use [[receive]].
     *
     * @return
     *   Either a value of type `T`, or [[ChannelClosed]], when the channel is closed.
     */
-  def receive(): T | ChannelClosed = ChannelClosed.fromJoxOrT(delegate.receiveSafe())
+  def receiveSafe(): T | ChannelClosed = ChannelClosed.fromJoxOrT(delegate.receiveSafe())
+
+  /** Receive a value from the channel. For a variant which doesn't throw exceptions when the channel is closed, use [[receiveSafe()]].
+    *
+    * @throws ChannelClosedException
+    *   If the channel is closed (done or in error).
+    * @return
+    *   Either a value of type `T`, or [[ChannelClosed]], when the channel is closed.
+    */
+  def receive(): T = receiveSafe().orThrow
 
   /** @return
-    *   `true` if no more values can be received from this channel; [[Source.receive()]] will return [[ChannelClosed]]. When closed for
-    *   receive, sending values is also not possible, [[isClosedForSend]] will return `true`.
-    *
+    *   `true` if no more values can be received from this channel; [[Source.receive()]] will throw [[ChannelClosedException]]. When closed
+    *   for receive, sending values is also not possible, [[isClosedForSend]] will return `true`.
     * @return
     *   `false`, if more values **might** be received from the channel, when calling [[Source.receive()]]. However, it's not guaranteed that
     *   some values will be available. They might be received concurrently, or filtered out if the channel is created using
@@ -88,8 +81,8 @@ trait Source[+T] extends SourceOps[T]:
   def isClosedForReceive: Boolean = delegate.isClosedForReceive
 
   /** @return
-    *   `Some` if no more values can be received from this channel; [[Source.receive()]] will return [[ChannelClosed]]. When closed for
-    *   receive, sending values is also not possible, [[isClosedForSend]] will return `true`.
+    *   `Some` if no more values can be received from this channel; [[Source.receive()]] will throw [[ChannelClosedException]]. When closed
+    *   for receive, sending values is also not possible, [[isClosedForSend]] will return `true`.
     */
   def isClosedForReceiveDetail: Option[ChannelClosed] = Option(ChannelClosed.fromJoxOrT(delegate.closedForReceive()))
 
@@ -118,31 +111,57 @@ trait Sink[-T]:
     */
   def sendClause(t: T): Send = Send(delegate.asInstanceOf[JSink[T]].sendClause(t, () => Sent()))
 
-  /** Send a value to the channel. To throw an exception when the channel is closed, use [[orThrow]].
+  /** Send a value to the channel. For a variant which throws exceptions when the channel is closed, use [[send]].
     *
     * @param t
     *   The value to send. Not `null`.
     * @return
     *   Either `()`, or [[ChannelClosed]], when the channel is closed.
     */
-  def send(t: T): Unit | ChannelClosed =
+  def sendSafe(t: T): Unit | ChannelClosed =
     val r = ChannelClosed.fromJoxOrUnit(delegate.asInstanceOf[JSink[T]].sendSafe(t))
     if r == null then () else r
+
+  /** Send a value to the channel. For a variant which doesn't throw exceptions when the channel is closed, use [[sendSafe()]].
+    *
+    * @throws ChannelClosedException
+    *   If the channel is closed (done or in error).
+    * @param t
+    *   The value to send. Not `null`.
+    */
+  def send(t: T): Unit = sendSafe(t).orThrow
 
   /** Close the channel, indicating an error.
     *
     * Any elements that are already buffered won't be delivered. Any send or receive operations that are in progress will complete with a
     * channel closed result.
     *
-    * Subsequent [[send()]] and [[Source.receive()]] operations will return [[ChannelClosed]]..
+    * Subsequent [[sendSafe()]] and [[Source.receiveSafe()]] operations will return [[ChannelClosed]].
+    *
+    * For a variant which throws exceptions when the channel is closed, use [[error]].
     *
     * @param reason
     *   The reason of the error.
-    *
     * @return
     *   Either `()`, or [[ChannelClosed]], when the channel is already closed.
     */
-  def error(reason: Throwable): Unit | ChannelClosed = ChannelClosed.fromJoxOrUnit(delegate.errorSafe(reason))
+  def errorSafe(reason: Throwable): Unit | ChannelClosed = ChannelClosed.fromJoxOrUnit(delegate.errorSafe(reason))
+
+  /** Close the channel, indicating an error.
+    *
+    * Any elements that are already buffered won't be delivered. Any send or receive operations that are in progress will complete with a
+    * channel closed result.
+    *
+    * Subsequent [[send()]] and [[Source.receive()]] operations will throw [[ChannelClosedException]].
+    *
+    * For a variant which doesn't throw exceptions when the channel is closed, use [[errorSafe]].
+    *
+    * @throws ChannelClosedException
+    *   If the channel is already closed.
+    * @param reason
+    *   The reason of the error.
+    */
+  def error(reason: Throwable): Unit = errorSafe(reason).orThrow
 
   /** Close the channel, indicating that no more elements will be sent. Doesn't throw exceptions when the channel is closed, but returns a
     * value.
@@ -150,24 +169,41 @@ trait Sink[-T]:
     * Any elements that are already buffered will be delivered. Any send operations that are in progress will complete normally, when a
     * receiver arrives. Any pending receive operations will complete with a channel closed result.
     *
-    * Subsequent [[send()]] operations will return [[ChannelClosed]].
+    * Subsequent [[sendSafe()]] operations will return [[ChannelClosed]].
+    *
+    * For a variant which throws exceptions when the channel is closed, use [[done]].
     *
     * @return
     *   Either `()`, or [[ChannelClosed]], when the channel is already closed.
     */
-  def done(): Unit | ChannelClosed = ChannelClosed.fromJoxOrUnit(delegate.doneSafe())
+  def doneSafe(): Unit | ChannelClosed = ChannelClosed.fromJoxOrUnit(delegate.doneSafe())
+
+  /** Close the channel, indicating that no more elements will be sent. Doesn't throw exceptions when the channel is closed, but returns a
+    * value.
+    *
+    * Any elements that are already buffered will be delivered. Any send operations that are in progress will complete normally, when a
+    * receiver arrives. Any pending receive operations will complete with a channel closed result.
+    *
+    * Subsequent [[send()]] operations will throw [[ChannelClosedException]].
+    *
+    * For a variant which doesn't throw exceptions when the channel is closed, use [[doneSafe]].
+    *
+    * @throws ChannelClosedException
+    *   If the channel is already closed.
+    */
+  def done(): Unit = doneSafe().orThrow
 
   /** @return
-    *   `true` if no more values can be sent to this channel; [[Sink.send()]] will return [[ChannelClosed]]. When closed for send, receiving
-    *   using [[Source.receive()]] might still be possible, if the channel is done, and not in an error. This can be verified using
-    *   [[isClosedForReceive]].
+    *   `true` if no more values can be sent to this channel; [[Sink.sendSafe()]] will return [[ChannelClosed]]. When closed for send,
+    *   receiving using [[Source.receive()]] might still be possible, if the channel is done, and not in an error. This can be verified
+    *   using [[isClosedForReceive]].
     */
   def isClosedForSend: Boolean = delegate.isClosedForSend
 
   /** @return
-    *   `Some` if no more values can be sent to this channel; [[Sink.send()]] will return [[ChannelClosed]]. When closed for send, receiving
-    *   using [[Source.receive()]] might still be possible, if the channel is done, and not in an error. This can be verified using
-    *   [[isClosedForReceive]].
+    *   `Some` if no more values can be sent to this channel; [[Sink.sendSafe()]] will return [[ChannelClosed]]. When closed for send,
+    *   receiving using [[Source.receive()]] might still be possible, if the channel is done, and not in an error. This can be verified
+    *   using [[isClosedForReceive]].
     */
   def isClosedForSendDetail: Option[ChannelClosed] = Option(ChannelClosed.fromJoxOrT(delegate.closedForSend()))
 
@@ -201,8 +237,10 @@ trait Sink[-T]:
   * After closing, no more values can be sent to the channel. If the channel is "done", any pending sends will be completed normally. If the
   * channel is in an "error" state, pending sends will be interrupted and will return with the reason for the closure.
   *
-  * In case the channel is closed, one of the [[ChannelClosed]] values are returned. These can be converted to an exception by calling
-  * [[orThrow]] on a result which includes [[ChannelClosed]] as one of the components of the union type.
+  * In case the channel is closed, a [[ChannelClosedException]] is thrown. Alternatively, you can use the `safe` method variants (e.g.
+  * [[sendSafe]], [[receiveSafe]]), which don't throw exceptions, but return a union type which includes one of [[ChannelClosed]] values.
+  * Such a union type can be further converted to an exception, [[Either]] or [[Try]] using one of the extension methods in
+  * [[ChannelClosedUnion]].
   *
   * @tparam T
   *   The type of the values processed by the channel.

@@ -34,13 +34,13 @@ object KafkaSource:
         val pollResults = Channel.rendezvous[ConsumerRecords[K, V]]
         forever {
           kafkaConsumer.send(KafkaConsumerRequest.Poll(pollResults))
-          val records = pollResults.receive().orThrow
+          val records = pollResults.receive()
           records.forEach(r => c.send(ReceivedMessage(kafkaConsumer, r)))
         }
       catch
         case NonFatal(e) =>
           logger.error("Exception when polling for records", e)
-          c.error(e)
+          c.errorSafe(e)
     }
 
     c

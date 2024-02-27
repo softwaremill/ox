@@ -2,7 +2,7 @@ package ox.channels
 
 import com.softwaremill.jox.{ChannelDone as JChannelDone, ChannelError as JChannelError}
 
-/** Returned by channel methods (e.g. [[Source.receive]], [[Sink.send]], [[select]]) when the channel is closed. */
+/** Returned by channel methods (e.g. [[Source.receiveSafe]], [[Sink.sendSafe]], [[selectSafe]]) when the channel is closed. */
 sealed trait ChannelClosed:
   def toThrowable: Throwable = this match
     case ChannelClosed.Error(reason) => ChannelClosedException.Error(reason)

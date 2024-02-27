@@ -23,7 +23,7 @@ class SourceOpsMapTest extends AnyFlatSpec with Matchers {
       s.receive() shouldBe 10
       s.receive() shouldBe 20
       s.receive() shouldBe 30
-      s.receive() shouldBe ChannelClosed.Done
+      s.receiveSafe() shouldBe ChannelClosed.Done
     }
   }
 
@@ -41,7 +41,7 @@ class SourceOpsMapTest extends AnyFlatSpec with Matchers {
         val s = c.map(_ * 10)
 
         s.receive() shouldBe 10
-        s.receive() shouldBe ChannelClosed.Done
+        s.receiveSafe() shouldBe ChannelClosed.Done
       }
     }
   }
@@ -63,7 +63,7 @@ class SourceOpsMapTest extends AnyFlatSpec with Matchers {
       s.receive() shouldBe 2
       s.receive() shouldBe 4
       s.receive() shouldBe 6
-      s.receive() shouldBe ChannelClosed.Done
+      s.receiveSafe() shouldBe ChannelClosed.Done
     }
   }
 }

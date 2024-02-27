@@ -33,6 +33,6 @@ class SourceOpsLastOptionTest extends AnyFlatSpec with Matchers with OptionValue
   it should "drain the source" in supervised {
     val s = Source.fromValues(1)
     s.lastOption().value shouldBe 1
-    s.receive() shouldBe ChannelClosed.Done
+    s.receiveSafe() shouldBe ChannelClosed.Done
   }
 }

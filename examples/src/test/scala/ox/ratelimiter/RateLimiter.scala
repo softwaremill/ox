@@ -1,8 +1,8 @@
 package ox.ratelimiter
 
 import org.slf4j.LoggerFactory
-import ox.{Fork, fork, supervised, Ox}
 import ox.ratelimiter.RateLimiterQueue.{Run, RunAfter}
+import ox.{Ox, fork, supervised}
 
 import java.util.concurrent.{ArrayBlockingQueue, BlockingQueue, CompletableFuture, Future}
 import scala.annotation.tailrec

@@ -57,12 +57,12 @@ channels).
 For example:
 
 ```scala
-import ox.channels.{Channel, select}
+import ox.channels.{Channel, selectSafe}
 
 val c = Channel[Int]()
 val d = Channel[Int]()
 
-select(c.sendClause(10), d.receiveClause)
+selectSafe(c.sendClause(10), d.receiveClause)
 ```
 
 The above will block until a value can be sent to `d` (as this is an unbuffered channel, for this to happen there must

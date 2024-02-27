@@ -5,9 +5,6 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.*
 
-import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.atomic.AtomicInteger
-import scala.concurrent.duration.DurationInt
 import scala.jdk.CollectionConverters.*
 import scala.util.{Failure, Try}
 
@@ -27,7 +24,7 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually {
       s2.receive() shouldBe 11
       s2.receive() shouldBe 21
       s2.receive() shouldBe 31
-      s2.receive() shouldBe ChannelClosed.Done
+      s2.receiveSafe() shouldBe ChannelClosed.Done
     }
   }
 
@@ -40,7 +37,7 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually {
     val s1 = c1.mapAsView(_ + 1)
     val s2 = c2.mapAsView(_ + 1)
 
-    select(s1, s2) shouldBe ChannelClosed.Done
+    selectSafe(s1, s2) shouldBe ChannelClosed.Done
   }
 
   it should "select from sources mapped as view" in {
@@ -63,7 +60,7 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually {
       val s1 = c1.mapAsView(_ + 1)
       val s2 = c2.mapAsView(_ + 1)
 
-      (for (_ <- 1 to 6) yield select(s1.receiveClause, s2.receiveClause).map(_.value)).toSet shouldBe Set(
+      (for (_ <- 1 to 6) yield select(s1.receiveClause, s2.receiveClause).value).toSet shouldBe Set(
         101, 201, 301, 11, 21, 31
       )
     }
@@ -84,7 +81,7 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually {
       val s2 = c.filterAsView(_ % 2 == 0)
       s2.receive() shouldBe 2
       s2.receive() shouldBe 4
-      s2.receive() shouldBe ChannelClosed.Done
+      s2.receiveSafe() shouldBe ChannelClosed.Done
     }
   }
 
@@ -110,7 +107,7 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually {
       val s1 = c1.filterAsView(_ % 2 == 0)
       val s2 = c2.filterAsView(_ % 2 == 0)
 
-      (for (_ <- 1 to 4) yield select(s1.receiveClause, s2.receiveClause).map(_.value)).toSet shouldBe Set(2, 4, 12, 14)
+      (for (_ <- 1 to 4) yield select(s1.receiveClause, s2.receiveClause).value).toSet shouldBe Set(2, 4, 12, 14)
     }
   }
 
@@ -129,11 +126,11 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually {
       val c1 = Channel.rendezvous
       val s2 = c.filterAsView(v => if v % 2 == 0 then true else throw new RuntimeException("test"))
 
-      Try(select(c1.receiveClause, s2.receiveClause)) should matchPattern { case Failure(e) if e.getMessage == "test" => }
-      select(c1.receiveClause, s2.receiveClause).map(_.value) shouldBe 2
-      Try(select(c1.receiveClause, s2.receiveClause)) should matchPattern { case Failure(e) if e.getMessage == "test" => }
-      select(c1.receiveClause, s2.receiveClause).map(_.value) shouldBe 4
-      select(c1.receiveClause, s2.receiveClause) shouldBe ChannelClosed.Done
+      Try(selectSafe(c1.receiveClause, s2.receiveClause)) should matchPattern { case Failure(e) if e.getMessage == "test" => }
+      select(c1.receiveClause, s2.receiveClause).value shouldBe 2
+      Try(selectSafe(c1.receiveClause, s2.receiveClause)) should matchPattern { case Failure(e) if e.getMessage == "test" => }
+      select(c1.receiveClause, s2.receiveClause).value shouldBe 4
+      selectSafe(c1.receiveClause, s2.receiveClause) shouldBe ChannelClosed.Done
     }
   }
 }

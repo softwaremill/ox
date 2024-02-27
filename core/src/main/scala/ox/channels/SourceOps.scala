@@ -2,13 +2,12 @@ package ox.channels
 
 import com.softwaremill.jox.Source as JSource
 import ox.*
+import ox.channels.ChannelClosedUnion.isValue
 
 import java.util
 import java.util.concurrent.{CountDownLatch, Semaphore}
 import scala.collection.{IterableOnce, mutable}
 import scala.concurrent.duration.FiniteDuration
-import scala.concurrent.{ExecutionContext, ExecutionException, Future}
-import scala.util.{Failure, Success}
 
 trait SourceOps[+T] { outer: Source[T] =>
   // view ops (lazy)
@@ -76,16 +75,16 @@ trait SourceOps[+T] { outer: Source[T] =>
     val c2 = StageCapacity.newChannel[U]
     fork {
       repeatWhile {
-        receive() match
-          case ChannelClosed.Done     => c2.done(); false
-          case ChannelClosed.Error(r) => c2.error(r); false
+        receiveSafe() match
+          case ChannelClosed.Done     => c2.doneSafe(); false
+          case ChannelClosed.Error(r) => c2.errorSafe(r); false
           case t: T @unchecked =>
             try
               val u = f(t)
-              c2.send(u).isValue
+              c2.sendSafe(u).isValue
             catch
               case t: Throwable =>
-                c2.error(t)
+                c2.errorSafe(t)
                 false
       }
     }
@@ -140,14 +139,14 @@ trait SourceOps[+T] { outer: Source[T] =>
   private def intersperse[U >: T](start: Option[U], inject: U, end: Option[U])(using Ox, StageCapacity): Source[U] =
     val c = StageCapacity.newChannel[U]
     fork {
-      start.foreach(c.send)
+      start.foreach(c.sendSafe)
       var firstEmitted = false
       repeatWhile {
-        receive() match
-          case ChannelClosed.Done               => end.foreach(c.send); c.done(); false
-          case ChannelClosed.Error(e)           => c.error(e); false
-          case v: U @unchecked if !firstEmitted => firstEmitted = true; c.send(v); true
-          case v: U @unchecked                  => c.send(inject); c.send(v); true
+        receiveSafe() match
+          case ChannelClosed.Done               => end.foreach(c.sendSafe); c.doneSafe(); false
+          case ChannelClosed.Error(e)           => c.errorSafe(e); false
+          case v: U @unchecked if !firstEmitted => firstEmitted = true; c.sendSafe(v); true
+          case v: U @unchecked                  => c.sendSafe(inject); c.sendSafe(v); true
       }
     }
     c
@@ -185,24 +184,24 @@ trait SourceOps[+T] { outer: Source[T] =>
       fork {
         repeatWhile {
           s.acquire()
-          receive() match
+          receiveSafe() match
             case ChannelClosed.Done =>
-              inProgress.done()
+              inProgress.doneSafe()
               false
             case ChannelClosed.Error(r) =>
-              c2.error(r)
+              c2.errorSafe(r)
               // closing the scope, any child forks will be cancelled before the scope is done
               closeScope.countDown()
               false
             case t: T @unchecked =>
-              inProgress.send(fork {
+              inProgress.sendSafe(fork {
                 try
                   val u = f(t)
                   s.release() // not in finally, as in case of an exception, no point in starting subsequent forks
                   Some(u)
                 catch
                   case t: Throwable =>
-                    c2.error(t)
+                    c2.errorSafe(t)
                     closeScope.countDown()
                     None
               })
@@ -213,12 +212,12 @@ trait SourceOps[+T] { outer: Source[T] =>
       // sending fork
       fork {
         repeatWhile {
-          inProgress.receive() match
+          inProgress.receiveSafe() match
             case f: Fork[Option[U]] @unchecked =>
-              f.join().map(c2.send).isDefined
+              f.join().map(c2.sendSafe).isDefined
             case ChannelClosed.Done =>
               closeScope.countDown()
-              c2.done()
+              c2.doneSafe()
               false
             case ChannelClosed.Error(_) =>
               throw new IllegalStateException() // inProgress is never in an error state
@@ -235,22 +234,22 @@ trait SourceOps[+T] { outer: Source[T] =>
       supervised {
         repeatWhile {
           s.acquire()
-          receive() match
+          receiveSafe() match
             case ChannelClosed.Done => false
             case ChannelClosed.Error(r) =>
-              c.error(r)
+              c.errorSafe(r)
               false
             case t: T @unchecked =>
               forkUser {
                 try
-                  c.send(f(t))
+                  c.sendSafe(f(t))
                   s.release()
-                catch case t: Throwable => c.error(t)
+                catch case t: Throwable => c.errorSafe(t)
               }
               true
         }
       }
-      c.done()
+      c.doneSafe()
     }
     c
 
@@ -300,7 +299,7 @@ trait SourceOps[+T] { outer: Source[T] =>
       private var v: Option[T | ChannelClosed] = None
       private def forceNext(): T | ChannelClosed = v match
         case None =>
-          val temp = receive()
+          val temp = receiveSafe()
           v = Some(temp)
           temp
         case Some(t) => t
@@ -320,20 +319,20 @@ trait SourceOps[+T] { outer: Source[T] =>
 
     def drainFrom(toDrain: Source[U]): Unit =
       repeatWhile {
-        toDrain.receive() match
-          case ChannelClosed.Done     => c.done(); false
-          case ChannelClosed.Error(r) => c.error(r); false
-          case t: U @unchecked        => c.send(t).isValue
+        toDrain.receiveSafe() match
+          case ChannelClosed.Done     => c.doneSafe(); false
+          case ChannelClosed.Error(r) => c.errorSafe(r); false
+          case t: U @unchecked        => c.sendSafe(t).isValue
       }
 
     fork {
       repeatWhile {
-        select(this, other) match
+        selectSafe(this, other) match
           case ChannelClosed.Done =>
             if this.isClosedForReceive then drainFrom(other) else drainFrom(this)
             false
-          case ChannelClosed.Error(r) => c.error(r); false
-          case r: U @unchecked        => c.send(r).isValue
+          case ChannelClosed.Error(r) => c.errorSafe(r); false
+          case r: U @unchecked        => c.sendSafe(r).isValue
       }
     }
     c
@@ -345,14 +344,14 @@ trait SourceOps[+T] { outer: Source[T] =>
     val c = StageCapacity.newChannel[(T, U)]
     fork {
       repeatWhile {
-        receive() match
-          case ChannelClosed.Done     => c.done(); false
-          case ChannelClosed.Error(r) => c.error(r); false
+        receiveSafe() match
+          case ChannelClosed.Done     => c.doneSafe(); false
+          case ChannelClosed.Error(r) => c.errorSafe(r); false
           case t: T @unchecked =>
-            other.receive() match
-              case ChannelClosed.Done     => c.done(); false
-              case ChannelClosed.Error(r) => c.error(r); false
-              case u: U @unchecked        => c.send(t, u).isValue
+            other.receiveSafe() match
+              case ChannelClosed.Done     => c.doneSafe(); false
+              case ChannelClosed.Error(r) => c.errorSafe(r); false
+              case u: U @unchecked        => c.sendSafe(t, u).isValue
       }
     }
     c
@@ -382,17 +381,17 @@ trait SourceOps[+T] { outer: Source[T] =>
     val c = StageCapacity.newChannel[(U, V)]
 
     def receiveFromOther(thisElement: U, otherClosedHandler: () => Boolean): Boolean =
-      other.receive() match
+      other.receiveSafe() match
         case ChannelClosed.Done     => otherClosedHandler()
-        case ChannelClosed.Error(r) => c.error(r); false
-        case v: V @unchecked        => c.send(thisElement, v); true
+        case ChannelClosed.Error(r) => c.errorSafe(r); false
+        case v: V @unchecked        => c.sendSafe(thisElement, v); true
 
     fork {
       repeatWhile {
-        receive() match
-          case ChannelClosed.Done     => receiveFromOther(thisDefault, () => { c.done(); false })
-          case ChannelClosed.Error(r) => c.error(r); false
-          case t: T @unchecked        => receiveFromOther(t, () => { c.send(t, otherDefault); true })
+        receiveSafe() match
+          case ChannelClosed.Done     => receiveFromOther(thisDefault, () => { c.doneSafe(); false })
+          case ChannelClosed.Error(r) => c.errorSafe(r); false
+          case t: T @unchecked        => receiveFromOther(t, () => { c.sendSafe(t, otherDefault); true })
       }
     }
     c
@@ -431,49 +430,6 @@ trait SourceOps[+T] { outer: Source[T] =>
     */
   def interleave[U >: T](other: Source[U], segmentSize: Int = 1, eagerComplete: Boolean = false)(using Ox, StageCapacity): Source[U] =
     Source.interleaveAll(List(this, other), segmentSize, eagerComplete)
-
-  //
-
-  /** Invokes the given function for each received element. Blocks until the channel is done.
-    * @throws ChannelClosedException
-    *   when there is an upstream error.
-    */
-  def foreach(f: T => Unit): Unit =
-    repeatWhile {
-      receive() match
-        case ChannelClosed.Done     => false
-        case e: ChannelClosed.Error => throw e.toThrowable
-        case t: T @unchecked        => f(t); true
-    }
-
-  /** Accumulates all elements received from the channel into a list. Blocks until the channel is done.
-    * @throws ChannelClosedException
-    *   when there is an upstream error.
-    */
-  def toList: List[T] =
-    val b = List.newBuilder[T]
-    foreach(b += _)
-    b.result()
-
-  /** Passes each received element from this channel to the given sink. Blocks until the channel is done.
-    * @throws ChannelClosedException
-    *   when there is an upstream error, or when the sink is closed.
-    */
-  def pipeTo(sink: Sink[T]): Unit =
-    repeatWhile {
-      receive() match
-        case ChannelClosed.Done     => sink.done(); false
-        case e: ChannelClosed.Error => sink.error(e.reason); false
-        case t: T @unchecked        => sink.send(t).orThrow; true
-    }
-
-  /** Receives all elements from the channel. Blocks until the channel is done.
-    * @throws ChannelClosedException
-    *   when there is an upstream error.
-    */
-  def drain(): Unit = foreach(_ => ())
-
-  def applied[U](f: Source[T] => U): U = f(this)
 
   /** Applies the given mapping function `f`, using additional state, to each element received from this source, and sends the results to
     * the returned channel. Optionally sends an additional element, possibly based on the final state, to the returned channel once this
@@ -559,24 +515,24 @@ trait SourceOps[+T] { outer: Source[T] =>
     fork {
       var state = initializeState()
       repeatWhile {
-        receive() match
+        receiveSafe() match
           case ChannelClosed.Done =>
             try
-              onComplete(state).foreach(c.send)
-              c.done()
-            catch case t: Throwable => c.error(t)
+              onComplete(state).foreach(c.sendSafe)
+              c.doneSafe()
+            catch case t: Throwable => c.errorSafe(t)
             false
           case ChannelClosed.Error(r) =>
-            c.error(r)
+            c.errorSafe(r)
             false
           case t: T @unchecked =>
             try
               val (nextState, result) = f(state, t)
               state = nextState
-              result.iterator.map(c.send).forall(_.isValue)
+              result.iterator.map(c.sendSafe).forall(_.isValue)
             catch
               case t: Throwable =>
-                c.error(t)
+                c.errorSafe(t)
                 false
       }
     }
@@ -604,37 +560,12 @@ trait SourceOps[+T] { outer: Source[T] =>
     */
   def headOption(): Option[T] =
     supervised {
-      receive() match
+      receiveSafe() match
         case ChannelClosed.Done     => None
         case e: ChannelClosed.Error => throw e.toThrowable
         case t: T @unchecked        => Some(t)
     }
-
-  /** Returns the first element from this source or throws [[NoSuchElementException]] when this source is empty. In case when receiving an
-    * element fails with exception then [[ChannelClosedException.Error]] is thrown. Note that `head` is not an idempotent operation on
-    * source as it receives elements from it.
-    *
-    * @return
-    *   A first element if source is not empty or throws otherwise.
-    * @throws NoSuchElementException
-    *   When this source is empty.
-    * @throws ChannelClosedException.Error
-    *   When receiving an element from this source fails.
-    * @example
-    *   {{{
-    *   import ox.*
-    *   import ox.channels.Source
-    *
-    *   supervised {
-    *     Source.empty[Int].head()        // throws NoSuchElementException("cannot obtain head element from an empty source")
-    *     val s = Source.fromValues(1, 2)
-    *     s.head()                        // 1
-    *     s.head()                        // 2
-    *   }
-    *   }}}
-    */
-  def head(): T = headOption().getOrElse(throw new NoSuchElementException("cannot obtain head element from an empty source"))
-
+    
   /** Sends elements to the returned channel limiting the throughput to specific number of elements (evenly spaced) per time unit. Note that
     * the element's `receive()` time is included in the resulting throughput. For instance having `throttle(1, 1.second)` and `receive()`
     * taking `Xms` means that resulting channel will receive elements every `1s + Xms` time. Throttling is not applied to the empty source.
@@ -667,183 +598,13 @@ trait SourceOps[+T] { outer: Source[T] =>
 
     fork {
       repeatWhile {
-        receive() match
-          case ChannelClosed.Done     => c.done(); false
-          case ChannelClosed.Error(r) => c.error(r); false
-          case t: T @unchecked        => Thread.sleep(emitEveryMillis); c.send(t); true
+        receiveSafe() match
+          case ChannelClosed.Done     => c.doneSafe(); false
+          case ChannelClosed.Error(r) => c.errorSafe(r); false
+          case t: T @unchecked        => Thread.sleep(emitEveryMillis); c.sendSafe(t); true
       }
     }
     c
-
-  /** Returns the last element from this source wrapped in [[Some]] or [[None]] when this source is empty. Note that `lastOption` is a
-    * terminal operation leaving the source in [[ChannelClosed.Done]] state.
-    *
-    * @return
-    *   A `Some(last element)` if source is not empty or `None` otherwise.
-    * @throws ChannelClosedException.Error
-    *   When receiving an element from this source fails.
-    * @example
-    *   {{{
-    *   import ox.*
-    *   import ox.channels.Source
-    *
-    *   supervised {
-    *     Source.empty[Int].lastOption()  // None
-    *     val s = Source.fromValues(1, 2)
-    *     s.lastOption()                  // Some(2)
-    *     s.receive()                     // ChannelClosed.Done
-    *   }
-    *   }}}
-    */
-  def lastOption(): Option[T] =
-    supervised {
-      var value: Option[T] = None
-      repeatWhile {
-        receive() match
-          case ChannelClosed.Done     => false
-          case e: ChannelClosed.Error => throw e.toThrowable
-          case t: T @unchecked        => value = Some(t); true
-      }
-      value
-    }
-
-  /** Returns the last element from this source or throws [[NoSuchElementException]] when this source is empty. In case when receiving an
-    * element fails then [[ChannelClosedException.Error]] exception is thrown. Note that `last` is a terminal operation leaving the source
-    * in [[ChannelClosed.Done]] state.
-    *
-    * @return
-    *   A last element if source is not empty or throws otherwise.
-    * @throws NoSuchElementException
-    *   When this source is empty.
-    * @throws ChannelClosedException.Error
-    *   When receiving an element from this source fails.
-    * @example
-    *   {{{
-    *   import ox.*
-    *   import ox.channels.Source
-    *
-    *   supervised {
-    *     Source.empty[Int].last()        // throws NoSuchElementException("cannot obtain last element from an empty source")
-    *     val s = Source.fromValues(1, 2)
-    *     s.last()                        // 2
-    *     s.receive()                     // ChannelClosed.Done
-    *   }
-    *   }}}
-    */
-  def last(): T = lastOption().getOrElse(throw new NoSuchElementException("cannot obtain last element from an empty source"))
-
-  /** Uses `zero` as the current value and applies function `f` on it and a value received from this source. The returned value is used as
-    * the next current value and `f` is applied again with the value received from a source. The operation is repeated until the source is
-    * drained.
-    *
-    * @param zero
-    *   An initial value to be used as the first argument to function `f` call.
-    * @param f
-    *   A binary function (a function that takes two arguments) that is applied to the current value and value received from a source.
-    * @return
-    *   Combined value retrieved from running function `f` on all source elements in a cumulative manner where result of the previous call
-    *   is used as an input value to the next.
-    * @throws ChannelClosedException.Error
-    *   When receiving an element from this source fails.
-    * @throws exception
-    *   When function `f` throws an `exception` then it is propagated up to the caller.
-    * @example
-    *   {{{
-    *   import ox.*
-    *   import ox.channels.Source
-    *
-    *   supervised {
-    *     Source.empty[Int].fold(0)((acc, n) => acc + n)       // 0
-    *     Source.fromValues(2, 3).fold(5)((acc, n) => acc - n) // 0
-    *   }
-    *   }}}
-    */
-  def fold[U](zero: U)(f: (U, T) => U): U =
-    var current = zero
-    repeatWhile {
-      receive() match
-        case ChannelClosed.Done     => false
-        case e: ChannelClosed.Error => throw e.toThrowable
-        case t: T @unchecked        => current = f(current, t); true
-    }
-    current
-
-  /** Uses the first and the following (if available) elements from this source and applies function `f` on them. The returned value is used
-    * as the next current value and `f` is applied again with the value received from this source. The operation is repeated until this
-    * source is drained. This is similar operation to [[fold]] but it uses the first source element as `zero`.
-    *
-    * @param f
-    *   A binary function (a function that takes two arguments) that is applied to the current and next values received from this source.
-    * @return
-    *   Combined value retrieved from running function `f` on all source elements in a cumulative manner where result of the previous call
-    *   is used as an input value to the next.
-    * @throws NoSuchElementException
-    *   When this source is empty.
-    * @throws ChannelClosedException.Error
-    *   When receiving an element from this source fails.
-    * @throws exception
-    *   When function `f` throws an `exception` then it is propagated up to the caller.
-    * @example
-    *   {{{
-    *   import ox.*
-    *   import ox.channels.Source
-    *
-    *   supervised {
-    *     Source.empty[Int].reduce(_ + _)    // throws NoSuchElementException("cannot reduce an empty source")
-    *     Source.fromValues(1).reduce(_ + _) // 1
-    *     val s = Source.fromValues(1, 2)
-    *     s.reduce(_ + _)                    // 3
-    *     s.receive()                        // ChannelClosed.Done
-    *   }
-    *   }}}
-    */
-  def reduce[U >: T](f: (U, U) => U): U =
-    fold(headOption().getOrElse(throw new NoSuchElementException("cannot reduce an empty source")))(f)
-
-  /** Returns the list of up to `n` last elements from this source. Less than `n` elements is returned when this source contains less
-    * elements than requested. The [[List.empty]] is returned when `takeLast` is called on an empty source.
-    *
-    * @param n
-    *   Number of elements to be taken from the end of this source. It is expected that `n >= 0`.
-    * @return
-    *   A list of up to `n` last elements from this source.
-    * @throws ChannelClosedException.Error
-    *   When receiving an element from this source fails.
-    * @example
-    *   {{{
-    *   import ox.*
-    *   import ox.channels.Source
-    *
-    *   supervised {
-    *     Source.empty[Int].takeLast(5)    // List.empty
-    *     Source.fromValues(1).takeLast(0) // List.empty
-    *     Source.fromValues(1).takeLast(2) // List(1)
-    *     val s = Source.fromValues(1, 2, 3, 4)
-    *     s.takeLast(2)                    // List(4, 5)
-    *     s.receive()                      // ChannelClosed.Done
-    *   }
-    *   }}}
-    */
-  def takeLast(n: Int): List[T] =
-    require(n >= 0, "n must be >= 0")
-    if (n == 0)
-      drain()
-      List.empty
-    else if (n == 1) lastOption().map(List(_)).getOrElse(List.empty)
-    else
-      supervised {
-        val buffer: mutable.ListBuffer[T] = mutable.ListBuffer()
-        buffer.sizeHint(n)
-        repeatWhile {
-          receive() match
-            case ChannelClosed.Done     => false
-            case e: ChannelClosed.Error => throw e.toThrowable
-            case t: T @unchecked =>
-              if (buffer.size == n) buffer.dropInPlace(1)
-              buffer.append(t); true
-        }
-        buffer.result()
-      }
 
   /** If this source has no elements then elements from an `alternative` source are emitted to the returned channel. If this source is
     * failed then failure is passed to the returned channel.
@@ -866,343 +627,12 @@ trait SourceOps[+T] { outer: Source[T] =>
   def orElse[U >: T](alternative: Source[U])(using Ox, StageCapacity): Source[U] =
     val c = StageCapacity.newChannel[U]
     fork {
-      receive() match
+      receiveSafe() match
         case ChannelClosed.Done     => alternative.pipeTo(c)
-        case ChannelClosed.Error(r) => c.error(r)
-        case t: T @unchecked        => c.send(t); pipeTo(c)
+        case ChannelClosed.Error(r) => c.errorSafe(r)
+        case t: T @unchecked        => c.sendSafe(t); pipeTo(c)
     }
     c
+
+  def applied[U](f: Source[T] => U): U = f(this)
 }
-
-trait SourceCompanionOps:
-  def fromIterable[T](it: Iterable[T])(using Ox, StageCapacity): Source[T] = fromIterator(it.iterator)
-
-  def fromValues[T](ts: T*)(using Ox, StageCapacity): Source[T] = fromIterator(ts.iterator)
-
-  def fromIterator[T](it: => Iterator[T])(using Ox, StageCapacity): Source[T] =
-    val c = StageCapacity.newChannel[T]
-    fork {
-      val theIt = it
-      try
-        while theIt.hasNext do c.send(theIt.next())
-        c.done()
-      catch case t: Throwable => c.error(t)
-    }
-    c
-
-  def fromFork[T](f: Fork[T])(using Ox, StageCapacity): Source[T] =
-    val c = StageCapacity.newChannel[T]
-    fork {
-      try
-        c.send(f.join())
-        c.done()
-      catch case t: Throwable => c.error(t)
-    }
-    c
-
-  def iterate[T](zero: T)(f: T => T)(using Ox, StageCapacity): Source[T] =
-    val c = StageCapacity.newChannel[T]
-    fork {
-      var t = zero
-      try
-        forever {
-          c.send(t)
-          t = f(t)
-        }
-      catch case t: Throwable => c.error(t)
-    }
-    c
-
-  /** A range of number, from `from`, to `to` (inclusive), stepped by `step`. */
-  def range(from: Int, to: Int, step: Int)(using Ox, StageCapacity): Source[Int] =
-    val c = StageCapacity.newChannel[Int]
-    fork {
-      var t = from
-      try
-        repeatWhile {
-          c.send(t)
-          t = t + step
-          t <= to
-        }
-        c.done()
-      catch case t: Throwable => c.error(t)
-    }
-    c
-
-  def unfold[S, T](initial: S)(f: S => Option[(T, S)])(using Ox, StageCapacity): Source[T] =
-    val c = StageCapacity.newChannel[T]
-    fork {
-      var s = initial
-      try
-        repeatWhile {
-          f(s) match
-            case Some((value, next)) =>
-              c.send(value)
-              s = next
-              true
-            case None =>
-              c.done()
-              false
-        }
-      catch case t: Throwable => c.error(t)
-    }
-    c
-
-  /** Creates a rendezvous channel (without a buffer, regardless of the [[StageCapacity]] in scope), to which the given value is sent
-    * repeatedly, at least [[interval]] apart between each two elements. The first value is sent immediately.
-    *
-    * The interval is measured between the subsequent invocations of the `send(value)` method. Hence, if there's a slow consumer, the next
-    * tick can be sent right after the previous one is received (if it was received later than the inter-tick interval duration). However,
-    * ticks don't accumulate, e.g. when the consumer is so slow that multiple intervals pass between `send` invocations.
-    *
-    * Must be run within a scope, since a child fork is created which sends the ticks, and waits until the next tick can be sent.
-    *
-    * @param interval
-    *   The temporal spacing between subsequent ticks.
-    * @param value
-    *   The value to send to the channel on every tick.
-    * @return
-    *   A source to which the tick values are sent.
-    * @example
-    *   {{{
-    *   scala>
-    *   import ox.*
-    *   import ox.channels.Source
-    *   import scala.concurrent.duration.DurationInt
-    *
-    *   supervised {
-    *     val s1 = Source.tick(100.millis)
-    *     s1.receive()
-    *     s2.receive() // this will complete at least 100 milliseconds later
-    *   }
-    *   }}}
-    */
-  def tick[T](interval: FiniteDuration, value: T = ())(using Ox): Source[T] =
-    val c = Channel.rendezvous[T]
-    fork {
-      forever {
-        val start = System.nanoTime()
-        c.send(value)
-        val end = System.nanoTime()
-        val sleep = interval.toNanos - (end - start)
-        if sleep > 0 then Thread.sleep(sleep / 1_000_000, (sleep % 1_000_000).toInt)
-      }
-    }
-    c
-
-  def repeat[T](element: T = ())(using Ox, StageCapacity): Source[T] =
-    val c = StageCapacity.newChannel[T]
-    fork {
-      forever {
-        c.send(element)
-      }
-    }
-    c
-
-  def timeout[T](interval: FiniteDuration, element: T = ())(using Ox, StageCapacity): Source[T] =
-    val c = StageCapacity.newChannel[T]
-    fork {
-      Thread.sleep(interval.toMillis)
-      c.send(element)
-      c.done()
-    }
-    c
-
-  def concat[T](sources: Seq[() => Source[T]])(using Ox, StageCapacity): Source[T] =
-    val c = StageCapacity.newChannel[T]
-    fork {
-      var currentSource: Option[Source[T]] = None
-      val sourcesIterator = sources.iterator
-      var continue = true
-      try
-        while continue do
-          currentSource match
-            case None if sourcesIterator.hasNext => currentSource = Some(sourcesIterator.next()())
-            case None =>
-              c.done()
-              continue = false
-            case Some(source) =>
-              source.receive() match
-                case ChannelClosed.Done =>
-                  currentSource = None
-                case ChannelClosed.Error(r) =>
-                  c.error(r)
-                  continue = false
-                case t: T @unchecked =>
-                  c.send(t)
-      catch case t: Throwable => c.error(t)
-    }
-    c
-
-  def empty[T]: Source[T] =
-    val c = Channel.rendezvous[T]
-    c.done()
-    c
-
-  /** Sends a given number of elements (determined byc `segmentSize`) from each source in `sources` to the returned channel and repeats. The
-    * order of elements in all sources is preserved.
-    *
-    * If any of the sources is done before the others, the behavior depends on the `eagerCancel` flag. When set to `true`, the returned
-    * channel is completed immediately, otherwise the interleaving continues with the remaining non-completed sources. Once all but one
-    * sources are complete, the elements of the remaining non-complete source are sent to the returned channel.
-    *
-    * Must be run within a scope, since a child fork is created which receives from the subsequent sources and sends to the resulting
-    * channel.
-    *
-    * @param sources
-    *   The sources whose elements will be interleaved.
-    * @param segmentSize
-    *   The number of elements sent from each source before switching to the next one. Default is 1.
-    * @param eagerComplete
-    *   If `true`, the returned channel is completed as soon as any of the sources completes. If 'false`, the interleaving continues with
-    *   the remaining non-completed sources.
-    * @return
-    *   A source to which the interleaved elements from both sources would be sent.
-    * @example
-    *   {{{
-    *   scala>
-    *   import ox.*
-    *   import ox.channels.Source
-    *
-    *   supervised {
-    *     val s1 = Source.fromValues(1, 2, 3, 4, 5, 6, 7, 8)
-    *     val s2 = Source.fromValues(10, 20, 30)
-    *     val s3 = Source.fromValues(100, 200, 300, 400, 500)
-    *     Source.interleaveAll(List(s1, s2, s3), segmentSize = 2, eagerComplete = true).toList
-    *   }
-    *
-    *   scala> val res0: List[Int] = List(1, 2, 10, 20, 100, 200, 3, 4, 30)
-    *   }}}
-    */
-  def interleaveAll[T](sources: Seq[Source[T]], segmentSize: Int = 1, eagerComplete: Boolean = false)(using
-      Ox,
-      StageCapacity
-  ): Source[T] =
-    sources match
-      case Nil           => Source.empty
-      case single :: Nil => single
-      case _ =>
-        val c = StageCapacity.newChannel[T]
-
-        fork {
-          val availableSources = mutable.ArrayBuffer.from(sources)
-          var currentSourceIndex = 0
-          var elementsRead = 0
-
-          def completeCurrentSource(): Unit =
-            availableSources.remove(currentSourceIndex)
-            currentSourceIndex = if (currentSourceIndex == 0) availableSources.size - 1 else currentSourceIndex - 1
-
-          def switchToNextSource(): Unit =
-            currentSourceIndex = (currentSourceIndex + 1) % availableSources.size
-            elementsRead = 0
-
-          repeatWhile {
-            availableSources(currentSourceIndex).receive() match
-              case ChannelClosed.Done =>
-                completeCurrentSource()
-
-                if (eagerComplete || availableSources.isEmpty)
-                  c.done()
-                  false
-                else
-                  switchToNextSource()
-                  true
-              case ChannelClosed.Error(r) =>
-                c.error(r)
-                false
-              case value: T @unchecked =>
-                elementsRead += 1
-                // after reaching segmentSize, only switch to next source if there's any other available
-                if (elementsRead == segmentSize && availableSources.size > 1) switchToNextSource()
-                c.send(value).isValue
-          }
-        }
-        c
-
-  /** Creates a source that emits a single value when `from` completes or fails otherwise. The `from` completion is performed on the
-    * provided [[scala.concurrent.ExecutionContext]]. Note that when `from` fails with [[scala.concurrent.ExecutionException]] then its
-    * cause is returned as source failure.
-    *
-    * @param from
-    *   A [[scala.concurrent.Future]] that returns value upon completion.
-    * @return
-    *   A source that will emit value upon a `from` [[scala.concurrent.Future]] completion.
-    * @example
-    *   {{{
-    *   import ox.*
-    *   import ox.channels.Source
-    *
-    *   import scala.concurrent.ExecutionContext.Implicits.global
-    *   import scala.concurrent.Future
-    *
-    *   supervised {
-    *     Source
-    *       .future(Future.failed(new RuntimeException("future failed")))
-    *       .receive()                               // ChannelClosed.Error(java.lang.RuntimeException: future failed)
-    *     Source.future(Future.successful(1)).toList // List(1)
-    *   }
-    *   }}}
-    */
-  def future[T](from: Future[T])(using StageCapacity, ExecutionContext): Source[T] =
-    val c = StageCapacity.newChannel[T]
-    receiveAndSendFromFuture(from, c)
-    c
-
-  /** Creates a source that emits elements from future source when `from` completes or fails otherwise. The `from` completion is performed
-    * on the provided [[scala.concurrent.ExecutionContext]] whereas elements are emitted through Ox. Note that when `from` fails with
-    * [[scala.concurrent.ExecutionException]] then its cause is returned as source failure.
-    *
-    * @param from
-    *   A [[scala.concurrent.Future]] that returns source upon completion.
-    * @return
-    *   A source that will emit values upon a `from` [[scala.concurrent.Future]] completion.
-    * @example
-    *   {{{
-    *   import ox.*
-    *   import ox.channels.Source
-    *
-    *   import scala.concurrent.ExecutionContext.Implicits.global
-    *   import scala.concurrent.Future
-    *
-    *   supervised {
-    *     Source
-    *       .futureSource(Future.failed(new RuntimeException("future failed")))
-    *       .receive()                                                           // ChannelClosed.Error(java.lang.RuntimeException: future failed)
-    *     Source.futureSource(Future.successful(Source.fromValues(1, 2))).toList // List(1, 2)
-    *   }
-    *   }}}
-    */
-  def futureSource[T](from: Future[Source[T]])(using Ox, StageCapacity, ExecutionContext): Source[T] =
-    val c = StageCapacity.newChannel[T]
-    val transportChannel = StageCapacity.newChannel[Source[T]](using StageCapacity(1))
-
-    receiveAndSendFromFuture(from, transportChannel)
-
-    fork {
-      transportChannel.receive() match
-        case ChannelClosed.Done           => c.done()
-        case ChannelClosed.Error(r)       => c.error(r)
-        case source: Source[T] @unchecked => source.pipeTo(c)
-    }
-    c
-
-  private def receiveAndSendFromFuture[T](from: Future[T], to: Channel[T])(using ExecutionContext): Unit = {
-    from.onComplete {
-      case Success(value)                  => to.send(value); to.done()
-      case Failure(ex: ExecutionException) => to.error(ex.getCause)
-      case Failure(ex)                     => to.error(ex)
-    }
-  }
-
-  /** Creates a source that fails immediately with the given [[java.lang.Throwable]]
-    *
-    * @param t
-    *   The [[java.lang.Throwable]] to fail with
-    * @return
-    *   A source that would fail immediately with the given [[java.lang.Throwable]]
-    */
-  def failed[T](t: Throwable): Source[T] =
-    val c = Channel.rendezvous[T]
-    c.error(t)
-    c

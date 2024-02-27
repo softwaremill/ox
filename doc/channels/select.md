@@ -1,12 +1,12 @@
 # Selecting from channels
 
 Channels are distinct from queues in that they support a `select` method, which takes a number of channel clauses, and
-block until at least one clause is satisfied. The other channels are left intact (no values are sent or received).
+blocks until at least one clause is satisfied. The other channels are left intact (no values are sent or received).
 
 Channel clauses include:
 
-* `channel.receiveClause` - to receive a value from the channel
-* `channel.sendClause(value)` - to send a value to a channel
+* `Source.receiveClause` - to receive a value from the channel
+* `Sink.sendClause(value)` - to send a value to a channel
 * `Default(value)` - to return the given value from the `select`, if no other clause can be immediately satisfied
 
 ## Receiving from exactly one channel
@@ -16,7 +16,7 @@ The most common use-case for `select` is to receive exactly one value from a num
 signature for the two-source variant of this method is:
 
 ```scala
-def select[T1, T2](source1: Source[T1], source2: Source[T2]): T1 | T2 | ChannelClosed
+def select[T1, T2](source1: Source[T1], source2: Source[T2]): T1 | T2
 ```
 
 As an example, this can be used as follows:
@@ -35,7 +35,7 @@ def consumer(strings: Source[String]): Nothing =
 
     @tailrec
     def doConsume(acc: Int): Nothing =
-      select(tick, strings).orThrow match
+      select(tick, strings) match
         case Tick =>
           println(s"Characters received this second: $acc")
           doConsume(0)
@@ -71,7 +71,7 @@ be a concurrently running `receive` call), or until a value can be received from
 The type returned by the above invocation is:
 
 ```scala
-c.Sent | d.Received | ChannelClosed
+c.Sent | d.Received
 ```
 
 Note that the `Sent` and `Received` types are inner types of the `c` and `d` values. For different channels, the
@@ -87,7 +87,7 @@ import ox.channels.*
 val c = Channel.rendezvous[Int]
 val d = Channel.rendezvous[Int]
 
-select(c.sendClause(10), d.receiveClause).orThrow match
+select(c.sendClause(10), d.receiveClause) match
   case c.Sent()      => println("Sent to c")
   case d.Received(v) => println(s"Received from d: $v")
 ```
@@ -97,7 +97,13 @@ what is missing. Similarly, there will be a warning in case of an unneeded, extr
 
 ## Closed channels (done / error)
 
-If any of the channels is, or becomes, closed (in an error state / done), `select` returns with that error / done state.
+If any of the channels is, or becomes, closed (in an error state / done), `select` throws a `ChannelClosedException` 
+with the details of the error / done state. Similarly as with `send` and `receive`, there's a `safe` variant for each
+`select` method overload, which returns a union type, e.g.:
+
+```scala
+def selectSafe[T1, T2](source1: Source[T1], source2: Source[T2]): T1 | T2 | ChannelClosed
+```
 
 It is possible to inspect which channel is in a closed state by using the `.isClosedForSend` and `.isClosedForReceive`
 methods (plus detailed variants).
@@ -113,7 +119,7 @@ import ox.channels.*
 
 val c = Channel.rendezvous[Int]
 
-select(c.receiveClause, Default(5)).orThrow match
+select(c.receiveClause, Default(5)) match
   case c.Received(v)    => println(s"Received from d: $v")
   case DefaultResult(v) => println(s"No value available in c, using default: $v")
 ```
