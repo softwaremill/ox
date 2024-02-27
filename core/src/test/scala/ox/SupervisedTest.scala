@@ -4,8 +4,6 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.util.Trail
 
-import java.util.concurrent.atomic.AtomicInteger
-
 import scala.util.{Failure, Try}
 
 class SupervisedTest extends AnyFlatSpec with Matchers {

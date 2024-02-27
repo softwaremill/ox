@@ -2,7 +2,7 @@ package ox.kafka.manual
 
 import org.apache.kafka.clients.producer.ProducerRecord
 import ox.*
-import ox.channels.{Source, StageCapacity}
+import ox.channels.StageCapacity
 import ox.kafka.*
 import ox.kafka.ConsumerSettings.AutoOffsetReset
 

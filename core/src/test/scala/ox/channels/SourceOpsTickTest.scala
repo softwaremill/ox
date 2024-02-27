@@ -5,10 +5,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.*
 
-import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.atomic.AtomicInteger
 import scala.concurrent.duration.DurationInt
-import scala.jdk.CollectionConverters.*
 
 class SourceOpsTickTest extends AnyFlatSpec with Matchers with Eventually {
   it should "tick regularly" in {

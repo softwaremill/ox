@@ -4,11 +4,7 @@ import org.scalatest.concurrent.Eventually
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.*
-import ox.channels.ChannelClosedUnion.map
 
-import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.atomic.AtomicInteger
-import scala.concurrent.duration.DurationInt
 import scala.jdk.CollectionConverters.*
 import scala.util.{Failure, Try}
 
