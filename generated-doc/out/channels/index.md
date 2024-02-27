@@ -1,28 +1,30 @@
 # Channels
 
-A channel is like a queue (data can be sent/received), but additionally channels support:
+A channel is like a queue (values can be sent/received), but additionally channels support:
 
 * completion (a source can be `done`)
-* error propagation downstream
-* receiving exactly one value from a number of channels
+* downstream error propagation
+* `select`ing exactly one channel clause to complete, where clauses include send and receive operations
 
 Creating a channel is a light-weight operation:
 
 ```scala
 import ox.channels.*
-val c = Channel[String]()
+val c = Channel.bufferedDefault[String]
 ```
 
-By default, channels are unbuffered, that is a sender and receiver must "meet" to exchange a value. Hence, `.send`
-always blocks, unless there's another thread waiting on a `.receive`.
-
-Buffered channels can be created by providing a non-zero capacity:
+This uses the default buffer size (16). It's also possible to create channels with other buffer sizes, as well as 
+rendezvous or unlimited channels:
 
 ```scala
 import ox.channels.*
-val c = Channel[String](5)
+val c1 = Channel.rendezvous[String]
+val c2 = Channel.buffered[String](5)
+val c3 = Channel.unlimited[String]
 ```
 
-Unbounded channels can be created using `Channel.unlimited[T]`.
+In rendezvous channels, a sender and receiver must "meet" to exchange a value. Hence, `.send` always blocks, unless 
+there's another thread waiting on a `.receive`. In buffered channels, `.send` only blocks when the buffer is full. 
+In an unlimited channel, sending never blocks.
 
 Channels implement two traits: `Source` and `Sink`.

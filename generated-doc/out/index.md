@@ -10,7 +10,7 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
 ## sbt dependency
 
 ```scala
-"com.softwaremill.ox" %% "core" % "0.0.20"
+"com.softwaremill.ox" %% "core" % "0.0.21"
 ```
 
 ## Scope of the project
@@ -81,7 +81,7 @@ We offer commercial support for ox and related technologies, as well as developm
    channels/index
    channels/sinks
    channels/sources
-   channels/creating-sources
+   channels/channel-closed
    channels/transforming-sources
    channels/discharging
    channels/select

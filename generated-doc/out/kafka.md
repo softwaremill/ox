@@ -3,7 +3,7 @@
 Dependency:
 
 ```scala
-"com.softwaremill.ox" %% "kafka" % "0.0.20"
+"com.softwaremill.ox" %% "kafka" % "0.0.21"
 ```
 
 `Source`s which read from a Kafka topic, mapping stages and drains which publish to Kafka topics are available through
@@ -24,7 +24,7 @@ supervised {
   val topic = "my_topic"
   val source = KafkaSource.subscribe(settings, topic)
 
-  source.receiveSafe(): ReceivedMessage[String, String] | ChannelClosed
+  source.receive(): ReceivedMessage[String, String] | ChannelClosed
 }
 ```
 
@@ -45,7 +45,23 @@ supervised {
 }
 ```
 
-To publish data and commit offsets of messages, basing on which the published data is computed:
+Quite often data to be published to a topic (`topic1`) is computed basing on data received from another topic 
+(`topic2`). In such a case, it's possible to commit messages from `topic2`, after the messages to `topic1` are 
+successfully published. 
+
+In order to do so, a `Source[SendPacket]` needs to be created. The definition of `SendPacket` is:
+
+```scala
+import org.apache.kafka.clients.producer.ProducerRecord
+import ox.kafka.ReceivedMessage
+
+case class SendPacket[K, V](send: List[ProducerRecord[K, V]], commit: List[ReceivedMessage[_, _]])
+```
+
+The `send` list contains the messages to be sent (each message is a Kafka `ProducerRecord`). The `commit` list contains
+the messages, basing on which the data to be sent was computed. These are the received messages, as produced by a 
+`KafkaSource`. When committing, for each topic-partition that appears in the received messages, the maximum offset is
+computed. For example:
 
 ```scala
 import ox.kafka.{ConsumerSettings, KafkaDrain, KafkaSource, ProducerSettings, SendPacket}
@@ -73,7 +89,7 @@ To publish data as a mapping stage:
 
 ```scala
 import ox.channels.Source
-import ox.kafka.{ProducerSettings, KafkaDrain}
+import ox.kafka.ProducerSettings
 import ox.kafka.KafkaStage.*
 import ox.supervised
 import org.apache.kafka.clients.producer.{ProducerRecord, RecordMetadata}
