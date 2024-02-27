@@ -329,7 +329,7 @@ trait SourceOps[+T] { outer: Source[T] =>
 
     fork {
       repeatWhile {
-        select(this, other) match
+        selectSafe(this, other) match
           case ChannelClosed.Done =>
             if this.isClosedForReceive then drainFrom(other) else drainFrom(this)
             false

@@ -16,7 +16,7 @@ private[kafka] def doCommit(packets: Source[SendPacket[_, _]])(using Ox): Unit =
   val commitDone = Channel.rendezvous[Unit]
 
   repeatWhile {
-    select(ticks, packets) match
+    selectSafe(ticks, packets) match
       case ChannelClosed.Error(e) => throw e
       case ChannelClosed.Done     => false
       case () =>

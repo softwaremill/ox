@@ -82,7 +82,7 @@ object KafkaStage:
             val commitDoneSource = if commitOffsets then Source.fromFork(fork(tapException(doCommit(toCommit))(c.errorSafe))) else Source.empty
 
             repeatWhile {
-              select(exceptions.receiveClause, metadata.receiveClause, source.receiveClause) match
+              selectSafe(exceptions.receiveClause, metadata.receiveClause, source.receiveClause) match
                 case ChannelClosed.Error(r) => c.errorSafe(r); false
                 case ChannelClosed.Done     =>
                   // waiting until all records are sent and metadata forwarded to `c`
@@ -172,7 +172,7 @@ private class SendInSequence[T](c: Sink[T]):
       exceptions: Source[Exception]
   ): Unit =
     if !allSent then
-      select(exceptions.receiveClause, incoming.receiveClause) match
+      selectSafe(exceptions.receiveClause, incoming.receiveClause) match
         case ChannelClosed.Error(r)    => c.errorSafe(r)
         case ChannelClosed.Done        => throw new IllegalStateException()
         case exceptions.Received(e)    => c.errorSafe(e)

@@ -4,7 +4,7 @@ import org.scalatest.concurrent.Eventually
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.*
-import ox.channels.ChannelClosedUnion.{map, orThrow}
+import ox.channels.ChannelClosedUnion.map
 
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
@@ -84,7 +84,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
 
         fork {
           forever {
-            result.addAndGet(select(cs.map(_.receiveClause)).orThrow.value)
+            result.addAndGet(select(cs.map(_.receiveClause)).value)
           }
         }
 
@@ -113,7 +113,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
         fork {
           var loop = true
           while loop do {
-            val r = select(cs.map(_.receiveClause))
+            val r = selectSafe(cs.map(_.receiveClause))
             result.add(r.map(_.value))
             loop = r != ChannelClosed.Done
           }
@@ -176,7 +176,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
         }
 
         Thread.sleep(100) // let the fork progress
-        select(c1.receiveClause, c2.receiveClause).orThrow shouldBe c1.Received(1)
+        select(c1.receiveClause, c2.receiveClause) shouldBe c1.Received(1)
       }
     }
 
@@ -189,7 +189,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
         }
 
         Thread.sleep(100) // let the fork progress
-        select(c1, c2) shouldBe ChannelClosed.Done
+        selectSafe(c1, c2) shouldBe ChannelClosed.Done
       }
     }
 
@@ -202,7 +202,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
           c2.done()
         }
 
-        select(c1, c2) shouldBe ChannelClosed.Done
+        selectSafe(c1, c2) shouldBe ChannelClosed.Done
       }
     }
   }
@@ -210,8 +210,8 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
   "buffered channel" should "select a send when one is available" in {
     val c1 = Channel.buffered[Int](1)
     val c2 = Channel.buffered[Int](1)
-    select(c1.sendClause(1), c2.sendClause(2)).orThrow should matchPattern { case _: Channel[_]#Sent => }
-    select(c1.sendClause(1), c2.sendClause(2)).orThrow should matchPattern { case _: Channel[_]#Sent => }
+    select(c1.sendClause(1), c2.sendClause(2)) should matchPattern { case _: Channel[_]#Sent => }
+    select(c1.sendClause(1), c2.sendClause(2)) should matchPattern { case _: Channel[_]#Sent => }
 
     Set(c1.receive(), c2.receive()) shouldBe Set(1, 2)
   }
@@ -273,11 +273,11 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
 
     scoped {
       val f1 = fork(c1.receive())
-      select(c1.sendClause(1), c2.sendClause(2)).orThrow
+      select(c1.sendClause(1), c2.sendClause(2))
       f1.join() shouldBe 1
 
       val f2 = fork(c2.receive())
-      select(c1.sendClause(1), c2.sendClause(2)).orThrow
+      select(c1.sendClause(1), c2.sendClause(2))
       f2.join() shouldBe 2
     }
   }
@@ -288,11 +288,11 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
 
     scoped {
       val f1 = fork(c1.receive())
-      select(c1.sendClause(1), c2.receiveClause).orThrow shouldBe c1.Sent()
+      select(c1.sendClause(1), c2.receiveClause) shouldBe c1.Sent()
       f1.join() shouldBe 1
 
       val f2 = fork(c2.send(2))
-      select(c1.sendClause(1), c2.receiveClause).orThrow shouldBe c2.Received(2)
+      select(c1.sendClause(1), c2.receiveClause) shouldBe c2.Received(2)
       f2.join() shouldBe ()
     }
   }
@@ -320,7 +320,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
   it should "not use the default value if the channel is done" in {
     val c1 = Channel.buffered[Int](1)
     c1.done()
-    select(c1.receiveClause, Default(10)) shouldBe ChannelClosed.Done
+    selectSafe(c1.receiveClause, Default(10)) shouldBe ChannelClosed.Done
   }
 
   it should "use the default value once a source is done (buffered channel, stress test)" in {
@@ -335,7 +335,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
         c.send(3)
 
         // when
-        val result = for (_ <- 1 to 4) yield select(c.receiveClause, Default(5)).orThrow.value
+        val result = for (_ <- 1 to 4) yield select(c.receiveClause, Default(5)).value
 
         // then
         result.toList shouldBe List(1, 2, 3, 5)

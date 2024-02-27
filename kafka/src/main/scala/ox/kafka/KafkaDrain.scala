@@ -20,7 +20,7 @@ object KafkaDrain:
 
     try
       repeatWhile {
-        select(producerExceptions.receiveClause, source.receiveClause) match // bias on exceptions
+        selectSafe(producerExceptions.receiveClause, source.receiveClause) match // bias on exceptions
           case e: ChannelClosed.Error         => throw e.toThrowable
           case ChannelClosed.Done             => false // source must be done, as producerExceptions is never done
           case producerExceptions.Received(e) => throw e
