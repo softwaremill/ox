@@ -2,13 +2,14 @@ package ox
 
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.{CompletableFuture, ConcurrentHashMap}
+import scala.reflect.ClassTag
 
-/** Starts a new scope, which allows starting forks in the given code block `f`. Forks can be started using [[fork]], [[forkUser]],
-  * [[forkCancellable]] and [[forkUnsupervised]]. All forks are guaranteed to complete before this scope completes.
+/** Starts a new concurrency scope, which allows starting forks in the given code block `f`. Forks can be started using [[fork]],
+  * [[forkUser]], [[forkCancellable]] and [[forkUnsupervised]]. All forks are guaranteed to complete before this scope completes.
   *
   * The scope is ran in supervised mode, that is:
-  *   - the scope ends once all user, supervised forks (started using [[forkUser]]), including the `f` main body, succeed. Forks started
-  *     using [[fork]] (daemon) don't have to complete successfully for the scope to end.
+  *   - the scope ends once all user, supervised forks (started using [[forkUser]]), including the `f` body, succeed. Forks started using
+  *     [[fork]] (daemon) don't have to complete successfully for the scope to end.
   *   - the scope also ends once the first supervised fork (including the `f` main body) fails with an exception
   *   - when the scope ends, all running forks are cancelled
   *   - the scope completes (that is, this method returns) only once all forks started by `f` have completed (either successfully, or with
@@ -20,14 +21,35 @@ import java.util.concurrent.{CompletableFuture, ConcurrentHashMap}
   *
   * @see
   *   [[scoped]] Starts a scope in unsupervised mode
+  *
+  * @see
+  *   [[supervisedError]] Starts a scope in supervised mode, with the additional ability to report application errors
   */
-def supervised[T](f: Ox ?=> T): T =
-  val s = DefaultSupervisor()
+def supervised[T](f: Ox ?=> T): T = supervisedError(NoErrorMode)(f)
+
+/** Starts a new concurrency scope, which allows starting forks in the given code block `f`. Forks can be started using [[fork]],
+  * [[forkError]], [[forkUser]], [[forkUserError]], [[forkCancellable]] and [[forkUnsupervised]]. All forks are guaranteed to complete
+  * before this scope completes.
+  *
+  * Behaves the same as [[supervised]], but additionally allows reporting application errors represented as values of type `E` in context
+  * `F`. An application error causes the enclosing scope to end.
+  *
+  * @see
+  *   [[forkError]] On details how to use application errors.
+  */
+def supervisedError[E, F[_], T](em: ErrorMode[E, F])(f: OxError[E, F] ?=> F[T]): F[T] =
+  val s = DefaultSupervisor[E]
+  val capability = OxError(s, em)
   try
-    scoped {
-      val r = supervisor(s)(forkUser(f))
-      s.join() // might throw if any supervised fork threw
-      r.join() // if no exceptions, the main f-fork must be done by now
+    scopedWithCapability(capability) {
+      val mainBodyFork = forkUserError(using capability)(f(using capability))
+      val supervisorResult = s.join() // might throw if any supervised fork threw
+      if supervisorResult == ErrorModeSupervisorResult.Success then
+        // if no exceptions, the main f-fork must be done by now
+        em.pure(mainBodyFork.join())
+      else
+        // an app error was reported to the supervisor
+        em.pureError(supervisorResult.asInstanceOf[E])
     }
   catch
     case e: Throwable =>
@@ -36,10 +58,32 @@ def supervised[T](f: Ox ?=> T): T =
       s.addOtherExceptionsAsSuppressedTo(e)
       throw e
 
-trait Supervisor:
+private[ox] sealed trait Supervisor[-E]:
   def forkStarts(): Unit
   def forkSuccess(): Unit
-  def forkError(e: Throwable): Unit
+  def forkException(e: Throwable): Unit
+  def forkAppError(e: E): Unit
+
+private[ox] object NoOpSupervisor extends Supervisor[Nothing]:
+  override def forkStarts(): Unit = ()
+  override def forkSuccess(): Unit = ()
+  override def forkException(e: Throwable): Unit = ()
+  override def forkAppError(e: Nothing): Unit = ()
+
+private[ox] class DefaultSupervisor[E] extends Supervisor[E]:
+  private val running: AtomicInteger = AtomicInteger(0)
+  private val result: CompletableFuture[ErrorModeSupervisorResult | E] = new CompletableFuture()
+  private val otherExceptions: java.util.Set[Throwable] = ConcurrentHashMap.newKeySet()
+
+  override def forkStarts(): Unit = running.incrementAndGet()
+
+  override def forkSuccess(): Unit =
+    val v = running.decrementAndGet()
+    if v == 0 then result.complete(ErrorModeSupervisorResult.Success)
+
+  override def forkException(e: Throwable): Unit = if !result.completeExceptionally(e) then otherExceptions.add(e)
+
+  override def forkAppError(e: E): Unit = if !result.complete(e) then otherExceptions.add(SecondaryApplicationError(e))
 
   /** Wait until the count of all supervised, user forks that are running reaches 0, or until any supervised fork fails with an exception.
     *
@@ -47,35 +91,13 @@ trait Supervisor:
     *
     * Note that (daemon) forks can still start supervised user forks after this method returns.
     */
-  def join(): Unit
-
-object NoOpSupervisor extends Supervisor:
-  override def forkStarts(): Unit = ()
-  override def forkSuccess(): Unit = ()
-  override def forkError(e: Throwable): Unit = ()
-  override def join(): Unit = ()
-
-class DefaultSupervisor() extends Supervisor:
-  private val running: AtomicInteger = AtomicInteger(0)
-  private val result: CompletableFuture[Unit] = new CompletableFuture()
-  private val otherExceptions: java.util.Set[Throwable] = ConcurrentHashMap.newKeySet()
-
-  override def forkStarts(): Unit = running.incrementAndGet()
-
-  override def forkSuccess(): Unit =
-    val v = running.decrementAndGet()
-    if v == 0 then result.complete(())
-
-  override def forkError(e: Throwable): Unit = if !result.completeExceptionally(e) then otherExceptions.add(e)
-
-  override def join(): Unit = unwrapExecutionException(result.get())
+  def join(): ErrorModeSupervisorResult | E = unwrapExecutionException(result.get())
 
   def addOtherExceptionsAsSuppressedTo(e: Throwable): Throwable =
     otherExceptions.forEach(e2 => if e != e2 then e.addSuppressed(e2))
     e
 
-/** Change the supervisor that is being used when running `f`. Doesn't affect existing usages of the current supervisor, or forks ran
-  * outside of `f`.
-  */
-def supervisor[T](supervisor: Supervisor)(f: Ox ?=> T)(using Ox): T =
-  f(using summon[Ox].copy(supervisor = supervisor))
+private[ox] enum ErrorModeSupervisorResult:
+  case Success
+
+case class SecondaryApplicationError[E](e: E) extends Throwable("Secondary application error reported to the supervisor")

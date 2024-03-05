@@ -1,82 +1,121 @@
 package ox
 
-import java.util.concurrent.{CompletableFuture, Semaphore}
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.{CompletableFuture, Semaphore}
 import scala.concurrent.ExecutionException
 import scala.util.control.NonFatal
 
-/** Starts a fork (logical thread of execution), which is guaranteed to complete before the enclosing [[supervised]] or [[scoped]] block
-  * completes.
+/** Starts a fork (logical thread of execution), which is guaranteed to complete before the enclosing [[supervised]], [[supervisedError]] or
+  * [[scoped]] block completes.
   *
   * If ran in a [[supervised]] scope:
   *
   *   - the fork behaves as a daemon thread
-  *   - an exception thrown while evaluating `t` will cause the enclosing scope to end (cancelling all other running forks)
-  *   - if the main body of the scope completes successfully, and all other user forks complete successfully, the scope will end, cancelling
-  *     all running forks (including this one, if it's still running). That is, successful completion of this fork isn't required to end the
+  *   - an exception thrown while evaluating `t` will cause the fork to fail and the enclosing scope to end (cancelling all other running
+  *     forks)
+  *   - if the body of the scope completes successfully, and all other user forks complete successfully, the scope will end, cancelling all
+  *     running forks (including this one, if it's still running). That is, successful completion of this fork isn't required to end the
   *     scope.
   *
-  * For alternate behaviors, see [[forkUser]], [[forkCancellable]] and [[forkUnsupervised]].
+  * For alternate behaviors regarding ending the scope, see [[forkUser]], [[forkError]], [[forkUserError]], [[forkCancellable]] and
+  * [[forkUnsupervised]].
   *
   * If ran in an unsupervised scope ([[scoped]]):
   *
   *   - in case an exception is thrown while evaluating `t`, it will be thrown when calling the returned [[Fork]]'s `.join()` method.
   *   - if the main body of the scope completes successfully, while this fork is still running, the fork will be cancelled
   */
-def fork[T](f: => T)(using Ox): Fork[T] =
+def fork[T](f: => T)(using Ox): Fork[T] = forkError(using summon[Ox].asNoErrorMode)(f)
+
+/** Starts a fork (logical thread of execution), which is guaranteed to complete before the enclosing [[supervisedError]] block completes.
+  *
+  * Behaves the same as [[fork]], but additionally allows reporting application errors represented as values of type `E` in context `F`. An
+  * application error causes the enclosing scope to end.
+  *
+  * Application errors are values with which forks might successfully complete, but are still considered a value-level representation of an
+  * error (as opposed to an exception, which isn't a value which is returned, but is thrown instead). Such errors are reported to the
+  * enclosing scope. If the [[ErrorMode]] provided when creating the scope using [[supervisedError]] classifies a fork return value as an
+  * error, the scope ends (cancelling all other running forks).
+  */
+def forkError[E, F[_], T](using OxError[E, F])(f: => F[T]): Fork[T] =
+  val oxError = summon[OxError[E, F]]
+  // the separate result future is needed to wait for the result, as there's no .join on individual tasks (only whole scopes can be joined)
   val result = new CompletableFuture[T]()
-  summon[Ox].scope.fork { () =>
-    val supervisor = summon[Ox].supervisor
-    try result.complete(f)
+  oxError.scope.fork { () =>
+    val supervisor = oxError.supervisor
+    try
+      val resultOrError = f
+      val errorMode = oxError.errorMode
+      if errorMode.isError(resultOrError) then
+        // result is never completed, the supervisor should end the scope
+        supervisor.forkAppError(errorMode.getError(resultOrError))
+      else result.complete(errorMode.getT(resultOrError))
     catch
       case e: Throwable =>
+        // we notify the supervisor first, so that if this is the first failing fork in the scope, the supervisor will
+        // get first notified of the exception by the "original" (this) fork
         result.completeExceptionally(e)
-        supervisor.forkError(e)
+        supervisor.forkException(e)
   }
   newForkUsingResult(result)
 
-/** Starts a fork (logical thread of execution), which is guaranteed to complete before the enclosing [[supervised]] or [[scoped]] block
-  * completes.
+/** Starts a fork (logical thread of execution), which is guaranteed to complete before the enclosing [[supervised]], [[supervisedError]] or
+  * [[scoped]] block completes.
   *
   * If ran in a [[supervised]] scope:
   *
   *   - the fork behaves as a user-level thread
   *   - an exception thrown while evaluating `t` will cause the enclosing scope to end (cancelling all other running forks)
-  *   - the scope won't end until the main body of the scope, and all other user forks (including this one) complete successfully. That is,
+  *   - the scope won't end until the body of the scope, and all other user forks (including this one) complete successfully. That is,
   *     successful completion of this fork is required to end the scope.
   *
-  * For alternate behaviors, see [[fork]], [[forkCancellable]] and [[forkUnsupervised]].
+  * For alternate behaviors, see [[fork]], [[forkError]], [[forkUserError]], [[forkCancellable]] and [[forkUnsupervised]].
   *
   * If ran in an unsupervised scope ([[scoped]]):
   *
   *   - in case an exception is thrown while evaluating `t`, it will be thrown when calling the returned [[Fork]]'s `.join()` method.
   *   - if the main body of the scope completes successfully, while this fork is still running, the fork will be cancelled
   */
-def forkUser[T](f: => T)(using Ox): Fork[T] =
-  // the separate result future is needed to wait for the result, as there's no .join on individual tasks (only whole scopes can be joined)
+def forkUser[T](f: => T)(using Ox): Fork[T] = forkUserError(using summon[Ox].asNoErrorMode)(f)
+
+/** Starts a fork (logical thread of execution), which is guaranteed to complete before the enclosing [[supervisedError]] block completes.
+  *
+  * Behaves the same as [[forkUser]], but additionally allows reporting application errors represented as values of type `E` in context `F`,
+  * which cause the enclosing scope to end.
+  *
+  * Application errors are values with which forks might successfully complete, but are still considered a value-level representation of an
+  * error (as opposed to an exception, which isn't a value which is returned, but is thrown instead). Such errors are reported to the
+  * enclosing scope. If the [[ErrorMode]] provided when creating the scope using [[supervisedError]] classifies a fork return value as an
+  * error, the scope ends (cancelling all other running forks).
+  */
+def forkUserError[E, F[_], T](using OxError[E, F])(f: => F[T]): Fork[T] =
+  val oxError = summon[OxError[E, F]]
   val result = new CompletableFuture[T]()
-  val ox = summon[Ox]
-  ox.supervisor.forkStarts()
-  ox.scope.fork { () =>
-    val supervisor = summon[Ox].supervisor
+  oxError.supervisor.forkStarts()
+  oxError.scope.fork { () =>
+    val supervisor = oxError.supervisor.asInstanceOf[DefaultSupervisor[E]]
     try
-      result.complete(f)
-      supervisor.forkSuccess()
+      val resultOrError = f
+      val errorMode = oxError.errorMode
+      if errorMode.isError(resultOrError) then
+        // result is never completed, the supervisor should end the scope
+        supervisor.forkAppError(errorMode.getError(resultOrError))
+      else
+        result.complete(errorMode.getT(resultOrError))
+        supervisor.forkSuccess()
     catch
       case e: Throwable =>
-        // we notify the supervisor first, so that if this is the first failing fork in the scope, the supervisor will
-        // get first notified of the exception by the "original" (this) fork
-        supervisor.forkError(e)
+        supervisor.forkException(e)
         result.completeExceptionally(e)
   }
   newForkUsingResult(result)
 
-/** Starts a fork (logical thread of execution), which is guaranteed to complete before the enclosing [[supervised]] or [[scoped]] block
-  * completes.
+/** Starts a fork (logical thread of execution), which is guaranteed to complete before the enclosing [[supervised]], [[supervisedError]] or
+  * [[scoped]] block completes.
   *
   * In case an exception is thrown while evaluating `t`, it will be thrown when calling the returned [[Fork]]'s `.join()` method.
   *
-  * Success or failure isn't signalled to the supervisor, and doesn't influence the scope's lifecycle.
+  * Success or failure isn't signalled to the enclosing scope, and doesn't influence the scope's lifecycle.
   *
   * For alternate behaviors, see [[fork]], [[forkUser]] and [[forkCancellable]].
   */
@@ -98,15 +137,15 @@ def forkAll[T](fs: Seq[() => T])(using Ox): Fork[Seq[T]] =
   new Fork[Seq[T]]:
     override def join(): Seq[T] = forks.map(_.join())
 
-/** Starts a fork (logical thread of execution), which is guaranteed to complete before the enclosing [[supervised]] or [[scoped]] block
-  * completes, and which can be cancelled on-dmeand.
+/** Starts a fork (logical thread of execution), which is guaranteed to complete before the enclosing [[supervised]], [[supervisedError]] or
+  * [[scoped]] block completes, and which can be cancelled on-demand.
   *
   * In case an exception is thrown while evaluating `t`, it will be thrown when calling the returned [[Fork]]'s `.join()` method.
   *
-  * The fork is unsupervised (similarly to [[forkUnsupervised]]), hence success or failure isn't signalled to the supervisor, and doesn't
-  * influence the scope's lifecycle.
+  * The fork is unsupervised (similarly to [[forkUnsupervised]]), hence success or failure isn't signalled to the enclosing scope and
+  * doesn't influence the scope's lifecycle.
   *
-  * For alternate behaviors, see [[fork]], [[forkUser]] and [[forkUnsupervised]].
+  * For alternate behaviors, see [[fork]], [[forkError]], [[forkUser]], [[forkUserError]] and [[forkUnsupervised]].
   *
   * Implementation note: a cancellable fork is created by starting a nested scope in a fork, and then starting a fork there. Hence, it is
   * more expensive than [[fork]], as two virtual threads are started.
@@ -119,20 +158,18 @@ def forkCancellable[T](f: => T)(using Ox): CancellableFork[T] =
   val done = new Semaphore(0)
   val ox = summon[Ox]
   ox.scope.fork { () =>
-    scoped {
-      supervisor(ox.supervisor) {
-        val nestedOx = summon[Ox]
-        nestedOx.scope.fork { () =>
-          // "else" means that the fork is already cancelled, so doing nothing in that case
-          if !started.getAndSet(true) then
-            try result.complete(f)
-            catch case e: Throwable => result.completeExceptionally(e)
+    scopedWithCapability(OxError(ox.supervisor, NoErrorMode)) {
+      val nestedOx = summon[Ox]
+      nestedOx.scope.fork { () =>
+        // "else" means that the fork is already cancelled, so doing nothing in that case
+        if !started.getAndSet(true) then
+          try result.complete(f)
+          catch case e: Throwable => result.completeExceptionally(e)
 
-          done.release() // the nested scope can now finish
-        }
-
-        done.acquire()
+        done.release() // the nested scope can now finish
       }
+
+      done.acquire()
     }
   }
   new CancellableFork[T]:
@@ -157,7 +194,7 @@ def forkCancellable[T](f: => T)(using Ox): CancellableFork[T] =
 private def newForkUsingResult[T](result: CompletableFuture[T]): Fork[T] = new Fork[T]:
   override def join(): T = unwrapExecutionException(result.get())
 
-private[ox] def unwrapExecutionException[T](f: => T): T =
+private[ox] inline def unwrapExecutionException[T](f: => T): T =
   try f
   catch
     case e: ExecutionException => throw e.getCause
@@ -165,7 +202,9 @@ private[ox] def unwrapExecutionException[T](f: => T): T =
 
 //
 
-/** A fork started using [[fork]], [[forkUser]], [[forkCancellable]] or [[forkUnsupervised]], backed by a (virtual) thread. */
+/** A fork started using [[fork]], [[forkError]], [[forkUser]], [[forkUserError]], [[forkCancellable]] or [[forkUnsupervised]], backed by a
+  * (virtual) thread.
+  */
 trait Fork[T]:
   /** Blocks until the fork completes with a result. Throws an exception, if the fork completed with an exception. */
   def join(): T
