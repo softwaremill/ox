@@ -13,7 +13,7 @@ def computation2: Int =
   Thread.sleep(1000)
   2
 
-val result: Int = race(computation1)(computation2)
+val result: Int = race(computation1, computation2)
 // 2
 ```
 
