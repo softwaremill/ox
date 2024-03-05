@@ -1,6 +1,6 @@
 # Fork & join threads
 
-It's safest to use higher-level methods, such as `par` or `raceSuccess`, however this isn't always sufficient. For
+It's safest to use higher-level methods, such as `par` or `race`, however this isn't always sufficient. For
 these cases, threads can be started using the structured concurrency APIs described below.
 
 Forks (new threads) can only be started within a **concurrency scope**. Such a scope is defined using the `supervised`,

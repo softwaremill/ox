@@ -38,8 +38,8 @@ val result: Seq[Int] = parLimit(5)(computations)
 
 ## Using application errors
 
-It's also possible to consider some values as application errors. In a computation returns such an error, other 
-computations are interrupted, same as when an exception is thrown. The error is then returned by the `par` method.
+Some values might be considered as application errors. In a computation returns such an error, other computations are 
+interrupted, same as when an exception is thrown. The error is then returned by the `par` method.
 
 It's possible to use an arbitrary [error mode](error-handling.md) by providing it as the initial argument to `par`.
 Alternatively, a built-in version using `Either` is available as `parEither`:

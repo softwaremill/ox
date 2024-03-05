@@ -9,7 +9,7 @@ The only difference is that some exceptions might be added as suppressed (e.g. i
 
 Some examples of exception handling in ox include:
 
-* short-circuiting in `par` and `raceSuccess` when one of the computations fails
+* short-circuiting in `par` and `race` when one of the computations fails
 * retrying computations in `retry` when they fail
 * ending a `supervised` concurrency scope when a supervised fork fails
 

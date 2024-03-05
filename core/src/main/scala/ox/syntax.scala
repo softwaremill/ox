@@ -24,7 +24,7 @@ object syntax:
     def scopedWhere[U](fl: ForkLocal[U], u: U): T = fl.scopedWhere(u)(f)
     def uninterruptible: T = ox.uninterruptible(f)
     def parWith[U](f2: => U): (T, U) = ox.par(f, f2)
-    def raceSuccessWith(f2: => T): T = ox.raceSuccess(f)(f2)
+    def race(f2: => T): T = ox.race(f, f2)
     def raceResultWith(f2: => T): T = ox.raceResult(f)(f2)
 
   extension [T <: AutoCloseable](f: => T)(using Ox)
