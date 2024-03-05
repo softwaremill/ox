@@ -25,3 +25,7 @@ Errors:
 * fork **failure**: when a fork fails with an exception
 * **application error**: forks might successfully complete with values which are considered application-level errors;
   such values are reported to the enclosing scope and cause the scope to end
+
+Other:
+* **computation combinator**: a method which takes user-provided functions and manages their execution, e.g. using 
+  concurrency, interruption, and appropriately handling errors; examples include `par`, `race`, `retry`, `timeout`

@@ -3,8 +3,8 @@
 It's safest to use higher-level methods, such as `par` or `raceSuccess`, however this isn't always sufficient. For
 these cases, threads can be started using the structured concurrency APIs described below.
 
-Forks (new threads) can only be started with a **scope**. Such a scope is defined using the `supervised` or `scoped`
-methods.
+Forks (new threads) can only be started within a **concurrency scope**. Such a scope is defined using the `supervised`,
+`supervisedError` or `scoped` methods.
 
 The lifetime of the forks is defined by the structure of the code, and corresponds to the enclosing `supervised` or
 `scoped` block. Once the code block passed to the scope completes, any forks that are still running are interrupted.
@@ -13,10 +13,11 @@ The whole block will complete only once all forks have completed (successfully, 
 Hence, it is guaranteed that all forks started within `supervised` or `scoped` will finish successfully, with an
 exception, or due to an interrupt.
 
+For example, the code below is equivalent to `par`:
+
 ```scala mdoc:compile-only
 import ox.{fork, supervised}
 
-// same as `par`
 supervised {
   val f1 = fork {
     Thread.sleep(2000)
@@ -59,8 +60,8 @@ The default scope, created with `supervised`, watches over the forks that are st
 
 This means that the scope will end only when either:
 
-* all (user, supervised) forks, including the main body passed to `supervised`, succeed
-* or any (supervised) fork, including the main body passed to `supervised`, fails
+* all (user, supervised) forks, including the body passed to `supervised`, succeed
+* or any (supervised) fork, including the body passed to `supervised`, fails
 
 Hence an exception in any of the forks will cause the whole scope to end. Ending the scope means that all running forks
 are cancelled (using interruption). Once all forks complete, the exception is propagated further, that is re-thrown by
@@ -85,14 +86,14 @@ supervised {
 
 ## User, daemon and unsupervised forks
 
-In supervised scoped, forks created using `fork` behave as daemon threads. That is, their failure ends the scope, but
-the scope will also end once the main body and all user forks succeed, regardless if the (daemon) fork is still running.
+In supervised scopes, forks created using `fork` behave as daemon threads. That is, their failure ends the scope, but
+the scope will also end once the body and all user forks succeed, regardless if the (daemon) fork is still running.
 
 Alternatively, a user fork can be created using `forkUser`. Such a fork is required to complete successfully, in order
-for the scope to end successfully. Hence when the main body of the scope completes, the scope will wait until all user
+for the scope to end successfully. Hence, when the body of the scope completes, the scope will wait until all user
 forks have completed as well.
 
-Finally, entirely unsupervised forks can be ran using `forkUnsupervised`.
+Finally, entirely unsupervised forks can be started using `forkUnsupervised`.
 
 ## Unsupervised scopes
 
@@ -115,11 +116,3 @@ it involves creating a nested scope and two virtual threads, instead of one.
 The `CancellableFork` trait exposes the `.cancel` method, which interrupts the fork and awaits its completion.
 Alternatively, `.cancelNow` returns immediately. In any case, the enclosing scope will only complete once all forks have
 completed.
-
-## Error handling
-
-In supervised mode, if a fork fails with an exception, the enclosing scope will end.
-
-Moreover, if a fork fails with an exception, the `Fork.join` method will throw that exception.
-
-In unsupervised mode, if there's no join and the fork fails, the exception might go unnoticed.

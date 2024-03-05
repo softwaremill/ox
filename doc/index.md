@@ -64,7 +64,9 @@ We offer commercial support for ox and related technologies, as well as developm
    race
    collections
    timeout
+   error-handling
    fork-join
+   error-handling-scopes
    scoped-values
    retries
    interruptions
