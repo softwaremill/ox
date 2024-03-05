@@ -9,15 +9,17 @@ import java.util.concurrent.atomic.AtomicInteger
 class ParTest extends AnyFlatSpec with Matchers {
   "par" should "run computations in parallel" in {
     val trail = Trail()
-    val result = par {
-      Thread.sleep(200)
-      trail.add("a")
-      1
-    } {
-      Thread.sleep(100)
-      trail.add("b")
-      2
-    }
+    val result = par(
+      {
+        Thread.sleep(200)
+        trail.add("a")
+        1
+      }, {
+        Thread.sleep(100)
+        trail.add("b")
+        2
+      }
+    )
 
     trail.add("done")
 
@@ -28,14 +30,16 @@ class ParTest extends AnyFlatSpec with Matchers {
   it should "interrupt other computations in one fails" in {
     val trail = Trail()
     try
-      par {
-        Thread.sleep(200)
-        trail.add("par 1 done")
-      } {
-        Thread.sleep(100)
-        trail.add("exception")
-        throw new Exception("boom")
-      }
+      par(
+        {
+          Thread.sleep(200)
+          trail.add("par 1 done")
+        }, {
+          Thread.sleep(100)
+          trail.add("exception")
+          throw new Exception("boom")
+        }
+      )
     catch
       case e: Exception if e.getMessage == "boom" => trail.add("catch")
 
@@ -90,5 +94,48 @@ class ParTest extends AnyFlatSpec with Matchers {
     trail.add("all done")
 
     trail.get shouldBe Vector("x", "x", "exception", "catch", "all done")
+  }
+
+  "parEither" should "run computations in parallel" in {
+    val trail = Trail()
+    val result = parEither(
+      {
+        Thread.sleep(200)
+        trail.add("a")
+        Right(1)
+      }, {
+        Thread.sleep(100)
+        trail.add("b")
+        Right(2)
+      }
+    )
+
+    trail.add("done")
+
+    result shouldBe Right((1, 2))
+    trail.get shouldBe Vector("b", "a", "done")
+  }
+
+  it should "interrupt other computations in one fails" in {
+    val trail = Trail()
+    val result = parEither(
+      {
+        Thread.sleep(200)
+        trail.add("par 1 done")
+        Right("ok")
+      }, {
+        Thread.sleep(100)
+        trail.add("exception")
+        Left(-1)
+      }
+    )
+
+    result shouldBe Left(-1)
+
+    // checking if the forks aren't left running
+    Thread.sleep(300)
+    trail.add("all done")
+
+    trail.get shouldBe Vector("exception", "all done")
   }
 }
