@@ -81,6 +81,6 @@ class RouterTest extends AnyFlatSpec with Matchers with Eventually with Integrat
         s5.sent should be(List("msg2", "msg3"))
       }
 
-    raceResult(socketListen)(socketTest)
+    raceResult(socketListen, socketTest)
   }
 }

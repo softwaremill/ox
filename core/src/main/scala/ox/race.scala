@@ -99,4 +99,10 @@ def raceEither[E, T](f1: => Either[E, T], f2: => Either[E, T], f3: => Either[E, 
 def raceResult[T](fs: Seq[() => T]): T = race(fs.map(f => () => Try(f()))).get // TODO optimize
 
 /** Returns the result of the first computation to complete (either successfully or with an exception). */
-def raceResult[T](f1: => T)(f2: => T): T = raceResult(List(() => f1, () => f2))
+def raceResult[T](f1: => T, f2: => T): T = raceResult(List(() => f1, () => f2))
+
+/** Returns the result of the first computation to complete (either successfully or with an exception). */
+def raceResult[T](f1: => T, f2: => T, f3: => T): T = raceResult(List(() => f1, () => f2, () => f3))
+
+/** Returns the result of the first computation to complete (either successfully or with an exception). */
+def raceResult[T](f1: => T, f2: => T, f3: => T, f4: => T): T = raceResult(List(() => f1, () => f2, () => f3, () => f4))

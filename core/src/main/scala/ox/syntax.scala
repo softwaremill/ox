@@ -25,7 +25,7 @@ object syntax:
     def uninterruptible: T = ox.uninterruptible(f)
     def parWith[U](f2: => U): (T, U) = ox.par(f, f2)
     def race(f2: => T): T = ox.race(f, f2)
-    def raceResultWith(f2: => T): T = ox.raceResult(f)(f2)
+    def raceResultWith(f2: => T): T = ox.raceResult(f, f2)
 
   extension [T <: AutoCloseable](f: => T)(using Ox)
     def useInScope: T = ox.useCloseableInScope(f)
