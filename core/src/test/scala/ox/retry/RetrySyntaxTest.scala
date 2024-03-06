@@ -25,23 +25,6 @@ class RetrySyntaxTest extends AnyFlatSpec with Matchers with TryValues with Eith
     counter shouldBe 4
   }
 
-  it should "support operations that return a Try" in {
-    // given
-    var counter = 0
-    val errorMessage = "boom"
-
-    def f =
-      counter += 1
-      Failure(new RuntimeException(errorMessage))
-
-    // when
-    val result = f.retry(RetryPolicy.immediate(3))
-
-    // then
-    result.failure.exception should have message errorMessage
-    counter shouldBe 4
-  }
-
   it should "support operations that return an Either" in {
     // given
     var counter = 0
@@ -52,7 +35,7 @@ class RetrySyntaxTest extends AnyFlatSpec with Matchers with TryValues with Eith
       Left(errorMessage)
 
     // when
-    val result = f.retry(RetryPolicy.immediate(3))
+    val result = f.retryEither(RetryPolicy.immediate(3))
 
     // then
     result.left.value shouldBe errorMessage

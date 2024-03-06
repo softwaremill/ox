@@ -111,25 +111,5 @@ class BackoffRetryTest extends AnyFlatSpec with Matchers with EitherValues with 
     counter shouldBe 4
   }
 
-  it should "retry a Try" in {
-    // given
-    val maxRetries = 3
-    val initialDelay = 100.millis
-    var counter = 0
-    val errorMessage = "boom"
-
-    def f =
-      counter += 1
-      Failure(new RuntimeException(errorMessage))
-
-    // when
-    val (result, elapsedTime) = measure(retry(f)(RetryPolicy.backoff(maxRetries, initialDelay)))
-
-    // then
-    result.failure.exception should have message errorMessage
-    elapsedTime.toMillis should be >= expectedTotalBackoffTimeMillis(maxRetries, initialDelay)
-    counter shouldBe 4
-  }
-
   private def expectedTotalBackoffTimeMillis(maxRetries: Int, initialDelay: FiniteDuration, maxDelay: FiniteDuration = 1.day): Long =
     (0 until maxRetries).map(Schedule.Backoff.delay(_, initialDelay, maxDelay).toMillis).sum

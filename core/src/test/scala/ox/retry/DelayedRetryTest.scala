@@ -69,23 +69,3 @@ class DelayedRetryTest extends AnyFlatSpec with Matchers with EitherValues with 
     elapsedTime.toMillis should be >= maxRetries * sleep.toMillis
     counter shouldBe 4
   }
-
-  it should "retry a Try" in {
-    // given
-    val maxRetries = 3
-    val sleep = 100.millis
-    var counter = 0
-    val errorMessage = "boom"
-
-    def f =
-      counter += 1
-      Failure(new RuntimeException(errorMessage))
-
-    // when
-    val (result, elapsedTime) = measure(retry(f)(RetryPolicy.delay(maxRetries, sleep)))
-
-    // then
-    result.failure.exception should have message errorMessage
-    elapsedTime.toMillis should be >= maxRetries * sleep.toMillis
-    counter shouldBe 4
-  }
