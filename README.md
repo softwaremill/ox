@@ -9,7 +9,7 @@ Safe direct-style concurrency and resiliency for Scala on the JVM. Requires JDK 
 [sbt](https://www.scala-sbt.org) dependency:
 
 ```scala
-"com.softwaremill.ox" %% "core" % "0.0.21"
+"com.softwaremill.ox" %% "core" % "0.0.22"
 ```
 
 Documentation is available at [https://ox.softwaremill.com](https://ox.softwaremill.com).
