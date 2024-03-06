@@ -6,9 +6,9 @@ The retries mechanism allows to retry a failing operation according to a given p
 The basic syntax for retries is:
 
 ```scala
-import ox.retry.retry
+import ox.retry.retryEither
 
-retry(operation)(policy)
+retryEither(operation)(policy)
 ```
 
 or, using a syntax sugar:
@@ -89,7 +89,7 @@ If you want to customize a part of the result policy, you can use the following 
 ## Examples
 
 ```scala
-import ox.retry.retry
+import ox.retry.retryEither
 import ox.retry.{Jitter, ResultPolicy, RetryPolicy, Schedule}
 import scala.concurrent.duration.*
 import scala.util.Try
@@ -100,7 +100,7 @@ def tryOperation: Try[Int] = ???
 
 // various operation definitions - same syntax
 retry(directOperation)(RetryPolicy.immediate(3))
-retry(eitherOperation)(RetryPolicy.immediate(3))
+retryEither(eitherOperation)(RetryPolicy.immediate(3))
 retry(tryOperation)(RetryPolicy.immediate(3))
 
 // various policies with custom schedules and default ResultPolicy
@@ -117,7 +117,7 @@ retry(directOperation)(RetryPolicy.backoffForever(100.millis, 5.minutes, Jitter.
 retry(directOperation)(RetryPolicy(Schedule.Immediate(3), ResultPolicy.successfulWhen(_ > 0)))
 // fail fast on certain errors
 retry(directOperation)(RetryPolicy(Schedule.Immediate(3), ResultPolicy.retryWhen(_.getMessage != "fatal error")))
-retry(eitherOperation)(RetryPolicy(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")))
+retryEither(eitherOperation)(RetryPolicy(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")))
 ```
 
 See the tests in `ox.retry.*` for more.

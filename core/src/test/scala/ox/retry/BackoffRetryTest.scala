@@ -103,7 +103,7 @@ class BackoffRetryTest extends AnyFlatSpec with Matchers with EitherValues with 
       Left(errorMessage)
 
     // when
-    val (result, elapsedTime) = measure(retry(f)(RetryPolicy.backoff(maxRetries, initialDelay)))
+    val (result, elapsedTime) = measure(retryEither(f)(RetryPolicy.backoff(maxRetries, initialDelay)))
 
     // then
     result.left.value shouldBe errorMessage

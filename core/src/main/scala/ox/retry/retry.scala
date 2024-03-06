@@ -1,5 +1,7 @@
 package ox.retry
 
+import ox.{EitherMode, ErrorMode}
+
 import scala.annotation.tailrec
 import scala.concurrent.duration.*
 import scala.util.Try
@@ -16,22 +18,10 @@ import scala.util.Try
   *   The exception thrown by the last attempt if the policy decides to stop.
   */
 def retry[T](operation: => T)(policy: RetryPolicy[Throwable, T]): T =
-  retry(Try(operation))(policy).get
+  retryEither(Try(operation).toEither)(policy).fold(throw _, identity)
 
-/** Retries an operation returning a [[scala.util.Try]] until it succeeds or the policy decides to stop.
-  *
-  * @param operation
-  *   The operation to retry.
-  * @param policy
-  *   The retry policy - see [[RetryPolicy]].
-  * @return
-  *   A [[scala.util.Success]] if the function eventually succeeds, or, otherwise, a [[scala.util.Failure]] with the error from the last
-  *   attempt.
-  */
-def retry[T](operation: => Try[T])(policy: RetryPolicy[Throwable, T]): Try[T] =
-  retry(operation.toEither)(policy).toTry
-
-/** Retries an operation returning an [[scala.util.Either]] until it succeeds or the policy decides to stop.
+/** Retries an operation returning an [[scala.util.Either]] until it succeeds or the policy decides to stop. Note that any exceptions thrown
+  * by the operation aren't caught and don't cause a retry to happen.
   *
   * @param operation
   *   The operation to retry.
@@ -40,25 +30,43 @@ def retry[T](operation: => Try[T])(policy: RetryPolicy[Throwable, T]): Try[T] =
   * @return
   *   A [[scala.util.Right]] if the function eventually succeeds, or, otherwise, a [[scala.util.Left]] with the error from the last attempt.
   */
-def retry[E, T](operation: => Either[E, T])(policy: RetryPolicy[E, T]): Either[E, T] =
+def retryEither[E, T](operation: => Either[E, T])(policy: RetryPolicy[E, T]): Either[E, T] = retry(EitherMode[E])(operation)(policy)
+
+/** Retries an operation using the given error mode until it succeeds or the policy decides to stop. Note that any exceptions thrown by the
+  * operation aren't caught (unless the operation catches them as part of its implementation) and don't cause a retry to happen.
+  *
+  * @param em
+  *   The error mode to use, which specifies when a result value is considered success, and when a failure.
+  * @param operation
+  *   The operation to retry.
+  * @param policy
+  *   The retry policy - see [[RetryPolicy]].
+  * @return
+  *   Either:
+  *   - the result of the function if it eventually succeeds, in the context of `F`, as dictated by the error mode.
+  *   - the error `E` in context `F` as returned by the last attempt if the policy decides to stop.
+  */
+def retry[E, F[_], T](em: ErrorMode[E, F])(operation: => F[T])(policy: RetryPolicy[E, T]): F[T] =
   @tailrec
-  def loop(attempt: Int, remainingAttempts: Option[Int], lastDelay: Option[FiniteDuration]): Either[E, T] =
+  def loop(attempt: Int, remainingAttempts: Option[Int], lastDelay: Option[FiniteDuration]): F[T] =
     def sleepIfNeeded =
       val delay = policy.schedule.nextDelay(attempt + 1, lastDelay).toMillis
       if (delay > 0) Thread.sleep(delay)
       delay
 
     operation match
-      case left @ Left(error) =>
+      case v if em.isError(v) =>
+        val error = em.getError(v)
         if policy.resultPolicy.isWorthRetrying(error) && remainingAttempts.forall(_ > 0) then
           val delay = sleepIfNeeded
           loop(attempt + 1, remainingAttempts.map(_ - 1), Some(delay.millis))
-        else left
-      case right @ Right(result) =>
+        else v
+      case v =>
+        val result = em.getT(v)
         if !policy.resultPolicy.isSuccess(result) && remainingAttempts.forall(_ > 0) then
           val delay = sleepIfNeeded
           loop(attempt + 1, remainingAttempts.map(_ - 1), Some(delay.millis))
-        else right
+        else v
 
   val remainingAttempts = policy.schedule match
     case finiteSchedule: Schedule.Finite => Some(finiteSchedule.maxRetries)

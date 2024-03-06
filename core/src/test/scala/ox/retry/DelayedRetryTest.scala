@@ -62,7 +62,7 @@ class DelayedRetryTest extends AnyFlatSpec with Matchers with EitherValues with 
       Left(errorMessage)
 
     // when
-    val (result, elapsedTime) = measure(retry(f)(RetryPolicy.delay(maxRetries, sleep)))
+    val (result, elapsedTime) = measure(retryEither(f)(RetryPolicy.delay(maxRetries, sleep)))
 
     // then
     result.left.value shouldBe errorMessage

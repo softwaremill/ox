@@ -5,8 +5,6 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.retry.*
 
-import scala.util.{Failure, Success}
-
 class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues with Matchers:
 
   behavior of "Immediate retry"
@@ -103,7 +101,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
       Right(successfulResult)
 
     // when
-    val result = retry(f)(RetryPolicy.immediate(3))
+    val result = retryEither(f)(RetryPolicy.immediate(3))
 
     // then
     result.value shouldBe successfulResult
@@ -121,7 +119,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
       Left(errorMessage)
 
     // when
-    val result = retry(f)(policy)
+    val result = retryEither(f)(policy)
 
     // then
     result.left.value shouldBe errorMessage
@@ -139,7 +137,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
       Right(unsuccessfulResult)
 
     // when
-    val result = retry(f)(policy)
+    val result = retryEither(f)(policy)
 
     // then
     result.value shouldBe unsuccessfulResult
@@ -156,79 +154,9 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
       Left(errorMessage)
 
     // when
-    val result = retry(f)(RetryPolicy.immediate(3))
+    val result = retryEither(f)(RetryPolicy.immediate(3))
 
     // then
     result.left.value shouldBe errorMessage
-    counter shouldBe 4
-  }
-
-  it should "retry a succeeding Try" in {
-    // given
-    var counter = 0
-    val successfulResult = 42
-
-    def f =
-      counter += 1
-      Success(successfulResult)
-
-    // when
-    val result = retry(f)(RetryPolicy.immediate(3))
-
-    // then
-    result.success.value shouldBe successfulResult
-    counter shouldBe 1
-  }
-
-  it should "fail fast when a Try is not worth retrying" in {
-    // given
-    var counter = 0
-    val errorMessage = "boom"
-    val policy: RetryPolicy[Throwable, Int] = RetryPolicy(Schedule.Immediate(3), ResultPolicy.neverRetry)
-
-    def f =
-      counter += 1
-      Failure(new RuntimeException(errorMessage))
-
-    // when
-    val result = retry(f)(policy)
-
-    // then
-    result.failure.exception should have message errorMessage
-    counter shouldBe 1
-  }
-
-  it should "retry a succeeding Try with a custom success condition" in {
-    // given
-    var counter = 0
-    val unsuccessfulResult = -1
-    val policy: RetryPolicy[Throwable, Int] = RetryPolicy(Schedule.Immediate(3), ResultPolicy.successfulWhen(_ > 0))
-
-    def f =
-      counter += 1
-      Success(unsuccessfulResult)
-
-    // when
-    val result = retry(f)(policy)
-
-    // then
-    result.success.value shouldBe unsuccessfulResult
-    counter shouldBe 4
-  }
-
-  it should "retry a failing Try" in {
-    // given
-    var counter = 0
-    val errorMessage = "boom"
-
-    def f =
-      counter += 1
-      Failure(new RuntimeException(errorMessage))
-
-    // when
-    val result = retry(f)(RetryPolicy.immediate(3))
-
-    // then
-    result.failure.exception should have message errorMessage
     counter shouldBe 4
   }

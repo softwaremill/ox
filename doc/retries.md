@@ -11,7 +11,7 @@ import ox.retry.retry
 retry(operation)(policy)
 ```
 
-or, using a syntax sugar:
+or, using syntax sugar:
 
 ```scala
 import ox.syntax.*
@@ -20,10 +20,11 @@ operation.retry(policy)
 ```
 
 ## Operation definition
-The `operation` can be provided as one of:
-- a direct by-name parameter, i.e. `f: => T`
-- a by-name `Try[T]`, i.e. `f: => Try[T]`
-- a by-name `Either[E, T]`, i.e. `f: => Either[E, T]`
+
+The `operation` can be provided directly using a by-name parameter, i.e. `f: => T`.
+
+There's also a `retryEither` variant which accepts a by-name `Either[E, T]`, i.e. `f: => Either[E, T]`, as well as one
+which accepts arbitrary [error modes](error-handling.md), accepting the computation in an `F` context: `f: => F[T]`.
 
 ## Policies
 
@@ -68,7 +69,7 @@ A result policy allows to customize how the results of the `operation` are treat
   With finite schedules (i.e. those with `maxRetries` defined), if `isSuccess` keeps returning `false` when `maxRetries` are reached, the result is returned as-is, even though it's considered "unsuccessful",
 - `isWorthRetrying: E => Boolean` (default: `true`) - determines whether another attempt would be made if the `operation` results in an error `E`. When it evaluates to `true` - we'd keep retrying, otherwise - we'd fail fast with the error.
 
-The `ResultPolicy[E, T]` is generic both over the error (`E`) and result (`T`) type. Note, however, that for the direct and `Try` variants of the `operation`, the error type `E` is fixed to `Throwable`, while for the `Either` variant, `E` can ba an arbitrary type.
+The `ResultPolicy[E, T]` is generic both over the error (`E`) and result (`T`) type. Note, however, that for the direct variant `retry`, the error type `E` is fixed to `Throwable`, while for the `Either` and error-mode variants, `E` can ba an arbitrary type.
 
 ### API shorthands
 
@@ -89,19 +90,18 @@ If you want to customize a part of the result policy, you can use the following 
 ## Examples
 
 ```scala mdoc:compile-only
-import ox.retry.retry
+import ox.UnionMode
+import ox.retry.{retry, retryEither}
 import ox.retry.{Jitter, ResultPolicy, RetryPolicy, Schedule}
 import scala.concurrent.duration.*
-import scala.util.Try
 
 def directOperation: Int = ???
 def eitherOperation: Either[String, Int] = ???
-def tryOperation: Try[Int] = ???
+def unionOperation: String | Int = ???
 
 // various operation definitions - same syntax
 retry(directOperation)(RetryPolicy.immediate(3))
-retry(eitherOperation)(RetryPolicy.immediate(3))
-retry(tryOperation)(RetryPolicy.immediate(3))
+retryEither(eitherOperation)(RetryPolicy.immediate(3))
 
 // various policies with custom schedules and default ResultPolicy
 retry(directOperation)(RetryPolicy.delay(3, 100.millis))
@@ -117,7 +117,10 @@ retry(directOperation)(RetryPolicy.backoffForever(100.millis, 5.minutes, Jitter.
 retry(directOperation)(RetryPolicy(Schedule.Immediate(3), ResultPolicy.successfulWhen(_ > 0)))
 // fail fast on certain errors
 retry(directOperation)(RetryPolicy(Schedule.Immediate(3), ResultPolicy.retryWhen(_.getMessage != "fatal error")))
-retry(eitherOperation)(RetryPolicy(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")))
+retryEither(eitherOperation)(RetryPolicy(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")))
+
+// custom error mode
+retry(UnionMode[String])(unionOperation)(RetryPolicy(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")))
 ```
 
 See the tests in `ox.retry.*` for more.
