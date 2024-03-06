@@ -52,16 +52,18 @@ class RaceTest extends AnyFlatSpec with Matchers {
     trail.get shouldBe Vector("done: None")
   }
 
-  it should "race a slower and faster computation" in {
+  "race" should "race a slower and faster computation" in {
     val trail = Trail()
     val start = System.currentTimeMillis()
-    raceSuccess {
-      Thread.sleep(1000L)
-      trail.add("slow")
-    } {
-      Thread.sleep(500L)
-      trail.add("fast")
-    }
+    race(
+      {
+        Thread.sleep(1000L)
+        trail.add("slow")
+      }, {
+        Thread.sleep(500L)
+        trail.add("fast")
+      }
+    )
     val end = System.currentTimeMillis()
 
     Thread.sleep(1000L)
@@ -72,17 +74,67 @@ class RaceTest extends AnyFlatSpec with Matchers {
   it should "race a faster and slower computation" in {
     val trail = Trail()
     val start = System.currentTimeMillis()
-    raceSuccess {
-      Thread.sleep(500L)
-      trail.add("fast")
-    } {
-      Thread.sleep(1000L)
-      trail.add("slow")
-    }
+    race(
+      {
+        Thread.sleep(500L)
+        trail.add("fast")
+      }, {
+        Thread.sleep(1000L)
+        trail.add("slow")
+      }
+    )
     val end = System.currentTimeMillis()
 
     Thread.sleep(1000L)
     trail.get shouldBe Vector("fast")
+    end - start should be < 1000L
+  }
+
+  it should "return the first successful computation to complete" in {
+    val trail = Trail()
+    val start = System.currentTimeMillis()
+    race(
+      {
+        Thread.sleep(200L)
+        trail.add("error")
+        throw new RuntimeException("boom!")
+      }, {
+        Thread.sleep(500L)
+        trail.add("slow")
+      }, {
+        Thread.sleep(1000L)
+        trail.add("very slow")
+      }
+    )
+    val end = System.currentTimeMillis()
+
+    Thread.sleep(1000L)
+    trail.get shouldBe Vector("error", "slow")
+    end - start should be < 1000L
+  }
+
+  "raceEither" should "return the first successful computation to complete" in {
+    val trail = Trail()
+    val start = System.currentTimeMillis()
+    raceEither(
+      {
+        Thread.sleep(200L)
+        trail.add("error")
+        Left(-1)
+      }, {
+        Thread.sleep(500L)
+        trail.add("slow")
+        Right("ok")
+      }, {
+        Thread.sleep(1000L)
+        trail.add("very slow")
+        Right("also ok")
+      }
+    )
+    val end = System.currentTimeMillis()
+
+    Thread.sleep(1000L)
+    trail.get shouldBe Vector("error", "slow")
     end - start should be < 1000L
   }
 }

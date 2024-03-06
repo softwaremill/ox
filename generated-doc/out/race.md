@@ -1,17 +1,17 @@
 # Race two computations
 
 ```scala
-import ox.raceSuccess
+import ox.race
 
 def computation1: Int =
   Thread.sleep(2000)
-  1
+1
 
 def computation2: Int =
   Thread.sleep(1000)
-  2
+2
 
-val result: Int = raceSuccess(computation1)(computation2)
+val result: Int = race(computation1)(computation2)
 // 2
 ```
 

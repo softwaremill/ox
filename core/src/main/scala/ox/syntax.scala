@@ -9,8 +9,7 @@ object syntax:
   extension [T](f: => T) def forever: Fork[Nothing] = ox.forever(f)
 
   extension [T](f: => T) def retry(policy: RetryPolicy[Throwable, T]): T = ox.retry.retry(f)(policy)
-  extension [T](f: => Try[T]) def retry(policy: RetryPolicy[Throwable, T]): Try[T] = ox.retry.retry(f)(policy)
-  extension [E, T](f: => Either[E, T]) def retry(policy: RetryPolicy[E, T]): Either[E, T] = ox.retry.retry(f)(policy)
+  extension [E, T](f: => Either[E, T]) def retryEither(policy: RetryPolicy[E, T]): Either[E, T] = ox.retry.retryEither(f)(policy)
 
   extension [T](f: => T)(using Ox)
     def forkUser: Fork[T] = ox.forkUser(f)
@@ -23,9 +22,9 @@ object syntax:
     def timeoutOption(duration: FiniteDuration): Option[T] = ox.timeoutOption(duration)(f)
     def scopedWhere[U](fl: ForkLocal[U], u: U): T = fl.scopedWhere(u)(f)
     def uninterruptible: T = ox.uninterruptible(f)
-    def parWith[U](f2: => U): (T, U) = ox.par(f)(f2)
-    def raceSuccessWith(f2: => T): T = ox.raceSuccess(f)(f2)
-    def raceResultWith(f2: => T): T = ox.raceResult(f)(f2)
+    def parWith[U](f2: => U): (T, U) = ox.par(f, f2)
+    def race(f2: => T): T = ox.race(f, f2)
+    def raceResultWith(f2: => T): T = ox.raceResult(f, f2)
 
   extension [T <: AutoCloseable](f: => T)(using Ox)
     def useInScope: T = ox.useCloseableInScope(f)
