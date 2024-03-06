@@ -28,9 +28,12 @@ trait ErrorMode[E, F[_]] {
 
   /** Embed an error into the `F` context. */
   def pureError[T](e: E): F[T]
-}
 
-// TODO: suppression
+  /** Adds a suppressed exception to the value being represented by `error`. This is only called if `isError(error)` returns `true`. By
+    * default, the suppressed exception is discarded and the original value is returned.
+    */
+  def addSuppressed[T](error: F[T], e: Throwable): F[T] = error
+}
 
 /** An error mode which doesn't allow reporting application errors.
   *

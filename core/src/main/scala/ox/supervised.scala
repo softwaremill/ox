@@ -41,7 +41,7 @@ def supervisedError[E, F[_], T](em: ErrorMode[E, F])(f: OxError[E, F] ?=> F[T]):
   val s = DefaultSupervisor[E]
   val capability = OxError(s, em)
   try
-    scopedWithCapability(capability) {
+    val scopeResult = scopedWithCapability(capability) {
       val mainBodyFork = forkUserError(using capability)(f(using capability))
       val supervisorResult = s.join() // might throw if any supervised fork threw
       if supervisorResult == ErrorModeSupervisorResult.Success then
@@ -51,6 +51,10 @@ def supervisedError[E, F[_], T](em: ErrorMode[E, F])(f: OxError[E, F] ?=> F[T]):
         // an app error was reported to the supervisor
         em.pureError(supervisorResult.asInstanceOf[E])
     }
+    // all forks are guaranteed to have finished; some might have ended up throwing exceptions (InterruptedException or
+    // others), but if the scope ended because of an application error, only that result will be returned, hence we have
+    // to add the other exceptions as suppressed
+    if em.isError(scopeResult) then s.addExceptionsAsSuppressed(scopeResult, em) else scopeResult
   catch
     case e: Throwable =>
       // all forks are guaranteed to have finished: some might have ended up throwing exceptions (InterruptedException or
@@ -72,6 +76,7 @@ private[ox] object NoOpSupervisor extends Supervisor[Nothing]:
 
 private[ox] class DefaultSupervisor[E] extends Supervisor[E]:
   private val running: AtomicInteger = AtomicInteger(0)
+  // the result might be completed with: a success marker, an app error, or an exception
   private val result: CompletableFuture[ErrorModeSupervisorResult | E] = new CompletableFuture()
   private val otherExceptions: java.util.Set[Throwable] = ConcurrentHashMap.newKeySet()
 
@@ -96,6 +101,11 @@ private[ox] class DefaultSupervisor[E] extends Supervisor[E]:
   def addOtherExceptionsAsSuppressedTo(e: Throwable): Throwable =
     otherExceptions.forEach(e2 => if e != e2 then e.addSuppressed(e2))
     e
+
+  def addExceptionsAsSuppressed[F[_], T](r: F[T], errorMode: ErrorMode[E, F]): F[T] =
+    var result = r
+    otherExceptions.forEach(e => result = errorMode.addSuppressed(result, e))
+    result
 
 private[ox] enum ErrorModeSupervisorResult:
   case Success
