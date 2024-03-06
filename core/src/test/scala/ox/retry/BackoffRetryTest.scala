@@ -7,7 +7,6 @@ import ox.ElapsedTime
 import ox.retry.*
 
 import scala.concurrent.duration.*
-import scala.util.Failure
 
 class BackoffRetryTest extends AnyFlatSpec with Matchers with EitherValues with TryValues with ElapsedTime:
 
