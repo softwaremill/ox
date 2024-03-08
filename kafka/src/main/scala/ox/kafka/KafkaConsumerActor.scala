@@ -7,7 +7,6 @@ import ox.*
 import ox.channels.*
 
 import scala.jdk.CollectionConverters.*
-import scala.util.control.NonFatal
 
 object KafkaConsumerActor:
   private val logger = LoggerFactory.getLogger(classOf[KafkaConsumerActor.type])
@@ -30,19 +29,19 @@ object KafkaConsumerActor:
                 consumer.subscribe(topics.asJava)
                 true
               catch
-                case NonFatal(e) =>
-                  logger.error(s"Exception when subscribing to $topics", e)
-                  c.errorSafe(e)
+                case t: Throwable =>
+                  logger.error(s"Exception when subscribing to $topics", t)
+                  c.errorSafe(t)
                   false
             case KafkaConsumerRequest.Poll(results) =>
               try
                 results.send(consumer.poll(java.time.Duration.ofMillis(100)))
                 true
               catch
-                case NonFatal(e) =>
-                  logger.error("Exception when polling for records in Kafka", e)
-                  results.errorSafe(e)
-                  c.errorSafe(e)
+                case t: Throwable =>
+                  logger.error("Exception when polling for records in Kafka", t)
+                  results.errorSafe(t)
+                  c.errorSafe(t)
                   false
             case KafkaConsumerRequest.Commit(offsets, result) =>
               try
@@ -50,10 +49,10 @@ object KafkaConsumerActor:
                 result.sendSafe(())
                 true
               catch
-                case NonFatal(e) =>
-                  logger.error("Exception when committing offsets", e)
-                  result.errorSafe(e)
-                  c.errorSafe(e)
+                case t: Throwable =>
+                  logger.error("Exception when committing offsets", t)
+                  result.errorSafe(t)
+                  c.errorSafe(t)
                   false
         }
       finally

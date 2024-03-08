@@ -7,7 +7,6 @@ import java.util
 import scala.collection.mutable
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{ExecutionContext, ExecutionException, Future}
-import scala.util.control.NonFatal
 import scala.util.{Failure, Success}
 
 trait SourceCompanionOps:
