@@ -217,6 +217,13 @@ trait Fork[T]:
       case e: InterruptedException => Left(e)
       case NonFatal(e)             => Left(e)
 
+object Fork:
+  /** A dummy pretending to represent a fork which successfully completed with the given value. */
+  def successful[T](value: T): Fork[T] = () => value
+
+  /** A dummy pretending to represent a fork which failed with the given exception. */
+  def failed[T](e: Throwable): Fork[T] = () => throw e
+
 /** A fork started using [[forkCancellable]], backed by a (virtual) thread. */
 trait CancellableFork[T] extends Fork[T]:
   /** Interrupts the fork, and blocks until it completes with a result. */
