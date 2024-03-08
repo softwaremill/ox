@@ -150,7 +150,7 @@ trait SourceCompanionOps:
         forever {
           c.sendSafe(f)
         }
-      catch case NonFatal(t) => c.errorSafe(t)
+      catch case t: Throwable => c.errorSafe(t)
     }
     c
 
