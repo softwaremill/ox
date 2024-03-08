@@ -58,4 +58,20 @@ class LocalTest extends AnyFlatSpec with Matchers {
 
     trail.get shouldBe Vector("nested1 = x", "nested2 = x", "outer = a")
   }
+
+  it should "propagate errors from forks created within scoped values" in {
+    val v = ForkLocal("v1")
+    val caught = intercept[RuntimeException] {
+      supervised {
+        v.supervisedWhere("v2") {
+          forkUser {
+            v.get() shouldBe "v2"
+            throw new RuntimeException("boom!")
+          }
+        }
+      }
+    }
+
+    caught.getMessage shouldBe "boom!"
+  }
 }
