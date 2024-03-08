@@ -5,8 +5,6 @@ import org.slf4j.LoggerFactory
 import ox.*
 import ox.channels.*
 
-import scala.util.control.NonFatal
-
 object KafkaSource:
   private val logger = LoggerFactory.getLogger(classOf[KafkaSource.type])
 
@@ -38,9 +36,9 @@ object KafkaSource:
           records.forEach(r => c.send(ReceivedMessage(kafkaConsumer, r)))
         }
       catch
-        case NonFatal(e) =>
-          logger.error("Exception when polling for records", e)
-          c.errorSafe(e)
+        case t: Throwable =>
+          logger.error("Exception when polling for records", t)
+          c.errorSafe(t)
     }
 
     c

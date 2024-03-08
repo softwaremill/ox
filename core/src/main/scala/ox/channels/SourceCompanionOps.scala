@@ -125,12 +125,31 @@ trait SourceCompanionOps:
     }
     c
 
-  def repeat[T](element: T = ())(using Ox, StageCapacity): Source[T] =
+  /** Creates a channel, to which the given `element` is sent repeatedly.
+    *
+    * @param element
+    *   The element to send
+    * @return
+    *   A source to which the given element is sent repeatedly.
+    */
+  def repeat[T](element: T = ())(using Ox, StageCapacity): Source[T] = repeatEval(element)
+
+  /** Creates a channel, to which the result of evaluating `f` is sent repeatedly. As the parameter is passed by-name, the evaluation is
+    * deferred until the element is sent, and happens multiple times.
+    *
+    * @param f
+    *   The code block, computing the element to send
+    * @return
+    *   A source to which the result of evaluating `f` is sent repeatedly.
+    */
+  def repeatEval[T](f: => T)(using Ox, StageCapacity): Source[T] =
     val c = StageCapacity.newChannel[T]
     fork {
-      forever {
-        c.sendSafe(element)
-      }
+      try
+        forever {
+          c.sendSafe(f)
+        }
+      catch case t: Throwable => c.errorSafe(t)
     }
     c
 
