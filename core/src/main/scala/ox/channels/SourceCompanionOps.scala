@@ -7,6 +7,7 @@ import java.util
 import scala.collection.mutable
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{ExecutionContext, ExecutionException, Future}
+import scala.util.control.NonFatal
 import scala.util.{Failure, Success}
 
 trait SourceCompanionOps:
@@ -125,12 +126,31 @@ trait SourceCompanionOps:
     }
     c
 
-  def repeat[T](element: T = ())(using Ox, StageCapacity): Source[T] =
+  /** Creates a channel, to which the given `element` is sent repeatedly.
+    *
+    * @param element
+    *   The element to send
+    * @return
+    *   A source to which the given element is sent repeatedly.
+    */
+  def repeat[T](element: T = ())(using Ox, StageCapacity): Source[T] = repeatEval(element)
+
+  /** Creates a channel, to which the result of evaluating `f` is sent repeatedly. As the parameter is passed by-name, the evaluation is
+    * deferred until the element is sent, and happens multiple times.
+    *
+    * @param f
+    *   The code block, computing the element to send
+    * @return
+    *   A source to which the result of evaluating `f` is sent repeatedly.
+    */
+  def repeatEval[T](f: => T)(using Ox, StageCapacity): Source[T] =
     val c = StageCapacity.newChannel[T]
     fork {
-      forever {
-        c.sendSafe(element)
-      }
+      try
+        forever {
+          c.sendSafe(f)
+        }
+      catch case NonFatal(t) => c.errorSafe(t)
     }
     c
 
