@@ -67,7 +67,7 @@ We offer commercial support for ox and related technologies, as well as developm
    error-handling
    fork-join
    error-handling-scopes
-   scoped-values
+   fork-local
    retries
    interruptions
    resources
