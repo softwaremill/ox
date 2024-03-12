@@ -21,6 +21,13 @@ class SourceOpsMapConcatTest extends AnyFlatSpec with Matchers {
     s.toList shouldBe List('a', 'b', 'c', 'd')
   }
 
+  it should "handle empty lists" in supervised {
+    val c = Source.fromValues(List.empty, List("a"), List.empty, List("b", "c"))
+    val s = c.mapConcat(identity)
+
+    s.toList shouldBe List("a", "b", "c")
+  }
+
   it should "propagate errors in the mapping function" in supervised {
     // given
     given StageCapacity = StageCapacity(0) // so that the error isn't created too early
