@@ -538,6 +538,52 @@ trait SourceOps[+T] { outer: Source[T] =>
     }
     c
 
+  /** Applies the given mapping function `f`, to each element received from this source, transforming it into an Iterable of results, then
+    * sends the results one by one to the returned channel. Can be used to unfold incoming sequences of elements into single elemnts.
+    *
+    * @param f
+    *   A function that transforms the element from this source into a pair of the next state into an [[scala.collection.IterableOnce]] of
+    *   results which are sent one by one to the returned channel. If the result of `f` is empty, nothing is sent to the returned channel.
+    * @return
+    *   A source to which the results of applying `f` to the elements from this source would be sent.
+    * @example
+    *   {{{
+    *   scala>
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   supervised {
+    *     val s = Source.fromValues(List(1, 2, 3), List(4, 5, 6), List(7, 8, 9))
+    *     s.mapConcat(identity)
+    *   }
+    *
+    *   scala> val res0: List[Int] = List(1, 2, 3, 4, 5, 6, 7, 8, 9)
+    *   }}}
+    */
+  def mapConcat[U](f: T => IterableOnce[U])(using Ox, StageCapacity): Source[U] =
+    val c = StageCapacity.newChannel[U]
+    fork {
+      repeatWhile {
+        receiveSafe() match
+          case ChannelClosed.Done =>
+            try c.doneSafe()
+            catch case t: Throwable => c.errorSafe(t)
+            false
+          case ChannelClosed.Error(r) =>
+            c.errorSafe(r)
+            false
+          case t: T @unchecked =>
+            try
+              val results: IterableOnce[U] = f(t)
+              results.iterator.map(c.sendSafe).forall(_.isValue)
+            catch
+              case t: Throwable =>
+                c.errorSafe(t)
+                false
+      }
+    }
+    c
+
   /** Returns the first element from this source wrapped in [[Some]] or [[None]] when this source is empty. Note that `headOption` is not an
     * idempotent operation on source as it receives elements from it.
     *
@@ -565,7 +611,7 @@ trait SourceOps[+T] { outer: Source[T] =>
         case e: ChannelClosed.Error => throw e.toThrowable
         case t: T @unchecked        => Some(t)
     }
-    
+
   /** Sends elements to the returned channel limiting the throughput to specific number of elements (evenly spaced) per time unit. Note that
     * the element's `receive()` time is included in the resulting throughput. For instance having `throttle(1, 1.second)` and `receive()`
     * taking `Xms` means that resulting channel will receive elements every `1s + Xms` time. Throttling is not applied to the empty source.
