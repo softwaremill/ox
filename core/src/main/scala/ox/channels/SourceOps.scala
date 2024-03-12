@@ -539,7 +539,7 @@ trait SourceOps[+T] { outer: Source[T] =>
     c
 
   /** Applies the given mapping function `f`, to each element received from this source, transforming it into an Iterable of results, then
-    * sends the results one by one to the returned channel. Can be used to unfold incoming sequences of elements into single elemnts.
+    * sends the results one by one to the returned channel. Can be used to unfold incoming sequences of elements into single elements.
     *
     * @param f
     *   A function that transforms the element from this source into a pair of the next state into an [[scala.collection.IterableOnce]] of
@@ -566,8 +566,7 @@ trait SourceOps[+T] { outer: Source[T] =>
       repeatWhile {
         receiveSafe() match
           case ChannelClosed.Done =>
-            try c.doneSafe()
-            catch case t: Throwable => c.errorSafe(t)
+            c.doneSafe()
             false
           case ChannelClosed.Error(r) =>
             c.errorSafe(r)
@@ -575,7 +574,8 @@ trait SourceOps[+T] { outer: Source[T] =>
           case t: T @unchecked =>
             try
               val results: IterableOnce[U] = f(t)
-              results.iterator.map(c.sendSafe).forall(_.isValue)
+              results.iterator.foreach(c.send)
+              true
             catch
               case t: Throwable =>
                 c.errorSafe(t)
