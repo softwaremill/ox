@@ -10,7 +10,7 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
 ## sbt dependency
 
 ```scala
-"com.softwaremill.ox" %% "core" % "0.0.22"
+"com.softwaremill.ox" %% "core" % "0.0.23"
 ```
 
 ## Scope of the project
@@ -67,7 +67,7 @@ We offer commercial support for ox and related technologies, as well as developm
    error-handling
    fork-join
    error-handling-scopes
-   scoped-values
+   fork-local
    retries
    interruptions
    resources
