@@ -37,7 +37,14 @@ def race[E, F[_], T](em: ErrorMode[E, F])(fs: Seq[() => F[T]]): F[T] =
 
     @tailrec
     def takeUntilSuccess(failures: Vector[Either[E, Throwable]], left: Int): F[T] =
-      if left == 0 then failures.headOption.getOrElse(throw new NoSuchElementException).fold(em.pureError, throw _)
+      if left == 0 then
+        val otherExceptions = failures.tail.collect { case Right(e) => e }
+        failures.headOption.getOrElse(throw new NoSuchElementException) match
+          case Left(appError) =>
+            otherExceptions.foldLeft(em.pureError(appError))(em.addSuppressed)
+          case Right(e) =>
+            otherExceptions.foreach(ee => if e != ee then e.addSuppressed(ee))
+            throw e
       else
         result.take() match
           case Success(v) =>
