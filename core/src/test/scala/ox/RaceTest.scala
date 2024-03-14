@@ -113,6 +113,24 @@ class RaceTest extends AnyFlatSpec with Matchers {
     end - start should be < 1000L
   }
 
+  it should "add other exceptions as suppressed" in {
+    try
+      race(
+        throw new RuntimeException("boom1!"), {
+          Thread.sleep(200)
+          throw new RuntimeException("boom2!")
+        }, {
+          Thread.sleep(200)
+          throw new RuntimeException("boom3!")
+        }
+      )
+      fail("Race should throw")
+    catch
+      case e: Exception =>
+        e.getMessage shouldBe "boom1!"
+        e.getSuppressed.map(_.getMessage).toSet shouldBe Set("boom2!", "boom3!")
+  }
+
   "raceEither" should "return the first successful computation to complete" in {
     val trail = Trail()
     val start = System.currentTimeMillis()
