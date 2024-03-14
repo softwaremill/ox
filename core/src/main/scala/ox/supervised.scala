@@ -54,12 +54,12 @@ def supervisedError[E, F[_], T](em: ErrorMode[E, F])(f: OxError[E, F] ?=> F[T]):
     // all forks are guaranteed to have finished; some might have ended up throwing exceptions (InterruptedException or
     // others), but if the scope ended because of an application error, only that result will be returned, hence we have
     // to add the other exceptions as suppressed
-    if em.isError(scopeResult) then s.addExceptionsAsSuppressed(scopeResult, em) else scopeResult
+    if em.isError(scopeResult) then s.addSuppressedErrors(scopeResult, em) else scopeResult
   catch
     case e: Throwable =>
       // all forks are guaranteed to have finished: some might have ended up throwing exceptions (InterruptedException or
       // others), but only the first one is propagated below. That's why we add all the other exceptions as suppressed.
-      s.addOtherExceptionsAsSuppressedTo(e)
+      s.addSuppressedErrors(e)
       throw e
 
 private[ox] sealed trait Supervisor[-E]:
@@ -79,6 +79,7 @@ private[ox] class DefaultSupervisor[E] extends Supervisor[E]:
   // the result might be completed with: a success marker, an app error, or an exception
   private val result: CompletableFuture[ErrorModeSupervisorResult | E] = new CompletableFuture()
   private val otherExceptions: java.util.Set[Throwable] = ConcurrentHashMap.newKeySet()
+  private val otherErrors: java.util.Set[E] = ConcurrentHashMap.newKeySet()
 
   override def forkStarts(): Unit = running.incrementAndGet()
 
@@ -88,7 +89,7 @@ private[ox] class DefaultSupervisor[E] extends Supervisor[E]:
 
   override def forkException(e: Throwable): Unit = if !result.completeExceptionally(e) then otherExceptions.add(e)
 
-  override def forkAppError(e: E): Unit = if !result.complete(e) then otherExceptions.add(SecondaryApplicationError(e))
+  override def forkAppError(e: E): Unit = if !result.complete(e) then otherErrors.add(e)
 
   /** Wait until the count of all supervised, user forks that are running reaches 0, or until any supervised fork fails with an exception.
     *
@@ -98,16 +99,16 @@ private[ox] class DefaultSupervisor[E] extends Supervisor[E]:
     */
   def join(): ErrorModeSupervisorResult | E = unwrapExecutionException(result.get())
 
-  def addOtherExceptionsAsSuppressedTo(e: Throwable): Throwable =
+  def addSuppressedErrors(e: Throwable): Throwable =
     otherExceptions.forEach(e2 => if e != e2 then e.addSuppressed(e2))
+    otherErrors.forEach(e2 => e.addSuppressed(SecondaryApplicationError(e2)))
     e
 
-  def addExceptionsAsSuppressed[F[_], T](r: F[T], errorMode: ErrorMode[E, F]): F[T] =
+  def addSuppressedErrors[F[_], T](r: F[T], errorMode: ErrorMode[E, F]): F[T] =
     var result = r
-    otherExceptions.forEach(e => result = errorMode.addSuppressed(result, e))
+    otherExceptions.forEach(e => result = errorMode.addSuppressedException(result, e))
+    otherErrors.forEach(e => result = errorMode.addSuppressedError(result, e))
     result
 
 private[ox] enum ErrorModeSupervisorResult:
   case Success
-
-case class SecondaryApplicationError[E](e: E) extends Throwable("Secondary application error reported to the supervisor")
