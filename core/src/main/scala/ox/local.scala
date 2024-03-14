@@ -10,6 +10,9 @@ class ForkLocal[T](scopedValue: ScopedValue[T], default: T):
 
   /** Creates a new [[scoped]] scope, where the value of this fork local is set to `newValue`, only for the duration of the scope.
     *
+    * **Warning:** due to the "structured" nature of setting a fork local's value, forks using external (wider) scopes should not be
+    * created, as an attempt to do so will throw a [[java.util.concurrent.StructureViolationException]].
+    *
     * **Warning:** It is advisable to use [[supervised]] scopes if possible, as they minimise the chances of an error to go unnoticed.
     * [[scoped]] scopes are considered an advanced feature, and should be used with caution.
     */
@@ -18,11 +21,18 @@ class ForkLocal[T](scopedValue: ScopedValue[T], default: T):
     // before starting the scope itself, as scoped value bindings can't change after the scope is started
     scopedValueWhere(scopedValue, newValue)(scoped(f))
 
-  /** Creates a new [[supervised]] scope, where the value of this fork local is set to `newValue`, only for the duration of the scope. */
+  /** Creates a new [[supervised]] scope, where the value of this fork local is set to `newValue`, only for the duration of the scope.
+    *
+    * **Warning:** due to the "structured" nature of setting a fork local's value, forks using external (wider) scopes should not be
+    * created, as an attempt to do so will throw a [[java.util.concurrent.StructureViolationException]].
+    */
   def supervisedWhere[U](newValue: T)(f: Ox ?=> U): U =
     scopedValueWhere(scopedValue, newValue)(supervised(f))
 
   /** Creates a new [[supervisedError]] scope, where the value of this fork local is set to `newValue`, only for the duration of the scope.
+    *
+    * **Warning:** due to the "structured" nature of setting a fork local's value, forks using external (wider) scopes should not be
+    * created, as an attempt to do so will throw a [[java.util.concurrent.StructureViolationException]].
     */
   def supervisedErrorWhere[E, F[_], U](errorMode: ErrorMode[E, F])(newValue: T)(f: OxError[E, F] ?=> F[U]): F[U] =
     scopedValueWhere(scopedValue, newValue)(supervisedError(errorMode)(f))
