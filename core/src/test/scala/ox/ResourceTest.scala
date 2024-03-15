@@ -76,14 +76,13 @@ class ResourceTest extends AnyFlatSpec with Matchers {
     trail.get shouldBe Vector("allocate 1", "allocate 2", "release 2", "release 1", "exception")
   }
 
-  "useScoped" should "release resources after allocation" in {
+  it should "release registered resources" in {
     val trail = Trail()
-    useScoped {
-      trail.add("allocate"); 1
-    }(n => trail.add(s"release $n")) { r =>
-      r shouldBe 1
-      trail.get shouldBe Vector("allocate")
+
+    scoped {
+      releaseAfterScope(trail.add("release"))
+      trail.add("in scope")
     }
-    trail.get shouldBe Vector("allocate", "release 1")
+    trail.get shouldBe Vector("in scope", "release")
   }
 }
