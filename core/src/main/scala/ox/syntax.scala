@@ -3,7 +3,6 @@ package ox
 import ox.retry.RetryPolicy
 
 import scala.concurrent.duration.FiniteDuration
-import scala.util.Try
 
 object syntax:
   extension [T](f: => T) def forever: Fork[Nothing] = ox.forever(f)
@@ -28,8 +27,6 @@ object syntax:
 
   extension [T <: AutoCloseable](f: => T)(using Ox)
     def useInScope: T = ox.useCloseableInScope(f)
-    def useScoped[U](p: T => U): U = ox.useScoped(f)(p)
-    def useSupervised[U](p: T => U): U = ox.useSupervised(f)(p)
 
   extension [I, C[E] <: Iterable[E]](f: => C[I])
     def mapPar[O](parallelism: Int)(transform: I => O): C[O] = ox.mapPar(parallelism)(f)(transform)
