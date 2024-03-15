@@ -138,7 +138,7 @@ trait SourceCompanionOps:
     * deferred until the element is sent, and happens multiple times.
     *
     * @param f
-    *   The code block, computing the element to send
+    *   The code block, computing the element to send.
     * @return
     *   A source to which the result of evaluating `f` is sent repeatedly.
     */
@@ -148,6 +148,29 @@ trait SourceCompanionOps:
       try
         forever {
           c.sendSafe(f)
+        }
+      catch case t: Throwable => c.errorSafe(t)
+    }
+    c
+
+  /** Creates a channel, to which the value contained in the result of evaluating `f` is sent repeatedly. When the evaluation of `f` returns
+    * a `None`, the channel is completed as "done", and no more values are evaluated or sent.
+    *
+    * As the `f` parameter is passed by-name, the evaluation is deferred until the element is sent, and happens multiple times.
+    *
+    * @param f
+    *   The code block, computing the optional element to send.
+    * @return
+    *   A source to which the value contained in the result of evaluating `f` is sent repeatedly.
+    */
+  def repeatEvalWhileDefined[T](f: => Option[T])(using Ox, StageCapacity): Source[T] =
+    val c = StageCapacity.newChannel[T]
+    fork {
+      try
+        repeatWhile {
+          f match
+            case Some(value) => c.sendSafe(value); true
+            case None        => c.doneSafe(); false
         }
       catch case t: Throwable => c.errorSafe(t)
     }
