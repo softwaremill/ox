@@ -2,21 +2,21 @@ package ox
 
 import java.util.concurrent.locks.LockSupport
 
-def forever(f: => Unit): Nothing =
+inline def forever(f: => Unit): Nothing =
   while true do f
   throw new RuntimeException("can't get here")
 
 /** Repeat evaluating `f` while it evaluates to `true`. */
-def repeatWhile(f: => Boolean): Unit =
+inline def repeatWhile(f: => Boolean): Unit =
   var loop = true
   while loop do loop = f
 
 /** Repeat evaluating `f` until it evaluates to `true`. */
-def repeatUntil(f: => Boolean): Unit =
+inline def repeatUntil(f: => Boolean): Unit =
   var loop = true
   while loop do loop = !f
 
-def uninterruptible[T](f: => T): T =
+inline def uninterruptible[T](f: => T): T =
   scoped {
     val t = fork(f)
 
@@ -31,7 +31,7 @@ def uninterruptible[T](f: => T): T =
   }
 
 /** Blocks the current thread indefinitely, until it is interrupted. */
-def never: Nothing = forever {
+inline def never: Nothing = forever {
   LockSupport.park()
   if Thread.interrupted() then throw new InterruptedException()
 }
