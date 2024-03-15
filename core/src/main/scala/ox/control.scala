@@ -1,5 +1,7 @@
 package ox
 
+import java.util.concurrent.locks.LockSupport
+
 def forever(f: => Unit): Nothing =
   while true do f
   throw new RuntimeException("can't get here")
@@ -27,3 +29,9 @@ def uninterruptible[T](f: => T): T =
 
     joinDespiteInterrupted
   }
+
+/** Blocks the current thread indefinitely, until it is interrupted. */
+def never: Nothing = forever {
+  LockSupport.park()
+  if Thread.interrupted() then throw new InterruptedException()
+}

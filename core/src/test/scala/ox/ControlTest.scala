@@ -42,4 +42,19 @@ class ControlTest extends AnyFlatSpec with Matchers {
 
     trail.get shouldBe Vector("no timeout", "done")
   }
+
+  it should "block a thread indefinitely" in {
+    val trail = Trail()
+    supervised {
+      fork {
+        never
+        trail.add("never happened!")
+      }
+
+      Thread.sleep(400)
+      trail.add("done")
+    }
+
+    trail.get shouldBe Vector("done")
+  }
 }
