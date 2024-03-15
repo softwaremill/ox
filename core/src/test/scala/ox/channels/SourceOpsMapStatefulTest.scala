@@ -24,6 +24,14 @@ class SourceOpsMapStatefulTest extends AnyFlatSpec with Matchers {
     s.toList shouldBe List(0, 1, 3, 6, 10, 15)
   }
 
+  it should "be able to emit different values than incoming ones" in supervised {
+    val c = Source.fromValues(1, 2, 3, 4, 5)
+
+    val s = c.mapStateful(() => 0)((sum, element) => (sum + element, sum.toString), n => Some(n.toString))
+
+    s.toList shouldBe List("0", "1", "3", "6", "10", "15")
+  }
+
   it should "propagate errors in the mapping function" in supervised {
     // given
     given StageCapacity = StageCapacity(0) // so that the error isn't created too early

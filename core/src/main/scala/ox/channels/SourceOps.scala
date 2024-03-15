@@ -464,7 +464,7 @@ trait SourceOps[+T] { outer: Source[T] =>
     *   scala> val res0: List[Int] = List(0, 1, 3, 6, 10, 15)
     *   }}}
     */
-  def mapStateful[S, U >: T](
+  def mapStateful[S, U](
       initializeState: () => S
   )(f: (S, T) => (S, U), onComplete: S => Option[U] = (_: S) => None)(using Ox, StageCapacity): Source[U] =
     def resultToSome(s: S, t: T) =
@@ -508,7 +508,7 @@ trait SourceOps[+T] { outer: Source[T] =>
     *   scala> val res0: List[Int] = List(1, 2, 3, 4, 5)
     *   }}}
     */
-  def mapStatefulConcat[S, U >: T](
+  def mapStatefulConcat[S, U](
       initializeState: () => S
   )(f: (S, T) => (S, IterableOnce[U]), onComplete: S => Option[U] = (_: S) => None)(using Ox, StageCapacity): Source[U] =
     val c = StageCapacity.newChannel[U]

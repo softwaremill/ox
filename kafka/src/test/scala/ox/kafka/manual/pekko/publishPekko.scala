@@ -1,7 +1,7 @@
 package ox.kafka.manual.pekko
 
 import org.apache.kafka.clients.producer.ProducerRecord
-import org.apache.kafka.common.serialization.{ByteArraySerializer, StringSerializer}
+import org.apache.kafka.common.serialization.StringSerializer
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.kafka.ProducerSettings
 import org.apache.pekko.kafka.scaladsl.Producer
