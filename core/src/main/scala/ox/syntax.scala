@@ -1,14 +1,18 @@
 package ox
 
-import ox.retry.RetryPolicy
+import ox.retry.{RetryLifecycle, RetryPolicy}
 
 import scala.concurrent.duration.FiniteDuration
 
 object syntax:
   extension [T](f: => T) def forever: Fork[Nothing] = ox.forever(f)
 
-  extension [T](f: => T) def retry(policy: RetryPolicy[Throwable, T]): T = ox.retry.retry(f)(policy)
-  extension [E, T](f: => Either[E, T]) def retryEither(policy: RetryPolicy[E, T]): Either[E, T] = ox.retry.retryEither(f)(policy)
+  extension [T](f: => T)
+    def retry(policy: RetryPolicy[Throwable, T], lifecycle: RetryLifecycle[Throwable, T] = RetryLifecycle[Throwable, T]()): T =
+      ox.retry.retry(f)(policy, lifecycle)
+  extension [E, T](f: => Either[E, T])
+    def retryEither(policy: RetryPolicy[E, T], lifecycle: RetryLifecycle[E, T] = RetryLifecycle[E, T]()): Either[E, T] =
+      ox.retry.retryEither(f)(policy, lifecycle)
 
   extension [T](f: => T)(using Ox)
     def forkUser: Fork[T] = ox.forkUser(f)
@@ -25,8 +29,7 @@ object syntax:
     def race(f2: => T): T = ox.race(f, f2)
     def raceResultWith(f2: => T): T = ox.raceResult(f, f2)
 
-  extension [T <: AutoCloseable](f: => T)(using Ox)
-    def useInScope: T = ox.useCloseableInScope(f)
+  extension [T <: AutoCloseable](f: => T)(using Ox) def useInScope: T = ox.useCloseableInScope(f)
 
   extension [I, C[E] <: Iterable[E]](f: => C[I])
     def mapPar[O](parallelism: Int)(transform: I => O): C[O] = ox.mapPar(parallelism)(f)(transform)
