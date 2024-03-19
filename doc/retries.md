@@ -8,7 +8,7 @@ The basic syntax for retries is:
 ```scala
 import ox.retry.retry
 
-retry(operation)(policy)
+retry(operation)(policy, lifecycle)
 ```
 
 or, using syntax sugar:
@@ -16,7 +16,7 @@ or, using syntax sugar:
 ```scala
 import ox.syntax.*
 
-operation.retry(policy)
+operation.retry(policy, lifecycle)
 ```
 
 ## Operation definition
@@ -121,6 +121,39 @@ retryEither(eitherOperation)(RetryPolicy(Schedule.Immediate(3), ResultPolicy.ret
 
 // custom error mode
 retry(UnionMode[String])(unionOperation)(RetryPolicy(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")))
+```
+
+## RetryLifecycle
+
+The `RetryLifecycle` is a case class that represents the lifecycle of a retry operation. It contains two optional actions: `preAction` and `postAction`.
+
+- `preAction`: A function that is executed before each retry attempt. It takes the attempt number as a parameter. By default, it's an empty function.
+- `postAction`: A function that is executed after each retry attempt. It takes the attempt number and the result of the attempt as parameters. The result is represented as an `Either` type, where `Left` represents an error and `Right` represents a successful result. By default, it's an empty function.
+
+The `RetryLifecycle` class is generic over the error (`E`) and result (`T`) type.
+
+## Examples
+
+```scala mdoc:compile-only
+import ox.retry.{RetryLifecycle, RetryPolicy, retry}
+
+val policy: RetryPolicy[Throwable, Int] = ???
+def operation: Int = ???
+
+// using only pre-action callback
+val preActionLifecycle = RetryLifecycle.preAction[Throwable, Int](attempt => println(s"Attempt $attempt"))
+retry(operation)(policy, preActionLifecycle)
+
+// using only post-action callback  
+val postActionLifecycle = RetryLifecycle.postAction[Throwable, Int]((attempt, result) => println(s"Attempt $attempt returned $result"))
+retry(operation)(policy, postActionLifecycle)
+
+// using both pre-action and post-action callbacks
+val fullLifecycle = RetryLifecycle[Throwable, Int](
+  attempt => println(s"Attempt $attempt"),
+  (attempt, result) => println(s"Attempt $attempt returned $result")
+)
+retry(operation)(policy, fullLifecycle)
 ```
 
 See the tests in `ox.retry.*` for more.
