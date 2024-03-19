@@ -92,7 +92,7 @@ If you want to customize a part of the result policy, you can use the following 
 ```scala mdoc:compile-only
 import ox.UnionMode
 import ox.retry.{retry, retryEither}
-import ox.retry.{Jitter, ResultPolicy, RetryPolicy, Schedule}
+import ox.retry.{Jitter, ResultPolicy, RetryPolicy, RetryLifecycle, Schedule}
 import scala.concurrent.duration.*
 
 def directOperation: Int = ???
@@ -120,15 +120,18 @@ retry(directOperation)(RetryPolicy(Schedule.Immediate(3), ResultPolicy.retryWhen
 retryEither(eitherOperation)(RetryPolicy(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")))
 
 // custom error mode
-retry(UnionMode[String])(unionOperation)(RetryPolicy(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")))
+retry(UnionMode[String])(unionOperation)(
+  RetryPolicy(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")),
+  RetryLifecycle.default
+)
 ```
 
 ## RetryLifecycle
 
-The `RetryLifecycle` is a case class that represents the lifecycle of a retry operation. It contains two optional actions: `preAction` and `postAction`.
+The `RetryLifecycle` is a case class that represents the lifecycle of a retry operation. It contains two optional actions: `beforeEachAttempt` and `afterEachAttempt`.
 
-- `preAction`: A function that is executed before each retry attempt. It takes the attempt number as a parameter. By default, it's an empty function.
-- `postAction`: A function that is executed after each retry attempt. It takes the attempt number and the result of the attempt as parameters. The result is represented as an `Either` type, where `Left` represents an error and `Right` represents a successful result. By default, it's an empty function.
+- `beforeEachAttempt` is executed before each retry attempt. It takes the attempt number as a parameter. By default, it's an empty function.
+- `afterEachAttempt` is executed after each retry attempt. It takes the attempt number and the result of the attempt as parameters. The result is represented as an `Either` type, where `Left` represents an error and `Right` represents a successful result. By default, it's an empty function.
 
 The `RetryLifecycle` class is generic over the error (`E`) and result (`T`) type.
 
@@ -140,15 +143,15 @@ import ox.retry.{RetryLifecycle, RetryPolicy, retry}
 val policy: RetryPolicy[Throwable, Int] = ???
 def operation: Int = ???
 
-// using only pre-action callback
-val preActionLifecycle = RetryLifecycle.preAction[Throwable, Int](attempt => println(s"Attempt $attempt"))
-retry(operation)(policy, preActionLifecycle)
+// using only beforeEachAttempt callback
+val beforeLifecycleOnly = RetryLifecycle.beforeEachAttempt[Throwable, Int](attempt => println(s"Attempt $attempt"))
+retry(operation)(policy, beforeLifecycleOnly)
 
-// using only post-action callback  
-val postActionLifecycle = RetryLifecycle.postAction[Throwable, Int]((attempt, result) => println(s"Attempt $attempt returned $result"))
-retry(operation)(policy, postActionLifecycle)
+// using only afterEachAttempt callback  
+val afterLifecycleOnly = RetryLifecycle.afterEachAttempt[Throwable, Int]((attempt, result) => println(s"Attempt $attempt returned $result"))
+retry(operation)(policy, afterLifecycleOnly)
 
-// using both pre-action and post-action callbacks
+// using both beforeEachAttempt and afterEachAttempt callbacks
 val fullLifecycle = RetryLifecycle[Throwable, Int](
   attempt => println(s"Attempt $attempt"),
   (attempt, result) => println(s"Attempt $attempt returned $result")

@@ -21,7 +21,7 @@ import scala.util.Try
   */
 def retry[T](operation: => T)(
     policy: RetryPolicy[Throwable, T],
-    lifecycle: RetryLifecycle[Throwable, T] = RetryLifecycle[Throwable, T]()
+    lifecycle: RetryLifecycle[Throwable, T] = RetryLifecycle.default[Throwable, T]
 ): T =
   retryEither(Try(operation).toEither)(policy, lifecycle).fold(throw _, identity)
 
@@ -39,7 +39,7 @@ def retry[T](operation: => T)(
   */
 def retryEither[E, T](operation: => Either[E, T])(
     policy: RetryPolicy[E, T],
-    lifecycle: RetryLifecycle[E, T] = RetryLifecycle[E, T]()
+    lifecycle: RetryLifecycle[E, T] = RetryLifecycle.default[E, T]
 ): Either[E, T] =
   retry(EitherMode[E])(operation)(policy, lifecycle)
 
@@ -67,12 +67,12 @@ def retry[E, F[_], T](em: ErrorMode[E, F])(operation: => F[T])(policy: RetryPoli
       if (delay > 0) Thread.sleep(delay)
       delay
 
-    lifecycle.preAction(attempt + 1)
+    lifecycle.beforeEachAttempt(attempt + 1)
 
     operation match
       case v if em.isError(v) =>
         val error = em.getError(v)
-        lifecycle.postAction(attempt + 1, Left(error))
+        lifecycle.afterEachAttempt(attempt + 1, Left(error))
 
         if policy.resultPolicy.isWorthRetrying(error) && remainingAttempts.forall(_ > 0) then
           val delay = sleepIfNeeded
@@ -80,7 +80,7 @@ def retry[E, F[_], T](em: ErrorMode[E, F])(operation: => F[T])(policy: RetryPoli
         else v
       case v =>
         val result = em.getT(v)
-        lifecycle.postAction(attempt + 1, Right(result))
+        lifecycle.afterEachAttempt(attempt + 1, Right(result))
 
         if !policy.resultPolicy.isSuccess(result) && remainingAttempts.forall(_ > 0) then
           val delay = sleepIfNeeded
