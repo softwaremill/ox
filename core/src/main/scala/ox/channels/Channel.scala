@@ -221,9 +221,10 @@ trait Sink[-T]:
   *   - buffered channels, where a given number of sent values might be buffered, before subsequent `send`s block
   *   - unlimited channels, where an unlimited number of values might be buffered, hence `send` never blocks
   *
-  * Channels can be created using the channel's companion object. When no arguments are given, a rendezvous channel is created, while a
-  * buffered channel can be created by providing a positive integer to the [[Channel.apply]] method. A rendezvous channel behaves like a
-  * buffered channel with buffer size 0. An unlimited channel can be created using [[Channel.unlimited]].
+  * Channels can be created using the channel's companion object. A rendezvous channel is created using [[Channel.rendezvous]]. A buffered
+  * channel can be created either with a given capacity - by providing a positive integer to the [[Channel.buffered]] method - or with the
+  * default capacity ([[StageCapacity.default]]) using [[Channel.bufferedDefault]] . A rendezvous channel behaves like a buffered channel
+  * with buffer size 0. An unlimited channel can be created using [[Channel.unlimited]].
   *
   * In a rendezvous channel, senders and receivers block, until a matching party arrives (unless one is already waiting). Similarly,
   * buffered channels block if the buffer is full (in case of senders), or in case of receivers, if the buffer is empty and there are no
