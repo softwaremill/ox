@@ -77,14 +77,14 @@ def retryWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(
   @tailrec
   def loop(attempt: Int, remainingAttempts: Option[Int], lastDelay: Option[FiniteDuration]): F[T] =
     def sleepIfNeeded =
-      val delay = policy.schedule.nextDelay(attempt + 1, lastDelay).toMillis
+      val delay = policy.schedule.nextDelay(attempt, lastDelay).toMillis
       if (delay > 0) Thread.sleep(delay)
       delay
 
     operation match
       case v if em.isError(v) =>
         val error = em.getError(v)
-        onRetry(attempt + 1, Left(error))
+        onRetry(attempt, Left(error))
 
         if policy.resultPolicy.isWorthRetrying(error) && remainingAttempts.forall(_ > 0) then
           val delay = sleepIfNeeded
@@ -92,7 +92,7 @@ def retryWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(
         else v
       case v =>
         val result = em.getT(v)
-        onRetry(attempt + 1, Right(result))
+        onRetry(attempt, Right(result))
 
         if !policy.resultPolicy.isSuccess(result) && remainingAttempts.forall(_ > 0) then
           val delay = sleepIfNeeded
@@ -103,4 +103,4 @@ def retryWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(
     case finiteSchedule: Schedule.Finite => Some(finiteSchedule.maxRetries)
     case _                               => None
 
-  loop(0, remainingAttempts, None)
+  loop(1, remainingAttempts, None)
