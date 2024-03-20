@@ -6,9 +6,9 @@ The retries mechanism allows to retry a failing operation according to a given p
 The basic syntax for retries is:
 
 ```scala
-import ox.retry.retry
+import ox.retry.retryWithErrorMode
 
-retry(operation)(policy)
+retryWithErrorMode(operation)(policy)
 ```
 
 or, using syntax sugar:
@@ -91,7 +91,7 @@ If you want to customize a part of the result policy, you can use the following 
 
 ```scala
 import ox.UnionMode
-import ox.retry.{retry, retryEither}
+import ox.retry.{retryWithErrorMode, retryEither}
 import ox.retry.{Jitter, ResultPolicy, RetryPolicy, Schedule}
 import scala.concurrent.duration.*
 
@@ -120,7 +120,7 @@ retry(directOperation)(RetryPolicy(Schedule.Immediate(3), ResultPolicy.retryWhen
 retryEither(eitherOperation)(RetryPolicy(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")))
 
 // custom error mode
-retry(UnionMode[String])(unionOperation)(RetryPolicy(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")))
+retryWithErrorMode(UnionMode[String])(unionOperation)(RetryPolicy(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")))
 ```
 
 See the tests in `ox.retry.*` for more.
