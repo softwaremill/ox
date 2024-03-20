@@ -4,17 +4,85 @@
 [![CI](https://github.com/softwaremill/ox/workflows/CI/badge.svg)](https://github.com/softwaremill/ox/actions?query=workflow%3A%22CI%22)
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.softwaremill.ox/core_3/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.softwaremill.ox/core_3)
 
-Safe direct-style concurrency and resiliency for Scala on the JVM. Requires JDK 21 & Scala 3.
+Safe direct-style concurrency and resiliency for Scala on the JVM. Requires JDK 21 & Scala 3. The areas that we'd like 
+to cover with ox are:
 
-[sbt](https://www.scala-sbt.org) dependency:
+* concurrency: developer-friendly structured concurrency, high-level concurrency operators, safe low-level primitives, 
+  communication between concurrently running computations
+* error management: retries, timeouts, a safe approach to error propagation, safe resource management
+* scheduling & timers
+* resiliency: circuit breakers, bulkheads, rate limiters, backpressure
+
+All of the above should allow for observability of the orchestrated business logic. We aim to enable writing simple, 
+expression-oriented code in functional style. We’d like to keep the syntax overhead to a minimum, preserving 
+developer-friendly stack traces, and without compromising performance.
+
+Some of the above are already addressed in the API, some are coming up in the future. We’d love your help in shaping 
+the project!
+
+To test ox, use the following dependency, using either [sbt](https://www.scala-sbt.org):
 
 ```scala
 "com.softwaremill.ox" %% "core" % "0.0.23"
 ```
 
-Documentation is available at [https://ox.softwaremill.com](https://ox.softwaremill.com).
+Or [scala-cli](https://scala-cli.virtuslab.org):
 
-ScalaDocs can be browsed at [https://javadoc.io](https://www.javadoc.io/doc/com.softwaremill.ox).
+```scala
+//> using dep "com.softwaremill.ox::core:0.0.23"
+```
+
+Documentation is available at [https://ox.softwaremill.com](https://ox.softwaremill.com), ScalaDocs can be browsed at [https://javadoc.io](https://www.javadoc.io/doc/com.softwaremill.ox).
+
+## Example
+
+```scala
+import ox.*
+import ox.channels.*
+import ox.retry.*
+import scala.concurrent.duration.*
+
+// run two computations in parallel
+def computation1: Int = { Thread.sleep(2000); 1 }
+def computation2: String = { Thread.sleep(1000); "2" }
+val result1: (Int, String) = par(computation1, computation2)
+// (1, "2")
+
+// timeout a computation
+def computation: Int = { Thread.sleep(2000); 1 }
+val result2: Try[Int] = Try(timeout(1.second)(computation))
+
+// structured concurrency & supervision
+supervised {
+  forkUser {
+    Thread.sleep(1000)
+    println("Hello!")
+  }
+  forkUser {
+    Thread.sleep(500)
+    throw new RuntimeException("boom!")
+  }
+}
+// on exception, ends the scope & re-throws
+
+// retry a computation
+def computationR: Int = ???
+retry(computationR)(RetryPolicy.backoff(3, 100.millis, 5.minutes, Jitter.Equal))
+
+// create channels & transform them using high-level operations
+supervised {
+  Source.iterate(0)(_ + 1) // natural numbers
+    .transform(_.filter(_ % 2 == 0).map(_ + 1).take(10))
+    .foreach(n => println(n.toString))
+}
+
+// select from a number of channels
+val c = Channel.rendezvous[Int]
+val d = Channel.rendezvous[Int]
+select(c.sendClause(10), d.receiveClause)
+```
+
+More examples [in the docs!](https://ox.softwaremill.com).
 
 ## Contributing
 

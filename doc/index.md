@@ -7,10 +7,14 @@ to get to know ox's API.
 
 In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.io](https://www.javadoc.io/doc/com.softwaremill.ox).
 
-## sbt dependency
+## Add to your project
 
 ```scala
+// sbt dependency
 "com.softwaremill.ox" %% "core" % "@VERSION@"
+
+// scala-cli dependency
+//> using dep "com.softwaremill.ox::core:@VERSION@"
 ```
 
 ## Scope of the project
