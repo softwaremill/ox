@@ -10,7 +10,6 @@ class OnRetryTest extends AnyFlatSpec with Matchers with EitherValues with TryVa
 
   it should "retry a succeeding function with onRetry callback" in {
     // given
-    var onRetryInvoked = false
     var onRetryInvocationCount = 0
 
     var counter = 0
@@ -22,7 +21,6 @@ class OnRetryTest extends AnyFlatSpec with Matchers with EitherValues with TryVa
 
     var returnedResult: Either[Throwable, Int] = null
     def onRetry(attempt: Int, result: Either[Throwable, Int]): Unit =
-      onRetryInvoked = true
       onRetryInvocationCount += 1
       returnedResult = result
 
@@ -33,14 +31,12 @@ class OnRetryTest extends AnyFlatSpec with Matchers with EitherValues with TryVa
     result shouldBe successfulResult
     counter shouldBe 1
 
-    onRetryInvoked shouldBe true
     onRetryInvocationCount shouldBe 1
     returnedResult shouldBe Right(successfulResult)
   }
 
   it should "retry a failing function with onRetry callback" in {
     // given
-    var onRetryInvoked = false
     var onRetryInvocationCount = 0
 
     var counter = 0
@@ -52,7 +48,6 @@ class OnRetryTest extends AnyFlatSpec with Matchers with EitherValues with TryVa
 
     var returnedResult: Either[Throwable, Unit] = null
     def onRetry(attempt: Int, result: Either[Throwable, Unit]): Unit =
-      onRetryInvoked = true
       onRetryInvocationCount += 1
       returnedResult = result
 
@@ -63,7 +58,6 @@ class OnRetryTest extends AnyFlatSpec with Matchers with EitherValues with TryVa
     result shouldBe failedResult
     counter shouldBe 4
 
-    onRetryInvoked shouldBe true
     onRetryInvocationCount shouldBe 4
     returnedResult shouldBe Left(failedResult)
   }
