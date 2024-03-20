@@ -48,7 +48,7 @@ Where:
 
 ## Policies
 
-A retry policy consists of two parts:
+A retry policy consists of three parts:
 
 - a `Schedule`, which indicates how many times and with what delay should we retry the `operation` after an initial
   failure,
@@ -56,6 +56,8 @@ A retry policy consists of two parts:
     - a non-erroneous outcome of the `operation` should be considered a success (if not, the `operation` would be
       retried),
     - an erroneous outcome of the `operation` should be retried or fail fast.
+- a `onRetry`, which is a callback function that is invoked after each attempt to execute the operation. It is used to
+  perform any necessary actions or checks after each attempt, regardless of whether the attempt was successful or not.
 
 The available schedules are defined in the `Schedule` object. Each schedule has a finite and an infinite variant.
 
@@ -115,6 +117,19 @@ A result policy allows to customize how the results of the `operation` are treat
 The `ResultPolicy[E, T]` is generic both over the error (`E`) and result (`T`) type. Note, however, that for the direct
 variant `retry`, the error type `E` is fixed to `Throwable`, while for the `Either` and error-mode variants, `E` can ba
 an arbitrary type.
+
+### On retry
+
+The callback function has the following signature:
+
+```
+(Int, Either[E, T]) => Unit
+```
+
+Where:
+- The first parameter, an `Int`, represents the attempt number of the retry operation.
+- The second parameter is an `Either[E, T]` type, representing the result of the retry operation. Left represents an
+  error and Right represents a successful result.
 
 ### API shorthands
 

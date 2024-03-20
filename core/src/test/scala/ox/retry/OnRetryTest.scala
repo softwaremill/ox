@@ -6,7 +6,7 @@ import org.scalatest.{EitherValues, TryValues}
 import ox.retry.*
 
 class OnRetryTest extends AnyFlatSpec with Matchers with EitherValues with TryValues:
-  behavior of "OnRetry callback"
+  behavior of "RetryPolicy onRetry callback"
 
   it should "retry a succeeding function with onRetry callback" in {
     // given
@@ -25,7 +25,7 @@ class OnRetryTest extends AnyFlatSpec with Matchers with EitherValues with TryVa
       returnedResult = result
 
     // when
-    val result = retry(f, onRetry)(RetryPolicy.immediate(3))
+    val result = retry(f)(RetryPolicy(Schedule.Immediate(3), onRetry = onRetry))
 
     // then
     result shouldBe successfulResult
@@ -52,7 +52,7 @@ class OnRetryTest extends AnyFlatSpec with Matchers with EitherValues with TryVa
       returnedResult = result
 
     // when
-    val result = the[RuntimeException] thrownBy retry(f, onRetry)(RetryPolicy.immediate(3))
+    val result = the[RuntimeException] thrownBy retry(f)(RetryPolicy(Schedule.Immediate(3), onRetry = onRetry))
 
     // then
     result shouldBe failedResult
