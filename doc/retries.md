@@ -10,7 +10,7 @@ The basic syntax for retries is:
 ```scala
 import ox.retry.retry
 
-retry(operation, onRetry)(policy)
+retry(operation)(policy)
 ```
 
 or, using syntax sugar:
@@ -18,7 +18,7 @@ or, using syntax sugar:
 ```scala
 import ox.syntax.*
 
-operation.retry(policy, onRetry)
+operation.retry(policy)
 ```
 
 ## Operation definition
@@ -27,24 +27,6 @@ The `operation` can be provided directly using a by-name parameter, i.e. `f: => 
 
 There's also a `retryEither` variant which accepts a by-name `Either[E, T]`, i.e. `f: => Either[E, T]`, as well as one
 which accepts arbitrary [error modes](error-handling.md), accepting the computation in an `F` context: `f: => F[T]`.
-
-## OnRetry definition
-
-The `onRetry` callback is a function that is invoked after each attempt to execute the operation. It is used to perform
-any necessary actions or checks after each attempt, regardless of whether the attempt was successful or not.
-
-The callback function has the following signature:
-
-```
-(Int, Either[E, T]) => Unit
-```
-
-Where:
-
-- The first parameter, an `Int`, represents the attempt number of the retry operation.
-- The second parameter is an `Either[E, T]` type, representing the result of the retry operation. Left represents an
-  error
-  and Right represents a successful result.
 
 ## Policies
 
