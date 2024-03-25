@@ -25,8 +25,7 @@ object syntax:
     def race(f2: => T): T = ox.race(f, f2)
     def raceResultWith(f2: => T): T = ox.raceResult(f, f2)
 
-  extension [T <: AutoCloseable](f: => T)(using Ox)
-    def useInScope: T = ox.useCloseableInScope(f)
+  extension [T <: AutoCloseable](f: => T)(using Ox) def useInScope: T = ox.useCloseableInScope(f)
 
   extension [I, C[E] <: Iterable[E]](f: => C[I])
     def mapPar[O](parallelism: Int)(transform: I => O): C[O] = ox.mapPar(parallelism)(f)(transform)

@@ -10,13 +10,21 @@ import scala.concurrent.duration.*
   * @param resultPolicy
   *   A policy that allows to customize when a non-erroneous result is considered successful and when an error is worth retrying (which
   *   allows for failing fast on certain errors). See [[ResultPolicy]] for more details.
+  * @param onRetry
+  *   A function that is invoked after each retry attempt. The callback receives the number of the current retry attempt (starting from 1)
+  *   and the result of the operation that was attempted. The result is either a successful value or an error. The callback can be used to
+  *   log information about the retry attempts, or to perform other side effects. By default, the callback does nothing.
   * @tparam E
   *   The error type of the operation. For operations returning a `T` or a `Try[T]`, this is fixed to `Throwable`. For operations returning
   *   an `Either[E, T]`, this can be any `E`.
   * @tparam T
   *   The successful result type for the operation.
   */
-case class RetryPolicy[E, T](schedule: Schedule, resultPolicy: ResultPolicy[E, T] = ResultPolicy.default[E, T])
+case class RetryPolicy[E, T](
+    schedule: Schedule,
+    resultPolicy: ResultPolicy[E, T] = ResultPolicy.default[E, T],
+    onRetry: (Int, Either[E, T]) => Unit = (_: Int, _: Either[E, T]) => ()
+)
 
 object RetryPolicy:
   /** Creates a policy that retries up to a given number of times, with no delay between subsequent attempts, using a default
