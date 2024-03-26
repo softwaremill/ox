@@ -1,6 +1,6 @@
 package ox.kafka
 
-import org.apache.kafka.clients.consumer.{ConsumerRecord, ConsumerRecords, KafkaConsumer}
+import org.apache.kafka.clients.consumer.{ConsumerRecord, KafkaConsumer}
 import org.slf4j.LoggerFactory
 import ox.*
 import ox.channels.*
@@ -17,22 +17,19 @@ object KafkaSource:
   def subscribe[K, V](kafkaConsumer: KafkaConsumer[K, V], closeWhenComplete: Boolean, topic: String, otherTopics: String*)(using
       StageCapacity,
       Ox
-  ): Source[ReceivedMessage[K, V]] = subscribe(KafkaConsumerActor(kafkaConsumer, closeWhenComplete), topic, otherTopics: _*)
+  ): Source[ReceivedMessage[K, V]] = subscribe(KafkaConsumerWrapper(kafkaConsumer, closeWhenComplete), topic, otherTopics: _*)
 
-  def subscribe[K, V](kafkaConsumer: Sink[KafkaConsumerRequest[K, V]], topic: String, otherTopics: String*)(using
+  def subscribe[K, V](kafkaConsumer: ActorRef[KafkaConsumerWrapper[K, V]], topic: String, otherTopics: String*)(using
       StageCapacity,
       Ox
   ): Source[ReceivedMessage[K, V]] =
-    kafkaConsumer.send(KafkaConsumerRequest.Subscribe(topic :: otherTopics.toList))
+    kafkaConsumer.tell(_.subscribe(topic :: otherTopics.toList))
 
     val c = StageCapacity.newChannel[ReceivedMessage[K, V]]
-
     fork {
       try
-        val pollResults = Channel.rendezvous[ConsumerRecords[K, V]]
         forever {
-          kafkaConsumer.send(KafkaConsumerRequest.Poll(pollResults))
-          val records = pollResults.receive()
+          val records = kafkaConsumer.ask(_.poll())
           records.forEach(r => c.send(ReceivedMessage(kafkaConsumer, r)))
         }
       catch
@@ -40,5 +37,4 @@ object KafkaSource:
           logger.error("Exception when polling for records", t)
           c.errorSafe(t)
     }
-
     c
