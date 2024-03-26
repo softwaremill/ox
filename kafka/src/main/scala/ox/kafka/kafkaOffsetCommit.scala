@@ -12,8 +12,7 @@ private[kafka] def doCommit(packets: Source[SendPacket[_, _]])(using Ox): Unit =
   val commitInterval = 1.second
   val ticks = Source.tick(commitInterval)
   val toCommit = mutable.Map[TopicPartition, Long]()
-  var consumer: Sink[KafkaConsumerRequest[_, _]] = null // assuming all packets come from the same consumer
-  val commitDone = Channel.rendezvous[Unit]
+  var consumer: ActorRef[KafkaConsumerWrapper[_, _]] = null // assuming all packets come from the same consumer
 
   repeatWhile {
     selectSafe(ticks, packets) match
@@ -21,14 +20,13 @@ private[kafka] def doCommit(packets: Source[SendPacket[_, _]])(using Ox): Unit =
       case ChannelClosed.Done     => false
       case () =>
         if consumer != null && toCommit.nonEmpty then
-          consumer.send(KafkaConsumerRequest.Commit(toCommit.toMap, commitDone))
           // waiting for the commit to happen
-          commitDone.receive()
+          consumer.ask(_.commit(toCommit.toMap))
           toCommit.clear()
         true
       case packet: SendPacket[_, _] =>
         packet.commit.foreach { receivedMessage =>
-          if consumer == null then consumer = receivedMessage.consumer.asInstanceOf[Sink[KafkaConsumerRequest[_, _]]]
+          if consumer == null then consumer = receivedMessage.consumer.asInstanceOf[ActorRef[KafkaConsumerWrapper[_, _]]]
           val tp = new TopicPartition(receivedMessage.topic, receivedMessage.partition)
           toCommit.updateWith(tp) {
             case Some(offset) => Some(math.max(offset, receivedMessage.offset))

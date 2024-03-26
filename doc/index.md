@@ -40,6 +40,12 @@ Development and maintenance of ox is sponsored by [SoftwareMill](https://softwar
 
 [![](https://files.softwaremill.com/logo/logo.png "SoftwareMill")](https://softwaremill.com)
 
+## Other projects
+
+The wider goal of direct-style Scala is enabling teams to deliver working software quickly and with confidence. Our
+other projects, including [sttp client](https://sttp.softwaremill.com) and [tapir](https://tapir.softwaremill.com),
+also include integrations directly tailored towards direct-style.
+
 ## Commercial Support
 
 We offer commercial support for ox and related technologies, as well as development services. [Contact us](https://softwaremill.com/contact/) to learn more about our offer!
@@ -48,6 +54,10 @@ We offer commercial support for ox and related technologies, as well as developm
 
 * [Prototype Loom-based concurrency API for Scala](https://softwaremill.com/prototype-loom-based-concurrency-api-for-scala/)
 * [Go-like channels using project Loom and Scala](https://softwaremill.com/go-like-channels-using-project-loom-and-scala/)
+* [Two types of futures](https://softwaremill.com/two-types-of-futures/)
+* [Supervision, Kafka and Java 21: what’s new in Ox](https://softwaremill.com/supervision-kafka-and-java-21-whats-new-in-ox/)
+* [Designing a (yet another) retry API](https://softwaremill.com/designing-a-yet-another-retry-api/)
+* [Handling errors in direct-style Scala](https://softwaremill.com/handling-errors-in-direct-style-scala/)
 
 ## Inspiration & building blocks
 
@@ -93,6 +103,7 @@ We offer commercial support for ox and related technologies, as well as developm
    channels/select
    channels/errors
    channels/backpressure
+   channels/actors
 
 .. toctree::
    :maxdepth: 2

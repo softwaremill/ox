@@ -3,11 +3,11 @@ package ox.kafka
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.common.header.Header
 import org.apache.kafka.common.record.TimestampType
-import ox.channels.Sink
+import ox.channels.{ActorRef, Sink}
 
 import scala.jdk.CollectionConverters.*
 
-case class ReceivedMessage[K, V](consumer: Sink[KafkaConsumerRequest[K, V]], consumerRecord: ConsumerRecord[K, V]):
+case class ReceivedMessage[K, V](consumer: ActorRef[KafkaConsumerWrapper[K, V]], consumerRecord: ConsumerRecord[K, V]):
   def key: K = consumerRecord.key()
   def value: V = consumerRecord.value()
   def header: Iterable[Header] = consumerRecord.headers().asScala

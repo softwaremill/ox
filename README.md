@@ -84,6 +84,12 @@ select(c.sendClause(10), d.receiveClause)
 
 More examples [in the docs!](https://ox.softwaremill.com).
 
+## Other projects
+
+The wider goal of direct-style Scala is enabling teams to deliver working software quickly and with confidence. Our
+other projects, including [sttp client](https://sttp.softwaremill.com) and [tapir](https://tapir.softwaremill.com),
+also include integrations directly tailored towards direct-style.
+
 ## Contributing
 
 All suggestions welcome :)
