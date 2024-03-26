@@ -28,3 +28,28 @@ supervised {
 ```
 
 Scoped values propagate across nested scopes.
+
+```eval_rst
+.. note::
+
+  Due to the "structured" nature of setting a fork local's value, forks using external (wider) scopes should not be 
+  created, as an attempt to do so will throw a ``java.util.concurrent.StructureViolationException``.
+```
+
+## Creating helper functions which set fork locals
+
+If you're writing a helper function which sets a value of a fork local within a passed code block, you have to make
+sure that the code block doesn't accidentally capture the outer concurrency scope (leading to an exception on the
+first `fork`). 
+
+This can be done by capturing the code block as a context function `Ox ?=> T`, so that any nested invocations of `fork`
+will use the provided instance, not the outer one. E.g.:
+
+```scala 
+def withSpan[T](spanName: String)(f: Ox ?=> T): T =
+  val span = spanBuilder.startSpan(spanName)
+  currentSpan.scopedWhere(Some(span)) {
+    try f
+    finally span.end()
+  }
+```
