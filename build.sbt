@@ -4,7 +4,7 @@ import com.softwaremill.UpdateVersionInDocs
 
 lazy val commonSettings = commonSmlBuildSettings ++ ossPublishSettings ++ Seq(
   organization := "com.softwaremill.ox",
-  scalaVersion := "3.4.1",
+  scalaVersion := "3.3.3",
   updateDocs := Def.taskDyn {
     val files1 = UpdateVersionInDocs(sLog.value, organization.value, version.value)
     Def.task {
