@@ -1,5 +1,6 @@
 package ox
 
+import scala.concurrent.duration.Duration
 import scala.util.control.NonFatal
 
 extension [T](inline t: T)
@@ -57,3 +58,6 @@ inline def uninterruptible[T](inline f: T): T =
 
     joinDespiteInterrupted
   }
+
+/** Sleep (block the current thread/fork) for the provided amount of time. */
+inline def sleep(inline howLong: Duration): Unit = Thread.sleep(howLong.toMillis)

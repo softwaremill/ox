@@ -7,7 +7,7 @@ import ox.channels.ChannelClosedUnion.isValue
 import java.util
 import java.util.concurrent.{CountDownLatch, Semaphore}
 import scala.collection.IterableOnce
-import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.duration.*
 
 trait SourceOps[+T] { outer: Source[T] =>
   // view ops (lazy)
@@ -409,7 +409,7 @@ trait SourceOps[+T] { outer: Source[T] =>
     * @param segmentSize
     *   The number of elements sent from each source before switching to the other one. Default is 1.
     * @param eagerComplete
-    *   If `true`, the returned channel is completed as soon as either of the sources completes. If 'false`, the remaining elements of the
+    *   If `true`, the returned channel is completed as soon as either of the sources completes. If `false`, the remaining elements of the
     *   non-completed source are sent downstream.
     * @return
     *   A source to which the interleaved elements from both sources would be sent.
@@ -640,14 +640,14 @@ trait SourceOps[+T] { outer: Source[T] =>
     require(per.toMillis > 0, "per time must be >= 1 ms")
 
     val c = StageCapacity.newChannel[T]
-    val emitEveryMillis = per.toMillis / elements
+    val emitEveryMillis = (per.toMillis / elements).millis
 
     fork {
       repeatWhile {
         receiveSafe() match
           case ChannelClosed.Done     => c.doneSafe(); false
           case ChannelClosed.Error(r) => c.errorSafe(r); false
-          case t: T @unchecked        => Thread.sleep(emitEveryMillis); c.sendSafe(t); true
+          case t: T @unchecked        => sleep(emitEveryMillis); c.sendSafe(t); true
       }
     }
     c

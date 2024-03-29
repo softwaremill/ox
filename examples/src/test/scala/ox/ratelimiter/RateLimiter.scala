@@ -2,7 +2,7 @@ package ox.ratelimiter
 
 import org.slf4j.LoggerFactory
 import ox.ratelimiter.RateLimiterQueue.{Run, RunAfter}
-import ox.{discard, Ox, fork, supervised}
+import ox.{discard, sleep, Ox, fork, supervised}
 
 import java.util.concurrent.{ArrayBlockingQueue, BlockingQueue, CompletableFuture, Future}
 import scala.annotation.tailrec
@@ -48,7 +48,7 @@ object RateLimiter:
       case Run(run) => fork(run())
       case RunAfter(millis) =>
         fork {
-          Thread.sleep(millis)
+          sleep(millis.millis)
           queue.put(ScheduledRunQueue)
         }
     }

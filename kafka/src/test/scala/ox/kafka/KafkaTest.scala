@@ -42,7 +42,7 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
       source.receive().value shouldBe "msg3"
 
       // give a chance for a potential message to be received from Kafka & sent to the channel
-      Thread.sleep(250)
+      sleep(250.millis)
       select(source.receiveClause, Default("none")) shouldBe DefaultResult("none")
 
       publishStringMessageToKafka(topic, "msg4")
@@ -111,7 +111,7 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
       inDest.receive().value shouldBe "184"
 
       // giving the commit process a chance to commit
-      Thread.sleep(2000L)
+      sleep(2.seconds)
 
       // checking the metadata
       metadatas.receive().offset() shouldBe 0L
@@ -184,7 +184,7 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
       inDest.receive().value shouldBe "184"
 
       // giving the commit process a chance to commit
-      Thread.sleep(2000L)
+      sleep(2.seconds)
 
       // interrupting the stream processing
     }

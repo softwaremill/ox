@@ -4,6 +4,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.*
 
+import scala.concurrent.duration.*
 import java.util.concurrent.atomic.AtomicBoolean
 
 class ActorTest extends AnyFlatSpec with Matchers:
@@ -80,7 +81,7 @@ class ActorTest extends AnyFlatSpec with Matchers:
 
         val ref = Actor.create(logic)
         ref.tell(_.f(5).discard)
-        Thread.sleep(1000)
+        sleep(1.second)
       }
     }
 

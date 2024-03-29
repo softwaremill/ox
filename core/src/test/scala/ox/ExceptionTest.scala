@@ -6,6 +6,8 @@ import ox.util.Trail
 
 import java.util.concurrent.Semaphore
 
+import scala.concurrent.duration.*
+
 class ExceptionTest extends AnyFlatSpec with Matchers {
   class CustomException extends RuntimeException
   class CustomException2 extends RuntimeException
@@ -47,7 +49,7 @@ class ExceptionTest extends AnyFlatSpec with Matchers {
           s.acquire() // will never complete
         }
         forkUser {
-          Thread.sleep(100)
+          sleep(100.millis)
           throw CustomException()
         }
       }
@@ -69,7 +71,7 @@ class ExceptionTest extends AnyFlatSpec with Matchers {
           finally throw CustomException2()
         }
         forkUser {
-          Thread.sleep(100)
+          sleep(100.millis)
           throw CustomException()
         }
       }

@@ -5,6 +5,8 @@ import org.scalatest.matchers.should.Matchers
 
 import java.util.concurrent.Semaphore
 
+import scala.concurrent.duration.*
+
 class AppErrorTest extends AnyFlatSpec with Matchers:
   "supervisedError" should "return the app error from the main body" in {
     supervisedError(EitherMode[Int])(Left(10)) shouldBe Left(10)
@@ -32,7 +34,7 @@ class AppErrorTest extends AnyFlatSpec with Matchers:
         s.acquire() // will never complete
       }
       forkUserError {
-        Thread.sleep(100)
+        sleep(100.millis)
         Left(-1)
       }
       Right(())

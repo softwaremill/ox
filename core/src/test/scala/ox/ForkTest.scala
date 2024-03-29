@@ -5,17 +5,19 @@ import org.scalatest.matchers.should.Matchers
 import ox.*
 import ox.util.Trail
 
+import scala.concurrent.duration.*
+
 class ForkTest extends AnyFlatSpec with Matchers {
   "fork" should "run two forks concurrently" in {
     val trail = Trail()
     scoped {
       val f1 = fork {
-        Thread.sleep(500)
+        sleep(500.millis)
         trail.add("f1 complete")
         5
       }
       val f2 = fork {
-        Thread.sleep(1000)
+        sleep(1.second)
         trail.add("f2 complete")
         6
       }
@@ -71,7 +73,7 @@ class ForkTest extends AnyFlatSpec with Matchers {
       val f1 = fork {
         fork {
           try
-            Thread.sleep(1000)
+            sleep(1.second)
             trail.add("f2 complete")
             6
           catch
@@ -80,7 +82,7 @@ class ForkTest extends AnyFlatSpec with Matchers {
               throw e
         }
 
-        Thread.sleep(500)
+        sleep(500.millis)
         trail.add("f1 complete")
         5
       }

@@ -12,7 +12,7 @@ import ox.{forkUser, supervised}
 
 supervised {
   forkUser {
-    Thread.sleep(100)
+    sleep(100.millis)
     throw new RuntimeException("boom!")  
   }
   forkUser {

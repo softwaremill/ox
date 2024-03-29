@@ -3,14 +3,15 @@
 A number of computations can be raced against each other using the `race` method, for example:
 
 ```scala mdoc:compile-only
-import ox.race
+import ox.{race, sleep}
+import scala.concurrent.duration.*
 
 def computation1: Int =
-  Thread.sleep(2000)
+  sleep(2.seconds)
   1
 
 def computation2: Int =
-  Thread.sleep(1000)
+  sleep(1.second)
   2
 
 val result: Int = race(computation1, computation2)
@@ -38,16 +39,17 @@ It's possible to use an arbitrary [error mode](error-handling.md) by providing i
 Alternatively, a built-in version using `Either` is available as `raceEither`:
 
 ```scala mdoc:compile-only
-import ox.raceEither
+import ox.{raceEither, sleep}
+import scala.concurrent.duration.*
 
 raceEither({
-  Thread.sleep(200L)
+  sleep(200.millis)
   Left(-1)
 }, {
-  Thread.sleep(500L)
+  sleep(500.millis)
   Right("ok")
 }, {
-  Thread.sleep(1000L)
+  sleep(1.second)
   Right("also ok")
 })
 ```

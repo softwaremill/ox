@@ -8,6 +8,7 @@ import ox.util.{MaxCounter, Trail}
 import scala.List
 import scala.collection.IterableFactory
 import scala.collection.immutable.Iterable
+import scala.concurrent.duration.*
 
 class CollectParTest extends AnyFlatSpec with Matchers {
   "collectPar" should "output the same type as input" in {
@@ -42,7 +43,7 @@ class CollectParTest extends AnyFlatSpec with Matchers {
 
     def transformation(i: Int) = {
       maxCounter.increment()
-      Thread.sleep(10)
+      sleep(10.millis)
       maxCounter.decrement()
     }
 
@@ -53,7 +54,7 @@ class CollectParTest extends AnyFlatSpec with Matchers {
 
   it should "interrupt other computations in one fails" in {
     val InputElements = 18
-    val TransformationMillis: Long = 100
+    val TransformationMillis = 100.millis
     val trail = Trail()
 
     val input = 0 to InputElements
@@ -63,7 +64,7 @@ class CollectParTest extends AnyFlatSpec with Matchers {
         trail.add("exception")
         throw new Exception("boom")
       } else {
-        Thread.sleep(TransformationMillis)
+        sleep(TransformationMillis)
         trail.add("transformation")
         i + 1
       }
@@ -75,7 +76,7 @@ class CollectParTest extends AnyFlatSpec with Matchers {
       case e: Exception if e.getMessage == "boom" => trail.add("catch")
     }
 
-    Thread.sleep(300)
+    sleep(300.millis)
     trail.add("all done")
 
     trail.get shouldBe Vector("exception", "catch", "all done")

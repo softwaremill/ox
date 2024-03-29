@@ -3,10 +3,11 @@ package ox.sockets.test
 import org.scalatest.concurrent.{Eventually, IntegrationPatience}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import ox.{discard, raceResult}
+import ox.{sleep, discard, raceResult}
 import ox.sockets.{ConnectedSocket, Router, Socket, SocketTerminatedException}
 
 import java.util.concurrent.{ArrayBlockingQueue, ConcurrentLinkedQueue, TimeUnit}
+import scala.concurrent.duration.*
 import scala.jdk.CollectionConverters.*
 
 class RouterTest extends AnyFlatSpec with Matchers with Eventually with IntegrationPatience {
@@ -43,7 +44,7 @@ class RouterTest extends AnyFlatSpec with Matchers with Eventually with Integrat
       acceptQueue.put(s1)
       acceptQueue.put(s2)
       acceptQueue.put(s3)
-      Thread.sleep(100) // wait for the messages to be handled
+      sleep(100.millis) // wait for the messages to be handled
 
       s1.receiveNext("msg1")
       eventually {
@@ -57,7 +58,7 @@ class RouterTest extends AnyFlatSpec with Matchers with Eventually with Integrat
       val s5 = new TestConnectedSocket
       acceptQueue.put(s4)
       acceptQueue.put(s5)
-      Thread.sleep(100) // wait for the messages to be handled
+      sleep(100.millis) // wait for the messages to be handled
 
       s4.receiveNext("msg2")
       s4.receiveNext("msg3")
@@ -71,7 +72,7 @@ class RouterTest extends AnyFlatSpec with Matchers with Eventually with Integrat
 
       // terminate one client, send a message
       s5.receiveNext("KILL")
-      Thread.sleep(100) // wait for the message to be handled
+      sleep(100.millis) // wait for the message to be handled
       s1.receiveNext("msg4")
       eventually {
         s1.sent should be(List("msg2", "msg3"))

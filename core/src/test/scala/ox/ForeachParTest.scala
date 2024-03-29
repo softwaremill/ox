@@ -8,16 +8,17 @@ import ox.util.{MaxCounter, Trail}
 import scala.List
 import scala.collection.IterableFactory
 import scala.collection.immutable.Iterable
+import scala.concurrent.duration.*
 
 class ForeachParTest extends AnyFlatSpec with Matchers {
   "foreachPar" should "run computations in parallel" in {
     val InputElements = 17
-    val TransformationMillis: Long = 100
+    val TransformationMillis = 100.millis
     val trail = new Trail()
 
-    val input = (0 to InputElements)
-    def transformation(i: Int) = {
-      Thread.sleep(TransformationMillis)
+    val input = 0 to InputElements
+    def transformation(i: Int): Unit = {
+      sleep(TransformationMillis)
       trail.add(i.toString)
     }
 
@@ -26,19 +27,19 @@ class ForeachParTest extends AnyFlatSpec with Matchers {
     val end = System.currentTimeMillis()
 
     trail.get should contain theSameElementsAs input.map(_.toString)
-    (end - start) should be < (InputElements * TransformationMillis)
+    (end - start) should be < (InputElements * TransformationMillis.toMillis)
   }
 
   it should "run not more computations than limit" in {
     val Parallelism = 5
 
-    val input = (1 to 158)
+    val input = 1 to 158
 
     val maxCounter = MaxCounter()
 
     def transformation(i: Int) = {
       maxCounter.increment()
-      Thread.sleep(10)
+      sleep(10.millis)
       maxCounter.decrement()
     }
 
@@ -49,17 +50,17 @@ class ForeachParTest extends AnyFlatSpec with Matchers {
 
   it should "interrupt other computations in one fails" in {
     val InputElements = 18
-    val TransformationMillis: Long = 100
+    val TransformationMillis = 100.millis
     val trail = Trail()
 
-    val input = (0 to InputElements)
+    val input = 0 to InputElements
 
     def transformation(i: Int) = {
       if (i == 4) {
         trail.add("exception")
         throw new Exception("boom")
       } else {
-        Thread.sleep(TransformationMillis)
+        sleep(TransformationMillis)
         trail.add("transformation")
         i + 1
       }
@@ -71,7 +72,7 @@ class ForeachParTest extends AnyFlatSpec with Matchers {
       case e: Exception if e.getMessage == "boom" => trail.add("catch")
     }
 
-    Thread.sleep(300)
+    sleep(300.millis)
     trail.add("all done")
 
     trail.get shouldBe Vector("exception", "catch", "all done")

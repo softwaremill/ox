@@ -1,7 +1,10 @@
 package ox.characterization
 
+import ox.sleep
+
 import org.slf4j.LoggerFactory
 
+import scala.concurrent.duration.*
 import java.util.concurrent.StructuredTaskScope
 
 @main def nestedScopes(): Unit =
@@ -10,18 +13,18 @@ import java.util.concurrent.StructuredTaskScope
   log.info("Started scope1")
   try
     scope1.fork { () =>
-      Thread.sleep(1000L)
+      sleep(1.second)
       log.info("Child 1 done")
     }
     Thread.startVirtualThread { () =>
-      Thread.sleep(3000L)
+      sleep(3.seconds)
       log.info("Child 2 done")
     }
     val scope2 = new StructuredTaskScope.ShutdownOnFailure()
     log.info("Started scope2")
     try
       scope2.fork { () =>
-        Thread.sleep(2000L)
+        sleep(2.seconds)
         log.info("Child 3 done")
       }
       scope1.join()
@@ -35,4 +38,4 @@ import java.util.concurrent.StructuredTaskScope
     scope1.close()
     log.info("Scope 1 closed")
 
-  Thread.sleep(5000L)
+  sleep(5.seconds)

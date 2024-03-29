@@ -1,6 +1,8 @@
 package ox.crawler.test
 
+import ox.sleep
 import ox.crawler.{Host, Url}
+import scala.concurrent.duration.*
 
 trait CrawlerTestData:
 
@@ -99,7 +101,7 @@ trait CrawlerTestData:
       if (i < count) List(Url("d1", (i + 1).toString)) else Nil
     }
     override val http: Url => String = { url =>
-      Thread.sleep(100)
+      sleep(100.millis)
       url.path
     }
     override val startingUrl = Url("d1", "0")
@@ -116,7 +118,7 @@ trait CrawlerTestData:
     val links: List[Url] = (1 to count).map(i => Url(i.toString, "p")).toList
     override val parseLinks: String => List[Url] = { _ => links }
     override val http: Url => String = { url =>
-      Thread.sleep(100)
+      sleep(100.millis)
       url.host
     }
     override val startingUrl = Url("1", "p")

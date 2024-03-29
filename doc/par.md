@@ -3,14 +3,15 @@
 A number of computations can be ran in parallel using the `par` method, for example:
 
 ```scala mdoc:compile-only
-import ox.par
+import ox.{par, sleep}
+import scala.concurrent.duration.*
 
 def computation1: Int =
-  Thread.sleep(2000)
+  sleep(2.seconds)
   1
 
 def computation2: String =
-  Thread.sleep(1000)
+  sleep(1.second)
   "2"
 
 val result: (Int, String) = par(computation1, computation2)
@@ -24,10 +25,11 @@ It's also possible to run a sequence of computations given as a `Seq[() => T]` i
 parallelism using `parLimit`:
 
 ```scala mdoc:compile-only
-import ox.parLimit
+import ox.{parLimit, sleep}
+import scala.concurrent.duration.*
 
 def computation(n: Int): Int =
-  Thread.sleep(1000)
+  sleep(1.second)
   println(s"Running $n")
   n*2
 
@@ -45,14 +47,15 @@ It's possible to use an arbitrary [error mode](error-handling.md) by providing i
 Alternatively, a built-in version using `Either` is available as `parEither`:
 
 ```scala mdoc:compile-only
-import ox.parEither
+import ox.{parEither, sleep}
+import scala.concurrent.duration.*
 
 val result = parEither(
   {
-    Thread.sleep(200)
+    sleep(200.millis)
     Right("ok")
   }, {
-    Thread.sleep(100)
+    sleep(100.millis)
     Left(-1)
   }
 )

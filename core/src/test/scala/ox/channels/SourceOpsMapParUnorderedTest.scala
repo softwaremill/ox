@@ -6,6 +6,8 @@ import org.scalatest.matchers.should.Matchers
 import ox.*
 import ox.util.Trail
 
+import scala.concurrent.duration.*
+
 import java.util.concurrent.atomic.AtomicInteger
 
 class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventually {
@@ -22,7 +24,7 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
       def f(i: Int) =
         running.incrementAndGet()
         try
-          Thread.sleep(100)
+          sleep(100.millis)
           i * 2
         finally running.decrementAndGet().discard
 
@@ -32,7 +34,7 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
         forever {
           max = math.max(max, running.get())
           maxRunning.set(max)
-          Thread.sleep(10)
+          sleep(10.millis)
         }
       }
 
@@ -53,7 +55,7 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
       val s = Source.fromIterable(1 to 10)
 
       def f(i: Int) =
-        Thread.sleep(50)
+        sleep(50.millis)
         i * 2
 
       // when
@@ -94,11 +96,11 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
     // when
     val s2 = s.mapParUnordered(2) { i =>
       if i == 4 then
-        Thread.sleep(100)
+        sleep(100.millis)
         trail.add("exception")
         throw new Exception("boom")
       else
-        Thread.sleep(200)
+        sleep(200.millis)
         trail.add(s"done")
         i * 2
     }
@@ -109,7 +111,7 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
     s2.isClosedForReceive shouldBe true
 
     // checking if the forks aren't left running
-    Thread.sleep(200)
+    sleep(200.millis)
 
     // the fork that processes 4 would complete, thus adding "done" to the trail,
     // but it won't emit its result, since the channel would already be closed after the fork processing 3 failed
@@ -124,7 +126,7 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
 
     // when
     val s2 = s.mapParUnordered(2) { i =>
-      Thread.sleep(100)
+      sleep(100.millis)
       trail.add(i.toString)
       i * 2
     }
@@ -135,7 +137,7 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
     s2.isClosedForReceive shouldBe true
 
     // checking if the forks aren't left running
-    Thread.sleep(200)
+    sleep(200.millis)
 
     trail.get should contain only ("1", "2", "3")
   }
@@ -148,11 +150,11 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
     // when
     val s2 = s.mapParUnordered(2) { i =>
       if i == 4 then
-        Thread.sleep(100)
+        sleep(100.millis)
         trail.add("exception")
         throw new Exception("boom")
       else
-        Thread.sleep(200)
+        sleep(200.millis)
         trail.add(s"done")
         i * 2
     }
@@ -169,17 +171,17 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
     // given
     val s = Source.fromIterable(1 to 5)
     val delays = Map(
-      1 -> 100,
-      2 -> 10,
-      3 -> 50,
-      4 -> 500,
-      5 -> 200
+      1 -> 100.millis,
+      2 -> 10.millis,
+      3 -> 50.millis,
+      4 -> 500.millis,
+      5 -> 200.millis
     )
     val expectedElements = delays.toList.sortBy(_._2).map(_._1)
 
     // when
     val s2 = s.mapParUnordered(5) { i =>
-      Thread.sleep(delays(i))
+      sleep(delays(i))
       i
     }
 

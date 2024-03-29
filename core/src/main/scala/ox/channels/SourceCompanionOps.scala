@@ -179,7 +179,7 @@ trait SourceCompanionOps:
   def timeout[T](interval: FiniteDuration, element: T = ())(using Ox, StageCapacity): Source[T] =
     val c = StageCapacity.newChannel[T]
     fork {
-      Thread.sleep(interval.toMillis)
+      sleep(interval)
       c.sendSafe(element)
       c.doneSafe()
     }

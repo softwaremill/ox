@@ -14,3 +14,5 @@ Extension functions on arbitrary expressions:
   value" warnings
 * `.tapException` and `.tapNonFatalException` allow running the provided side-effecting callback when the expression
   throws an exception
+* `sleep(scala.concurrent.Duration)` blocks the current thread/fork for the given duration; same as `Thread.sleep`, but
+  using's Scala's `Duration`
