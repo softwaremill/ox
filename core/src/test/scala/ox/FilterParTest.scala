@@ -20,7 +20,7 @@ class FilterParTest extends AnyFlatSpec with Matchers {
     val InputElements = 17
     val TransformationMillis: Long = 100
 
-    val input = (0 to InputElements)
+    val input = 0 to InputElements
     def predicate(i: Int) = {
       Thread.sleep(TransformationMillis)
       i % 2 == 0
@@ -37,7 +37,7 @@ class FilterParTest extends AnyFlatSpec with Matchers {
   it should "run not more computations than limit" in {
     val Parallelism = 5
 
-    val input = (1 to 158)
+    val input = 1 to 158
 
     val maxCounter = new MaxCounter()
 

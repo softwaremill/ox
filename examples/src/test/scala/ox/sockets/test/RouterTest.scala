@@ -3,7 +3,7 @@ package ox.sockets.test
 import org.scalatest.concurrent.{Eventually, IntegrationPatience}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import ox.raceResult
+import ox.{discard, raceResult}
 import ox.sockets.{ConnectedSocket, Router, Socket, SocketTerminatedException}
 
 import java.util.concurrent.{ArrayBlockingQueue, ConcurrentLinkedQueue, TimeUnit}
@@ -22,7 +22,7 @@ class RouterTest extends AnyFlatSpec with Matchers with Eventually with Integrat
       private val receiveQueue = new ArrayBlockingQueue[String](1024)
       private val sentQueue = new ConcurrentLinkedQueue[String]()
 
-      override def send(msg: String): Unit = sentQueue.offer(msg)
+      override def send(msg: String): Unit = sentQueue.offer(msg).discard
       override def receive(timeout: Long): String = {
         val msg = receiveQueue.poll(timeout, TimeUnit.MILLISECONDS)
         if msg == "KILL" then {
@@ -31,11 +31,11 @@ class RouterTest extends AnyFlatSpec with Matchers with Eventually with Integrat
       }
 
       def sent: List[String] = sentQueue.asScala.toList
-      def receiveNext(msg: String): Unit = receiveQueue.offer(msg)
+      def receiveNext(msg: String): Unit = receiveQueue.offer(msg).discard
 
-    def socketListen = Router.router(testSocket)
+    def socketListen(): Unit = Router.router(testSocket)
 
-    def socketTest =
+    def socketTest(): Unit =
       // create 3 clients, send message: should be broadcast
       val s1 = new TestConnectedSocket
       val s2 = new TestConnectedSocket
@@ -79,8 +79,8 @@ class RouterTest extends AnyFlatSpec with Matchers with Eventually with Integrat
         s3.sent should be(List("msg1", "msg2", "msg3", "msg4"))
         s4.sent should be(List("msg4"))
         s5.sent should be(List("msg2", "msg3"))
-      }
+      }.discard
 
-    raceResult(socketListen, socketTest)
+    raceResult(socketListen(), socketTest())
   }
 }

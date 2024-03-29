@@ -1,4 +1,6 @@
-package ox
+package ox.characterization
+
+import ox.discard
 
 @main def lazyExtension(): Unit =
   extension [T](t: => T)
@@ -9,4 +11,4 @@ package ox
   {
     println("In block")
     1
-  }.test
+  }.test.discard

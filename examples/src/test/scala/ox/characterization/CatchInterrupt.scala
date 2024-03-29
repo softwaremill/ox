@@ -1,4 +1,4 @@
-package ox
+package ox.characterization
 
 import org.slf4j.LoggerFactory
 

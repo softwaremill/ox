@@ -3,6 +3,7 @@ package ox.supervise.test
 import org.scalatest.concurrent.{Eventually, IntegrationPatience, ScalaFutures}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
+import ox.discard
 import ox.supervise.{Broadcast, QueueConnector, RemoteQueue}
 
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -18,7 +19,7 @@ class BroadcastTest extends AnyFlatSpec with Matchers with ScalaFutures with Int
 
     Broadcast.broadcast(testData.queueConnector) { br =>
       try
-        br.inbox.put(Broadcast.Subscribe(msg => receivedMessages.add(msg)))
+        br.inbox.put(Broadcast.Subscribe(msg => receivedMessages.add(msg).discard))
 
         eventually {
           receivedMessages.asScala.toList.slice(0, 5) should be(List("msg1", "msg2", "msg3", "msg", "msg"))
@@ -44,7 +45,7 @@ class BroadcastTest extends AnyFlatSpec with Matchers with ScalaFutures with Int
     val connectingWhileClosing = new AtomicBoolean(false)
     val connectingWithoutClosing = new AtomicBoolean(false)
 
-    def doClose() =
+    def doClose(): Unit =
       closing.set(true)
       Thread.sleep(500)
       closing.set(false)

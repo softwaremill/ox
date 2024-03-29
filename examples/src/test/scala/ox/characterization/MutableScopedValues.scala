@@ -1,4 +1,4 @@
-package ox
+package ox.characterization
 
 import java.util.concurrent.{Callable, StructuredTaskScope}
 import java.util.concurrent.atomic.AtomicReference

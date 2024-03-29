@@ -12,7 +12,7 @@ import scala.collection.immutable.Iterable
 class CollectParTest extends AnyFlatSpec with Matchers {
   "collectPar" should "output the same type as input" in {
     val input = List(1, 2, 3)
-    val result = input.collectPar(1)(identity)
+    val result = input.collectPar(1)(x => x)
     result shouldBe a[List[_]]
   }
 
@@ -20,7 +20,7 @@ class CollectParTest extends AnyFlatSpec with Matchers {
     val InputElements = 17
     val TransformationMillis: Long = 100
 
-    val input = (0 to InputElements)
+    val input = 0 to InputElements
     val pf: PartialFunction[Int, Int] = {
       case i if i % 2 == 0 => i
     }
@@ -36,7 +36,7 @@ class CollectParTest extends AnyFlatSpec with Matchers {
   it should "run not more computations than limit" in {
     val Parallelism = 5
 
-    val input = (1 to 158)
+    val input = 1 to 158
 
     val maxCounter = new MaxCounter()
 
@@ -46,7 +46,7 @@ class CollectParTest extends AnyFlatSpec with Matchers {
       maxCounter.decrement()
     }
 
-    input.to(Iterable).collectPar(Parallelism)(transformation)
+    input.to(Iterable).collectPar(Parallelism)(x => transformation(x))
 
     maxCounter.max should be <= Parallelism
   }
@@ -56,7 +56,7 @@ class CollectParTest extends AnyFlatSpec with Matchers {
     val TransformationMillis: Long = 100
     val trail = Trail()
 
-    val input = (0 to InputElements)
+    val input = 0 to InputElements
 
     def transformation(i: Int) = {
       if (i == 4) {
@@ -70,7 +70,7 @@ class CollectParTest extends AnyFlatSpec with Matchers {
     }
 
     try {
-      input.to(Iterable).collectPar(5)(transformation)
+      input.to(Iterable).collectPar(5)(x => transformation(x))
     } catch {
       case e: Exception if e.getMessage == "boom" => trail.add("catch")
     }
