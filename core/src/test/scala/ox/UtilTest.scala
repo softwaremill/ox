@@ -42,7 +42,7 @@ class UtilTest extends AnyFlatSpec with Matchers {
 
     def f(): Int = throw new RuntimeException("boom!")
 
-    try f().tapException(e => throw new RuntimeException("boom boom!"))
+    try f().tapException(_ => throw new RuntimeException("boom boom!"))
     catch case e: RuntimeException => t.add(s"in catch: ${e.getMessage} ${e.getSuppressed.length}")
 
     t.get shouldBe Vector("in catch: boom! 1")

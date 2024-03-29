@@ -1,5 +1,6 @@
 package ox
 
+import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.Duration
 import scala.util.control.NonFatal
 
@@ -43,6 +44,12 @@ extension [T](inline t: T)
         try f(e)
         catch case ee: Throwable => e.addSuppressed(ee)
         throw e
+
+extension [T](inline f: Future[T])
+  /** Block the current thread/fork until the future completes. Returns the successful value of the future, or throws the exception, with
+    * which it failed.
+    */
+  inline def get(): T = Await.result(f, Duration.Inf)
 
 /** Prevent `f` from being interrupted. Any interrupted exceptions that occur while evaluating `f` will be re-thrown once it completes. */
 inline def uninterruptible[T](inline f: T): T =

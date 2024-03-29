@@ -6,7 +6,7 @@ import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.kafka.ProducerSettings
 import org.apache.pekko.kafka.scaladsl.Producer
 import org.apache.pekko.stream.scaladsl.Source
-import ox.discard
+import ox.{discard, get}
 import ox.kafka.manual.{randomString, timed}
 
 import scala.concurrent.Await
@@ -21,6 +21,6 @@ import scala.concurrent.duration.Duration
 
     val source = Source(1 to 10000000).map(_ => randomString())
     val producerRecordSource = source.map { m => new ProducerRecord[String, String](topic, m) }
-    Await.result(producerRecordSource.runWith(Producer.plainSink(producerSettings)), Duration.Inf)
-    Await.result(system.terminate(), Duration.Inf).discard
+    producerRecordSource.runWith(Producer.plainSink(producerSettings)).get()
+    system.terminate().get().discard
   }
