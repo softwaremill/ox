@@ -80,7 +80,7 @@ object KafkaStage:
           scoped {
             // committer
             val commitDoneSource =
-              if commitOffsets then Source.fromFork(fork(tapException(doCommit(toCommit))(e => c.errorSafe(e).discard))) else Source.empty
+              if commitOffsets then Source.fromFork(fork(doCommit(toCommit).tapException(e => c.errorSafe(e).discard))) else Source.empty
 
             repeatWhile {
               selectSafe(exceptions.receiveClause, metadata.receiveClause, source.receiveClause) match
