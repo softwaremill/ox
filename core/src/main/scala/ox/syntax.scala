@@ -5,7 +5,7 @@ import ox.retry.RetryPolicy
 import scala.concurrent.duration.FiniteDuration
 
 object syntax:
-  extension [T](f: => T) def forever: Fork[Nothing] = ox.forever(f)
+  extension [T](f: => T) def forever: Fork[Nothing] = ox.forever(f.discard)
 
   extension [T](f: => T) def retry(policy: RetryPolicy[Throwable, T]): T = ox.retry.retry(f)(policy)
   extension [E, T](f: => Either[E, T]) def retryEither(policy: RetryPolicy[E, T]): Either[E, T] = ox.retry.retryEither(f)(policy)

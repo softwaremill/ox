@@ -7,6 +7,7 @@ import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.kafka.scaladsl.Consumer.DrainingControl
 import org.apache.pekko.kafka.scaladsl.{Committer, Consumer, Producer}
 import org.apache.pekko.kafka.{CommitterSettings, ConsumerSettings, ProducerMessage, ProducerSettings, Subscriptions}
+import ox.discard
 import ox.kafka.manual.timed
 
 import scala.concurrent.Await
@@ -42,5 +43,5 @@ import scala.concurrent.duration.Duration
       .streamCompletion
 
     Await.result(stream, Duration.Inf)
-    val _ = Await.result(system.terminate(), Duration.Inf)
+    Await.result(system.terminate(), Duration.Inf).discard
   }

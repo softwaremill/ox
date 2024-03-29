@@ -24,7 +24,7 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
         try
           Thread.sleep(100)
           i * 2
-        finally running.decrementAndGet()
+        finally running.decrementAndGet().discard
 
       // update max running
       fork {

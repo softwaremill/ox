@@ -79,7 +79,7 @@ class ActorTest extends AnyFlatSpec with Matchers:
         }
 
         val ref = Actor.create(logic)
-        ref.tell(_.f(5))
+        ref.tell(_.f(5).discard)
         Thread.sleep(1000)
       }
     }

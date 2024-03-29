@@ -84,7 +84,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
 
         fork {
           forever {
-            result.addAndGet(select(cs.map(_.receiveClause)).value)
+            result.addAndGet(select(cs.map(_.receiveClause)).value).discard
           }
         }
 

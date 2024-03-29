@@ -19,7 +19,7 @@ trait SourceCompanionOps:
     fork {
       val theIt = it
       try
-        while theIt.hasNext do c.sendSafe(theIt.next())
+        while theIt.hasNext do c.sendSafe(theIt.next()).discard
         c.doneSafe()
       catch case t: Throwable => c.errorSafe(t)
     }
@@ -147,7 +147,7 @@ trait SourceCompanionOps:
     fork {
       try
         forever {
-          c.sendSafe(f)
+          c.sendSafe(f).discard
         }
       catch case t: Throwable => c.errorSafe(t)
     }
@@ -206,7 +206,7 @@ trait SourceCompanionOps:
                   c.errorSafe(r)
                   continue = false
                 case t: T @unchecked =>
-                  c.sendSafe(t)
+                  c.sendSafe(t).discard
       catch case t: Throwable => c.errorSafe(t)
     }
     c
@@ -231,7 +231,7 @@ trait SourceCompanionOps:
     * @param segmentSize
     *   The number of elements sent from each source before switching to the next one. Default is 1.
     * @param eagerComplete
-    *   If `true`, the returned channel is completed as soon as any of the sources completes. If 'false`, the interleaving continues with
+    *   If `true`, the returned channel is completed as soon as any of the sources completes. If `false`, the interleaving continues with
     *   the remaining non-completed sources.
     * @return
     *   A source to which the interleaved elements from both sources would be sent.

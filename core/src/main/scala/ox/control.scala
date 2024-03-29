@@ -16,20 +16,6 @@ inline def repeatUntil(inline f: Boolean): Unit =
   var loop = true
   while loop do loop = !f
 
-inline def uninterruptible[T](inline f: T): T =
-  scoped {
-    val t = fork(f)
-
-    def joinDespiteInterrupted: T =
-      try t.join()
-      catch
-        case e: InterruptedException =>
-          joinDespiteInterrupted
-          throw e
-
-    joinDespiteInterrupted
-  }
-
 /** Blocks the current thread indefinitely, until it is interrupted. */
 inline def never: Nothing = forever {
   LockSupport.park()
