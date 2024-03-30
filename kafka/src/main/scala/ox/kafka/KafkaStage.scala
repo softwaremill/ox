@@ -79,7 +79,8 @@ object KafkaStage:
           // starting a nested scope, so that the committer is interrupted when the main process ends (when there's an exception)
           scoped {
             // committer
-            val commitDoneSource = if commitOffsets then Source.fromFork(fork(tapException(doCommit(toCommit))(c.errorSafe))) else Source.empty
+            val commitDoneSource =
+              if commitOffsets then Source.fromFork(fork(tapException(doCommit(toCommit))(c.errorSafe))) else Source.empty
 
             repeatWhile {
               selectSafe(exceptions.receiveClause, metadata.receiveClause, source.receiveClause) match
