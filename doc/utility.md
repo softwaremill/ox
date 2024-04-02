@@ -28,9 +28,11 @@ To streamline working with `Either` values, especially when used for [error hand
 a specialised version of the [boundary/break](https://www.scala-lang.org/api/current/scala/util/boundary$.html) 
 mechanism. 
 
-Within a code block passed to `either`, it allows "unwrapping" using `.value`. The result is the right-hand side of
-the `Either`, which by convention represents successful computations. In case a failure is encountered, it 
-short-circuits the computation, and the failure becomes the result. For example:
+Within a code block passed to `either`, it allows "unwrapping" `Either`s using `.value`. The unwrapped value corresponds 
+to the right side of the `Either`, which by convention represents successful computations. In case a failure is 
+encountered (a left side of an `Either`), the computation is short-circuited, and the failure becomes the result. 
+
+For example:
 
 ```scala mdoc:compile-only
 import ox.either
@@ -57,4 +59,14 @@ val v2: Either[Long, String] = ???
 
 val result: Either[Int | Long, String] = either:
   v1.value ++ v2.value
+```
+
+Finally, options can be unwrapped as well; the error type is then `Unit`:
+
+```scala
+val v1: Option[String] = ???
+val v2: Option[Int] = ???
+
+val result: Either[Unit, String] = either:
+  v1.value * v2.value
 ```
