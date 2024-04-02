@@ -5,7 +5,7 @@ import scala.util.boundary
 import scala.util.boundary.{Label, break}
 
 object either:
-  case class Fail[+A] private[ox] (a: A)
+  case class Fail[+E] private[ox] (error: E)
 
   /** Within an [[either]] block, allows unwrapping [[Either]] and [[Option]] values using [[value]]. The result is the right-value of an
     * `Either`, or the defined-value of the `Option`. In case a failure is encountered (a left-value of an `Either`, or a `None`), the
@@ -15,9 +15,9 @@ object either:
     *
     * @param body
     *   The code block, within which [[Either]]s and [[Option]]s can be unwrapped using [[value]].
-    * @tparam A
+    * @tparam E
     *   The error type.
-    * @tparam T
+    * @tparam A
     *   The success type.
     * @return
     *   The result - either an error, or success - represented as an [[Either]]. The error type can be set to the union of all error types
@@ -32,30 +32,30 @@ object either:
     *       v1.value ++ v2.value
     *   }}}
     */
-  inline def apply[A, T](inline body: Label[Fail[A] | T] ?=> T): Either[A, T] =
+  inline def apply[E, A](inline body: Label[Fail[E] | A] ?=> A): Either[E, A] =
     boundary(body) match
-      case Fail(a: A) => Left(a)
-      case t: T       => Right(t)
+      case Fail(e: E) => Left(e)
+      case a: A       => Right(a)
 
-  extension [A, B](inline t: Either[A, B])
-    transparent inline def value: B =
+  extension [E, A](inline t: Either[E, A])
+    transparent inline def value: A =
       summonFrom {
-        case given boundary.Label[either.Fail[A]] =>
+        case given boundary.Label[either.Fail[E]] =>
           t match
-            case Left(a)  => break(either.Fail(a))
-            case Right(b) => b
+            case Left(e)  => break(either.Fail(e))
+            case Right(a) => a
         case given boundary.Label[either.Fail[Nothing]] =>
           error("The enclosing `either` call uses a different error type.\nIf it's explicitly typed, is the error type correct?")
         case _ => error("`.value` can only be used within an `either` call.\nIs it present?")
       }
 
-  extension [B](inline t: Option[B])(using b: boundary.Label[either.Fail[Unit]])
-    transparent inline def value: B =
+  extension [A](inline t: Option[A])(using b: boundary.Label[either.Fail[Unit]])
+    transparent inline def value: A =
       summonFrom {
         case given boundary.Label[either.Fail[Unit]] =>
           t match
             case None    => break(either.Fail(()))
-            case Some(b) => b
+            case Some(a) => a
         case given boundary.Label[either.Fail[Nothing]] =>
           error(
             "The enclosing `either` call uses a different error type.\nIf it's explicitly typed, is the error type correct?\nNote that for options, the error type must contain a `Unit`."
