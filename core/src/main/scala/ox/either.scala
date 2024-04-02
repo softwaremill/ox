@@ -11,13 +11,13 @@ object either:
       case Fail(a: A) => Left(a)
       case t: T       => Right(t)
 
-  extension [A, B, T](inline t: Either[A, B])(using b: boundary.Label[either.Fail[A] | T])
+  extension [A, B](inline t: Either[A, B])(using b: boundary.Label[either.Fail[A]])
     inline def value: B =
       t match
         case Left(a)  => break(either.Fail(a))
         case Right(b) => b
 
-  extension [B, T](inline t: Option[B])(using b: boundary.Label[either.Fail[Unit] | T])
+  extension [B](inline t: Option[B])(using b: boundary.Label[either.Fail[Unit]])
     inline def value: B =
       t match
         case None    => break(either.Fail(()))
