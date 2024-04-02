@@ -38,6 +38,7 @@ object either:
       case a: A       => Right(a)
 
   extension [E, A](inline t: Either[E, A])
+    /** Unwrap the value of the `Either`, short-circuiting the computation to the enclosing [[either]], in case this is a left-value. */
     transparent inline def value: A =
       summonFrom {
         case given boundary.Label[either.Fail[E]] =>
@@ -50,6 +51,7 @@ object either:
       }
 
   extension [A](inline t: Option[A])(using b: boundary.Label[either.Fail[Unit]])
+    /** Unwrap the value of the `Option`, short-circuiting the computation to the enclosing [[either]], in case this is a `None`. */
     transparent inline def value: A =
       summonFrom {
         case given boundary.Label[either.Fail[Unit]] =>
