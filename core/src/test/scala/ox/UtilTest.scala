@@ -47,4 +47,14 @@ class UtilTest extends AnyFlatSpec with Matchers {
 
     t.get shouldBe Vector("in catch: boom! 1")
   }
+
+  "pipe" should "work" in {
+    (1+2).pipe(_ * 2) shouldBe 6
+  }
+
+  "tap" should "work" in {
+    val t = Trail()
+    (1+2).tap(v => t.add(s"Got: $v")) shouldBe 3
+    t.get shouldBe Vector("Got: 3")
+  }
 }

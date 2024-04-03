@@ -679,6 +679,4 @@ trait SourceOps[+T] { outer: Source[T] =>
         case t: T @unchecked        => c.sendSafe(t); pipeTo(c)
     }
     c
-
-  def applied[U](f: Source[T] => U): U = f(this)
 }

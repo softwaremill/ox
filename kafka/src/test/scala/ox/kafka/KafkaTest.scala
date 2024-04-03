@@ -145,7 +145,7 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
       Source
         .fromIterable(List("a", "b", "c"))
         .mapAsView(msg => ProducerRecord[String, String](topic, msg))
-        .applied(KafkaDrain.publish(settings))
+        .pipe(KafkaDrain.publish(settings))
     }
 
     // then
@@ -175,7 +175,7 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
           .subscribe(consumerSettings, sourceTopic)
           .map(in => (in.value.toLong * 2, in))
           .map((value, original) => SendPacket(ProducerRecord[String, String](destTopic, value.toString), original))
-          .applied(KafkaDrain.publishAndCommit(producerSettings))
+          .pipe(KafkaDrain.publishAndCommit(producerSettings))
       }
 
       val inDest = KafkaSource.subscribe(consumerSettings, destTopic)

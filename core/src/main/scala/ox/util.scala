@@ -18,6 +18,41 @@ extension [T](inline t: T)
     val _ = t
     ()
 
+  /** Pipe the value of this expression into the provided function, returning the result of the function.
+    *
+    * @example
+    *   {{{
+    *   import ox.pipe
+    *   someMethodCall().pipe { result => transform(result) }
+    *   }}}
+    * @see
+    *   [[scala.util.ChainingOps.pipe]] for a non-inline version in the standard library
+    * @param f
+    *   The function to apply to the value of this expression.
+    * @return
+    *   The result of applying `f` to the value of this expression.
+    */
+  inline def pipe[U](inline f: T => U): U =
+    f(t)
+
+  /** Apply `f` to the value of this expression for its side effecting, returning the original value of the expression.
+    *
+    * @example
+    *   {{{
+    *   import ox.tap
+    *   someMethodCall().tap { result => log(result) }
+    *   }}}
+    * @see
+    *   [[scala.util.ChainingOps.tap]] for a non-inline version in the standard library
+    * @param f
+    *   The function to apply to the value of this expression.
+    * @return
+    *   The original value of this expression.
+    */
+  inline def tap(inline f: T => Unit): T =
+    f(t)
+    t
+
   /** Run the provided callback when an exception occurs, rethrowing the original one after the callback completes.
     *
     * If `f` itself throws an exception, this other exception will be added as suppressed to the original one.
