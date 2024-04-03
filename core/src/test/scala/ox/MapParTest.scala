@@ -2,7 +2,6 @@ package ox
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import ox.syntax.mapPar
 import ox.util.{MaxCounter, Trail}
 
 import scala.collection.IterableFactory
