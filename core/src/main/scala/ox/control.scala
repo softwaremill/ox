@@ -2,6 +2,7 @@ package ox
 
 import java.util.concurrent.locks.LockSupport
 
+/** Repeat evaluating `f` forever. */
 inline def forever(inline f: Unit): Nothing =
   while true do f
   throw new RuntimeException("can't get here")
