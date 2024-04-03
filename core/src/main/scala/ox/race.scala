@@ -8,7 +8,7 @@ import scala.util.{Failure, Success, Try}
 
 /** A `Some` if the computation `t` took less than `duration`, and `None` otherwise. */
 def timeoutOption[T](duration: FiniteDuration)(t: => T): Option[T] =
-  race(Some(t), { Thread.sleep(duration.toMillis); None })
+  race(Some(t), { sleep(duration); None })
 
 /** The result of computation `t`, if it took less than `duration`, and a [[TimeoutException]] otherwise.
   * @throws TimeoutException

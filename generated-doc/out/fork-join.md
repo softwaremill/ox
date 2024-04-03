@@ -20,12 +20,12 @@ import ox.{fork, supervised}
 
 supervised {
   val f1 = fork {
-    Thread.sleep(2000)
+    sleep(2.seconds)
     1
   }
 
   val f2 = fork {
-    Thread.sleep(1000)
+    sleep(1.second)
     2
   }
 
@@ -72,11 +72,11 @@ import ox.{fork, forkUser, Ox, supervised}
 
 supervised {
   forkUser {
-    Thread.sleep(1000)
+    sleep(1.second)
     println("Hello!")
   }
   fork {
-    Thread.sleep(500)
+    sleep(500.millis)
     throw new RuntimeException("boom!")
   }
 }

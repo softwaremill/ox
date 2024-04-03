@@ -17,7 +17,7 @@ trait Ox:
   private[ox] def finalizers: AtomicReference[List[() => Unit]]
   private[ox] def supervisor: Supervisor[Nothing]
 
-  private[ox] def addFinalizer(f: () => Unit): Unit = finalizers.updateAndGet(f :: _)
+  private[ox] def addFinalizer(f: () => Unit): Unit = finalizers.updateAndGet(f :: _).discard
   private[ox] def asNoErrorMode: OxError[Nothing, [T] =>> T]
 
 /** Represents a capability to fork asynchronously running computations in a concurrency scope created using [[supervisedError]]. This is

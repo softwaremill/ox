@@ -46,14 +46,14 @@ class ActorRef[T](c: Sink[T => Unit]):
     val cf = new CompletableFuture[U]()
     c.send { t =>
       try
-        val _ = cf.complete(f(t))
+        cf.complete(f(t)).discard
       catch
         case NonFatal(e) =>
           // since this is an ask, only propagating the exception to the caller, not to the scope
-          val _ = cf.completeExceptionally(e)
+          cf.completeExceptionally(e).discard
         case t: Throwable =>
           // fatal exceptions are propagated to the scope (e.g. InterruptedException)
-          val _ = cf.completeExceptionally(t)
+          cf.completeExceptionally(t).discard
           throw t
     }
     unwrapExecutionException(cf.get())

@@ -4,6 +4,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.util.Trail
 
+import scala.concurrent.duration.*
 import scala.util.{Failure, Try}
 
 class SupervisedTest extends AnyFlatSpec with Matchers {
@@ -12,12 +13,12 @@ class SupervisedTest extends AnyFlatSpec with Matchers {
 
     val result = supervised {
       forkUser {
-        Thread.sleep(200)
+        sleep(200.millis)
         trail.add("a")
       }
 
       forkUser {
-        Thread.sleep(100)
+        sleep(100.millis)
         trail.add("b")
       }
 
@@ -34,12 +35,12 @@ class SupervisedTest extends AnyFlatSpec with Matchers {
 
     val result = supervised {
       fork {
-        Thread.sleep(200)
+        sleep(200.millis)
         trail.add("a")
       }
 
       forkUser {
-        Thread.sleep(100)
+        sleep(100.millis)
         trail.add("b")
       }
 
@@ -56,17 +57,17 @@ class SupervisedTest extends AnyFlatSpec with Matchers {
 
     val result = Try(supervised {
       forkUser {
-        Thread.sleep(300)
+        sleep(300.millis)
         trail.add("a")
       }
 
       forkUser {
-        Thread.sleep(200)
+        sleep(200.millis)
         throw new RuntimeException("x")
       }
 
       forkUser {
-        Thread.sleep(100)
+        sleep(100.millis)
         trail.add("b")
       }
 
@@ -83,11 +84,11 @@ class SupervisedTest extends AnyFlatSpec with Matchers {
 
     val result = Try(supervised {
       forkUser {
-        Thread.sleep(200)
+        sleep(200.millis)
         throw new RuntimeException("x")
       }
 
-      Thread.sleep(300)
+      sleep(300.millis)
       trail.add("a")
     })
 
@@ -101,17 +102,17 @@ class SupervisedTest extends AnyFlatSpec with Matchers {
 
     val result = supervised {
       forkUser {
-        Thread.sleep(300)
+        sleep(300.millis)
         trail.add("a")
       }
 
       forkUnsupervised {
-        Thread.sleep(200)
+        sleep(200.millis)
         throw new RuntimeException("x")
       }
 
       forkUser {
-        Thread.sleep(100)
+        sleep(100.millis)
         trail.add("b")
       }
 

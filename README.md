@@ -43,23 +43,23 @@ import ox.retry.*
 import scala.concurrent.duration.*
 
 // run two computations in parallel
-def computation1: Int = { Thread.sleep(2000); 1 }
-def computation2: String = { Thread.sleep(1000); "2" }
+def computation1: Int = { sleep(2.seconds); 1 }
+def computation2: String = { sleep(1.second); "2" }
 val result1: (Int, String) = par(computation1, computation2)
 // (1, "2")
 
 // timeout a computation
-def computation: Int = { Thread.sleep(2000); 1 }
+def computation: Int = { sleep(2.seconds); 1 }
 val result2: Try[Int] = Try(timeout(1.second)(computation))
 
 // structured concurrency & supervision
 supervised {
   forkUser {
-    Thread.sleep(1000)
+    sleep(1.second)
     println("Hello!")
   }
   forkUser {
-    Thread.sleep(500)
+    sleep(500.millis)
     throw new RuntimeException("boom!")
   }
 }

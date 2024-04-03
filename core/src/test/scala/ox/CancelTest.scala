@@ -6,6 +6,8 @@ import ox.util.Trail
 
 import java.util.concurrent.Semaphore
 
+import scala.concurrent.duration.*
+
 class CancelTest extends AnyFlatSpec with Matchers {
   class CustomException extends RuntimeException
 
@@ -17,20 +19,20 @@ class CancelTest extends AnyFlatSpec with Matchers {
       val f = forkCancellable {
         trail.add("started")
         try
-          Thread.sleep(500L)
+          sleep(500.millis)
           trail.add("main done")
         catch
           case e: InterruptedException =>
             trail.add("interrupted")
-            Thread.sleep(500L)
+            sleep(500.millis)
             trail.add("interrupted done")
             throw e
       }
 
-      Thread.sleep(100L) // making sure the fork starts
+      sleep(100.millis) // making sure the fork starts
       val r = f.cancel()
       trail.add("cancel done")
-      Thread.sleep(1000L)
+      sleep(1.second)
       r
     }
     trail.get shouldBe Vector("started", "interrupted", "interrupted done", "cancel done")
@@ -51,15 +53,15 @@ class CancelTest extends AnyFlatSpec with Matchers {
           catch
             case _: InterruptedException =>
               trail.add("interrupted")
-              Thread.sleep(100L)
+              sleep(100.millis)
               trail.add("interrupted done")
         }
 
-        if i % 2 == 0 then Thread.sleep(1) // interleave immediate cancels and after the fork starts (probably)
+        if i % 2 == 0 then sleep(1.millis) // interleave immediate cancels and after the fork starts (probably)
         f.cancel()
         s.release(1) // the acquire should be interrupted
         trail.add("cancel done")
-        Thread.sleep(100L)
+        sleep(100.millis)
       }
       if trail.get.length == 1
       then trail.get shouldBe Vector("cancel done") // the fork wasn't even started
@@ -72,15 +74,15 @@ class CancelTest extends AnyFlatSpec with Matchers {
     supervised {
       val f = forkCancellable {
         try
-          Thread.sleep(500L)
+          sleep(500.millis)
           trail.add("main done")
         catch
           case _: InterruptedException =>
-            Thread.sleep(500L)
+            sleep(500.millis)
             trail.add("interrupted done")
       }
 
-      Thread.sleep(100L) // making sure the fork starts
+      sleep(100.millis) // making sure the fork starts
       f.cancelNow()
       trail.add("cancel done")
       trail.get shouldBe Vector("cancel done")
@@ -91,9 +93,9 @@ class CancelTest extends AnyFlatSpec with Matchers {
   it should "(when followed by a joinEither) catch InterruptedException with which a fork ends" in {
     val r = supervised {
       val f = forkCancellable {
-        Thread.sleep(200)
+        sleep(200.millis)
       }
-      Thread.sleep(100)
+      sleep(100.millis)
       f.cancelNow()
       f.joinEither()
     }

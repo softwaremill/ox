@@ -5,6 +5,8 @@ import org.scalatest.matchers.should.Matchers
 import ox.*
 import ox.util.Trail
 
+import scala.concurrent.duration.*
+
 class LocalTest extends AnyFlatSpec with Matchers {
   "fork locals" should "properly propagate values" in {
     val trail = Trail()
@@ -12,7 +14,7 @@ class LocalTest extends AnyFlatSpec with Matchers {
     scoped {
       val f1 = fork {
         v.scopedWhere("x") {
-          Thread.sleep(100L)
+          sleep(100.millis)
           trail.add(s"In f1 = ${v.get()}")
         }
         v.get()
@@ -20,9 +22,9 @@ class LocalTest extends AnyFlatSpec with Matchers {
 
       val f3 = fork {
         v.scopedWhere("z") {
-          Thread.sleep(100L)
+          sleep(100.millis)
           fork {
-            Thread.sleep(100L)
+            sleep(100.millis)
             trail.add(s"In f3 = ${v.get()}")
           }.join()
         }

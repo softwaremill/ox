@@ -6,6 +6,7 @@ import org.scalatest.matchers.should.Matchers
 import ox.*
 import ox.util.Trail
 
+import scala.concurrent.duration.*
 import java.util.concurrent.atomic.AtomicInteger
 
 class SourceOpsMapParTest extends AnyFlatSpec with Matchers with Eventually {
@@ -21,9 +22,9 @@ class SourceOpsMapParTest extends AnyFlatSpec with Matchers with Eventually {
       def f(i: Int) =
         running.incrementAndGet()
         try
-          Thread.sleep(100)
+          sleep(100.millis)
           i * 2
-        finally running.decrementAndGet()
+        finally running.decrementAndGet().discard
 
       // update max running
       fork {
@@ -31,7 +32,7 @@ class SourceOpsMapParTest extends AnyFlatSpec with Matchers with Eventually {
         forever {
           max = math.max(max, running.get())
           maxRunning.set(max)
-          Thread.sleep(10)
+          sleep(10.millis)
         }
       }
 
@@ -52,7 +53,7 @@ class SourceOpsMapParTest extends AnyFlatSpec with Matchers with Eventually {
       val s = Source.fromIterable(1 to 10)
 
       def f(i: Int) =
-        Thread.sleep(50)
+        sleep(50.millis)
         i * 2
 
       // when
@@ -93,11 +94,11 @@ class SourceOpsMapParTest extends AnyFlatSpec with Matchers with Eventually {
     // when
     val s2 = s.mapPar(2) { i =>
       if i == 4 then
-        Thread.sleep(100)
+        sleep(100.millis)
         trail.add("exception")
         throw new Exception("boom")
       else
-        Thread.sleep(200)
+        sleep(200.millis)
         trail.add(s"done")
         i * 2
     }
@@ -108,7 +109,7 @@ class SourceOpsMapParTest extends AnyFlatSpec with Matchers with Eventually {
     s2.receiveSafe() should matchPattern { case ChannelClosed.Error(reason) if reason.getMessage == "boom" => }
 
     // checking if the forks aren't left running
-    Thread.sleep(200)
+    sleep(200.millis)
     trail.get shouldBe Vector("done", "done", "exception") // TODO: 3 isn't cancelled because it's already taken off the queue
   }
 }

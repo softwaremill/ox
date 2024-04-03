@@ -1,6 +1,6 @@
 package ox.retry
 
-import ox.{EitherMode, ErrorMode}
+import ox.{EitherMode, ErrorMode, sleep}
 
 import scala.annotation.tailrec
 import scala.concurrent.duration.*
@@ -51,8 +51,8 @@ def retryWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(operation: => F[T])(poli
   @tailrec
   def loop(attempt: Int, remainingAttempts: Option[Int], lastDelay: Option[FiniteDuration]): F[T] =
     def sleepIfNeeded =
-      val delay = policy.schedule.nextDelay(attempt, lastDelay).toMillis
-      if (delay > 0) Thread.sleep(delay)
+      val delay = policy.schedule.nextDelay(attempt, lastDelay)
+      if delay.toMillis > 0 then sleep(delay)
       delay
 
     operation match
@@ -62,7 +62,7 @@ def retryWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(operation: => F[T])(poli
 
         if policy.resultPolicy.isWorthRetrying(error) && remainingAttempts.forall(_ > 0) then
           val delay = sleepIfNeeded
-          loop(attempt + 1, remainingAttempts.map(_ - 1), Some(delay.millis))
+          loop(attempt + 1, remainingAttempts.map(_ - 1), Some(delay))
         else v
       case v =>
         val result = em.getT(v)
@@ -70,7 +70,7 @@ def retryWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(operation: => F[T])(poli
 
         if !policy.resultPolicy.isSuccess(result) && remainingAttempts.forall(_ > 0) then
           val delay = sleepIfNeeded
-          loop(attempt + 1, remainingAttempts.map(_ - 1), Some(delay.millis))
+          loop(attempt + 1, remainingAttempts.map(_ - 1), Some(delay))
         else v
 
   val remainingAttempts = policy.schedule match

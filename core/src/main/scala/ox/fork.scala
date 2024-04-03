@@ -163,8 +163,8 @@ def forkCancellable[T](f: => T)(using Ox): CancellableFork[T] =
       nestedOx.scope.fork { () =>
         // "else" means that the fork is already cancelled, so doing nothing in that case
         if !started.getAndSet(true) then
-          try result.complete(f)
-          catch case e: Throwable => result.completeExceptionally(e)
+          try result.complete(f).discard
+          catch case e: Throwable => result.completeExceptionally(e).discard
 
         done.release() // the nested scope can now finish
       }
@@ -189,7 +189,7 @@ def forkCancellable[T](f: => T)(using Ox): CancellableFork[T] =
       // will cause the scope to end, interrupting the task if it hasn't yet finished (or potentially never starting it)
       done.release()
       if !started.getAndSet(true)
-      then result.completeExceptionally(new InterruptedException("fork was cancelled before it started"))
+      then result.completeExceptionally(new InterruptedException("fork was cancelled before it started")).discard
 
 private def newForkUsingResult[T](result: CompletableFuture[T]): Fork[T] = new Fork[T]:
   override def join(): T = unwrapExecutionException(result.get())

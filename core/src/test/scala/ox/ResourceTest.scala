@@ -85,4 +85,34 @@ class ResourceTest extends AnyFlatSpec with Matchers {
     }
     trail.get shouldBe Vector("in scope", "release")
   }
+
+  it should "use a resource" in {
+    val trail = Trail()
+
+    class TestResource {
+      trail.add("allocate")
+      def release(): Unit = trail.add("release")
+    }
+
+    use(new TestResource, _.release()) { r =>
+      trail.add("in scope")
+    }
+
+    trail.get shouldBe Vector("allocate", "in scope", "release")
+  }
+
+  it should "use a closeable resource" in {
+    val trail = Trail()
+
+    class TestResource extends AutoCloseable {
+      trail.add("allocate")
+      def close(): Unit = trail.add("release")
+    }
+
+    useCloseable(new TestResource) { r =>
+      trail.add("in scope")
+    }
+
+    trail.get shouldBe Vector("allocate", "in scope", "release")
+  }
 }

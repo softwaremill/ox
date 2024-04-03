@@ -5,8 +5,6 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.syntax.*
 
-import scala.util.Failure
-
 class RetrySyntaxTest extends AnyFlatSpec with Matchers with TryValues with EitherValues:
 
   behavior of "Retry syntax"

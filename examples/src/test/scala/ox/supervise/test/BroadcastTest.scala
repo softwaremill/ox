@@ -3,10 +3,12 @@ package ox.supervise.test
 import org.scalatest.concurrent.{Eventually, IntegrationPatience, ScalaFutures}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
+import ox.{discard, sleep}
 import ox.supervise.{Broadcast, QueueConnector, RemoteQueue}
 
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger}
+import scala.concurrent.duration.*
 import scala.jdk.CollectionConverters.*
 
 class BroadcastTest extends AnyFlatSpec with Matchers with ScalaFutures with IntegrationPatience with Eventually {
@@ -18,7 +20,7 @@ class BroadcastTest extends AnyFlatSpec with Matchers with ScalaFutures with Int
 
     Broadcast.broadcast(testData.queueConnector) { br =>
       try
-        br.inbox.put(Broadcast.Subscribe(msg => receivedMessages.add(msg)))
+        br.inbox.put(Broadcast.Subscribe(msg => receivedMessages.add(msg).discard))
 
         eventually {
           receivedMessages.asScala.toList.slice(0, 5) should be(List("msg1", "msg2", "msg3", "msg", "msg"))
@@ -44,16 +46,16 @@ class BroadcastTest extends AnyFlatSpec with Matchers with ScalaFutures with Int
     val connectingWhileClosing = new AtomicBoolean(false)
     val connectingWithoutClosing = new AtomicBoolean(false)
 
-    def doClose() =
+    def doClose(): Unit =
       closing.set(true)
-      Thread.sleep(500)
+      sleep(500.millis)
       closing.set(false)
 
     val queue1: RemoteQueue = new RemoteQueue {
       val counter = new AtomicInteger()
 
       override def read(): String =
-        Thread.sleep(500) // delay 1st message so that consumers can subscribe
+        sleep(500.millis) // delay 1st message so that consumers can subscribe
         counter.incrementAndGet() match
           case 1 => "msg1"
           case _ => throw new RuntimeException("exception 1")
@@ -64,7 +66,7 @@ class BroadcastTest extends AnyFlatSpec with Matchers with ScalaFutures with Int
       val counter = new AtomicInteger()
 
       override def read(): String =
-        Thread.sleep(100)
+        sleep(100.millis)
         counter.incrementAndGet() match
           case 1 => "msg2"
           case 2 => "msg3"
@@ -74,7 +76,7 @@ class BroadcastTest extends AnyFlatSpec with Matchers with ScalaFutures with Int
     }
     val queue3: RemoteQueue = new RemoteQueue {
       override def read(): String =
-        Thread.sleep(100)
+        sleep(100.millis)
         "msg"
 
       override def close(): Unit = doClose()

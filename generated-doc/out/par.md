@@ -6,11 +6,11 @@ A number of computations can be ran in parallel using the `par` method, for exam
 import ox.par
 
 def computation1: Int =
-  Thread.sleep(2000)
+  sleep(2.seconds)
   1
 
 def computation2: String =
-  Thread.sleep(1000)
+  sleep(1.second)
   "2"
 
 val result: (Int, String) = par(computation1, computation2)
@@ -27,7 +27,7 @@ parallelism using `parLimit`:
 import ox.parLimit
 
 def computation(n: Int): Int =
-  Thread.sleep(1000)
+  sleep(1.second)
   println(s"Running $n")
   n*2
 
@@ -49,10 +49,10 @@ import ox.parEither
 
 val result = parEither(
   {
-    Thread.sleep(200)
+    sleep(200.millis)
     Right("ok")
   }, {
-    Thread.sleep(100)
+    sleep(100.millis)
     Left(-1)
   }
 )

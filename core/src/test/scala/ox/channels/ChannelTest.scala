@@ -8,6 +8,7 @@ import ox.channels.ChannelClosedUnion.map
 
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
+import scala.concurrent.duration.*
 import scala.jdk.CollectionConverters.*
 
 class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
@@ -22,9 +23,9 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
           c.receive()
         }
 
-        Thread.sleep(100L)
+        sleep(100.millis)
         c.send(1)
-        Thread.sleep(100L)
+        sleep(100.millis)
         c.send(2)
 
         val r1 = f1.join()
@@ -84,7 +85,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
 
         fork {
           forever {
-            result.addAndGet(select(cs.map(_.receiveClause)).value)
+            result.addAndGet(select(cs.map(_.receiveClause)).value).discard
           }
         }
 
@@ -103,7 +104,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
         cs.foreach { c =>
           fork {
             (1 to n).foreach(c.send)
-            Thread.sleep(10)
+            sleep(10.millis)
             c.done()
           }
         }
@@ -136,7 +137,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
         fork {
           c2.send(10)
         }
-        Thread.sleep(100) // wait for the send to suspend
+        sleep(100.millis) // wait for the send to suspend
 
         // when
         c1.done() // done, and no values pending to receive
@@ -175,7 +176,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
           c2.done()
         }
 
-        Thread.sleep(100) // let the fork progress
+        sleep(100.millis) // let the fork progress
         select(c1.receiveClause, c2.receiveClause) shouldBe c1.Received(1)
       }
     }
@@ -188,7 +189,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
           c2.done()
         }
 
-        Thread.sleep(100) // let the fork progress
+        sleep(100.millis) // let the fork progress
         selectSafe(c1, c2) shouldBe ChannelClosed.Done
       }
     }
@@ -198,7 +199,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
       val c2 = Channel.withCapacity[Int](capacity)
       scoped {
         fork {
-          Thread.sleep(100) // let the select block
+          sleep(100.millis) // let the select block
           c2.done()
         }
 
@@ -251,17 +252,17 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
         trail.add("S")
       }
       val f3 = fork {
-        Thread.sleep(100L)
+        sleep(100.millis)
         trail.add("R1")
         val r1 = c.receive()
-        Thread.sleep(100L)
+        sleep(100.millis)
         trail.add("R2")
         val r2 = c.receive()
         Set(r1, r2) shouldBe Set("x", "y")
       }
 
       f3.join()
-      Thread.sleep(100L)
+      sleep(100.millis)
 
       trail.asScala.toList shouldBe List("R1", "S", "R2", "S")
     }

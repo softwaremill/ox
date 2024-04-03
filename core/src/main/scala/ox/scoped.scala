@@ -56,7 +56,7 @@ private[ox] def scopedWithCapability[T](capability: Ox)(f: Ox ?=> T): T =
         try f(using capability)
         finally
           scope.shutdown()
-          scope.join()
+          scope.join().discard
         // join might have been interrupted
       } finally scope.close()
 
