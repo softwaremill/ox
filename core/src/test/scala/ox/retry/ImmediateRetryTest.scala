@@ -19,7 +19,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
       successfulResult
 
     // when
-    val result = retry(f)(RetryPolicy.immediate(3))
+    val result = retry(RetryPolicy.immediate(3))(f)
 
     // then
     result shouldBe successfulResult
@@ -37,7 +37,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
       if true then throw new RuntimeException(errorMessage)
 
     // when/then
-    the[RuntimeException] thrownBy retry(f)(policy) should have message errorMessage
+    the[RuntimeException] thrownBy retry(policy)(f) should have message errorMessage
     counter shouldBe 1
   }
 
@@ -52,7 +52,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
       unsuccessfulResult
 
     // when
-    val result = retry(f)(policy)
+    val result = retry(policy)(f)
 
     // then
     result shouldBe unsuccessfulResult
@@ -69,7 +69,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
       if true then throw new RuntimeException(errorMessage)
 
     // when/then
-    the[RuntimeException] thrownBy retry(f)(RetryPolicy.immediate(3)) should have message errorMessage
+    the[RuntimeException] thrownBy retry(RetryPolicy.immediate(3))(f) should have message errorMessage
     counter shouldBe 4
   }
 
@@ -84,7 +84,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
       if counter <= retriesUntilSuccess then throw new RuntimeException("boom") else successfulResult
 
     // when
-    val result = retry(f)(RetryPolicy.immediateForever)
+    val result = retry(RetryPolicy.immediateForever)(f)
 
     // then
     result shouldBe successfulResult
@@ -101,7 +101,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
       Right(successfulResult)
 
     // when
-    val result = retryEither(f)(RetryPolicy.immediate(3))
+    val result = retryEither(RetryPolicy.immediate(3))(f)
 
     // then
     result.value shouldBe successfulResult
@@ -119,7 +119,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
       Left(errorMessage)
 
     // when
-    val result = retryEither(f)(policy)
+    val result = retryEither(policy)(f)
 
     // then
     result.left.value shouldBe errorMessage
@@ -137,7 +137,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
       Right(unsuccessfulResult)
 
     // when
-    val result = retryEither(f)(policy)
+    val result = retryEither(policy)(f)
 
     // then
     result.value shouldBe unsuccessfulResult
@@ -154,7 +154,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
       Left(errorMessage)
 
     // when
-    val result = retryEither(f)(RetryPolicy.immediate(3))
+    val result = retryEither(RetryPolicy.immediate(3))(f)
 
     // then
     result.left.value shouldBe errorMessage
