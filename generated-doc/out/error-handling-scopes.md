@@ -8,7 +8,8 @@ The "default" and recommended scope is created using `supervised`. When this sco
 `fork` or `forkUser` that fails with an exception, will cause the enclosing scope to end:
 
 ```scala
-import ox.{forkUser, supervised}
+import ox.{forkUser, sleep, supervised}
+import scala.concurrent.duration.*
 
 supervised {
   forkUser {

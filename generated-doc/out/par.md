@@ -3,7 +3,8 @@
 A number of computations can be ran in parallel using the `par` method, for example:
 
 ```scala
-import ox.par
+import ox.{par, sleep}
+import scala.concurrent.duration.*
 
 def computation1: Int =
   sleep(2.seconds)
@@ -24,7 +25,8 @@ It's also possible to run a sequence of computations given as a `Seq[() => T]` i
 parallelism using `parLimit`:
 
 ```scala
-import ox.parLimit
+import ox.{parLimit, sleep}
+import scala.concurrent.duration.*
 
 def computation(n: Int): Int =
   sleep(1.second)
@@ -45,7 +47,8 @@ It's possible to use an arbitrary [error mode](error-handling.md) by providing i
 Alternatively, a built-in version using `Either` is available as `parEither`:
 
 ```scala
-import ox.parEither
+import ox.{parEither, sleep}
+import scala.concurrent.duration.*
 
 val result = parEither(
   {

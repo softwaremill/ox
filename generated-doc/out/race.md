@@ -3,7 +3,8 @@
 A number of computations can be raced against each other using the `race` method, for example:
 
 ```scala
-import ox.race
+import ox.{race, sleep}
+import scala.concurrent.duration.*
 
 def computation1: Int =
   sleep(2.seconds)
@@ -38,7 +39,8 @@ It's possible to use an arbitrary [error mode](error-handling.md) by providing i
 Alternatively, a built-in version using `Either` is available as `raceEither`:
 
 ```scala
-import ox.raceEither
+import ox.{raceEither, sleep}
+import scala.concurrent.duration.*
 
 raceEither({
   sleep(200.millis)

@@ -3,7 +3,7 @@
 ## mapPar
 
 ```scala
-import ox.syntax.mapPar
+import ox.mapPar
 
 val input: List[Int] = List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
 
@@ -18,7 +18,7 @@ limits how many concurrent forks are going to process the collection.
 ## foreachPar
 
 ```scala
-import ox.syntax.foreachPar
+import ox.foreachPar
 
 val input: List[Int] = List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
 
@@ -31,7 +31,7 @@ Similar to `mapPar` but doesn't return anything.
 ## filterPar
 
 ```scala
-import ox.syntax.filterPar
+import ox.filterPar
 
 val input: List[Int] = List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
   
@@ -45,7 +45,7 @@ and other forks calculating predicates are interrupted.
 ## collectPar
 
 ```scala
-import ox.syntax.collectPar
+import ox.collectPar
 
 val input: List[Int] = List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
   
