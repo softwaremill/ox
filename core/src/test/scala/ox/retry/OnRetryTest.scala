@@ -25,7 +25,7 @@ class OnRetryTest extends AnyFlatSpec with Matchers with EitherValues with TryVa
       returnedResult = result
 
     // when
-    val result = retry(f)(RetryPolicy(Schedule.Immediate(3), onRetry = onRetry))
+    val result = retry(RetryPolicy(Schedule.Immediate(3), onRetry = onRetry))(f)
 
     // then
     result shouldBe successfulResult
@@ -52,7 +52,7 @@ class OnRetryTest extends AnyFlatSpec with Matchers with EitherValues with TryVa
       returnedResult = result
 
     // when
-    val result = the[RuntimeException] thrownBy retry(f)(RetryPolicy(Schedule.Immediate(3), onRetry = onRetry))
+    val result = the[RuntimeException] thrownBy retry(RetryPolicy(Schedule.Immediate(3), onRetry = onRetry))(f)
 
     // then
     result shouldBe failedResult

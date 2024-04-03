@@ -2,7 +2,7 @@ package ox.ratelimiter
 
 import org.slf4j.LoggerFactory
 import ox.ratelimiter.RateLimiterQueue.{Run, RunAfter}
-import ox.{Ox, fork, supervised}
+import ox.{discard, sleep, Ox, fork, supervised}
 
 import java.util.concurrent.{ArrayBlockingQueue, BlockingQueue, CompletableFuture, Future}
 import scala.annotation.tailrec
@@ -12,8 +12,8 @@ class RateLimiter(queue: BlockingQueue[RateLimiterMsg]):
   def runLimited[T](f: => T): Future[T] =
     val cf = new CompletableFuture[T]()
     queue.put(Schedule { () =>
-      try cf.complete(f)
-      catch case e: Throwable => cf.completeExceptionally(e)
+      try cf.complete(f).discard
+      catch case e: Throwable => cf.completeExceptionally(e).discard
     })
     cf
 
@@ -48,7 +48,7 @@ object RateLimiter:
       case Run(run) => fork(run())
       case RunAfter(millis) =>
         fork {
-          Thread.sleep(millis)
+          sleep(millis.millis)
           queue.put(ScheduledRunQueue)
         }
     }

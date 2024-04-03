@@ -3,7 +3,7 @@ package ox.kafka
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.common.header.Header
 import org.apache.kafka.common.record.TimestampType
-import ox.channels.{ActorRef, Sink}
+import ox.channels.ActorRef
 
 import scala.jdk.CollectionConverters.*
 

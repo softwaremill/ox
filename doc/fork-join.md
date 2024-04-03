@@ -16,16 +16,17 @@ exception, or due to an interrupt.
 For example, the code below is equivalent to `par`:
 
 ```scala mdoc:compile-only
-import ox.{fork, supervised}
+import ox.{fork, sleep, supervised}
+import scala.concurrent.duration.*
 
 supervised {
   val f1 = fork {
-    Thread.sleep(2000)
+    sleep(2.seconds)
     1
   }
 
   val f2 = fork {
-    Thread.sleep(1000)
+    sleep(1.second)
     2
   }
 
@@ -37,10 +38,11 @@ It is a compile-time error to use `fork`/`forkUser` outside of a `supervised` or
 require to be run within a scope by requiring the `Ox` capability:
 
 ```scala mdoc:compile-only
-import ox.{fork, Fork, Ox, supervised}
+import ox.{fork, Fork, Ox, sleep, supervised}
+import scala.concurrent.duration.*
 
 def forkComputation(p: Int)(using Ox): Fork[Int] = fork {
-  Thread.sleep(p * 1000)
+  sleep(p.seconds)
   p + 1
 }
 
@@ -68,15 +70,16 @@ are cancelled (using interruption). Once all forks complete, the exception is pr
 the `supervised` method invocation:
 
 ```scala mdoc:compile-only
-import ox.{fork, forkUser, Ox, supervised}
+import ox.{fork, forkUser, Ox, sleep, supervised}
+import scala.concurrent.duration.*
 
 supervised {
   forkUser {
-    Thread.sleep(1000)
+    sleep(1.second)
     println("Hello!")
   }
   fork {
-    Thread.sleep(500)
+    sleep(500.millis)
     throw new RuntimeException("boom!")
   }
 }

@@ -33,7 +33,7 @@ To publish data to a Kafka topic:
 ```scala mdoc:compile-only
 import ox.channels.Source
 import ox.kafka.{ProducerSettings, KafkaDrain}
-import ox.supervised
+import ox.{pipe, supervised}
 import org.apache.kafka.clients.producer.ProducerRecord
 
 supervised {
@@ -41,7 +41,7 @@ supervised {
   Source
     .fromIterable(List("a", "b", "c"))
     .mapAsView(msg => ProducerRecord[String, String]("my_topic", msg))
-    .applied(KafkaDrain.publish(settings))
+    .pipe(KafkaDrain.publish(settings))
 }
 ```
 
@@ -66,7 +66,7 @@ computed. For example:
 ```scala mdoc:compile-only
 import ox.kafka.{ConsumerSettings, KafkaDrain, KafkaSource, ProducerSettings, SendPacket}
 import ox.kafka.ConsumerSettings.AutoOffsetReset
-import ox.supervised
+import ox.{pipe, supervised}
 import org.apache.kafka.clients.producer.ProducerRecord
 
 supervised {
@@ -79,7 +79,7 @@ supervised {
     .subscribe(consumerSettings, sourceTopic)
     .map(in => (in.value.toLong * 2, in))
     .map((value, original) => SendPacket(ProducerRecord[String, String](destTopic, value.toString), original))
-    .applied(KafkaDrain.publishAndCommit(producerSettings))
+    .pipe(KafkaDrain.publishAndCommit(producerSettings))
 }
 ```
 

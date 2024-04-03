@@ -32,7 +32,7 @@ class SourceOpsTickTest extends AnyFlatSpec with Matchers with Eventually {
       val c = Source.tick(100.millis)
 
       // simulating a slow consumer
-      Thread.sleep(200)
+      sleep(200.millis)
       c.receive() shouldBe () // a tick should be waiting
       (System.currentTimeMillis() - start) shouldBe >=(200L)
       (System.currentTimeMillis() - start) shouldBe <=(250L)

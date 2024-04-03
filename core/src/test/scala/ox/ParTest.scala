@@ -4,6 +4,8 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.util.Trail
 
+import scala.concurrent.duration.*
+
 import java.util.concurrent.atomic.AtomicInteger
 
 class ParTest extends AnyFlatSpec with Matchers {
@@ -11,11 +13,11 @@ class ParTest extends AnyFlatSpec with Matchers {
     val trail = Trail()
     val result = par(
       {
-        Thread.sleep(200)
+        sleep(200.millis)
         trail.add("a")
         1
       }, {
-        Thread.sleep(100)
+        sleep(100.millis)
         trail.add("b")
         2
       }
@@ -32,10 +34,10 @@ class ParTest extends AnyFlatSpec with Matchers {
     try
       par(
         {
-          Thread.sleep(200)
+          sleep(200.millis)
           trail.add("par 1 done")
         }, {
-          Thread.sleep(100)
+          sleep(100.millis)
           trail.add("exception")
           throw new Exception("boom")
         }
@@ -44,7 +46,7 @@ class ParTest extends AnyFlatSpec with Matchers {
       case e: Exception if e.getMessage == "boom" => trail.add("catch")
 
       // checking if the forks aren't left running
-    Thread.sleep(300)
+    sleep(300.millis)
     trail.add("all done")
 
     trail.get shouldBe Vector("exception", "catch", "all done")
@@ -59,7 +61,7 @@ class ParTest extends AnyFlatSpec with Matchers {
           () => {
             val current = running.incrementAndGet()
             max.updateAndGet(m => if current > m then current else m)
-            Thread.sleep(100)
+            sleep(100.millis)
             running.decrementAndGet()
             i * 2
           }
@@ -79,18 +81,18 @@ class ParTest extends AnyFlatSpec with Matchers {
         (1 to 5).map(i =>
           () => {
             if counter.incrementAndGet() == 4 then
-              Thread.sleep(10)
+              sleep(10.millis)
               trail.add("exception")
               throw new Exception("boom")
             else
-              Thread.sleep(200)
+              sleep(200.millis)
               trail.add("x")
           }
         )
       )
     catch case e: Exception if e.getMessage == "boom" => trail.add("catch")
 
-    Thread.sleep(300)
+    sleep(300.millis)
     trail.add("all done")
 
     trail.get shouldBe Vector("x", "x", "exception", "catch", "all done")
@@ -100,11 +102,11 @@ class ParTest extends AnyFlatSpec with Matchers {
     val trail = Trail()
     val result = parEither(
       {
-        Thread.sleep(200)
+        sleep(200.millis)
         trail.add("a")
         Right(1)
       }, {
-        Thread.sleep(100)
+        sleep(100.millis)
         trail.add("b")
         Right(2)
       }
@@ -120,11 +122,11 @@ class ParTest extends AnyFlatSpec with Matchers {
     val trail = Trail()
     val result = parEither(
       {
-        Thread.sleep(200)
+        sleep(200.millis)
         trail.add("par 1 done")
         Right("ok")
       }, {
-        Thread.sleep(100)
+        sleep(100.millis)
         trail.add("exception")
         Left(-1)
       }
@@ -133,7 +135,7 @@ class ParTest extends AnyFlatSpec with Matchers {
     result shouldBe Left(-1)
 
     // checking if the forks aren't left running
-    Thread.sleep(300)
+    sleep(300.millis)
     trail.add("all done")
 
     trail.get shouldBe Vector("exception", "all done")

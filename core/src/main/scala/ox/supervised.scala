@@ -81,15 +81,15 @@ private[ox] class DefaultSupervisor[E] extends Supervisor[E]:
   private val otherExceptions: java.util.Set[Throwable] = ConcurrentHashMap.newKeySet()
   private val otherErrors: java.util.Set[E] = ConcurrentHashMap.newKeySet()
 
-  override def forkStarts(): Unit = running.incrementAndGet()
+  override def forkStarts(): Unit = running.incrementAndGet().discard
 
   override def forkSuccess(): Unit =
     val v = running.decrementAndGet()
-    if v == 0 then result.complete(ErrorModeSupervisorResult.Success)
+    if v == 0 then result.complete(ErrorModeSupervisorResult.Success).discard
 
-  override def forkException(e: Throwable): Unit = if !result.completeExceptionally(e) then otherExceptions.add(e)
+  override def forkException(e: Throwable): Unit = if !result.completeExceptionally(e) then otherExceptions.add(e).discard
 
-  override def forkAppError(e: E): Unit = if !result.complete(e) then otherErrors.add(e)
+  override def forkAppError(e: E): Unit = if !result.complete(e) then otherErrors.add(e).discard
 
   /** Wait until the count of all supervised, user forks that are running reaches 0, or until any supervised fork fails with an exception.
     *

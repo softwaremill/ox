@@ -5,7 +5,7 @@ import ox.timeout
 import scala.concurrent.duration.DurationInt
 
 def computation: Int =
-  Thread.sleep(2000)
+  sleep(2.seconds)
   1
 
 val result1: Try[Int] = Try(timeout(1.second)(computation)) // failure: TimeoutException

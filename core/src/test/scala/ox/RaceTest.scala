@@ -13,13 +13,13 @@ class RaceTest extends AnyFlatSpec with Matchers {
     val trail = Trail()
     try
       timeout(1.second) {
-        Thread.sleep(2000)
+        sleep(2.seconds)
         trail.add("no timeout")
       }
     catch case _: TimeoutException => trail.add("timeout")
 
     trail.add("done")
-    Thread.sleep(2000)
+    sleep(2.seconds)
 
     trail.get shouldBe Vector("timeout", "done")
   }
@@ -28,13 +28,13 @@ class RaceTest extends AnyFlatSpec with Matchers {
     val trail = Trail()
     try
       timeout(1.second) {
-        Thread.sleep(500)
+        sleep(500.millis)
         trail.add("no timeout")
       }
     catch case _: TimeoutException => trail.add("timeout")
 
     trail.add("done")
-    Thread.sleep(2000)
+    sleep(2.seconds)
 
     trail.get shouldBe Vector("no timeout", "done")
   }
@@ -42,12 +42,12 @@ class RaceTest extends AnyFlatSpec with Matchers {
   "timeoutOption" should "short-circuit a long computation" in {
     val trail = Trail()
     val result = timeoutOption(1.second) {
-      Thread.sleep(2000)
+      sleep(2.seconds)
       trail.add("no timeout")
     }
 
     trail.add(s"done: $result")
-    Thread.sleep(2000)
+    sleep(2.seconds)
 
     trail.get shouldBe Vector("done: None")
   }
@@ -57,16 +57,16 @@ class RaceTest extends AnyFlatSpec with Matchers {
     val start = System.currentTimeMillis()
     race(
       {
-        Thread.sleep(1000L)
+        sleep(1.second)
         trail.add("slow")
       }, {
-        Thread.sleep(500L)
+        sleep(500.millis)
         trail.add("fast")
       }
     )
     val end = System.currentTimeMillis()
 
-    Thread.sleep(1000L)
+    sleep(1.second)
     trail.get shouldBe Vector("fast")
     end - start should be < 1000L
   }
@@ -76,16 +76,16 @@ class RaceTest extends AnyFlatSpec with Matchers {
     val start = System.currentTimeMillis()
     race(
       {
-        Thread.sleep(500L)
+        sleep(500.millis)
         trail.add("fast")
       }, {
-        Thread.sleep(1000L)
+        sleep(1.second)
         trail.add("slow")
       }
     )
     val end = System.currentTimeMillis()
 
-    Thread.sleep(1000L)
+    sleep(1.second)
     trail.get shouldBe Vector("fast")
     end - start should be < 1000L
   }
@@ -95,20 +95,20 @@ class RaceTest extends AnyFlatSpec with Matchers {
     val start = System.currentTimeMillis()
     race(
       {
-        Thread.sleep(200L)
+        sleep(200.millis)
         trail.add("error")
         throw new RuntimeException("boom!")
       }, {
-        Thread.sleep(500L)
+        sleep(500.millis)
         trail.add("slow")
       }, {
-        Thread.sleep(1000L)
+        sleep(1.second)
         trail.add("very slow")
       }
     )
     val end = System.currentTimeMillis()
 
-    Thread.sleep(1000L)
+    sleep(1.second)
     trail.get shouldBe Vector("error", "slow")
     end - start should be < 1000L
   }
@@ -117,10 +117,10 @@ class RaceTest extends AnyFlatSpec with Matchers {
     try
       race(
         throw new RuntimeException("boom1!"), {
-          Thread.sleep(200)
+          sleep(200.millis)
           throw new RuntimeException("boom2!")
         }, {
-          Thread.sleep(200)
+          sleep(200.millis)
           throw new RuntimeException("boom3!")
         }
       )
@@ -136,22 +136,22 @@ class RaceTest extends AnyFlatSpec with Matchers {
     val start = System.currentTimeMillis()
     raceEither(
       {
-        Thread.sleep(200L)
+        sleep(200.millis)
         trail.add("error")
         Left(-1)
       }, {
-        Thread.sleep(500L)
+        sleep(500.millis)
         trail.add("slow")
         Right("ok")
       }, {
-        Thread.sleep(1000L)
+        sleep(1.second)
         trail.add("very slow")
         Right("also ok")
       }
     )
     val end = System.currentTimeMillis()
 
-    Thread.sleep(1000L)
+    sleep(1.second)
     trail.get shouldBe Vector("error", "slow")
     end - start should be < 1000L
   }

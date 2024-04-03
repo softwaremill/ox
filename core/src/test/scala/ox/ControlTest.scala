@@ -14,13 +14,13 @@ class ControlTest extends AnyFlatSpec with Matchers {
     scoped {
       try
         timeout(1.second) {
-          Thread.sleep(2000)
+          sleep(2.seconds)
           trail.add("no timeout")
         }
       catch case _: TimeoutException => trail.add("timeout")
 
       trail.add("done")
-      Thread.sleep(2000)
+      sleep(2.seconds)
     }
 
     trail.get shouldBe Vector("timeout", "done")
@@ -31,13 +31,13 @@ class ControlTest extends AnyFlatSpec with Matchers {
     scoped {
       try
         timeout(1.second) {
-          Thread.sleep(100)
+          sleep(100.millis)
           trail.add("no timeout")
         }
       catch case _: TimeoutException => trail.add("timeout")
 
       trail.add("done")
-      Thread.sleep(2000)
+      sleep(2.seconds)
     }
 
     trail.get shouldBe Vector("no timeout", "done")
@@ -51,7 +51,7 @@ class ControlTest extends AnyFlatSpec with Matchers {
         trail.add("never happened!")
       }
 
-      Thread.sleep(400)
+      sleep(400.millis)
       trail.add("done")
     }
 

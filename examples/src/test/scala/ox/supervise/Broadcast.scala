@@ -1,7 +1,7 @@
 package ox.supervise
 
 import org.slf4j.LoggerFactory
-import ox.{forever, fork, forkCancellable, supervised, uninterruptible}
+import ox.{discard, forever, fork, forkCancellable, supervised, uninterruptible}
 
 import java.util.concurrent.{ArrayBlockingQueue, BlockingQueue}
 import scala.annotation.tailrec
@@ -35,7 +35,7 @@ object Broadcast {
     val inbox = new ArrayBlockingQueue[BroadcastMessage](32)
     val f1 = forkCancellable(consumeForever(inbox))
     val f2 = forkCancellable(processMessages(inbox, Set()))
-    f(BroadcastResult(inbox, () => { f1.cancel(); f2.cancel() }))
+    f(BroadcastResult(inbox, () => { f1.cancel(); f2.cancel().discard }))
   }
 
   def consume(connector: QueueConnector, inbox: BlockingQueue[BroadcastMessage]): Unit = {

@@ -1,6 +1,22 @@
 # Resources
 
-## Allocate & release
+## Individual resource
+
+Ox provides convenience methods to allocate, use and (uninterruptibly) release resources with a try-finally block: `use`
+and `useCloseable`. For example:
+
+```scala mdoc:compile-only
+import ox.useCloseable
+
+useCloseable(new java.io.PrintWriter("test.txt")) { writer =>
+  writer.println("Hello, world!")
+}
+```
+
+If a concurrency scope is available (e.g. `supervised`), or there are multiple resources to allocate, consider using the
+approach described below, to avoid creating an additional syntactical scope.
+
+## Within a concurrency scope
 
 Resources can be allocated within a concurrency scope. They will be released in reverse acquisition order, after all 
 forks started within the scope finish (but before the scope completes). E.g.:
@@ -25,7 +41,7 @@ supervised {
 }
 ```
 
-## Release-only
+### Release-only
 
 You can also register resources to be released (without acquisition logic), before the scope completes:
 

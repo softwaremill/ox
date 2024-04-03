@@ -13,12 +13,12 @@ import ox.retry.retry
 retry(operation)(policy)
 ```
 
-or, using syntax sugar:
+or, using [`pipe`](utility.md) sugar:
 
 ```scala
-import ox.syntax.*
+import ox.pipe
 
-operation.retry(policy)
+operation.pipe(retry(policy))
 ```
 
 ## Operation definition
@@ -148,27 +148,27 @@ def eitherOperation: Either[String, Int] = ???
 def unionOperation: String | Int = ???
 
 // various operation definitions - same syntax
-retry(directOperation)(RetryPolicy.immediate(3))
-retryEither(eitherOperation)(RetryPolicy.immediate(3))
+retry(RetryPolicy.immediate(3))(directOperation)
+retryEither(RetryPolicy.immediate(3))(eitherOperation)
 
 // various policies with custom schedules and default ResultPolicy
-retry(directOperation)(RetryPolicy.delay(3, 100.millis))
-retry(directOperation)(RetryPolicy.backoff(3, 100.millis)) // defaults: maxDelay = 1.minute, jitter = Jitter.None
-retry(directOperation)(RetryPolicy.backoff(3, 100.millis, 5.minutes, Jitter.Equal))
+retry(RetryPolicy.delay(3, 100.millis))(directOperation)
+retry(RetryPolicy.backoff(3, 100.millis))(directOperation) // defaults: maxDelay = 1.minute, jitter = Jitter.None
+retry(RetryPolicy.backoff(3, 100.millis, 5.minutes, Jitter.Equal))(directOperation)
 
 // infinite retries with a default ResultPolicy
-retry(directOperation)(RetryPolicy.delayForever(100.millis))
-retry(directOperation)(RetryPolicy.backoffForever(100.millis, 5.minutes, Jitter.Full))
+retry(RetryPolicy.delayForever(100.millis))(directOperation)
+retry(RetryPolicy.backoffForever(100.millis, 5.minutes, Jitter.Full))(directOperation)
 
 // result policies
 // custom success
-retry(directOperation)(RetryPolicy(Schedule.Immediate(3), ResultPolicy.successfulWhen(_ > 0)))
+retry[Int](RetryPolicy(Schedule.Immediate(3), ResultPolicy.successfulWhen(_ > 0)))(directOperation)
 // fail fast on certain errors
-retry(directOperation)(RetryPolicy(Schedule.Immediate(3), ResultPolicy.retryWhen(_.getMessage != "fatal error")))
-retryEither(eitherOperation)(RetryPolicy(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")))
+retry(RetryPolicy(Schedule.Immediate(3), ResultPolicy.retryWhen(_.getMessage != "fatal error")))(directOperation)
+retryEither(RetryPolicy(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")))(eitherOperation)
 
 // custom error mode
-retryWithErrorMode(UnionMode[String])(unionOperation)(RetryPolicy(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")))
+retryWithErrorMode(UnionMode[String])(RetryPolicy(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")))(unionOperation)
 ```
 
 See the tests in `ox.retry.*` for more.

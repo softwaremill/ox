@@ -6,11 +6,11 @@ A number of computations can be raced against each other using the `race` method
 import ox.race
 
 def computation1: Int =
-  Thread.sleep(2000)
+  sleep(2.seconds)
   1
 
 def computation2: Int =
-  Thread.sleep(1000)
+  sleep(1.second)
   2
 
 val result: Int = race(computation1, computation2)
@@ -41,13 +41,13 @@ Alternatively, a built-in version using `Either` is available as `raceEither`:
 import ox.raceEither
 
 raceEither({
-  Thread.sleep(200L)
+  sleep(200.millis)
   Left(-1)
 }, {
-  Thread.sleep(500L)
+  sleep(500.millis)
   Right("ok")
 }, {
-  Thread.sleep(1000L)
+  sleep(1.second)
   Right("also ok")
 })
 ```

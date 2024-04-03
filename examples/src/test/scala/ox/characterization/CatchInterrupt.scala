@@ -1,4 +1,8 @@
-package ox
+package ox.characterization
+
+import ox.sleep
+
+import scala.concurrent.duration.*
 
 import org.slf4j.LoggerFactory
 
@@ -6,13 +10,13 @@ import org.slf4j.LoggerFactory
   val log = LoggerFactory.getLogger("catchInterrupt")
   val t = new Thread(() =>
     try
-      Thread.sleep(1000L)
+      sleep(1.second)
       log.info("T2: Done sleeping (1)")
     catch
       case _: InterruptedException =>
         log.info("T2: Interrupted")
 
-    Thread.sleep(1000L)
+    sleep(1.second)
     log.info("T2: Done sleeping (2)")
   )
   t.start()
