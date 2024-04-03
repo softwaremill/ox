@@ -70,7 +70,7 @@ Such a callback can be used to release any resources held by the actor's logic. 
 includes closing of the enclosing scope:
 
 ```scala mdoc:compile-only
-import ox.supervised
+import ox.{never, supervised}
 import ox.channels.*
 
 class Stateful:
@@ -82,5 +82,8 @@ supervised {
 
   // fire-and-forget, exception causes the scope to close
   ref.tell(_.work(5)) 
+  
+  // preventing the scope from closing
+  never
 }
 ```
