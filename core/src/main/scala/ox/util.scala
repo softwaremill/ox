@@ -18,7 +18,7 @@ extension [T](inline t: T)
     val _ = t
     ()
 
-  /** Pipe the value of this expression into the provided function, returning the result of the function.
+  /** Pipe the value of this expression into the provided function, returning the result of the function. Useful for chaining operations..
     *
     * @example
     *   {{{
@@ -35,7 +35,7 @@ extension [T](inline t: T)
   inline def pipe[U](inline f: T => U): U =
     f(t)
 
-  /** Apply `f` to the value of this expression for its side effecting, returning the original value of the expression.
+  /** Apply `f` to the value of this expression, returning the original value of the expression. Useful for side-effecting operations.
     *
     * @example
     *   {{{
@@ -50,8 +50,9 @@ extension [T](inline t: T)
     *   The original value of this expression.
     */
   inline def tap(inline f: T => Unit): T =
-    f(t)
-    t
+    val tt = t
+    f(tt)
+    tt
 
   /** Run the provided callback when an exception occurs, rethrowing the original one after the callback completes.
     *

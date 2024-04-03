@@ -14,6 +14,9 @@ Extension functions on arbitrary expressions:
 
 * `.discard` extension method evaluates the given code block and discards its result, avoiding "discarded non-unit 
   value" warnings
+* `.pipe(f)` applies `f` to the value of the expression and returns the result; useful for chaining operations
+* `.tap(f)` applies `f` to the value of the expression and returns the original value; useful for side-effecting 
+  operations
 * `.tapException(Throwable => Unit)` and `.tapNonFatalException(Throwable => Unit)` allow running the provided 
   side-effecting callback when the expression throws an exception
 
