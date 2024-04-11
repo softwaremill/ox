@@ -54,8 +54,9 @@ def forkError[E, F[_], T](using OxError[E, F])(f: => F[T]): Fork[T] =
       case e: Throwable =>
         // we notify the supervisor first, so that if this is the first failing fork in the scope, the supervisor will
         // get first notified of the exception by the "original" (this) fork
-        result.completeExceptionally(e)
-        supervisor.forkException(e)
+        // if the supervisor doesn't end the scope, the exception will be thrown when joining the result; otherwise, not
+        // completing the result; any joins will end up being interrupted
+        if !supervisor.forkException(e) then result.completeExceptionally(e).discard
   }
   newForkUsingResult(result)
 
@@ -105,8 +106,7 @@ def forkUserError[E, F[_], T](using OxError[E, F])(f: => F[T]): Fork[T] =
         supervisor.forkSuccess()
     catch
       case e: Throwable =>
-        supervisor.forkException(e)
-        result.completeExceptionally(e)
+        if !supervisor.forkException(e) then result.completeExceptionally(e).discard
   }
   newForkUsingResult(result)
 
