@@ -6,12 +6,12 @@ these cases, threads can be started using the structured concurrency APIs descri
 Forks (new threads) can only be started within a **concurrency scope**. Such a scope is defined using the `supervised`,
 `supervisedError` or `scoped` methods.
 
-The lifetime of the forks is defined by the structure of the code, and corresponds to the enclosing `supervised` or
-`scoped` block. Once the code block passed to the scope completes, any forks that are still running are interrupted.
-The whole block will complete only once all forks have completed (successfully, or with an exception).
+The lifetime of the forks is defined by the structure of the code, and corresponds to the enclosing `supervised`, 
+`supervisedError` or `scoped` block. Once the code block passed to the scope completes, any forks that are still running 
+are interrupted. The whole block will complete only once all forks have completed (successfully, or with an exception).
 
-Hence, it is guaranteed that all forks started within `supervised` or `scoped` will finish successfully, with an
-exception, or due to an interrupt.
+Hence, it is guaranteed that all forks started within `supervised`, `supervisedError` or `scoped` will finish 
+successfully, with an exception, or due to an interrupt.
 
 For example, the code below is equivalent to `par`:
 
@@ -34,8 +34,8 @@ supervised {
 }
 ```
 
-It is a compile-time error to use `fork`/`forkUser` outside of a `supervised` or `scoped` block. Helper methods might
-require to be run within a scope by requiring the `Ox` capability:
+It is a compile-time error to use `fork`/`forkUser` outside of a `supervised` block. Helper methods might require to be 
+run within a scope by requiring the `Ox` capability:
 
 ```scala mdoc:compile-only
 import ox.{fork, Fork, Ox, sleep, supervised}

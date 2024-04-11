@@ -12,7 +12,7 @@ class LocalTest extends AnyFlatSpec with Matchers {
     val trail = Trail()
     val v = ForkLocal("a")
     scoped {
-      val f1 = fork {
+      val f1 = forkUnsupervised {
         v.scopedWhere("x") {
           sleep(100.millis)
           trail.add(s"In f1 = ${v.get()}")
@@ -20,10 +20,10 @@ class LocalTest extends AnyFlatSpec with Matchers {
         v.get()
       }
 
-      val f3 = fork {
+      val f3 = forkUnsupervised {
         v.scopedWhere("z") {
           sleep(100.millis)
-          fork {
+          forkUnsupervised {
             sleep(100.millis)
             trail.add(s"In f3 = ${v.get()}")
           }.join()
@@ -43,12 +43,12 @@ class LocalTest extends AnyFlatSpec with Matchers {
     val trail = Trail()
     val v = ForkLocal("a")
     scoped {
-      fork {
+      forkUnsupervised {
         v.scopedWhere("x") {
           trail.add(s"nested1 = ${v.get()}")
 
           scoped {
-            fork {
+            forkUnsupervised {
               trail.add(s"nested2 = ${v.get()}")
             }.join()
           }

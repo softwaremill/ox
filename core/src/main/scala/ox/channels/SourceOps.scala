@@ -181,7 +181,7 @@ trait SourceOps[+T] { outer: Source[T] =>
     val closeScope = new CountDownLatch(1)
     scoped {
       // enqueueing fork
-      fork {
+      forkUnsupervised {
         repeatWhile {
           s.acquire()
           receiveSafe() match
@@ -194,7 +194,7 @@ trait SourceOps[+T] { outer: Source[T] =>
               closeScope.countDown()
               false
             case t: T @unchecked =>
-              inProgress.sendSafe(fork {
+              inProgress.sendSafe(forkUnsupervised {
                 try
                   val u = f(t)
                   s.release() // not in finally, as in case of an exception, no point in starting subsequent forks
@@ -210,7 +210,7 @@ trait SourceOps[+T] { outer: Source[T] =>
       }
 
       // sending fork
-      fork {
+      forkUnsupervised {
         repeatWhile {
           inProgress.receiveSafe() match
             case f: Fork[Option[U]] @unchecked =>

@@ -4,25 +4,50 @@ import java.util.concurrent.StructuredTaskScope
 import java.util.concurrent.atomic.AtomicReference
 import scala.annotation.implicitNotFound
 
-/** Represents a capability to fork asynchronously running computations in a concurrency scope created using [[supervised]] or [[scoped]].
+/** Represents a capability to:
+  *   - fork unsupervised, asynchronously running computations in a concurrency scope. Such forks can be created e.g. using
+  *     [[forkUnsupervised]].
+  *   - register resources to be cleaned up after the scope ends
+  *
+  * This capability is provided by scopes created using [[supervised]], [[supervisedError]] or [[scoped]].
+  *
+  * @see
+  *   [[Ox]], [[OxError]]
+  */
+@implicitNotFound(
+  "This operation must be run within a `supervised`, `supervisedError` or `scoped` block. Alternatively, you must require that the enclosing method is run within a scope, by adding a `using Ox` parameter list."
+)
+trait OxUnsupervised:
+  private[ox] def scope: StructuredTaskScope[Any]
+  private[ox] def finalizers: AtomicReference[List[() => Unit]]
+  private[ox] def supervisor: Supervisor[Nothing]
+  private[ox] def addFinalizer(f: () => Unit): Unit = finalizers.updateAndGet(f :: _).discard
+
+/** Represents a capability to:
+  *   - fork supervised or unsupervised, asynchronously running computations in a concurrency scope. Such forks can be created e.g. using
+  *     [[fork]].
+  *   - register resources to be cleaned up after the scope ends
+  *
+  * This capability is provided by scopes created using [[supervised]] or [[supervisedError]].
   *
   * @see
   *   [[OxError]]
   */
 @implicitNotFound(
-  "This operation must be run within a `supervised` or `scoped` block. Alternatively, you must require that the enclosing method is run within a scope, by adding a `using Ox` parameter list."
+  "This operation must be run within a `supervised` or `supervisedError` block. Alternatively, you must require that the enclosing method is run within a scope, by adding a `using Ox` parameter list."
 )
-trait Ox:
-  private[ox] def scope: StructuredTaskScope[Any]
-  private[ox] def finalizers: AtomicReference[List[() => Unit]]
-  private[ox] def supervisor: Supervisor[Nothing]
-
-  private[ox] def addFinalizer(f: () => Unit): Unit = finalizers.updateAndGet(f :: _).discard
+trait Ox extends OxUnsupervised:
   private[ox] def asNoErrorMode: OxError[Nothing, [T] =>> T]
 
-/** Represents a capability to fork asynchronously running computations in a concurrency scope created using [[supervisedError]]. This is
-  * similar to [[Ox]], however [[OxError]] additionally allows completing forks with application errors of type `E` in context `F`. Such
-  * errors cause enclosing scope to end, and any forks that are still running to be cancelled.
+/** Represents a capability to:
+  *   - fork supervised or unsupervised, asynchronously running computations in a concurrency scope. Such forks can be created e.g. using
+  *     [[forkError]].
+  *   - register resources to be cleaned up after the scope ends
+  *
+  * This capability is provided by scopes created using [[supervisedError]].
+  *
+  * `OxError` is similar to [[Ox]], however it additionally allows completing forks with application errors of type `E` in context `F`. Such
+  * errors cause enclosing scope to end, and any forks that are still running to be cancelled
   */
 @implicitNotFound(
   "This operation must be run within a `supervisedError` block. Alternatively, you must require that the enclosing method is run within a scope, by adding a `using OxError[E, F]` parameter list, using the desired error mode type parameters."

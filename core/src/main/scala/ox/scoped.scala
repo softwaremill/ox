@@ -23,7 +23,7 @@ private class DoNothingScope[T] extends StructuredTaskScope[T](null, Thread.ofVi
   * @see
   *   [[supervised]] Starts a scope in supervised mode
   */
-def scoped[T](f: Ox ?=> T): T =
+def scoped[T](f: OxUnsupervised ?=> T): T =
   scopedWithCapability(OxError(NoOpSupervisor, NoErrorMode))(f)
 
 private[ox] def scopedWithCapability[T](capability: Ox)(f: Ox ?=> T): T =
