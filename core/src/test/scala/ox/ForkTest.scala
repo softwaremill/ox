@@ -47,26 +47,6 @@ class ForkTest extends AnyFlatSpec with Matchers {
     trail.get shouldBe Vector("f2 complete", "f1 complete", "result = 11")
   }
 
-  it should "allow extension method syntax" in {
-    import ox.syntax.*
-    val trail = Trail()
-    scoped {
-      val f1 = {
-        val f2 = {
-          try 6
-          finally trail.add("f2 complete")
-        }.fork
-
-        try 5 + f2.join()
-        finally trail.add("f1 complete")
-      }.fork
-
-      trail.add(s"result = ${f1.join()}")
-    }
-
-    trail.get shouldBe Vector("f2 complete", "f1 complete", "result = 11")
-  }
-
   it should "interrupt child forks when parents complete" in {
     val trail = Trail()
     scoped {
