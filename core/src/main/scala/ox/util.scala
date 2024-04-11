@@ -18,7 +18,7 @@ extension [T](inline t: T)
     val _ = t
     ()
 
-  /** Pipe the value of this expression into the provided function, returning the result of the function. Useful for chaining operations..
+  /** Pipe the value of this expression into the provided function, returning the result of the function. Useful for chaining operations.
     *
     * @example
     *   {{{

@@ -87,7 +87,6 @@ We offer commercial support for ox and related technologies, as well as developm
    resources
    control-flow
    utility
-   extension
    dictionary
    performance
 
