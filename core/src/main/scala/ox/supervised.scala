@@ -65,13 +65,17 @@ def supervisedError[E, F[_], T](em: ErrorMode[E, F])(f: OxError[E, F] ?=> F[T]):
 private[ox] sealed trait Supervisor[-E]:
   def forkStarts(): Unit
   def forkSuccess(): Unit
-  def forkException(e: Throwable): Unit
+
+  /** @return
+    *   `true` if the exception was handled by the supervisor, and will cause the scope to end, interrupting any other running forks.
+    */
+  def forkException(e: Throwable): Boolean
   def forkAppError(e: E): Unit
 
 private[ox] object NoOpSupervisor extends Supervisor[Nothing]:
   override def forkStarts(): Unit = ()
   override def forkSuccess(): Unit = ()
-  override def forkException(e: Throwable): Unit = ()
+  override def forkException(e: Throwable): Boolean = false
   override def forkAppError(e: Nothing): Unit = ()
 
 private[ox] class DefaultSupervisor[E] extends Supervisor[E]:
@@ -87,7 +91,9 @@ private[ox] class DefaultSupervisor[E] extends Supervisor[E]:
     val v = running.decrementAndGet()
     if v == 0 then result.complete(ErrorModeSupervisorResult.Success).discard
 
-  override def forkException(e: Throwable): Unit = if !result.completeExceptionally(e) then otherExceptions.add(e).discard
+  override def forkException(e: Throwable): Boolean =
+    if !result.completeExceptionally(e) then otherExceptions.add(e).discard
+    true
 
   override def forkAppError(e: E): Unit = if !result.complete(e) then otherErrors.add(e).discard
 
