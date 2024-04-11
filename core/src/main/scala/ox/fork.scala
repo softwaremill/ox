@@ -206,7 +206,8 @@ private[ox] inline def unwrapExecutionException[T](f: => T): T =
   * (virtual) thread.
   */
 trait Fork[T]:
-  /** Blocks until the fork completes with a result. Throws an exception, if the fork completed with an exception. */
+  /** Blocks until the fork completes with a result. Throws an exception, if the fork completed with an exception, and is unsupervised.
+    */
   def join(): T
 
   /** Blocks until the fork completes with a result. */
