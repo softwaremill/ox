@@ -11,7 +11,7 @@ import scala.concurrent.duration.DurationInt
 class ControlTest extends AnyFlatSpec with Matchers {
   "timeout" should "short-circuit a long computation" in {
     val trail = Trail()
-    scoped {
+    unsupervised {
       try
         timeout(1.second) {
           sleep(2.seconds)
@@ -28,7 +28,7 @@ class ControlTest extends AnyFlatSpec with Matchers {
 
   it should "not interrupt a short computation" in {
     val trail = Trail()
-    scoped {
+    unsupervised {
       try
         timeout(1.second) {
           sleep(100.millis)

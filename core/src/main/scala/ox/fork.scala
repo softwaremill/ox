@@ -97,7 +97,7 @@ def forkUserError[E, F[_], T](using OxError[E, F])(f: => F[T]): Fork[T] =
   newForkUsingResult(result)
 
 /** Starts a fork (logical thread of execution), which is guaranteed to complete before the enclosing [[supervised]], [[supervisedError]] or
-  * [[scoped]] block completes.
+  * [[unsupervised]] block completes.
   *
   * In case an exception is thrown while evaluating `t`, it will be thrown when calling the returned [[Fork]]'s `.join()` method.
   *
@@ -114,7 +114,7 @@ def forkUnsupervised[T](f: => T)(using OxUnsupervised): Fork[T] =
   newForkUsingResult(result)
 
 /** For each thunk in the given sequence, starts a fork using [[fork]]. All forks are guaranteed to complete before the enclosing
-  * [[supervised]] or [[scoped]] block completes.
+  * [[supervised]] or [[unsupervised]] block completes.
   *
   * If ran in a [[supervised]] scope, all forks behave as daemon threads (see [[fork]] for details).
   */
@@ -124,7 +124,7 @@ def forkAll[T](fs: Seq[() => T])(using Ox): Fork[Seq[T]] =
     override def join(): Seq[T] = forks.map(_.join())
 
 /** Starts a fork (logical thread of execution), which is guaranteed to complete before the enclosing [[supervised]], [[supervisedError]] or
-  * [[scoped]] block completes, and which can be cancelled on-demand.
+  * [[unsupervised]] block completes, and which can be cancelled on-demand.
   *
   * In case an exception is thrown while evaluating `t`, it will be thrown when calling the returned [[Fork]]'s `.join()` method.
   *

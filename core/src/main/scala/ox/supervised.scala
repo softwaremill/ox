@@ -20,10 +20,10 @@ import scala.reflect.ClassTag
   * are added as suppressed.
   *
   * @see
-  *   [[scoped]] Starts a scope in unsupervised mode
+  * [[unsupervised]] Starts a scope in unsupervised mode
   *
   * @see
-  *   [[supervisedError]] Starts a scope in supervised mode, with the additional ability to report application errors
+  * [[supervisedError]] Starts a scope in supervised mode, with the additional ability to report application errors
   */
 def supervised[T](f: Ox ?=> T): T = supervisedError(NoErrorMode)(f)
 

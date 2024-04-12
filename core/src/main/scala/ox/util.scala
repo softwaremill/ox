@@ -89,7 +89,7 @@ extension [T](inline f: Future[T])
 
 /** Prevent `f` from being interrupted. Any interrupted exceptions that occur while evaluating `f` will be re-thrown once it completes. */
 inline def uninterruptible[T](inline f: T): T =
-  scoped {
+  unsupervised {
     val t = forkUnsupervised(f)
 
     def joinDespiteInterrupted: T =

@@ -179,7 +179,7 @@ trait SourceOps[+T] { outer: Source[T] =>
     val s = new Semaphore(parallelism)
     val inProgress = Channel.withCapacity[Fork[Option[U]]](parallelism)
     val closeScope = new CountDownLatch(1)
-    scoped {
+    unsupervised {
       // enqueueing fork
       forkUnsupervised {
         repeatWhile {
@@ -629,7 +629,7 @@ trait SourceOps[+T] { outer: Source[T] =>
     *
     *   import scala.concurrent.duration.*
     *
-    *   scoped {
+    *   supervised {
     *     Source.empty[Int].throttle(1, 1.second).toList       // List() returned without throttling
     *     Source.fromValues(1, 2).throttle(1, 1.second).toList // List(1, 2) returned after 2 seconds
     *   }

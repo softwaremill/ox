@@ -4,13 +4,14 @@ It's safest to use higher-level methods, such as `par` or `race`, however this i
 these cases, threads can be started using the structured concurrency APIs described below.
 
 Forks (new threads) can only be started within a **concurrency scope**. Such a scope is defined using the `supervised`,
-`supervisedError` or `scoped` methods.
+`supervisedError` or `unsupervised` methods.
 
 The lifetime of the forks is defined by the structure of the code, and corresponds to the enclosing `supervised`, 
-`supervisedError` or `scoped` block. Once the code block passed to the scope completes, any forks that are still running 
-are interrupted. The whole block will complete only once all forks have completed (successfully, or with an exception).
+`supervisedError` or `unsupervised` block. Once the code block passed to the scope completes, any forks that are still 
+running are interrupted. The whole block will complete only once all forks have completed (successfully, or with an 
+exception).
 
-Hence, it is guaranteed that all forks started within `supervised`, `supervisedError` or `scoped` will finish 
+Hence, it is guaranteed that all forks started within `supervised`, `supervisedError` or `unsupervised` will finish 
 successfully, with an exception, or due to an interrupt.
 
 For example, the code below is equivalent to `par`:
@@ -100,11 +101,11 @@ Finally, entirely unsupervised forks can be started using `forkUnsupervised`.
 
 ## Unsupervised scopes
 
-An unsupervised scope can be created using `scoped`. Any forks started within are unsupervised. This is considered an
-advanced feature, and should be used with caution.
+An unsupervised scope can be created using `unsupervised`. Within such scopes, only `forkUnsupervised` and 
+`forkCancellable` forks can be started.
 
-Such a scope ends, once the code block passed to `scoped` completes. Then, all running forks are cancelled. Still, the
-scope completes (that is, the `scoped` block returns) only once all forks have completed.
+Such a scope ends, once the code block passed to `unsupervised` completes. Then, all running forks are cancelled. Still, 
+the scope completes (that is, the `unsupervised` block returns) only once all forks have completed.
 
 Fork failures aren't handled in any special way, and can be inspected using the `Fork.join()` method.
 

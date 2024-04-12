@@ -55,7 +55,7 @@ class ParTest extends AnyFlatSpec with Matchers {
   "parLimit" should "run up to the given number of computations in parallel" in {
     val running = new AtomicInteger(0)
     val max = new AtomicInteger(0)
-    val result = scoped {
+    val result = unsupervised {
       parLimit(2)(
         (1 to 9).map(i =>
           () => {

@@ -9,13 +9,13 @@ import scala.annotation.implicitNotFound
   *     [[forkUnsupervised]].
   *   - register resources to be cleaned up after the scope ends
   *
-  * This capability is provided by scopes created using [[supervised]], [[supervisedError]] or [[scoped]].
+  * This capability is provided by scopes created using [[supervised]], [[supervisedError]] or [[unsupervised]].
   *
   * @see
   *   [[Ox]], [[OxError]]
   */
 @implicitNotFound(
-  "This operation must be run within a `supervised`, `supervisedError` or `scoped` block. Alternatively, you must require that the enclosing method is run within a scope, by adding a `using Ox` parameter list."
+  "This operation must be run within a `supervised`, `supervisedError` or `unsupervised` block. Alternatively, you must require that the enclosing method is run within a scope, by adding a `using Ox` parameter list."
 )
 trait OxUnsupervised:
   private[ox] def scope: StructuredTaskScope[Any]
