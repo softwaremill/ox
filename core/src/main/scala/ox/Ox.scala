@@ -4,18 +4,18 @@ import java.util.concurrent.StructuredTaskScope
 import java.util.concurrent.atomic.AtomicReference
 import scala.annotation.implicitNotFound
 
-/** Represents a capability to:
-  *   - fork unsupervised, asynchronously running computations in a concurrency scope. Such forks can be created e.g. using
-  *     [[forkPlain]].
-  *   - register resources to be cleaned up after the scope ends
+/** Capability granted by an [[unsupervised]] concurrency scope (as well as, via subtyping, by [[supervised]] and [[supervisedError]]).
   *
-  * This capability is provided by scopes created using [[supervised]], [[supervisedError]] or [[unsupervised]].
+  * Represents a capability to:
+  *   - fork unsupervised, asynchronously running computations in a concurrency scope. Such forks can be created using [[forkPlain]] or
+  *     [[forkCancellable]].
+  *   - register resources to be cleaned up after the scope ends
   *
   * @see
   *   [[Ox]], [[OxError]]
   */
 @implicitNotFound(
-  "This operation must be run within a `supervised`, `supervisedError` or `unsupervised` block. Alternatively, you must require that the enclosing method is run within a scope, by adding a `using Ox` parameter list."
+  "This operation must be run within a `supervised`, `supervisedError` or `unsupervised` block. Alternatively, you must require that the enclosing method is run within a scope, by adding a `using OxPlain` parameter list."
 )
 trait OxPlain:
   private[ox] def scope: StructuredTaskScope[Any]
@@ -23,15 +23,15 @@ trait OxPlain:
   private[ox] def supervisor: Supervisor[Nothing]
   private[ox] def addFinalizer(f: () => Unit): Unit = finalizers.updateAndGet(f :: _).discard
 
-/** Represents a capability to:
-  *   - fork supervised or unsupervised, asynchronously running computations in a concurrency scope. Such forks can be created e.g. using
-  *     [[fork]].
+/** Capability granted by an [[supervised]] or [[supervisedError]] concurrency scope.
+  *
+  * Represents a capability to:
+  *   - fork supervised or unsupervised, asynchronously running computations in a concurrency scope. Such forks can be created using
+  *     [[fork]], [[forkUser]], [[forkPlain]] or [[forkCancellable]].
   *   - register resources to be cleaned up after the scope ends
   *
-  * This capability is provided by scopes created using [[supervised]] or [[supervisedError]].
-  *
   * @see
-  *   [[OxError]]
+  *   [[OxError]], [[OxPlain]]
   */
 @implicitNotFound(
   "This operation must be run within a `supervised` or `supervisedError` block. Alternatively, you must require that the enclosing method is run within a scope, by adding a `using Ox` parameter list."
@@ -39,12 +39,12 @@ trait OxPlain:
 trait Ox extends OxPlain:
   private[ox] def asNoErrorMode: OxError[Nothing, [T] =>> T]
 
-/** Represents a capability to:
-  *   - fork supervised or unsupervised, asynchronously running computations in a concurrency scope. Such forks can be created e.g. using
-  *     [[forkError]].
-  *   - register resources to be cleaned up after the scope ends
+/** Capability granted by a [[supervisedError]] concurrency scope.
   *
-  * This capability is provided by scopes created using [[supervisedError]].
+  * Represents a capability to:
+  *   - fork supervised or unsupervised, asynchronously running computations in a concurrency scope. Such forks can be created e.g. using
+  *     [[forkError]], [[forkUserError]], [[fork]], [[forkPlain]], [[forkCancellable]].
+  *   - register resources to be cleaned up after the scope ends
   *
   * `OxError` is similar to [[Ox]], however it additionally allows completing forks with application errors of type `E` in context `F`. Such
   * errors cause enclosing scope to end, and any forks that are still running to be cancelled

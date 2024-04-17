@@ -4,19 +4,16 @@ import java.util.concurrent.StructuredTaskScope
 
 private class DoNothingScope[T] extends StructuredTaskScope[T](null, Thread.ofVirtual().factory()) {}
 
-/** Starts a new concurrency scope, which allows starting forks in the given code block `f`. Forks can be started using [[fork]],
-  * [[forkUser]], [[forkCancellable]] and [[forkPlain]]. All forks are guaranteed to complete before this scope completes.
+/** Starts a new concurrency scope, which allows starting forks in the given code block `f`. Forks can be started using [[forkPlain]], and
+  * [[forkCancellable]]. All forks are guaranteed to complete before this scope completes.
   *
-  * **Warning:** It is advisable to use [[supervised]] scopes if possible, as they minimise the chances of an error to go unnoticed.
-  * `unsupervised` scopes are considered an advanced feature, and should be used with caution.
+  * It is advisable to use [[supervised]] scopes if possible, as they minimise the chances of an error to go unnoticed.
   *
   * The scope is ran in unsupervised mode, that is:
   *   - the scope ends once the `f` body completes; this causes any running forks started within `f` to be cancelled
   *   - the scope completes (that is, this method returns) only once all forks started by `f` have completed (either successfully, or with
   *     an exception)
   *   - fork failures aren't handled in any special way, but can be inspected using [[Fork.join()]]
-  *
-  * Forks created using [[fork]], [[forkUser]] and [[forkPlain]] will behave exactly the same.
   *
   * Upon successful completion, returns the result of evaluating `f`. Upon failure, that is an exception thrown by `f`, it is re-thrown.
   *

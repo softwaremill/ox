@@ -8,6 +8,11 @@ Scopes:
 * scope **body**: the code block passed to a concurrency scope (the `supervised`, `supervisedError` or `unsupervised` 
   method)
 
+Types of forks:
+* supervised / plain (unsupervised)
+* daemon / user
+* optionally, recognizing application errors
+
 Fork lifecycle:
 * within scopes, asynchronously running **forks** can be **started**
 * after being started a fork is **running**

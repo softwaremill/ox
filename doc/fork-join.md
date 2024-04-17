@@ -56,6 +56,15 @@ supervised {
 
 Scopes can be arbitrarily nested.
 
+## Types of forks - summary
+
+* `fork`: supervised, daemon fork
+* `forkUser`: supervised, user fork (scope will wait for it to complete, if there are no other errors)
+* `forkError`: supervised, daemon fork, which is allowed to fail with an application error
+* `forkUserError`: supervised, user fork, which is allowed to fail with an application error
+* `forkPlain`: unsupervised fork
+* `forkCancellable`: unsupervised, cancellable fork
+
 ## Supervision
 
 The default scope, created with `supervised`, watches over the forks that are started within. Any forks started with

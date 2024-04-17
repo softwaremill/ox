@@ -11,8 +11,8 @@ import scala.reflect.ClassTag
   *   - the scope ends once all user, supervised forks (started using [[forkUser]]), including the `f` body, succeed. Forks started using
   *     [[fork]] (daemon) don't have to complete successfully for the scope to end.
   *   - the scope also ends once the first supervised fork (including the `f` main body) fails with an exception
-  *   - when the scope ends, all running forks are cancelled
-  *   - the scope completes (that is, this method returns) only once all forks started by `f` have completed (either successfully, or with
+  *   - when the scope **ends**, all running forks are cancelled
+  *   - the scope **completes** (that is, this method returns) only once all forks started by `f` have completed (either successfully, or with
   *     an exception)
   *
   * Upon successful completion, returns the result of evaluating `f`. Upon failure, the exception that caused the scope to end is re-thrown
