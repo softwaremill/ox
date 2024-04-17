@@ -32,8 +32,12 @@ variant `sendUnsafe(t: T): Unit`, then the API would be quite surprising.
 
 Coming to the library as a new user, they could just call send / receive. The compiler might warn them in some cases 
 that they discard the non-unit result of `send`, but (a) would they pay attention to those warnings, and (b) would they 
-get them in the first place (this type of compiler warning isn't detected in 100% o fcases).
+get them in the first place (this type of compiler warning isn't detected in 100% o cases).
 
 In other words - it would be quite easy to mistakenly discard the results of `send`, so a default which guards against 
 that (by throwing exceptions) is better, and the "safe" can always be used intentionally version if that's what's 
 needed.
+
+### Update 17/04/2024
+
+The `...Safe` operations got renamed to `...OrClosed` or `...OrError`, as they can still throw `InterruptedException`s.

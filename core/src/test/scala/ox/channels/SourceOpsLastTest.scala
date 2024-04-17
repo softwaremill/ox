@@ -34,6 +34,6 @@ class SourceOpsLastTest extends AnyFlatSpec with Matchers {
   it should "drain the source" in supervised {
     val s = Source.fromValues(1)
     s.last() shouldBe 1
-    s.receiveSafe() shouldBe ChannelClosed.Done
+    s.receiveOrClosed() shouldBe ChannelClosed.Done
   }
 }

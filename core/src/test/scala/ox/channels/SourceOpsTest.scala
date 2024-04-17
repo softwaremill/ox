@@ -28,7 +28,7 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
       s.receive() shouldBe (1, 4)
       s.receive() shouldBe (2, 5)
       s.receive() shouldBe (3, 6)
-      s.receiveSafe() shouldBe ChannelClosed.Done
+      s.receiveOrClosed() shouldBe ChannelClosed.Done
     }
   }
 

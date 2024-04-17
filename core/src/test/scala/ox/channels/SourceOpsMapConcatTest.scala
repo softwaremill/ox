@@ -44,7 +44,7 @@ class SourceOpsMapConcatTest extends AnyFlatSpec with Matchers {
     s.receive() shouldBe "a"
     s.receive() shouldBe "b"
     s.receive() shouldBe "c"
-    s.receiveSafe() should matchPattern {
+    s.receiveOrClosed() should matchPattern {
       case ChannelClosed.Error(reason) if reason.getMessage == "boom" =>
     }
   }

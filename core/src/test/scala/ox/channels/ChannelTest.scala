@@ -114,7 +114,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
         forkPlain {
           var loop = true
           while loop do {
-            val r = selectSafe(cs.map(_.receiveClause))
+            val r = selectOrClosed(cs.map(_.receiveClause))
             result.add(r.map(_.value))
             loop = r != ChannelClosed.Done
           }
@@ -190,7 +190,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
         }
 
         sleep(100.millis) // let the fork progress
-        selectSafe(c1, c2) shouldBe ChannelClosed.Done
+        selectOrClosed(c1, c2) shouldBe ChannelClosed.Done
       }
     }
 
@@ -203,7 +203,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
           c2.done()
         }
 
-        selectSafe(c1, c2) shouldBe ChannelClosed.Done
+        selectOrClosed(c1, c2) shouldBe ChannelClosed.Done
       }
     }
   }
@@ -225,8 +225,8 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
 
     c.receive() shouldBe 1
     c.receive() shouldBe 2
-    c.receiveSafe() shouldBe ChannelClosed.Done
-    c.receiveSafe() shouldBe ChannelClosed.Done // repeat
+    c.receiveOrClosed() shouldBe ChannelClosed.Done
+    c.receiveOrClosed() shouldBe ChannelClosed.Done // repeat
   }
 
   it should "not receive from a channel in case of an error" in {
@@ -235,8 +235,8 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     c.send(2)
     c.error(new RuntimeException())
 
-    c.receiveSafe() should matchPattern { case _: ChannelClosed.Error => }
-    c.receiveSafe() should matchPattern { case _: ChannelClosed.Error => } // repeat
+    c.receiveOrClosed() should matchPattern { case _: ChannelClosed.Error => }
+    c.receiveOrClosed() should matchPattern { case _: ChannelClosed.Error => } // repeat
   }
 
   "rendezvous channel" should "wait until elements are transmitted" in {
@@ -321,7 +321,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
   it should "not use the default value if the channel is done" in {
     val c1 = Channel.buffered[Int](1)
     c1.done()
-    selectSafe(c1.receiveClause, Default(10)) shouldBe ChannelClosed.Done
+    selectOrClosed(c1.receiveClause, Default(10)) shouldBe ChannelClosed.Done
   }
 
   it should "use the default value once a source is done (buffered channel, stress test)" in {

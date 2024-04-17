@@ -15,7 +15,7 @@ private[kafka] def doCommit(packets: Source[SendPacket[_, _]])(using Ox): Unit =
   var consumer: ActorRef[KafkaConsumerWrapper[_, _]] = null // assuming all packets come from the same consumer
 
   repeatWhile {
-    selectSafe(ticks, packets) match
+    selectOrClosed(ticks, packets) match
       case ChannelClosed.Error(e) => throw e
       case ChannelClosed.Done     => false
       case () =>
