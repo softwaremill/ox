@@ -1,4 +1,4 @@
-# 5. Application errors
+# 6. Actors
 
 Date: 2024-03-26
 
