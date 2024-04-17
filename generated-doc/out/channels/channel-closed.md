@@ -33,4 +33,4 @@ object ChannelClosed:
 That is, the result of a `safe` operation might be a value, or information that the channel is closed.
 
 Using extensions methods from `ChannelClosedUnion` it's possible to convert such union types to `Either`s, `Try`s or
-exceptions, as well as `map` over such resutls.
+exceptions, as well as `map` over such results.

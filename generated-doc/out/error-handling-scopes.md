@@ -55,5 +55,5 @@ inspected.
 
 ## Unsupervised scopes
 
-In an unsupervised scope (created using `scoped`), failures of the forks won't be reported in any way, unless they
+In an unsupervised scope (created using `unsupervised`), failures of the forks won't be reported in any way, unless they
 are explicitly joined. Hence, if there's no `Fork.join`, the exception might go unnoticed.

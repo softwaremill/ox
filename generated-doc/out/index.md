@@ -11,10 +11,10 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
 
 ```scala
 // sbt dependency
-"com.softwaremill.ox" %% "core" % "0.0.25"
+"com.softwaremill.ox" %% "core" % "0.0.26"
 
 // scala-cli dependency
-//> using dep "com.softwaremill.ox::core:0.0.25"
+//> using dep "com.softwaremill.ox::core:0.0.26"
 ```
 
 ## Scope of the project
@@ -87,7 +87,6 @@ We offer commercial support for ox and related technologies, as well as developm
    resources
    control-flow
    utility
-   extension
    dictionary
    performance
 
