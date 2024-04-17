@@ -15,11 +15,11 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
   List(0, 1, 2, 100, 10000).foreach { capacity =>
     s"channel with capacity $capacity" should "send and receive two spaced elements" in {
       val c = Channel.withCapacity[Int](capacity)
-      scoped {
-        val f1 = fork {
+      unsupervised {
+        val f1 = forkPlain {
           c.receive()
         }
-        val f2 = fork {
+        val f2 = forkPlain {
           c.receive()
         }
 
@@ -38,14 +38,14 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     it should "send and receive many elements, with concurrent senders & receivers" in {
       val n = 10000
       val c = Channel.withCapacity[Int](capacity)
-      scoped {
+      unsupervised {
         val fs = (1 to 2 * n).map { i =>
           if i % 2 == 0 then
-            fork {
+            forkPlain {
               c.send(i / 2); 0
             }
           else
-            fork {
+            forkPlain {
               c.receive()
             }
         }
@@ -54,14 +54,14 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
       }
     }
 
-    it should "select from two receives, if the last one has elements" in scoped {
+    it should "select from two receives, if the last one has elements" in supervised {
       val c1 = Channel.withCapacity[String](capacity)
       val c2 = Source.fromIterable(List("a"))
 
       select(c1, c2) shouldBe "a"
     }
 
-    it should "select from three receives, if the last one has elements" in scoped {
+    it should "select from three receives, if the last one has elements" in supervised {
       val c1 = Channel.withCapacity[String](capacity)
       val c2 = Channel.withCapacity[String](capacity)
       val c3 = Source.fromIterable(List("a"))
@@ -74,16 +74,16 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
       val cn = 10
 
       val cs = (1 to cn).map(_ => Channel.withCapacity[Int](capacity)).toList
-      scoped {
+      unsupervised {
         cs.foreach { c =>
           (1 to n).foreach { i =>
-            fork(c.send(i))
+            forkPlain(c.send(i))
           }
         }
 
         val result = new AtomicInteger(0)
 
-        fork {
+        forkPlain {
           forever {
             result.addAndGet(select(cs.map(_.receiveClause)).value).discard
           }
@@ -100,9 +100,9 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
       val cn = 10
 
       val cs = (1 to cn).map(_ => Channel.withCapacity[Int](capacity)).toList
-      scoped {
+      unsupervised {
         cs.foreach { c =>
-          fork {
+          forkPlain {
             (1 to n).foreach(c.send)
             sleep(10.millis)
             c.done()
@@ -111,7 +111,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
 
         val result = new ConcurrentLinkedQueue[Int | ChannelClosed]()
 
-        fork {
+        forkPlain {
           var loop = true
           while loop do {
             val r = selectSafe(cs.map(_.receiveClause))
@@ -170,8 +170,8 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     it should "select from a non-done channel, if a value is immediately available" in {
       val c1 = Channel.withCapacity[Int](capacity)
       val c2 = Channel.withCapacity[Int](capacity)
-      scoped {
-        fork {
+      unsupervised {
+        forkPlain {
           c1.send(1)
           c2.done()
         }
@@ -184,8 +184,8 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     it should "select a done channel, when the channel is done immediately" in {
       val c1 = Channel.withCapacity[Int](capacity)
       val c2 = Channel.withCapacity[Int](capacity)
-      scoped {
-        fork {
+      unsupervised {
+        forkPlain {
           c2.done()
         }
 
@@ -197,8 +197,8 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     it should "select a done channel, when the channel becomes done" in {
       val c1 = Channel.withCapacity[Int](capacity)
       val c2 = Channel.withCapacity[Int](capacity)
-      scoped {
-        fork {
+      unsupervised {
+        forkPlain {
           sleep(100.millis) // let the select block
           c2.done()
         }
@@ -242,16 +242,16 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
   "rendezvous channel" should "wait until elements are transmitted" in {
     val c = Channel.rendezvous[String]
     val trail = ConcurrentLinkedQueue[String]()
-    scoped {
-      fork {
+    unsupervised {
+      forkPlain {
         c.send("x")
         trail.add("S")
       }
-      fork {
+      forkPlain {
         c.send("y")
         trail.add("S")
       }
-      val f3 = fork {
+      val f3 = forkPlain {
         sleep(100.millis)
         trail.add("R1")
         val r1 = c.receive()
@@ -272,12 +272,12 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     val c1 = Channel.rendezvous[Int]
     val c2 = Channel.rendezvous[Int]
 
-    scoped {
-      val f1 = fork(c1.receive())
+    unsupervised {
+      val f1 = forkPlain(c1.receive())
       select(c1.sendClause(1), c2.sendClause(2))
       f1.join() shouldBe 1
 
-      val f2 = fork(c2.receive())
+      val f2 = forkPlain(c2.receive())
       select(c1.sendClause(1), c2.sendClause(2))
       f2.join() shouldBe 2
     }
@@ -287,12 +287,12 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     val c1 = Channel.rendezvous[Int]
     val c2 = Channel.rendezvous[Int]
 
-    scoped {
-      val f1 = fork(c1.receive())
+    unsupervised {
+      val f1 = forkPlain(c1.receive())
       select(c1.sendClause(1), c2.receiveClause) shouldBe c1.Sent()
       f1.join() shouldBe 1
 
-      val f2 = fork(c2.send(2))
+      val f2 = forkPlain(c2.send(2))
       select(c1.sendClause(1), c2.receiveClause) shouldBe c2.Received(2)
       f2.join() shouldBe ()
     }
@@ -328,7 +328,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     for (i <- 1 to 100) {
       info(s"iteration $i")
 
-      scoped {
+      unsupervised {
         // given
         val c = Channel.buffered[Int](3)
         c.send(1)

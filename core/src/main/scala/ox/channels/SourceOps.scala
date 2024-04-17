@@ -179,9 +179,9 @@ trait SourceOps[+T] { outer: Source[T] =>
     val s = new Semaphore(parallelism)
     val inProgress = Channel.withCapacity[Fork[Option[U]]](parallelism)
     val closeScope = new CountDownLatch(1)
-    scoped {
+    unsupervised {
       // enqueueing fork
-      fork {
+      forkPlain {
         repeatWhile {
           s.acquire()
           receiveSafe() match
@@ -194,7 +194,7 @@ trait SourceOps[+T] { outer: Source[T] =>
               closeScope.countDown()
               false
             case t: T @unchecked =>
-              inProgress.sendSafe(fork {
+              inProgress.sendSafe(forkPlain {
                 try
                   val u = f(t)
                   s.release() // not in finally, as in case of an exception, no point in starting subsequent forks
@@ -210,7 +210,7 @@ trait SourceOps[+T] { outer: Source[T] =>
       }
 
       // sending fork
-      fork {
+      forkPlain {
         repeatWhile {
           inProgress.receiveSafe() match
             case f: Fork[Option[U]] @unchecked =>
@@ -629,7 +629,7 @@ trait SourceOps[+T] { outer: Source[T] =>
     *
     *   import scala.concurrent.duration.*
     *
-    *   scoped {
+    *   supervised {
     *     Source.empty[Int].throttle(1, 1.second).toList       // List() returned without throttling
     *     Source.fromValues(1, 2).throttle(1, 1.second).toList // List(1, 2) returned after 2 seconds
     *   }

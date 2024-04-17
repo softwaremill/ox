@@ -10,13 +10,13 @@ import scala.concurrent.duration.*
 class ForkTest extends AnyFlatSpec with Matchers {
   "fork" should "run two forks concurrently" in {
     val trail = Trail()
-    scoped {
-      val f1 = fork {
+    unsupervised {
+      val f1 = forkPlain {
         sleep(500.millis)
         trail.add("f1 complete")
         5
       }
-      val f2 = fork {
+      val f2 = forkPlain {
         sleep(1.second)
         trail.add("f2 complete")
         6
@@ -30,9 +30,9 @@ class ForkTest extends AnyFlatSpec with Matchers {
 
   it should "allow nested forks" in {
     val trail = Trail()
-    scoped {
-      val f1 = fork {
-        val f2 = fork {
+    unsupervised {
+      val f1 = forkPlain {
+        val f2 = forkPlain {
           try 6
           finally trail.add("f2 complete")
         }
@@ -49,9 +49,9 @@ class ForkTest extends AnyFlatSpec with Matchers {
 
   it should "interrupt child forks when parents complete" in {
     val trail = Trail()
-    scoped {
-      val f1 = fork {
-        fork {
+    unsupervised {
+      val f1 = forkPlain {
+        forkPlain {
           try
             sleep(1.second)
             trail.add("f2 complete")

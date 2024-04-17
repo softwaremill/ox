@@ -11,19 +11,19 @@ class LocalTest extends AnyFlatSpec with Matchers {
   "fork locals" should "properly propagate values" in {
     val trail = Trail()
     val v = ForkLocal("a")
-    scoped {
-      val f1 = fork {
-        v.scopedWhere("x") {
+    unsupervised {
+      val f1 = forkPlain {
+        v.unsupervisedWhere("x") {
           sleep(100.millis)
           trail.add(s"In f1 = ${v.get()}")
         }
         v.get()
       }
 
-      val f3 = fork {
-        v.scopedWhere("z") {
+      val f3 = forkPlain {
+        v.unsupervisedWhere("z") {
           sleep(100.millis)
-          fork {
+          forkPlain {
             sleep(100.millis)
             trail.add(s"In f3 = ${v.get()}")
           }.join()
@@ -42,13 +42,13 @@ class LocalTest extends AnyFlatSpec with Matchers {
   it should "propagate values across multiple scopes" in {
     val trail = Trail()
     val v = ForkLocal("a")
-    scoped {
-      fork {
-        v.scopedWhere("x") {
+    unsupervised {
+      forkPlain {
+        v.unsupervisedWhere("x") {
           trail.add(s"nested1 = ${v.get()}")
 
-          scoped {
-            fork {
+          unsupervised {
+            forkPlain {
               trail.add(s"nested2 = ${v.get()}")
             }.join()
           }
@@ -61,7 +61,7 @@ class LocalTest extends AnyFlatSpec with Matchers {
     trail.get shouldBe Vector("nested1 = x", "nested2 = x", "outer = a")
   }
 
-  it should "propagate errors from forks created within scoped values" in {
+  it should "propagate errors from forks created within local values" in {
     val v = ForkLocal("v1")
     val caught = intercept[RuntimeException] {
       supervised {

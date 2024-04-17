@@ -9,7 +9,7 @@ class ResourceTest extends AnyFlatSpec with Matchers {
   "useInScope" should "release resources after allocation" in {
     val trail = Trail()
 
-    scoped {
+    unsupervised {
       val r = useInScope { trail.add("allocate"); 1 }(n => trail.add(s"release $n"))
       r shouldBe 1
       trail.get shouldBe Vector("allocate")
@@ -20,7 +20,7 @@ class ResourceTest extends AnyFlatSpec with Matchers {
   it should "release resources in reverse order" in {
     val trail = Trail()
 
-    scoped {
+    unsupervised {
       val r1 = useInScope { trail.add("allocate 1"); 1 }(n => trail.add(s"release $n"))
       val r2 = useInScope { trail.add("allocate 2"); 2 }(n => trail.add(s"release $n"))
       r1 shouldBe 1
@@ -34,7 +34,7 @@ class ResourceTest extends AnyFlatSpec with Matchers {
     val trail = Trail()
 
     try
-      scoped {
+      unsupervised {
         val r1 = useInScope {
           trail.add("allocate 1"); 1
         }(n => trail.add(s"release $n"))
@@ -53,7 +53,7 @@ class ResourceTest extends AnyFlatSpec with Matchers {
     val trail = Trail()
 
     try
-      scoped {
+      unsupervised {
         val r1 = useInScope {
           trail.add("allocate 1");
           1
@@ -79,7 +79,7 @@ class ResourceTest extends AnyFlatSpec with Matchers {
   it should "release registered resources" in {
     val trail = Trail()
 
-    scoped {
+    unsupervised {
       releaseAfterScope(trail.add("release"))
       trail.add("in scope")
     }

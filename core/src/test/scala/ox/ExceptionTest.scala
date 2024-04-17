@@ -13,9 +13,9 @@ class ExceptionTest extends AnyFlatSpec with Matchers {
   class CustomException2 extends RuntimeException
   class CustomException3(e: Exception) extends RuntimeException(e)
 
-  "scoped" should "throw the exception thrown by a joined fork" in {
+  "unsupervised" should "throw the exception thrown by a joined fork" in {
     val trail = Trail()
-    try scoped(fork(throw CustomException()).join())
+    try unsupervised(forkPlain(throw CustomException()).join())
     catch case e: Exception => trail.add(e.getClass.getSimpleName)
 
     trail.get shouldBe Vector("CustomException")
@@ -116,7 +116,7 @@ class ExceptionTest extends AnyFlatSpec with Matchers {
 
   "joinEither" should "catch the exception with which a fork ends" in {
     val r = supervised {
-      val f = forkUnsupervised {
+      val f = forkPlain {
         throw CustomException()
       }
       f.joinEither()

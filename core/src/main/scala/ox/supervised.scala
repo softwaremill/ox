@@ -5,14 +5,14 @@ import java.util.concurrent.{CompletableFuture, ConcurrentHashMap}
 import scala.reflect.ClassTag
 
 /** Starts a new concurrency scope, which allows starting forks in the given code block `f`. Forks can be started using [[fork]],
-  * [[forkUser]], [[forkCancellable]] and [[forkUnsupervised]]. All forks are guaranteed to complete before this scope completes.
+  * [[forkUser]], [[forkCancellable]] and [[forkPlain]]. All forks are guaranteed to complete before this scope completes.
   *
   * The scope is ran in supervised mode, that is:
   *   - the scope ends once all user, supervised forks (started using [[forkUser]]), including the `f` body, succeed. Forks started using
   *     [[fork]] (daemon) don't have to complete successfully for the scope to end.
   *   - the scope also ends once the first supervised fork (including the `f` main body) fails with an exception
-  *   - when the scope ends, all running forks are cancelled
-  *   - the scope completes (that is, this method returns) only once all forks started by `f` have completed (either successfully, or with
+  *   - when the scope **ends**, all running forks are cancelled
+  *   - the scope **completes** (that is, this method returns) only once all forks started by `f` have completed (either successfully, or with
   *     an exception)
   *
   * Upon successful completion, returns the result of evaluating `f`. Upon failure, the exception that caused the scope to end is re-thrown
@@ -20,15 +20,14 @@ import scala.reflect.ClassTag
   * are added as suppressed.
   *
   * @see
-  *   [[scoped]] Starts a scope in unsupervised mode
-  *
+  * [[unsupervised]] Starts a scope in unsupervised mode
   * @see
-  *   [[supervisedError]] Starts a scope in supervised mode, with the additional ability to report application errors
+  * [[supervisedError]] Starts a scope in supervised mode, with the additional ability to report application errors
   */
 def supervised[T](f: Ox ?=> T): T = supervisedError(NoErrorMode)(f)
 
 /** Starts a new concurrency scope, which allows starting forks in the given code block `f`. Forks can be started using [[fork]],
-  * [[forkError]], [[forkUser]], [[forkUserError]], [[forkCancellable]] and [[forkUnsupervised]]. All forks are guaranteed to complete
+  * [[forkError]], [[forkUser]], [[forkUserError]], [[forkCancellable]] and [[forkPlain]]. All forks are guaranteed to complete
   * before this scope completes.
   *
   * Behaves the same as [[supervised]], but additionally allows reporting application errors represented as values of type `E` in context

@@ -48,7 +48,7 @@ will use the provided instance, not the outer one. E.g.:
 ```scala 
 def withSpan[T](spanName: String)(f: Ox ?=> T): T =
   val span = spanBuilder.startSpan(spanName)
-  currentSpan.scopedWhere(Some(span)) {
+  currentSpan.supervisedWhere(Some(span)) {
     try f
     finally span.end()
   }
