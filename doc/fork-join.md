@@ -35,8 +35,8 @@ supervised {
 }
 ```
 
-It is a compile-time error to use `fork`/`forkUser` outside of a `supervised` block. Helper methods might require to be 
-run within a scope by requiring the `Ox` capability:
+It is a compile-time error to use any of the `fork` methods outside of a `supervised` block. Helper methods might 
+require to be run within a scope by requiring the `Ox` capability:
 
 ```scala mdoc:compile-only
 import ox.{fork, Fork, Ox, sleep, supervised}
@@ -68,7 +68,7 @@ Scopes can be arbitrarily nested.
 ## Supervision
 
 The default scope, created with `supervised`, watches over the forks that are started within. Any forks started with
-`fork` and `forkUser` are by default supervised.
+`fork`, `forkUser`, `forkError` and `forUserError` are by default supervised.
 
 This means that the scope will end only when either:
 
@@ -99,24 +99,27 @@ supervised {
 
 ## User, daemon and unsupervised forks
 
-In supervised scopes, forks created using `fork` behave as daemon threads. That is, their failure ends the scope, but
-the scope will also end once the body and all user forks succeed, regardless if the (daemon) fork is still running.
+Forks created using `fork` behave as daemon threads. That is, their failure ends the scope, but the scope will also end 
+once the body and all user forks succeed, regardless if the (daemon) fork is still running.
 
 Alternatively, a user fork can be created using `forkUser`. Such a fork is required to complete successfully, in order
 for the scope to end successfully. Hence, when the body of the scope completes, the scope will wait until all user
 forks have completed as well.
 
-Finally, entirely unsupervised forks can be started using `forkUnsupervised`.
+Finally, entirely unsupervised forks can be started using `forkPlain`.
 
 ## Unsupervised scopes
 
-An unsupervised scope can be created using `unsupervised`. Within such scopes, only `forkUnsupervised` and 
-`forkCancellable` forks can be started.
+An unsupervised scope can be created using `unsupervised`. Within such scopes, only `forkPlain` and `forkCancellable` 
+forks can be started.
 
 Such a scope ends, once the code block passed to `unsupervised` completes. Then, all running forks are cancelled. Still, 
 the scope completes (that is, the `unsupervised` block returns) only once all forks have completed.
 
 Fork failures aren't handled in any special way, and can be inspected using the `Fork.join()` method.
+
+For helper method, the capability that needs to be passed is `OxPlain`, a subtype of `Ox` that only allows starting
+unsupervised forks.
 
 ## Cancelling forks
 
