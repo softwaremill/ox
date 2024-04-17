@@ -35,6 +35,6 @@ object KafkaSource:
       catch
         case t: Throwable =>
           logger.error("Exception when polling for records", t)
-          c.errorSafe(t)
+          c.errorOrClosed(t)
     }
     c

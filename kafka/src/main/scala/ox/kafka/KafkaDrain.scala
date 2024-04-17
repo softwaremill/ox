@@ -20,7 +20,7 @@ object KafkaDrain:
 
     try
       repeatWhile {
-        selectSafe(producerExceptions.receiveClause, source.receiveClause) match // bias on exceptions
+        selectOrClosed(producerExceptions.receiveClause, source.receiveClause) match // bias on exceptions
           case e: ChannelClosed.Error         => throw e.toThrowable
           case ChannelClosed.Done             => false // source must be done, as producerExceptions is never done
           case producerExceptions.Received(e) => throw e
@@ -30,7 +30,7 @@ object KafkaDrain:
               (_: RecordMetadata, exception: Exception) => {
                 if exception != null then
                   logger.error("Exception when sending record", exception)
-                  producerExceptions.sendSafe(exception).discard
+                  producerExceptions.sendOrClosed(exception).discard
               }
             )
             true

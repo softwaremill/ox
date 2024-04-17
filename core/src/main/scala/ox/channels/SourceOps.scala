@@ -75,16 +75,16 @@ trait SourceOps[+T] { outer: Source[T] =>
     val c2 = StageCapacity.newChannel[U]
     fork {
       repeatWhile {
-        receiveSafe() match
-          case ChannelClosed.Done     => c2.doneSafe(); false
-          case ChannelClosed.Error(r) => c2.errorSafe(r); false
+        receiveOrClosed() match
+          case ChannelClosed.Done     => c2.doneOrClosed(); false
+          case ChannelClosed.Error(r) => c2.errorOrClosed(r); false
           case t: T @unchecked =>
             try
               val u = f(t)
-              c2.sendSafe(u).isValue
+              c2.sendOrClosed(u).isValue
             catch
               case t: Throwable =>
-                c2.errorSafe(t)
+                c2.errorOrClosed(t)
                 false
       }
     }
@@ -139,14 +139,14 @@ trait SourceOps[+T] { outer: Source[T] =>
   private def intersperse[U >: T](start: Option[U], inject: U, end: Option[U])(using Ox, StageCapacity): Source[U] =
     val c = StageCapacity.newChannel[U]
     fork {
-      start.foreach(c.sendSafe)
+      start.foreach(c.sendOrClosed)
       var firstEmitted = false
       repeatWhile {
-        receiveSafe() match
-          case ChannelClosed.Done               => end.foreach(c.sendSafe); c.doneSafe(); false
-          case ChannelClosed.Error(e)           => c.errorSafe(e); false
-          case v: U @unchecked if !firstEmitted => firstEmitted = true; c.sendSafe(v); true
-          case v: U @unchecked                  => c.sendSafe(inject); c.sendSafe(v); true
+        receiveOrClosed() match
+          case ChannelClosed.Done               => end.foreach(c.sendOrClosed); c.doneOrClosed(); false
+          case ChannelClosed.Error(e)           => c.errorOrClosed(e); false
+          case v: U @unchecked if !firstEmitted => firstEmitted = true; c.sendOrClosed(v); true
+          case v: U @unchecked                  => c.sendOrClosed(inject); c.sendOrClosed(v); true
       }
     }
     c
@@ -184,24 +184,24 @@ trait SourceOps[+T] { outer: Source[T] =>
       forkPlain {
         repeatWhile {
           s.acquire()
-          receiveSafe() match
+          receiveOrClosed() match
             case ChannelClosed.Done =>
-              inProgress.doneSafe()
+              inProgress.doneOrClosed()
               false
             case ChannelClosed.Error(r) =>
-              c2.errorSafe(r)
+              c2.errorOrClosed(r)
               // closing the scope, any child forks will be cancelled before the scope is done
               closeScope.countDown()
               false
             case t: T @unchecked =>
-              inProgress.sendSafe(forkPlain {
+              inProgress.sendOrClosed(forkPlain {
                 try
                   val u = f(t)
                   s.release() // not in finally, as in case of an exception, no point in starting subsequent forks
                   Some(u)
                 catch
                   case t: Throwable =>
-                    c2.errorSafe(t)
+                    c2.errorOrClosed(t)
                     closeScope.countDown()
                     None
               })
@@ -212,12 +212,12 @@ trait SourceOps[+T] { outer: Source[T] =>
       // sending fork
       forkPlain {
         repeatWhile {
-          inProgress.receiveSafe() match
+          inProgress.receiveOrClosed() match
             case f: Fork[Option[U]] @unchecked =>
-              f.join().map(c2.sendSafe).isDefined
+              f.join().map(c2.sendOrClosed).isDefined
             case ChannelClosed.Done =>
               closeScope.countDown()
-              c2.doneSafe()
+              c2.doneOrClosed()
               false
             case ChannelClosed.Error(_) =>
               throw new IllegalStateException() // inProgress is never in an error state
@@ -234,22 +234,22 @@ trait SourceOps[+T] { outer: Source[T] =>
       supervised {
         repeatWhile {
           s.acquire()
-          receiveSafe() match
+          receiveOrClosed() match
             case ChannelClosed.Done => false
             case ChannelClosed.Error(r) =>
-              c.errorSafe(r)
+              c.errorOrClosed(r)
               false
             case t: T @unchecked =>
               forkUser {
                 try
-                  c.sendSafe(f(t))
+                  c.sendOrClosed(f(t))
                   s.release()
-                catch case t: Throwable => c.errorSafe(t)
+                catch case t: Throwable => c.errorOrClosed(t)
               }
               true
         }
       }
-      c.doneSafe()
+      c.doneOrClosed()
     }
     c
 
@@ -299,7 +299,7 @@ trait SourceOps[+T] { outer: Source[T] =>
       private var v: Option[T | ChannelClosed] = None
       private def forceNext(): T | ChannelClosed = v match
         case None =>
-          val temp = receiveSafe()
+          val temp = receiveOrClosed()
           v = Some(temp)
           temp
         case Some(t) => t
@@ -319,20 +319,20 @@ trait SourceOps[+T] { outer: Source[T] =>
 
     def drainFrom(toDrain: Source[U]): Unit =
       repeatWhile {
-        toDrain.receiveSafe() match
-          case ChannelClosed.Done     => c.doneSafe(); false
-          case ChannelClosed.Error(r) => c.errorSafe(r); false
-          case t: U @unchecked        => c.sendSafe(t).isValue
+        toDrain.receiveOrClosed() match
+          case ChannelClosed.Done     => c.doneOrClosed(); false
+          case ChannelClosed.Error(r) => c.errorOrClosed(r); false
+          case t: U @unchecked        => c.sendOrClosed(t).isValue
       }
 
     fork {
       repeatWhile {
-        selectSafe(this, other) match
+        selectOrClosed(this, other) match
           case ChannelClosed.Done =>
             if this.isClosedForReceive then drainFrom(other) else drainFrom(this)
             false
-          case ChannelClosed.Error(r) => c.errorSafe(r); false
-          case r: U @unchecked        => c.sendSafe(r).isValue
+          case ChannelClosed.Error(r) => c.errorOrClosed(r); false
+          case r: U @unchecked        => c.sendOrClosed(r).isValue
       }
     }
     c
@@ -344,14 +344,14 @@ trait SourceOps[+T] { outer: Source[T] =>
     val c = StageCapacity.newChannel[(T, U)]
     fork {
       repeatWhile {
-        receiveSafe() match
-          case ChannelClosed.Done     => c.doneSafe(); false
-          case ChannelClosed.Error(r) => c.errorSafe(r); false
+        receiveOrClosed() match
+          case ChannelClosed.Done     => c.doneOrClosed(); false
+          case ChannelClosed.Error(r) => c.errorOrClosed(r); false
           case t: T @unchecked =>
-            other.receiveSafe() match
-              case ChannelClosed.Done     => c.doneSafe(); false
-              case ChannelClosed.Error(r) => c.errorSafe(r); false
-              case u: U @unchecked        => c.sendSafe(t, u).isValue
+            other.receiveOrClosed() match
+              case ChannelClosed.Done     => c.doneOrClosed(); false
+              case ChannelClosed.Error(r) => c.errorOrClosed(r); false
+              case u: U @unchecked        => c.sendOrClosed(t, u).isValue
       }
     }
     c
@@ -381,17 +381,17 @@ trait SourceOps[+T] { outer: Source[T] =>
     val c = StageCapacity.newChannel[(U, V)]
 
     def receiveFromOther(thisElement: U, otherClosedHandler: () => Boolean): Boolean =
-      other.receiveSafe() match
+      other.receiveOrClosed() match
         case ChannelClosed.Done     => otherClosedHandler()
-        case ChannelClosed.Error(r) => c.errorSafe(r); false
-        case v: V @unchecked        => c.sendSafe(thisElement, v); true
+        case ChannelClosed.Error(r) => c.errorOrClosed(r); false
+        case v: V @unchecked        => c.sendOrClosed(thisElement, v); true
 
     fork {
       repeatWhile {
-        receiveSafe() match
-          case ChannelClosed.Done     => receiveFromOther(thisDefault, () => { c.doneSafe(); false })
-          case ChannelClosed.Error(r) => c.errorSafe(r); false
-          case t: T @unchecked        => receiveFromOther(t, () => { c.sendSafe(t, otherDefault); true })
+        receiveOrClosed() match
+          case ChannelClosed.Done     => receiveFromOther(thisDefault, () => { c.doneOrClosed(); false })
+          case ChannelClosed.Error(r) => c.errorOrClosed(r); false
+          case t: T @unchecked        => receiveFromOther(t, () => { c.sendOrClosed(t, otherDefault); true })
       }
     }
     c
@@ -515,24 +515,24 @@ trait SourceOps[+T] { outer: Source[T] =>
     fork {
       var state = initializeState()
       repeatWhile {
-        receiveSafe() match
+        receiveOrClosed() match
           case ChannelClosed.Done =>
             try
-              onComplete(state).foreach(c.sendSafe)
-              c.doneSafe()
-            catch case t: Throwable => c.errorSafe(t)
+              onComplete(state).foreach(c.sendOrClosed)
+              c.doneOrClosed()
+            catch case t: Throwable => c.errorOrClosed(t)
             false
           case ChannelClosed.Error(r) =>
-            c.errorSafe(r)
+            c.errorOrClosed(r)
             false
           case t: T @unchecked =>
             try
               val (nextState, result) = f(state, t)
               state = nextState
-              result.iterator.map(c.sendSafe).forall(_.isValue)
+              result.iterator.map(c.sendOrClosed).forall(_.isValue)
             catch
               case t: Throwable =>
-                c.errorSafe(t)
+                c.errorOrClosed(t)
                 false
       }
     }
@@ -564,12 +564,12 @@ trait SourceOps[+T] { outer: Source[T] =>
     val c = StageCapacity.newChannel[U]
     fork {
       repeatWhile {
-        receiveSafe() match
+        receiveOrClosed() match
           case ChannelClosed.Done =>
-            c.doneSafe()
+            c.doneOrClosed()
             false
           case ChannelClosed.Error(r) =>
-            c.errorSafe(r)
+            c.errorOrClosed(r)
             false
           case t: T @unchecked =>
             try
@@ -578,7 +578,7 @@ trait SourceOps[+T] { outer: Source[T] =>
               true
             catch
               case t: Throwable =>
-                c.errorSafe(t)
+                c.errorOrClosed(t)
                 false
       }
     }
@@ -606,7 +606,7 @@ trait SourceOps[+T] { outer: Source[T] =>
     */
   def headOption(): Option[T] =
     supervised {
-      receiveSafe() match
+      receiveOrClosed() match
         case ChannelClosed.Done     => None
         case e: ChannelClosed.Error => throw e.toThrowable
         case t: T @unchecked        => Some(t)
@@ -644,10 +644,10 @@ trait SourceOps[+T] { outer: Source[T] =>
 
     fork {
       repeatWhile {
-        receiveSafe() match
-          case ChannelClosed.Done     => c.doneSafe(); false
-          case ChannelClosed.Error(r) => c.errorSafe(r); false
-          case t: T @unchecked        => sleep(emitEveryMillis); c.sendSafe(t); true
+        receiveOrClosed() match
+          case ChannelClosed.Done     => c.doneOrClosed(); false
+          case ChannelClosed.Error(r) => c.errorOrClosed(r); false
+          case t: T @unchecked        => sleep(emitEveryMillis); c.sendOrClosed(t); true
       }
     }
     c
@@ -673,10 +673,10 @@ trait SourceOps[+T] { outer: Source[T] =>
   def orElse[U >: T](alternative: Source[U])(using Ox, StageCapacity): Source[U] =
     val c = StageCapacity.newChannel[U]
     fork {
-      receiveSafe() match
+      receiveOrClosed() match
         case ChannelClosed.Done     => alternative.pipeTo(c)
-        case ChannelClosed.Error(r) => c.errorSafe(r)
-        case t: T @unchecked        => c.sendSafe(t); pipeTo(c)
+        case ChannelClosed.Error(r) => c.errorOrClosed(r)
+        case t: T @unchecked        => c.sendOrClosed(t); pipeTo(c)
     }
     c
 }

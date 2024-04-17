@@ -13,7 +13,7 @@ class SourceOpsFailedTest extends AnyFlatSpec with Matchers {
     val s = Source.failed(RuntimeException("boom"))
 
     // then
-    s.receiveSafe() should matchPattern { case ChannelClosed.Error(reason) if reason.getMessage == "boom" => }
+    s.receiveOrClosed() should matchPattern { case ChannelClosed.Error(reason) if reason.getMessage == "boom" => }
   }
 
   it should "be in error" in supervised {

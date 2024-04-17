@@ -12,13 +12,13 @@ trait SourceDrainOps[+T] { outer: Source[T] =>
     * @throws ChannelClosedException.Error
     *   When there is an upstream error.
     */
-  def foreach(f: T => Unit): Unit = foreachSafe(f).orThrow
+  def foreach(f: T => Unit): Unit = foreachOrError(f).orThrow
 
   /** The "safe" variant of [[foreach]]. */
-  def foreachSafe(f: T => Unit): Unit | ChannelClosed.Error =
+  def foreachOrError(f: T => Unit): Unit | ChannelClosed.Error =
     var result: Unit | ChannelClosed.Error = ()
     repeatWhile {
-      receiveSafe() match
+      receiveOrClosed() match
         case ChannelClosed.Done     => false
         case e: ChannelClosed.Error => result = e; false
         case t: T @unchecked        => f(t); true
@@ -30,21 +30,21 @@ trait SourceDrainOps[+T] { outer: Source[T] =>
     * @throws ChannelClosedException.Error
     *   When there is an upstream error.
     */
-  def toList: List[T] = toListSafe.orThrow
+  def toList: List[T] = toListOrError.orThrow
 
   /** The "safe" variant of [[toList]]. */
-  def toListSafe: List[T] | ChannelClosed.Error =
+  def toListOrError: List[T] | ChannelClosed.Error =
     val b = List.newBuilder[T]
-    foreachSafe(b += _).mapUnlessError(_ => b.result())
+    foreachOrError(b += _).mapUnlessError(_ => b.result())
 
   /** Passes each received element from this channel to the given sink. Blocks until the channel is done. When the channel is done or
     * there's an error, propagates the closed status downstream and returns.
     */
   def pipeTo(sink: Sink[T]): Unit =
     repeatWhile {
-      receiveSafe() match
-        case ChannelClosed.Done     => sink.doneSafe(); false
-        case e: ChannelClosed.Error => sink.errorSafe(e.reason); false
+      receiveOrClosed() match
+        case ChannelClosed.Done     => sink.doneOrClosed(); false
+        case e: ChannelClosed.Error => sink.errorOrClosed(e.reason); false
         case t: T @unchecked        => sink.send(t); true
     }
 
@@ -53,10 +53,10 @@ trait SourceDrainOps[+T] { outer: Source[T] =>
     * @throws ChannelClosedException.Error
     *   when there is an upstream error.
     */
-  def drain(): Unit = drainSafe().orThrow
+  def drain(): Unit = drainOrError().orThrow
 
   /** The "safe" variant of [[drain]]. */
-  def drainSafe(): Unit | ChannelClosed.Error = foreachSafe(_ => ())
+  def drainOrError(): Unit | ChannelClosed.Error = foreachOrError(_ => ())
 
   /** Returns the last element from this source wrapped in [[Some]] or [[None]] when this source is empty. Note that `lastOption` is a
     * terminal operation leaving the source in [[ChannelClosed.Done]] state.
@@ -78,14 +78,14 @@ trait SourceDrainOps[+T] { outer: Source[T] =>
     *   }
     *   }}}
     */
-  def lastOption(): Option[T] = lastOptionSafe().orThrow
+  def lastOption(): Option[T] = lastOptionOrError().orThrow
 
   /** The "safe" variant of [[lastOption]]. */
-  def lastOptionSafe(): Option[T] | ChannelClosed.Error =
+  def lastOptionOrError(): Option[T] | ChannelClosed.Error =
     supervised {
       var value: Option[T] | ChannelClosed.Error = None
       repeatWhile {
-        receiveSafe() match
+        receiveOrClosed() match
           case ChannelClosed.Done     => false
           case e: ChannelClosed.Error => value = e; false
           case t: T @unchecked        => value = Some(t); true
@@ -144,14 +144,14 @@ trait SourceDrainOps[+T] { outer: Source[T] =>
     *   }
     *   }}}
     */
-  def fold[U](zero: U)(f: (U, T) => U): U = foldSafe(zero)(f).orThrow
+  def fold[U](zero: U)(f: (U, T) => U): U = foldOrError(zero)(f).orThrow
 
   /** The "safe" variant of [[fold]]. */
-  def foldSafe[U](zero: U)(f: (U, T) => U): U | ChannelClosed.Error =
+  def foldOrError[U](zero: U)(f: (U, T) => U): U | ChannelClosed.Error =
     var current = zero
     var result: U | ChannelClosed.Error = current
     repeatWhile {
-      receiveSafe() match
+      receiveOrClosed() match
         case ChannelClosed.Done     => result = current; false
         case e: ChannelClosed.Error => result = e; false
         case t: T @unchecked        => current = f(current, t); true
@@ -214,22 +214,22 @@ trait SourceDrainOps[+T] { outer: Source[T] =>
     *   }
     *   }}}
     */
-  def takeLast(n: Int): List[T] = takeLastSafe(n).orThrow
+  def takeLast(n: Int): List[T] = takeLastOrError(n).orThrow
 
   /** The "safe" variant of [[takeLast]]. */
-  def takeLastSafe(n: Int): List[T] | ChannelClosed.Error =
+  def takeLastOrError(n: Int): List[T] | ChannelClosed.Error =
     require(n >= 0, "n must be >= 0")
     if (n == 0)
-      drainSafe()
+      drainOrError()
       List.empty
-    else if (n == 1) lastOptionSafe().mapUnlessError(_.toList)
+    else if (n == 1) lastOptionOrError().mapUnlessError(_.toList)
     else
       supervised {
         val buffer: mutable.ListBuffer[T] = mutable.ListBuffer()
         var result: List[T] | ChannelClosed.Error = Nil
         buffer.sizeHint(n)
         repeatWhile {
-          receiveSafe() match
+          receiveOrClosed() match
             case ChannelClosed.Done     => result = buffer.result(); false
             case e: ChannelClosed.Error => result = e; false
             case t: T @unchecked =>

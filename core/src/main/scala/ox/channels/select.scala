@@ -4,37 +4,37 @@ import com.softwaremill.jox.Select as JSelect
 
 import ox.channels.ChannelClosedUnion.{map, orThrow}
 
-/** @see [[selectSafe(List[SelectClause])]]. */
-def selectSafe(clause1: SelectClause[_], clause2: SelectClause[_]): clause1.Result | clause2.Result | ChannelClosed =
-  selectSafe(List(clause1, clause2)).asInstanceOf[clause1.Result | clause2.Result | ChannelClosed]
+/** @see [[selectOrClosed(List[SelectClause])]]. */
+def selectOrClosed(clause1: SelectClause[_], clause2: SelectClause[_]): clause1.Result | clause2.Result | ChannelClosed =
+  selectOrClosed(List(clause1, clause2)).asInstanceOf[clause1.Result | clause2.Result | ChannelClosed]
 
-/** @see [[selectSafe(List[SelectClause])]]. */
-def selectSafe(
+/** @see [[selectOrClosed(List[SelectClause])]]. */
+def selectOrClosed(
     clause1: SelectClause[_],
     clause2: SelectClause[_],
     clause3: SelectClause[_]
 ): clause1.Result | clause2.Result | clause3.Result | ChannelClosed =
-  selectSafe(List(clause1, clause2, clause3)).asInstanceOf[clause1.Result | clause2.Result | clause3.Result | ChannelClosed]
+  selectOrClosed(List(clause1, clause2, clause3)).asInstanceOf[clause1.Result | clause2.Result | clause3.Result | ChannelClosed]
 
-/** @see [[selectSafe(List[SelectClause])]]. */
-def selectSafe(
+/** @see [[selectOrClosed(List[SelectClause])]]. */
+def selectOrClosed(
     clause1: SelectClause[_],
     clause2: SelectClause[_],
     clause3: SelectClause[_],
     clause4: SelectClause[_]
 ): clause1.Result | clause2.Result | clause3.Result | clause4.Result | ChannelClosed =
-  selectSafe(List(clause1, clause2, clause3, clause4))
+  selectOrClosed(List(clause1, clause2, clause3, clause4))
     .asInstanceOf[clause1.Result | clause2.Result | clause3.Result | clause4.Result | ChannelClosed]
 
-/** @see [[selectSafe(List[SelectClause])]]. */
-def selectSafe(
+/** @see [[selectOrClosed(List[SelectClause])]]. */
+def selectOrClosed(
     clause1: SelectClause[_],
     clause2: SelectClause[_],
     clause3: SelectClause[_],
     clause4: SelectClause[_],
     clause5: SelectClause[_]
 ): clause1.Result | clause2.Result | clause3.Result | clause4.Result | clause5.Result | ChannelClosed =
-  selectSafe(List(clause1, clause2, clause3, clause4, clause5))
+  selectOrClosed(List(clause1, clause2, clause3, clause4, clause5))
     .asInstanceOf[clause1.Result | clause2.Result | clause3.Result | clause4.Result | clause5.Result | ChannelClosed]
 
 /** Select exactly one clause to complete. Each clause should be created for a different channel. Clauses can be created using
@@ -52,8 +52,8 @@ def selectSafe(
   *   The result returned by the selected clause, wrapped with [[SelectResult]], or a [[ChannelClosed]], when any of the channels is closed
   *   (done or in error).
   */
-def selectSafe[T](clauses: List[SelectClause[T]]): SelectResult[T] | ChannelClosed =
-  ChannelClosed.fromJoxOrT(JSelect.selectSafe(clauses.map(_.delegate): _*))
+def selectOrClosed[T](clauses: List[SelectClause[T]]): SelectResult[T] | ChannelClosed =
+  ChannelClosed.fromJoxOrT(JSelect.selectOrClosed(clauses.map(_.delegate): _*))
 
 //
 
@@ -96,7 +96,7 @@ def select(
   *
   * If no clauses are given, returns [[ChannelClosed.Done]].
   *
-  * For a variant which doesn't throw exceptions when any of the channels is closed, use [[selectSafe]].
+  * For a variant which doesn't throw exceptions when any of the channels is closed, use [[selectOrClosed]].
   *
   * @param clauses
   *   The clauses, from which one will be selected.
@@ -105,44 +105,44 @@ def select(
   * @throws ChannelClosedException
   *   When any of the channels is closed (done or in error).
   */
-def select[T](clauses: List[SelectClause[T]]): SelectResult[T] = selectSafe(clauses).orThrow
+def select[T](clauses: List[SelectClause[T]]): SelectResult[T] = selectOrClosed(clauses).orThrow
 
 //
 
-/** @see [[selectSafe(List[Source])]]. */
-def selectSafe[T1, T2](source1: Source[T1], source2: Source[T2]): T1 | T2 | ChannelClosed =
-  selectSafe(source1.receiveClause, source2.receiveClause).map {
+/** @see [[selectOrClosed(List[Source])]]. */
+def selectOrClosed[T1, T2](source1: Source[T1], source2: Source[T2]): T1 | T2 | ChannelClosed =
+  selectOrClosed(source1.receiveClause, source2.receiveClause).map {
     case source1.Received(v) => v
     case source2.Received(v) => v
   }
 
-/** @see [[selectSafe(List[Source])]]. */
-def selectSafe[T1, T2, T3](source1: Source[T1], source2: Source[T2], source3: Source[T3]): T1 | T2 | T3 | ChannelClosed =
-  selectSafe(source1.receiveClause, source2.receiveClause, source3.receiveClause).map {
+/** @see [[selectOrClosed(List[Source])]]. */
+def selectOrClosed[T1, T2, T3](source1: Source[T1], source2: Source[T2], source3: Source[T3]): T1 | T2 | T3 | ChannelClosed =
+  selectOrClosed(source1.receiveClause, source2.receiveClause, source3.receiveClause).map {
     case source1.Received(v) => v
     case source2.Received(v) => v
     case source3.Received(v) => v
   }
 
-/** @see [[selectSafe(List[Source])]]. */
-def selectSafe[T1, T2, T3, T4](source1: Source[T1], source2: Source[T2], source3: Source[T3], source4: Source[T4]): T1 | T2 | T3 | T4 |
+/** @see [[selectOrClosed(List[Source])]]. */
+def selectOrClosed[T1, T2, T3, T4](source1: Source[T1], source2: Source[T2], source3: Source[T3], source4: Source[T4]): T1 | T2 | T3 | T4 |
   ChannelClosed =
-  selectSafe(source1.receiveClause, source2.receiveClause, source3.receiveClause, source4.receiveClause).map {
+  selectOrClosed(source1.receiveClause, source2.receiveClause, source3.receiveClause, source4.receiveClause).map {
     case source1.Received(v) => v
     case source2.Received(v) => v
     case source3.Received(v) => v
     case source4.Received(v) => v
   }
 
-/** @see [[selectSafe(List[Source])]]. */
-def selectSafe[T1, T2, T3, T4, T5](
+/** @see [[selectOrClosed(List[Source])]]. */
+def selectOrClosed[T1, T2, T3, T4, T5](
     source1: Source[T1],
     source2: Source[T2],
     source3: Source[T3],
     source4: Source[T4],
     source5: Source[T5]
 ): T1 | T2 | T3 | T4 | T5 | ChannelClosed =
-  selectSafe(source1.receiveClause, source2.receiveClause, source3.receiveClause, source4.receiveClause, source5.receiveClause).map {
+  selectOrClosed(source1.receiveClause, source2.receiveClause, source3.receiveClause, source4.receiveClause, source5.receiveClause).map {
     case source1.Received(v) => v
     case source2.Received(v) => v
     case source3.Received(v) => v
@@ -164,8 +164,8 @@ def selectSafe[T1, T2, T3, T4, T5](
   * @return
   *   The value received from the selected source, or a [[ChannelClosed]], when any of the channels is closed (done or in error).
   */
-def selectSafe[T](sources: List[Source[T]])(using DummyImplicit): T | ChannelClosed =
-  selectSafe(sources.map(_.receiveClause: SelectClause[T])) match
+def selectOrClosed[T](sources: List[Source[T]])(using DummyImplicit): T | ChannelClosed =
+  selectOrClosed(sources.map(_.receiveClause: SelectClause[T])) match
     case r: Source[T]#Received => r.value
     case c: ChannelClosed      => c
     case _: Sink[_]#Sent       => throw new IllegalStateException()
@@ -220,7 +220,7 @@ def select[T1, T2, T3, T4, T5](
   *
   * If no sources are given, returns [[ChannelClosed.Done]].
   *
-  * For a variant which doesn't throw exceptions when any of the channels is closed, use [[selectSafe]].
+  * For a variant which doesn't throw exceptions when any of the channels is closed, use [[selectOrClosed]].
   *
   * @param sources
   *   The sources, from which a value will be received.
@@ -230,4 +230,4 @@ def select[T1, T2, T3, T4, T5](
   *   When any of the channels is closed (done or in error).
   */
 def select[T](sources: List[Source[T]])(using DummyImplicit): T | ChannelClosed =
-  selectSafe(sources).orThrow
+  selectOrClosed(sources).orThrow

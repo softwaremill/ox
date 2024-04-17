@@ -24,7 +24,7 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually {
       s2.receive() shouldBe 11
       s2.receive() shouldBe 21
       s2.receive() shouldBe 31
-      s2.receiveSafe() shouldBe ChannelClosed.Done
+      s2.receiveOrClosed() shouldBe ChannelClosed.Done
     }
   }
 
@@ -37,7 +37,7 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually {
     val s1 = c1.mapAsView(_ + 1)
     val s2 = c2.mapAsView(_ + 1)
 
-    selectSafe(s1, s2) shouldBe ChannelClosed.Done
+    selectOrClosed(s1, s2) shouldBe ChannelClosed.Done
   }
 
   it should "select from sources mapped as view" in {
@@ -81,7 +81,7 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually {
       val s2 = c.filterAsView(_ % 2 == 0)
       s2.receive() shouldBe 2
       s2.receive() shouldBe 4
-      s2.receiveSafe() shouldBe ChannelClosed.Done
+      s2.receiveOrClosed() shouldBe ChannelClosed.Done
     }
   }
 
@@ -126,11 +126,11 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually {
       val c1 = Channel.rendezvous
       val s2 = c.filterAsView(v => if v % 2 == 0 then true else throw new RuntimeException("test"))
 
-      Try(selectSafe(c1.receiveClause, s2.receiveClause)) should matchPattern { case Failure(e) if e.getMessage == "test" => }
+      Try(selectOrClosed(c1.receiveClause, s2.receiveClause)) should matchPattern { case Failure(e) if e.getMessage == "test" => }
       select(c1.receiveClause, s2.receiveClause).value shouldBe 2
-      Try(selectSafe(c1.receiveClause, s2.receiveClause)) should matchPattern { case Failure(e) if e.getMessage == "test" => }
+      Try(selectOrClosed(c1.receiveClause, s2.receiveClause)) should matchPattern { case Failure(e) if e.getMessage == "test" => }
       select(c1.receiveClause, s2.receiveClause).value shouldBe 4
-      selectSafe(c1.receiveClause, s2.receiveClause) shouldBe ChannelClosed.Done
+      selectOrClosed(c1.receiveClause, s2.receiveClause) shouldBe ChannelClosed.Done
     }
   }
 }

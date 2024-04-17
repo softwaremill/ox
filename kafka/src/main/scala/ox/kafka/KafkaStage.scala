@@ -80,23 +80,23 @@ object KafkaStage:
           unsupervised {
             // committer
             val commitDoneSource =
-              if commitOffsets then Source.fromFork(fork(doCommit(toCommit).tapException(e => c.errorSafe(e).discard))) else Source.empty
+              if commitOffsets then Source.fromFork(fork(doCommit(toCommit).tapException(e => c.errorOrClosed(e).discard))) else Source.empty
 
             repeatWhile {
-              selectSafe(exceptions.receiveClause, metadata.receiveClause, source.receiveClause) match
-                case ChannelClosed.Error(r) => c.errorSafe(r); false
+              selectOrClosed(exceptions.receiveClause, metadata.receiveClause, source.receiveClause) match
+                case ChannelClosed.Error(r) => c.errorOrClosed(r); false
                 case ChannelClosed.Done     =>
                   // waiting until all records are sent and metadata forwarded to `c`
                   sendInSequence.drainFrom(metadata, exceptions)
                   // we now know that there won't be any more offsets sent to be committed - we can complete the channel
                   toCommit.done()
                   // waiting until the commit fork is done - this might also return Done if commitOffsets is false, hence the safe variant
-                  commitDoneSource.receiveSafe()
+                  commitDoneSource.receiveOrClosed()
                   // completing the downstream
                   c.done()
                   // and finally winding down this scope & fork
                   false
-                case exceptions.Received(e)    => c.errorSafe(e); false
+                case exceptions.Received(e)    => c.errorOrClosed(e); false
                 case metadata.Received((s, m)) => sendInSequence.send(s, m); true
                 case source.Received(packet) =>
                   try
@@ -104,7 +104,7 @@ object KafkaStage:
                     true
                   catch
                     case e: Exception =>
-                      c.errorSafe(e)
+                      c.errorOrClosed(e)
                       false
             }
           }
@@ -131,7 +131,7 @@ object KafkaStage:
       producer.send(
         toSend,
         (m: RecordMetadata, e: Exception) =>
-          if e != null then exceptions.sendSafe(e).discard
+          if e != null then exceptions.sendOrClosed(e).discard
           else {
             // sending commit request first, as when upstream `source` is done, we need to know that all commits are
             // scheduled in order to shut down properly
@@ -173,8 +173,8 @@ private class SendInSequence[T](c: Sink[T]):
       exceptions: Source[Exception]
   ): Unit =
     if !allSent then
-      selectSafe(exceptions.receiveClause, incoming.receiveClause) match
-        case ChannelClosed.Error(r)    => c.errorSafe(r).discard
+      selectOrClosed(exceptions.receiveClause, incoming.receiveClause) match
+        case ChannelClosed.Error(r)    => c.errorOrClosed(r).discard
         case ChannelClosed.Done        => throw new IllegalStateException()
-        case exceptions.Received(e)    => c.errorSafe(e).discard
+        case exceptions.Received(e)    => c.errorOrClosed(e).discard
         case incoming.Received((s, m)) => send(s, m); drainFrom(incoming, exceptions)

@@ -10,10 +10,10 @@ class SourceOpsForeachTest extends AnyFlatSpec with Matchers {
 
   it should "iterate over a source" in {
     val c = Channel.buffered[Int](10)
-    c.sendSafe(1)
-    c.sendSafe(2)
-    c.sendSafe(3)
-    c.doneSafe()
+    c.sendOrClosed(1)
+    c.sendOrClosed(2)
+    c.sendOrClosed(3)
+    c.doneOrClosed()
 
     var r: List[Int] = Nil
     c.foreach(v => r = v :: r)
@@ -23,10 +23,10 @@ class SourceOpsForeachTest extends AnyFlatSpec with Matchers {
 
   it should "iterate over a source using for-syntax" in {
     val c = Channel.buffered[Int](10)
-    c.sendSafe(1)
-    c.sendSafe(2)
-    c.sendSafe(3)
-    c.doneSafe()
+    c.sendOrClosed(1)
+    c.sendOrClosed(2)
+    c.sendOrClosed(3)
+    c.doneOrClosed()
 
     var r: List[Int] = Nil
     for {
@@ -38,10 +38,10 @@ class SourceOpsForeachTest extends AnyFlatSpec with Matchers {
 
   it should "convert source to a list" in {
     val c = Channel.buffered[Int](10)
-    c.sendSafe(1)
-    c.sendSafe(2)
-    c.sendSafe(3)
-    c.doneSafe()
+    c.sendOrClosed(1)
+    c.sendOrClosed(2)
+    c.sendOrClosed(3)
+    c.doneOrClosed()
 
     c.toList shouldBe List(1, 2, 3)
   }
