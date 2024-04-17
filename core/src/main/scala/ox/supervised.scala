@@ -5,7 +5,7 @@ import java.util.concurrent.{CompletableFuture, ConcurrentHashMap}
 import scala.reflect.ClassTag
 
 /** Starts a new concurrency scope, which allows starting forks in the given code block `f`. Forks can be started using [[fork]],
-  * [[forkUser]], [[forkCancellable]] and [[forkUnsupervised]]. All forks are guaranteed to complete before this scope completes.
+  * [[forkUser]], [[forkCancellable]] and [[forkPlain]]. All forks are guaranteed to complete before this scope completes.
   *
   * The scope is ran in supervised mode, that is:
   *   - the scope ends once all user, supervised forks (started using [[forkUser]]), including the `f` body, succeed. Forks started using
@@ -21,14 +21,13 @@ import scala.reflect.ClassTag
   *
   * @see
   * [[unsupervised]] Starts a scope in unsupervised mode
-  *
   * @see
   * [[supervisedError]] Starts a scope in supervised mode, with the additional ability to report application errors
   */
 def supervised[T](f: Ox ?=> T): T = supervisedError(NoErrorMode)(f)
 
 /** Starts a new concurrency scope, which allows starting forks in the given code block `f`. Forks can be started using [[fork]],
-  * [[forkError]], [[forkUser]], [[forkUserError]], [[forkCancellable]] and [[forkUnsupervised]]. All forks are guaranteed to complete
+  * [[forkError]], [[forkUser]], [[forkUserError]], [[forkCancellable]] and [[forkPlain]]. All forks are guaranteed to complete
   * before this scope completes.
   *
   * Behaves the same as [[supervised]], but additionally allows reporting application errors represented as values of type `E` in context

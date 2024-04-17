@@ -6,7 +6,7 @@ import scala.annotation.implicitNotFound
 
 /** Represents a capability to:
   *   - fork unsupervised, asynchronously running computations in a concurrency scope. Such forks can be created e.g. using
-  *     [[forkUnsupervised]].
+  *     [[forkPlain]].
   *   - register resources to be cleaned up after the scope ends
   *
   * This capability is provided by scopes created using [[supervised]], [[supervisedError]] or [[unsupervised]].
@@ -17,7 +17,7 @@ import scala.annotation.implicitNotFound
 @implicitNotFound(
   "This operation must be run within a `supervised`, `supervisedError` or `unsupervised` block. Alternatively, you must require that the enclosing method is run within a scope, by adding a `using Ox` parameter list."
 )
-trait OxUnsupervised:
+trait OxPlain:
   private[ox] def scope: StructuredTaskScope[Any]
   private[ox] def finalizers: AtomicReference[List[() => Unit]]
   private[ox] def supervisor: Supervisor[Nothing]
@@ -36,7 +36,7 @@ trait OxUnsupervised:
 @implicitNotFound(
   "This operation must be run within a `supervised` or `supervisedError` block. Alternatively, you must require that the enclosing method is run within a scope, by adding a `using Ox` parameter list."
 )
-trait Ox extends OxUnsupervised:
+trait Ox extends OxPlain:
   private[ox] def asNoErrorMode: OxError[Nothing, [T] =>> T]
 
 /** Represents a capability to:

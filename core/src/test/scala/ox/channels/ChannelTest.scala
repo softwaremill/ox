@@ -16,10 +16,10 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     s"channel with capacity $capacity" should "send and receive two spaced elements" in {
       val c = Channel.withCapacity[Int](capacity)
       unsupervised {
-        val f1 = forkUnsupervised {
+        val f1 = forkPlain {
           c.receive()
         }
-        val f2 = forkUnsupervised {
+        val f2 = forkPlain {
           c.receive()
         }
 
@@ -41,11 +41,11 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
       unsupervised {
         val fs = (1 to 2 * n).map { i =>
           if i % 2 == 0 then
-            forkUnsupervised {
+            forkPlain {
               c.send(i / 2); 0
             }
           else
-            forkUnsupervised {
+            forkPlain {
               c.receive()
             }
         }
@@ -77,13 +77,13 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
       unsupervised {
         cs.foreach { c =>
           (1 to n).foreach { i =>
-            forkUnsupervised(c.send(i))
+            forkPlain(c.send(i))
           }
         }
 
         val result = new AtomicInteger(0)
 
-        forkUnsupervised {
+        forkPlain {
           forever {
             result.addAndGet(select(cs.map(_.receiveClause)).value).discard
           }
@@ -102,7 +102,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
       val cs = (1 to cn).map(_ => Channel.withCapacity[Int](capacity)).toList
       unsupervised {
         cs.foreach { c =>
-          forkUnsupervised {
+          forkPlain {
             (1 to n).foreach(c.send)
             sleep(10.millis)
             c.done()
@@ -111,7 +111,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
 
         val result = new ConcurrentLinkedQueue[Int | ChannelClosed]()
 
-        forkUnsupervised {
+        forkPlain {
           var loop = true
           while loop do {
             val r = selectSafe(cs.map(_.receiveClause))
@@ -171,7 +171,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
       val c1 = Channel.withCapacity[Int](capacity)
       val c2 = Channel.withCapacity[Int](capacity)
       unsupervised {
-        forkUnsupervised {
+        forkPlain {
           c1.send(1)
           c2.done()
         }
@@ -185,7 +185,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
       val c1 = Channel.withCapacity[Int](capacity)
       val c2 = Channel.withCapacity[Int](capacity)
       unsupervised {
-        forkUnsupervised {
+        forkPlain {
           c2.done()
         }
 
@@ -198,7 +198,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
       val c1 = Channel.withCapacity[Int](capacity)
       val c2 = Channel.withCapacity[Int](capacity)
       unsupervised {
-        forkUnsupervised {
+        forkPlain {
           sleep(100.millis) // let the select block
           c2.done()
         }
@@ -243,15 +243,15 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     val c = Channel.rendezvous[String]
     val trail = ConcurrentLinkedQueue[String]()
     unsupervised {
-      forkUnsupervised {
+      forkPlain {
         c.send("x")
         trail.add("S")
       }
-      forkUnsupervised {
+      forkPlain {
         c.send("y")
         trail.add("S")
       }
-      val f3 = forkUnsupervised {
+      val f3 = forkPlain {
         sleep(100.millis)
         trail.add("R1")
         val r1 = c.receive()
@@ -273,11 +273,11 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     val c2 = Channel.rendezvous[Int]
 
     unsupervised {
-      val f1 = forkUnsupervised(c1.receive())
+      val f1 = forkPlain(c1.receive())
       select(c1.sendClause(1), c2.sendClause(2))
       f1.join() shouldBe 1
 
-      val f2 = forkUnsupervised(c2.receive())
+      val f2 = forkPlain(c2.receive())
       select(c1.sendClause(1), c2.sendClause(2))
       f2.join() shouldBe 2
     }
@@ -288,11 +288,11 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     val c2 = Channel.rendezvous[Int]
 
     unsupervised {
-      val f1 = forkUnsupervised(c1.receive())
+      val f1 = forkPlain(c1.receive())
       select(c1.sendClause(1), c2.receiveClause) shouldBe c1.Sent()
       f1.join() shouldBe 1
 
-      val f2 = forkUnsupervised(c2.send(2))
+      val f2 = forkPlain(c2.send(2))
       select(c1.sendClause(1), c2.receiveClause) shouldBe c2.Received(2)
       f2.join() shouldBe ()
     }
