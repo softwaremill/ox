@@ -4,7 +4,7 @@ import java.util.concurrent.StructuredTaskScope
 
 private class DoNothingScope[T] extends StructuredTaskScope[T](null, Thread.ofVirtual().factory()) {}
 
-/** Starts a new concurrency scope, which allows starting forks in the given code block `f`. Forks can be started using [[forkPlain]], and
+/** Starts a new concurrency scope, which allows starting forks in the given code block `f`. Forks can be started using [[forkUnsupervised]], and
   * [[forkCancellable]]. All forks are guaranteed to complete before this scope completes.
   *
   * It is advisable to use [[supervised]] scopes if possible, as they minimise the chances of an error to go unnoticed.
@@ -20,7 +20,7 @@ private class DoNothingScope[T] extends StructuredTaskScope[T](null, Thread.ofVi
   * @see
   *   [[supervised]] Starts a scope in supervised mode
   */
-def unsupervised[T](f: OxPlain ?=> T): T =
+def unsupervised[T](f: OxUnsupervised ?=> T): T =
   scopedWithCapability(OxError(NoOpSupervisor, NoErrorMode))(f)
 
 private[ox] def scopedWithCapability[T](capability: Ox)(f: Ox ?=> T): T =

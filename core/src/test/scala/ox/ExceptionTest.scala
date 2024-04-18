@@ -15,7 +15,7 @@ class ExceptionTest extends AnyFlatSpec with Matchers {
 
   "unsupervised" should "throw the exception thrown by a joined fork" in {
     val trail = Trail()
-    try unsupervised(forkPlain(throw CustomException()).join())
+    try unsupervised(forkUnsupervised(throw CustomException()).join())
     catch case e: Exception => trail.add(e.getClass.getSimpleName)
 
     trail.get shouldBe Vector("CustomException")
@@ -116,7 +116,7 @@ class ExceptionTest extends AnyFlatSpec with Matchers {
 
   "joinEither" should "catch the exception with which a fork ends" in {
     val r = supervised {
-      val f = forkPlain {
+      val f = forkUnsupervised {
         throw CustomException()
       }
       f.joinEither()

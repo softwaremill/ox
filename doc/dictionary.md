@@ -9,7 +9,7 @@ Scopes:
   method)
 
 Types of forks:
-* supervised / plain (unsupervised)
+* supervised / unsupervised
 * daemon / user
 * optionally, recognizing application errors
 
@@ -20,7 +20,7 @@ Fork lifecycle:
 * external **cancellation** (`Fork.cancel()`) interrupts the fork and waits until it completes; interruption uses
   JVM's mechanism of injecting an `InterruptedException`
 * forks are **supervised** if they are run in a `supervised` scope, and not explicitly unsupervised (that is, started 
-  using `forkPlain` or `forkCancellable`)
+  using `forkUnsupervised` or `forkCancellable`)
 
 Scope lifecycle:
 * a scope **ends**: when unsupervised, the scope's body is entirely evaluated; when supervised, all user (non-daemon) &

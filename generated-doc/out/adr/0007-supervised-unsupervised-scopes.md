@@ -22,6 +22,5 @@ hence we are keeping the current implementation.
 
 ## Consequences
 
-To make our design more type-safe, we split the `Ox` capability into `OxPlain` (allowing only unsupervised forks), and
-`Ox`. The `plain` nomeclature was chosen to indicate that the scope is unsupervised, however `forkPlain` is much shorter 
-than e.g. `forkUnsupervised`. Hence introducing a new name seems justified.
+To make our design more type-safe, we split the `Ox` capability into `OxUnsupervised` (allowing only unsupervised 
+forks), and `Ox`.
