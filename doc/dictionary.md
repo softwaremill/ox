@@ -19,14 +19,14 @@ Fork lifecycle:
 * then, forks **complete**: either a fork **succeeds** with a value, or a fork **fails** with an exception
 * external **cancellation** (`Fork.cancel()`) interrupts the fork and waits until it completes; interruption uses
   JVM's mechanism of injecting an `InterruptedException`
-* forks are **supervised** if they are run in a `supervised` scope, and not unsupervised (started using `forkPlain` or 
-  `forkCancellable`)
+* forks are **supervised** if they are run in a `supervised` scope, and not explicitly unsupervised (that is, started 
+  using `forkPlain` or `forkCancellable`)
 
 Scope lifecycle:
 * a scope **ends**: when unsupervised, the scope's body is entirely evaluated; when supervised, all user (non-daemon) &
   supervised forks complete successfully, or at least one user/daemon supervised fork fails, or an application error
   is reported. When the scope ends, all forks that are still running are cancelled
-* scope **completes**, once all forks complete and finalizers are run; then, the `supervised`, `supervisedErro` or 
+* scope **completes**, once all forks complete and finalizers are run; then, the `supervised`, `supervisedError` or 
   `unsupervised` method returns.
 
 Errors:
