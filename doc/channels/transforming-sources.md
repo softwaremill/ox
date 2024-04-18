@@ -64,8 +64,8 @@ val c = Channel.rendezvous[String]
 val c2: Source[Int] = c.mapAsView(s => s.length())
 ```
 
-The mapping function (`s => s.length()`) will only be invoked when the source is consumed (using `.receive()`
-or `select`), on the calling thread. This is in contrast to `.map`, where the mapping function is invoked on a separate
+The mapping function (`s => s.length()`) will only be invoked when the source is consumed (using `.receive()` or 
+`select`), on the consumer's thread. This is in contrast to `.map`, where the mapping function is invoked on a separate
 fork.
 
 Hence, creating views doesn't need to be run within a scope, and creating the view itself doesn't consume any elements

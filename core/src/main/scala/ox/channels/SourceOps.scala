@@ -12,8 +12,8 @@ import scala.concurrent.duration.*
 trait SourceOps[+T] { outer: Source[T] =>
   // view ops (lazy)
 
-  /** Lazily-evaluated map: creates a view of this source, where the results of [[receive]] will be transformed using the given function
-    * `f`. For an eager version, see [[map]].
+  /** Lazily-evaluated map: creates a view of this source, where the results of [[receive]] will be transformed on the consumer's thread
+    * using the given function `f`. For an eager, asynchronous version, see [[map]].
     *
     * The same logic applies to receive clauses created using this source, which can be used in [[select]].
     *
@@ -26,8 +26,8 @@ trait SourceOps[+T] { outer: Source[T] =>
     override val delegate: JSource[Any] = outer.delegate.asInstanceOf[JSource[T]].collectAsView(t => f(t))
   }
 
-  /** Lazily-evaluated filter: Creates a view of this source, where the results of [[receive]] will be filtered using the given predicate
-    * `p`. For an eager version, see [[filter]].
+  /** Lazily-evaluated filter: Creates a view of this source, where the results of [[receive]] will be filtered on the consumer's thread
+    * using the given predicate `p`. For an eager, asynchronous version, see [[filter]].
     *
     * The same logic applies to receive clauses created using this source, which can be used in [[select]].
     *
@@ -40,8 +40,8 @@ trait SourceOps[+T] { outer: Source[T] =>
     override val delegate: JSource[Any] = outer.delegate.filterAsView(t => f(t.asInstanceOf[T]))
   }
 
-  /** Creates a view of this source, where the results of [[receive]] will be transformed using the given function `f`. If the function is
-    * not defined at an element, the element will be skipped.
+  /** Creates a view of this source, where the results of [[receive]] will be transformed on the consumer's thread using the given function
+    * `f`. If the function is not defined at an element, the element will be skipped.
     *
     * The same logic applies to receive clauses created using this source, which can be used in [[select]].
     *
