@@ -16,7 +16,7 @@ class ForkLocal[T](scopedValue: ScopedValue[T], default: T):
     * **Warning:** It is advisable to use [[supervised]] scopes if possible, as they minimise the chances of an error to go unnoticed.
     * [[unsupervised]] scopes are considered an advanced feature, and should be used with caution.
     */
-  def unsupervisedWhere[U](newValue: T)(f: OxPlain ?=> U): U =
+  def unsupervisedWhere[U](newValue: T)(f: OxUnsupervised ?=> U): U =
     // the scoped values need to be set inside the thread that's used to create the new scope, but
     // before starting the scope itself, as scoped value bindings can't change after the scope is started
     scopedValueWhere(scopedValue, newValue)(unsupervised(f))

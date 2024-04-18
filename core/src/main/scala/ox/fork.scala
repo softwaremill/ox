@@ -16,7 +16,7 @@ import scala.util.control.NonFatal
   * forks).
   *
   * For alternate behaviors regarding ending the scope, see [[forkUser]], [[forkError]], [[forkUserError]], [[forkCancellable]] and
-  * [[forkPlain]].
+  * [[forkUnsupervised]].
   */
 def fork[T](f: => T)(using Ox): Fork[T] = forkError(using summon[Ox].asNoErrorMode)(f)
 
@@ -61,7 +61,7 @@ def forkError[E, F[_], T](using OxError[E, F])(f: => F[T]): Fork[T] =
   *
   * An exception thrown while evaluating `t` will cause the enclosing scope to end (cancelling all other running forks).
   *
-  * For alternate behaviors, see [[fork]], [[forkError]], [[forkUserError]], [[forkCancellable]] and [[forkPlain]].
+  * For alternate behaviors, see [[fork]], [[forkError]], [[forkUserError]], [[forkCancellable]] and [[forkUnsupervised]].
   */
 def forkUser[T](f: => T)(using Ox): Fork[T] = forkUserError(using summon[Ox].asNoErrorMode)(f)
 
@@ -105,9 +105,9 @@ def forkUserError[E, F[_], T](using OxError[E, F])(f: => F[T]): Fork[T] =
   *
   * For alternate behaviors, see [[fork]], [[forkUser]] and [[forkCancellable]].
   */
-def forkPlain[T](f: => T)(using OxPlain): Fork[T] =
+def forkUnsupervised[T](f: => T)(using OxUnsupervised): Fork[T] =
   val result = new CompletableFuture[T]()
-  summon[OxPlain].scope.fork { () =>
+  summon[OxUnsupervised].scope.fork { () =>
     try result.complete(f)
     catch case e: Throwable => result.completeExceptionally(e)
   }
@@ -128,21 +128,21 @@ def forkAll[T](fs: Seq[() => T])(using Ox): Fork[Seq[T]] =
   *
   * In case an exception is thrown while evaluating `t`, it will be thrown when calling the returned [[Fork]]'s `.join()` method.
   *
-  * The fork is unsupervised (similarly to [[forkPlain]]), hence success or failure isn't signalled to the enclosing scope and
+  * The fork is unsupervised (similarly to [[forkUnsupervised]]), hence success or failure isn't signalled to the enclosing scope and
   * doesn't influence the scope's lifecycle.
   *
-  * For alternate behaviors, see [[fork]], [[forkError]], [[forkUser]], [[forkUserError]] and [[forkPlain]].
+  * For alternate behaviors, see [[fork]], [[forkError]], [[forkUser]], [[forkUserError]] and [[forkUnsupervised]].
   *
   * Implementation note: a cancellable fork is created by starting a nested scope in a fork, and then starting a fork there. Hence, it is
   * more expensive than [[fork]], as two virtual threads are started.
   */
-def forkCancellable[T](f: => T)(using OxPlain): CancellableFork[T] =
+def forkCancellable[T](f: => T)(using OxUnsupervised): CancellableFork[T] =
   val result = new CompletableFuture[T]()
   // forks can be never run, if they are cancelled immediately - we need to detect this, not to await on result.get()
   val started = new AtomicBoolean(false)
   // interrupt signal
   val done = new Semaphore(0)
-  val ox = summon[OxPlain]
+  val ox = summon[OxUnsupervised]
   ox.scope.fork { () =>
     scopedWithCapability(OxError(ox.supervisor, NoErrorMode)) {
       val nestedOx = summon[Ox]
@@ -188,7 +188,7 @@ private[ox] inline def unwrapExecutionException[T](f: => T): T =
 
 //
 
-/** A fork started using [[fork]], [[forkError]], [[forkUser]], [[forkUserError]], [[forkCancellable]] or [[forkPlain]], backed by a
+/** A fork started using [[fork]], [[forkError]], [[forkUser]], [[forkUserError]], [[forkCancellable]] or [[forkUnsupervised]], backed by a
   * (virtual) thread.
   */
 trait Fork[T]:

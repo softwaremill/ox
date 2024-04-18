@@ -106,7 +106,7 @@ class SupervisedTest extends AnyFlatSpec with Matchers {
         trail.add("a")
       }
 
-      forkPlain {
+      forkUnsupervised {
         sleep(200.millis)
         throw new RuntimeException("x")
       }

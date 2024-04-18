@@ -7,17 +7,17 @@ import scala.annotation.implicitNotFound
 /** Capability granted by an [[unsupervised]] concurrency scope (as well as, via subtyping, by [[supervised]] and [[supervisedError]]).
   *
   * Represents a capability to:
-  *   - fork unsupervised, asynchronously running computations in a concurrency scope. Such forks can be created using [[forkPlain]] or
-  *     [[forkCancellable]].
+  *   - fork unsupervised, asynchronously running computations in a concurrency scope. Such forks can be created using [[forkUnsupervised]]
+  *     or [[forkCancellable]].
   *   - register resources to be cleaned up after the scope ends
   *
   * @see
   *   [[Ox]], [[OxError]]
   */
 @implicitNotFound(
-  "This operation must be run within a `supervised`, `supervisedError` or `unsupervised` block. Alternatively, you must require that the enclosing method is run within a scope, by adding a `using OxPlain` parameter list."
+  "This operation must be run within a `supervised`, `supervisedError` or `unsupervised` block. Alternatively, you must require that the enclosing method is run within a scope, by adding a `using OxUnsupervised` parameter list."
 )
-trait OxPlain:
+trait OxUnsupervised:
   private[ox] def scope: StructuredTaskScope[Any]
   private[ox] def finalizers: AtomicReference[List[() => Unit]]
   private[ox] def supervisor: Supervisor[Nothing]
@@ -27,23 +27,23 @@ trait OxPlain:
   *
   * Represents a capability to:
   *   - fork supervised or unsupervised, asynchronously running computations in a concurrency scope. Such forks can be created using
-  *     [[fork]], [[forkUser]], [[forkPlain]] or [[forkCancellable]].
+  *     [[fork]], [[forkUser]], [[forkUnsupervised]] or [[forkCancellable]].
   *   - register resources to be cleaned up after the scope ends
   *
   * @see
-  *   [[OxError]], [[OxPlain]]
+  *   [[OxError]], [[OxUnsupervised]]
   */
 @implicitNotFound(
   "This operation must be run within a `supervised` or `supervisedError` block. Alternatively, you must require that the enclosing method is run within a scope, by adding a `using Ox` parameter list."
 )
-trait Ox extends OxPlain:
+trait Ox extends OxUnsupervised:
   private[ox] def asNoErrorMode: OxError[Nothing, [T] =>> T]
 
 /** Capability granted by a [[supervisedError]] concurrency scope.
   *
   * Represents a capability to:
   *   - fork supervised or unsupervised, asynchronously running computations in a concurrency scope. Such forks can be created e.g. using
-  *     [[forkError]], [[forkUserError]], [[fork]], [[forkPlain]], [[forkCancellable]].
+  *     [[forkError]], [[forkUserError]], [[fork]], [[forkUnsupervised]], [[forkCancellable]].
   *   - register resources to be cleaned up after the scope ends
   *
   * `OxError` is similar to [[Ox]], however it additionally allows completing forks with application errors of type `E` in context `F`. Such

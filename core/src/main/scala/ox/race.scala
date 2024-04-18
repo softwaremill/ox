@@ -33,7 +33,7 @@ def race[T](fs: Seq[() => T]): T = race(NoErrorMode)(fs)
 def race[E, F[_], T](em: ErrorMode[E, F])(fs: Seq[() => F[T]]): F[T] =
   unsupervised {
     val result = new ArrayBlockingQueue[Try[F[T]]](fs.size)
-    fs.foreach(f => forkPlain(result.put(Try(f()))))
+    fs.foreach(f => forkUnsupervised(result.put(Try(f()))))
 
     @tailrec
     def takeUntilSuccess(failures: Vector[Either[E, Throwable]], left: Int): F[T] =
