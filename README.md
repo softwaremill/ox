@@ -4,7 +4,7 @@
 [![CI](https://github.com/softwaremill/ox/workflows/CI/badge.svg)](https://github.com/softwaremill/ox/actions?query=workflow%3A%22CI%22)
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.softwaremill.ox/core_3/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.softwaremill.ox/core_3)
 
-Safe direct-style concurrency and resiliency for Scala on the JVM. Requires JDK 21 & Scala 3. The areas that we'd like 
+Safe direct style concurrency and resiliency for Scala on the JVM. Requires JDK 21 & Scala 3. The areas that we'd like 
 to cover with ox are:
 
 * concurrency: developer-friendly structured concurrency, high-level concurrency operators, safe low-level primitives, 
@@ -86,9 +86,12 @@ More examples [in the docs!](https://ox.softwaremill.com).
 
 ## Other projects
 
-The wider goal of direct-style Scala is enabling teams to deliver working software quickly and with confidence. Our
+The wider goal of direct style Scala is enabling teams to deliver working software quickly and with confidence. Our
 other projects, including [sttp client](https://sttp.softwaremill.com) and [tapir](https://tapir.softwaremill.com),
-also include integrations directly tailored towards direct-style.
+also include integrations directly tailored towards direct style.
+
+Moreover, also check out the [gears](https://github.com/lampepfl/gears) project, an experimental multi-platform library
+also covering direct style Scala.
 
 ## Contributing
 
