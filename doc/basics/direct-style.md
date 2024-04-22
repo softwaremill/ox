@@ -34,7 +34,7 @@ To achieve that, the JVM runtime manages a pool of platform threads, onto which 
 Moreover, all blocking operations have been retrofitted to be virtual-thread aware. Virtual threads have a low memory 
 footprint, cheap to create and fast to switch between.
 
-## Direct style using ox
+## Direct style using Ox
 
 Direct style Scala aims to combine the safety, composability and local reasoning of functional programming with the ease 
 of use and performance of imperative programming. This is a departure from a purely-functional style, as implemented by

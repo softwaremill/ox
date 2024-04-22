@@ -1,6 +1,6 @@
 # Quick example
 
-Below is a quick example of some of ox's APIs in action. Dive into the specific documentation sections for more details, 
+Below is a quick example of some of Ox's APIs in action. Dive into the specific documentation sections for more details, 
 variants and functionalities!
 
 ```scala mdoc:compile-only

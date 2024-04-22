@@ -1,9 +1,9 @@
-# ox
+# Ox
 
 Safe direct-style concurrency and resiliency for Scala on the JVM. Requires JDK 21 & Scala 3.
 
-To start using ox, add the `core` dependency as described below. Then, follow one of the topics listed in the menu
-to get to know ox's API.
+To start using Ox, add the `core` dependency as described below. Then, follow one of the topics listed in the menu
+to get to know Ox's API.
 
 In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.io](https://www.javadoc.io/doc/com.softwaremill.ox).
 
@@ -78,4 +78,5 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
    :caption: Other topics
    
    dictionary
+   best-practices
    performance

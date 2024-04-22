@@ -1,6 +1,6 @@
 # Fork locals
 
-`ForkLocal`s replace usages of `ThreadLocal` when using ox's forks and structural concurrency. They are useful to
+`ForkLocal`s replace usages of `ThreadLocal` when using Ox's forks and structural concurrency. They are useful to
 propagate auxiliary context, e.g. trace or correlation ids.
 
 Implementation note: `ForkLocal`s are based on `ScopedValue`s, which are part of [JEP 429](https://openjdk.org/jeps/429).

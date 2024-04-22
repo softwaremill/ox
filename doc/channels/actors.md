@@ -1,6 +1,6 @@
 # Actors
 
-Actors in ox enable invoking methods on an object serially, keeping the behavior as close as possible to a direct 
+Actors in Ox enable invoking methods on an object serially, keeping the behavior as close as possible to a direct 
 invocation. That is, even though invocations may happen from multiple threads, they are guaranteed to happen one after 
 the other, not concurrently.
 

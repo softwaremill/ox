@@ -1,6 +1,6 @@
 # Utilities
 
-In addition to concurrency, error handling and resiliency features, ox includes some utility methods, which make writing
+In addition to concurrency, error handling and resiliency features, Ox includes some utility methods, which make writing
 direct-style Scala code more convenient. When possible, these are `inline` methods taking `inline` parameters, hence 
 incurring no runtime overhead.
 

@@ -15,7 +15,7 @@ The general rule for computation combinators is that using them should throw exa
 provided code was executed without them. That is, no additional exceptions might be thrown, and no exceptions are 
 swallowed. The only difference is that some exceptions might be added as suppressed (e.g. interrupted exceptions).
 
-Some examples of exception handling in ox include:
+Some examples of exception handling in Ox include:
 
 * short-circuiting in `par` and `race` when one of the computations fails
 * retrying computations in `retry` when they fail
@@ -25,9 +25,9 @@ Exceptions can be handled using the `try/catch/finally` mechanism.
 
 ## Application errors
 
-Some of the functionalities provided by ox also support application-level errors. Such errors are represented as values,
+Some of the functionalities provided by Ox also support application-level errors. Such errors are represented as values,
 e.g. the left side of an `Either[MyError, MyResult]`. They are not thrown, but returned from the computations which
-are orchestrated by ox.
+are orchestrated by Ox.
 
 Ox must be made aware of how such application errors are represented. This is done through an `ErrorMode`. Provided
 implementations include `EitherMode[E]` (where left sides of `Either`s are used to represent errors), and 
@@ -48,7 +48,7 @@ they are not a universal solution to error handling.
 
 ## Boundary/break for `Either`s
 
-To streamline working with `Either` values, ox provides a specialised version of the 
+To streamline working with `Either` values, Ox provides a specialised version of the 
 [boundary/break](https://www.scala-lang.org/api/current/scala/util/boundary$.html) mechanism.
 
 Within a code block passed to `either`, it allows "unwrapping" `Either`s using `.ok()`. The unwrapped value corresponds
