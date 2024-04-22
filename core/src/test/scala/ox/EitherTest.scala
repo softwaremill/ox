@@ -1,8 +1,8 @@
 package ox
 
+import org.scalatest.exceptions.TestFailedException
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-
 import ox.either.ok
 
 class EitherTest extends AnyFlatSpec with Matchers:
@@ -47,4 +47,36 @@ class EitherTest extends AnyFlatSpec with Matchers:
 
     val r2 = either((optionOk1.ok(), optionFail.ok()))
     r2 shouldBe Left(())
+  }
+
+  it should "report a proper compilation error when used outside of either:" in {
+    val e = intercept[TestFailedException](assertCompiles("ok1.ok()"))
+
+    e.getMessage should include("`.ok()` can only be used within an `either` call.")
+  }
+
+  it should "report a proper compilation error when wrong error type is used (explicit type params)" in {
+    val e = intercept[TestFailedException](assertCompiles("either[String, String](fail1.ok())"))
+
+    e.getMessage should include("The enclosing `either` call uses a different error type.")
+  }
+
+  it should "report a proper compilation error when wrong successful type is used (explicit type params)" in {
+    val e = intercept[TestFailedException](assertCompiles("either[Int, Int](fail1.ok())"))
+
+    e.getMessage should include("Found:    String")
+    e.getMessage should include("Required: Int")
+  }
+
+  it should "report a proper compilation error when wrong type annotation is used (error)" in {
+    val e = intercept[TestFailedException](assertCompiles("val r: Either[String, String] = either(fail1.ok())"))
+
+    e.getMessage should include("The enclosing `either` call uses a different error type.")
+  }
+
+  it should "report a proper compilation error when wrong type annotation is used (success)" in {
+    val e = intercept[TestFailedException](assertCompiles("val r: Either[Int, Int] = either(fail1.ok())"))
+
+    e.getMessage should include("Found:    String")
+    e.getMessage should include("Required: Int")
   }
