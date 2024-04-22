@@ -15,8 +15,10 @@ Because I/O and synchronisations are "blocking", to make direct style efficient 
 is needed. This takes various forms on various platforms: 
 
 * [coroutines in Kotlin](https://kotlinlang.org/docs/coroutines-overview.html), where the compiler transforms functions
-  which are "colored" using `suspend` to a finite state machine (using continuation-passing style)
+  which are "colored" using `suspend` to a finite state machine (using continuation-passing style - CPS)
 * similar coloring using `async` is done in [async-await in JavaScript](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/async_function)
+* [abilities in Unison](https://www.unison-lang.org/docs/language-reference/abilities-and-ability-handlers) adds an
+  algebraic effect system, which is used to guide the CPS transformation 
 * the [gears for Scala Native](https://github.com/lampepfl/gears) support relies on a runtime implementation of 
   delimited continuations
 * also in Scala, direct style is sometimes supported in a localised fashion, by utilizing macros. See 

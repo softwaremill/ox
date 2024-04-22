@@ -34,7 +34,7 @@ implementations include `EitherMode[E]` (where left sides of `Either`s are used 
 `UnionMode[E]`, where a union type of `E` and a successful value is used. Arbitrary user-provided implementations
 are possible as well.
 
-Error modes can be used in [`supervisedError`](error-handling-scopes.md) scopes, as well as in variants of the `par`, `race`, `retry` 
+Error modes can be used in [`supervisedError`](../structured-concurrency/error-handling-scopes.md) scopes, as well as in variants of the `par`, `race`, `retry` 
 methods, and others.
 
 ```{note}
@@ -110,4 +110,13 @@ val v1: Either[String, Int] = ???
 
 val result: Either[String, Int] = either:
   if v1.ok() > 10 then 42 else "wrong".fail()
+```
+
+Exception-throwing code can be converted to an `Either` using `catching`. Note that this only catches non-fatal 
+exceptions!
+
+```scala mdoc:compile-only
+import ox.catching
+
+val result: Either[Throwable, String] = catching(throw new RuntimeException("boom"))
 ```

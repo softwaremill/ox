@@ -29,11 +29,10 @@ supervised {
 
 Scoped values propagate across nested scopes.
 
-```{eval-rst}
-.. note::
-
-  Due to the "structured" nature of setting a fork local's value, forks using external (wider) scopes should not be 
-  created, as an attempt to do so will throw a ``java.util.concurrent.StructureViolationException``.
+```{note}
+Due to the "structured" nature of setting a fork local's value, forks using external (wider) scopes should not be 
+created within a block where a fork local is set. An attempt to do so will throw a 
+`java.util.concurrent.StructureViolationException`.
 ```
 
 ## Creating helper functions which set fork locals

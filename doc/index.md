@@ -22,6 +22,7 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
    basics/start-here
    basics/direct-style
    basics/quick-example
+   basics/error-handling
 
 .. toctree::
    :maxdepth: 2   
@@ -36,6 +37,7 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
    :maxdepth: 2   
    :caption: Structured concurrency
    
+   structured-concurrency/index
    structured-concurrency/fork-join
    structured-concurrency/error-handling-scopes
    structured-concurrency/fork-local
@@ -43,18 +45,12 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
    
 .. toctree::
    :maxdepth: 2   
-   :caption: Core
+   :caption: Resources, resiliency & utilities
    
-   error-handling
+   retries
    resources
    control-flow
    utility
-
-.. toctree::
-   :maxdepth: 2   
-   :caption: Resiliency
-   
-   retries
 
 .. toctree::
    :maxdepth: 2

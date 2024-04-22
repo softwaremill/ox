@@ -5,6 +5,7 @@ variants and functionalities!
 
 ```scala mdoc:compile-only
 import ox.*
+import ox.either.ok
 import ox.channels.*
 import ox.retry.*
 import scala.concurrent.duration.*
@@ -47,4 +48,11 @@ supervised {
 val c = Channel.rendezvous[Int]
 val d = Channel.rendezvous[Int]
 select(c.sendClause(10), d.receiveClause)
+
+// unwrap eithers and combine errors in a union type
+val v1: Either[Int, String] = ???
+val v2: Either[Long, String] = ???
+
+val result: Either[Int | Long, String] = either:
+  v1.ok() ++ v2.ok()
 ```
