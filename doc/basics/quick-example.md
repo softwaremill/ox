@@ -7,7 +7,7 @@ variants and functionalities!
 import ox.*
 import ox.either.ok
 import ox.channels.*
-import ox.retry.*
+import ox.resilience.*
 import scala.concurrent.duration.*
 
 // run two computations in parallel
@@ -35,7 +35,7 @@ supervised {
 
 // retry a computation
 def computationR: Int = ???
-retry(computationR)(RetryPolicy.backoff(3, 100.millis, 5.minutes, Jitter.Equal))
+retry(RetryPolicy.backoff(3, 100.millis, 5.minutes, Jitter.Equal))(computationR)
 
 // create channels & transform them using high-level operations
 supervised {

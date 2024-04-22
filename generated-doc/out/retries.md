@@ -8,7 +8,7 @@ delay between attempts).
 The basic syntax for retries is:
 
 ```scala
-import ox.retry.retry
+import ox.resilience.retry
 
 retry(operation)(policy)
 ```
@@ -139,8 +139,8 @@ If you want to customize a part of the result policy, you can use the following 
 
 ```scala
 import ox.UnionMode
-import ox.retry.{retry, retryEither, retryWithErrorMode}
-import ox.retry.{Jitter, ResultPolicy, RetryPolicy, Schedule}
+import ox.resilience.{retry, retryEither, retryWithErrorMode}
+import ox.resilience.{Jitter, ResultPolicy, RetryPolicy, Schedule}
 import scala.concurrent.duration.*
 
 def directOperation: Int = ???

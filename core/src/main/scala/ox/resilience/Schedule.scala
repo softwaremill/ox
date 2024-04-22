@@ -1,17 +1,17 @@
-package ox.retry
+package ox.resilience
 
 import scala.concurrent.duration.*
 import scala.util.Random
 
-private[retry] sealed trait Schedule:
+private[resilience] sealed trait Schedule:
   def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration
 
 object Schedule:
 
-  private[retry] sealed trait Finite extends Schedule:
+  private[resilience] sealed trait Finite extends Schedule:
     def maxRetries: Int
 
-  private[retry] sealed trait Infinite extends Schedule
+  private[resilience] sealed trait Infinite extends Schedule
 
   /** A schedule that retries up to a given number of times, with no delay between subsequent attempts.
     *
@@ -46,7 +46,7 @@ object Schedule:
       */
     def forever(delay: FiniteDuration): Infinite = DelayForever(delay)
 
-  case class DelayForever private[retry] (delay: FiniteDuration) extends Infinite:
+  case class DelayForever private[resilience](delay: FiniteDuration) extends Infinite:
     override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration = delay
 
   /** A schedule that retries up to a given number of times, with an increasing delay (backoff) between subsequent attempts.
@@ -74,11 +74,11 @@ object Schedule:
       Backoff.nextDelay(attempt, initialDelay, maxDelay, jitter, lastDelay)
 
   object Backoff:
-    private[retry] def delay(attempt: Int, initialDelay: FiniteDuration, maxDelay: FiniteDuration): FiniteDuration =
+    private[resilience] def delay(attempt: Int, initialDelay: FiniteDuration, maxDelay: FiniteDuration): FiniteDuration =
       // converting Duration <-> Long back and forth to avoid exceeding maximum duration
       (initialDelay.toMillis * Math.pow(2, attempt)).toLong.min(maxDelay.toMillis).millis
 
-    private[retry] def nextDelay(
+    private[resilience] def nextDelay(
         attempt: Int,
         initialDelay: FiniteDuration,
         maxDelay: FiniteDuration,
@@ -113,7 +113,7 @@ object Schedule:
     def forever(initialDelay: FiniteDuration, maxDelay: FiniteDuration = 1.minute, jitter: Jitter = Jitter.None): Infinite =
       BackoffForever(initialDelay, maxDelay, jitter)
 
-  case class BackoffForever private[retry] (initialDelay: FiniteDuration, maxDelay: FiniteDuration = 1.minute, jitter: Jitter = Jitter.None)
+  case class BackoffForever private[resilience](initialDelay: FiniteDuration, maxDelay: FiniteDuration = 1.minute, jitter: Jitter = Jitter.None)
       extends Infinite:
     override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration =
       Backoff.nextDelay(attempt, initialDelay, maxDelay, jitter, lastDelay)
