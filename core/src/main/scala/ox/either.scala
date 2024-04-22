@@ -5,14 +5,15 @@ import scala.util.boundary
 import scala.util.boundary.{Label, break}
 
 object either:
-  /** Within an [[either]] block, allows unwrapping [[Either]] and [[Option]] values using [[ok]]. The result is the right-value of an
+  /** Within an [[either]] block, allows unwrapping [[Either]] and [[Option]] values using [[ok()]]. The result is the right-value of an
     * `Either`, or the defined-value of the `Option`. In case a failure is encountered (a left-value of an `Either`, or a `None`), the
-    * computation is short-circuited and the failure becomes the result.
+    * computation is short-circuited and the failure becomes the result. Failures can also be reported using [[fail()]].
     *
     * Uses the [[boundary]]-break mechanism.
     *
     * @param body
-    *   The code block, within which [[Either]]s and [[Option]]s can be unwrapped using [[ok]].
+    *   The code block, within which [[Either]]s and [[Option]]s can be unwrapped using [[ok()]]. Failures can be reported using [[fail()]].
+    *   Both [[ok()]] and [[fail()]] are extension methods.
     * @tparam E
     *   The error type.
     * @tparam A
