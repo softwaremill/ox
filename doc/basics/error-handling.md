@@ -1,4 +1,4 @@
-# General approach to error handling
+# Error handling
 
 The primary error signalling mechanism in ox are exceptions. They are appropriately handled by computation combinators,
 such as [`par`](par.md), [`race`](race.md), as well as by [scopes](fork-join.md) and [channels](channels/index.md).
@@ -27,13 +27,11 @@ are possible as well.
 Error modes can be used in [`supervisedError`](error-handling-scopes.md) scopes, as well as in variants of the `par`
 and `race` methods.
 
-```{eval-rst}
-.. note::
-
-  Using application errors allows specifying the possible errors in the type signatures of the methods, and is hence 
-  more type-safe. If used consistently, exceptions might be avoided altogether, except for signalling bugs in the code.
-  However, representing errors as values might incur a syntax overhead, and might be less convenient in some cases.
-  Moreover, all I/O libraries typically throw exceptions - to use them with errors-as-values, one would need to provide
-  a wrapper which would convert such exceptions to values. Hence, while application errors provide a lot of benefits,
-  they are not a universal solution to error handling.
+```{note}
+Using application errors allows specifying the possible errors in the type signatures of the methods, and is hence 
+more type-safe. If used consistently, exceptions might be avoided altogether, except for signalling bugs in the code.
+However, representing errors as values might incur a syntax overhead, and might be less convenient in some cases.
+Moreover, all I/O libraries typically throw exceptions - to use them with errors-as-values, one would need to provide
+a wrapper which would convert such exceptions to values. Hence, while application errors provide a lot of benefits,
+they are not a universal solution to error handling.
 ```

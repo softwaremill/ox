@@ -45,15 +45,6 @@ machine learning and data analytics.
 We offer commercial support for ox and related technologies, as well as development services. 
 [Contact us](https://softwaremill.com/contact/) to learn more about our offer!
 
-## Other projects
-
-The wider goal of direct style Scala is enabling teams to deliver working software quickly and with confidence. Our
-other projects, including [sttp client](https://sttp.softwaremill.com) and [tapir](https://tapir.softwaremill.com),
-also include integrations directly tailored towards direct style.
-
-Moreover, also check out the [gears](https://github.com/lampepfl/gears) project, an experimental multi-platform library
-also covering direct style Scala.
-
 ## Introductory articles
 
 * [Prototype Loom-based concurrency API for Scala](https://softwaremill.com/prototype-loom-based-concurrency-api-for-scala/)

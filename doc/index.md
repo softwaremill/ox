@@ -27,26 +27,34 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
    :maxdepth: 2   
    :caption: High-level concurrency
    
-   par
+   high-level-concurrency/par
+   high-level-concurrency/race
+   high-level-concurrency/collections
+   high-level-concurrency/timeout
+
+.. toctree::
+   :maxdepth: 2   
+   :caption: Structured concurrency
+   
+   structured-concurrency/fork-join
+   structured-concurrency/error-handling-scopes
+   structured-concurrency/fork-local
+   structured-concurrency/interruptions
    
 .. toctree::
    :maxdepth: 2   
    :caption: Core
    
-   race
-   collections
-   timeout
    error-handling
-   fork-join
-   error-handling-scopes
-   fork-local
-   retries
-   interruptions
    resources
    control-flow
    utility
-   dictionary
-   performance
+
+.. toctree::
+   :maxdepth: 2   
+   :caption: Resiliency
+   
+   retries
 
 .. toctree::
    :maxdepth: 2
@@ -68,3 +76,10 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
    :caption: Kafka integration
 
    kafka
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Other topics
+   
+   dictionary
+   performance
