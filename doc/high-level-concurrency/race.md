@@ -35,7 +35,7 @@ Some values might be considered as application errors. In a computation returns 
 if there are other computations in progress, same as when an exception is thrown. Ultimately, `race` either throws
 the first exception, or the first application error that has been reported (whichever comes first).
 
-It's possible to use an arbitrary [error mode](error-handling.md) by providing it as the initial argument to `race`.
+It's possible to use an arbitrary [error mode](../basics/error-handling.md) by providing it as the initial argument to `race`.
 Alternatively, a built-in version using `Either` is available as `raceEither`:
 
 ```scala mdoc:compile-only
