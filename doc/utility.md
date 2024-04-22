@@ -31,7 +31,7 @@ To streamline working with `Either` values, especially when used for [error hand
 a specialised version of the [boundary/break](https://www.scala-lang.org/api/current/scala/util/boundary$.html) 
 mechanism. 
 
-Within a code block passed to `either`, it allows "unwrapping" `Either`s using `.value`. The unwrapped value corresponds 
+Within a code block passed to `either`, it allows "unwrapping" `Either`s using `.ok()`. The unwrapped value corresponds 
 to the right side of the `Either`, which by convention represents successful computations. In case a failure is 
 encountered (a left side of an `Either`), the computation is short-circuited, and the failure becomes the result. 
 
@@ -39,7 +39,7 @@ For example:
 
 ```scala mdoc:compile-only
 import ox.either
-import ox.either.value
+import ox.either.ok
 
 case class User()
 case class Organization()
@@ -49,27 +49,45 @@ def lookupUser(id1: Int): Either[String, User] = ???
 def lookupOrganization(id2: Int): Either[String, Organization] = ???
 
 val result: Either[String, Assignment] = either:
-  val user = lookupUser(1).value
-  val org = lookupOrganization(2).value
+  val user = lookupUser(1).ok()
+  val org = lookupOrganization(2).ok()
   Assignment(user, org)
 ```
 
 You can also use union types to accumulate different types of errors, e.g.:
 
-```scala
+```scala mdoc:compile-only
+import ox.either
+import ox.either.ok
+
 val v1: Either[Int, String] = ???
 val v2: Either[Long, String] = ???
 
 val result: Either[Int | Long, String] = either:
-  v1.value ++ v2.value
+  v1.ok() ++ v2.ok()
 ```
 
 Finally, options can be unwrapped as well; the error type is then `Unit`:
 
-```scala
+```scala mdoc:compile-only
+import ox.either
+import ox.either.ok
+
 val v1: Option[String] = ???
 val v2: Option[Int] = ???
 
 val result: Either[Unit, String] = either:
-  v1.value * v2.value
+  v1.ok() * v2.ok()
+```
+
+Failures can be reported using `.fail()`. For example (although a pattern match would be better in such a simple case):
+
+```scala mdoc:compile-only
+import ox.either
+import ox.either.{fail, ok}
+
+val v1: Either[String, Int] = ???
+
+val result: Either[String, Int] = either:
+  if v1.ok() > 10 then 42 else "wrong".fail()
 ```

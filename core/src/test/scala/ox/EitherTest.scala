@@ -52,6 +52,9 @@ class EitherTest extends AnyFlatSpec with Matchers:
 
     val r2 = either((optionOk1.ok(), optionFail.ok()))
     r2 shouldBe Left(())
+
+    val r3: Either[Unit, (Int, Int)] = either((optionOk1.ok(), optionFail.ok()))
+    r3 shouldBe Left(())
   }
 
   it should "report a proper compilation error when used outside of either:" in {

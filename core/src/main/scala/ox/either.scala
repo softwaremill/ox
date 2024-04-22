@@ -46,7 +46,7 @@ object either:
         case _ => error("`.ok()` can only be used within an `either` call.\nIs it present?")
       }
 
-  extension [A](inline t: Option[A])(using b: boundary.Label[Either[Unit, Any]])
+  extension [A](inline t: Option[A])
     /** Unwrap the value of the `Option`, short-circuiting the computation to the enclosing [[either]], in case this is a `None`. */
     transparent inline def ok(): A =
       summonFrom {
