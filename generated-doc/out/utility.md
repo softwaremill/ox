@@ -39,7 +39,7 @@ For example:
 
 ```scala
 import ox.either
-import ox.either.value
+import ox.either.ok
 
 case class User()
 case class Organization()
@@ -49,8 +49,8 @@ def lookupUser(id1: Int): Either[String, User] = ???
 def lookupOrganization(id2: Int): Either[String, Organization] = ???
 
 val result: Either[String, Assignment] = either:
-  val user = lookupUser(1).value
-  val org = lookupOrganization(2).value
+  val user = lookupUser(1).ok()
+  val org = lookupOrganization(2).ok()
   Assignment(user, org)
 ```
 
