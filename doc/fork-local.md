@@ -29,7 +29,7 @@ supervised {
 
 Scoped values propagate across nested scopes.
 
-```eval_rst
+```{eval-rst}
 .. note::
 
   Due to the "structured" nature of setting a fork local's value, forks using external (wider) scopes should not be 

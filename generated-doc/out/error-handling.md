@@ -27,7 +27,7 @@ are possible as well.
 Error modes can be used in [`supervisedError`](error-handling-scopes.md) scopes, as well as in variants of the `par`
 and `race` methods.
 
-```eval_rst
+```{eval-rst}
 .. note::
 
   Using application errors allows specifying the possible errors in the type signatures of the methods, and is hence 
