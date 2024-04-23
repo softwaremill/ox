@@ -1,4 +1,4 @@
-package ox.retry
+package ox.resilience
 
 /** A policy that allows to customize when a non-erroneous result is considered successful and when an error is worth retrying (which allows
   * for failing fast on certain errors).

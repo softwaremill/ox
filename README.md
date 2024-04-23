@@ -4,8 +4,8 @@
 [![CI](https://github.com/softwaremill/ox/workflows/CI/badge.svg)](https://github.com/softwaremill/ox/actions?query=workflow%3A%22CI%22)
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.softwaremill.ox/core_3/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.softwaremill.ox/core_3)
 
-Safe direct-style concurrency and resiliency for Scala on the JVM. Requires JDK 21 & Scala 3. The areas that we'd like 
-to cover with ox are:
+Safe direct style concurrency and resiliency for Scala on the JVM. Requires JDK 21 & Scala 3. The areas that we'd like 
+to cover with Ox are:
 
 * concurrency: developer-friendly structured concurrency, high-level concurrency operators, safe low-level primitives, 
   communication between concurrently running computations
@@ -20,7 +20,7 @@ developer-friendly stack traces, and without compromising performance.
 Some of the above are already addressed in the API, some are coming up in the future. We’d love your help in shaping 
 the project!
 
-To test ox, use the following dependency, using either [sbt](https://www.scala-sbt.org):
+To test Ox, use the following dependency, using either [sbt](https://www.scala-sbt.org):
 
 ```scala
 "com.softwaremill.ox" %% "core" % "0.0.26"
@@ -38,8 +38,9 @@ Documentation is available at [https://ox.softwaremill.com](https://ox.softwarem
 
 ```scala
 import ox.*
+import ox.either.ok
 import ox.channels.*
-import ox.retry.*
+import ox.resilience.*
 import scala.concurrent.duration.*
 
 // run two computations in parallel
@@ -50,7 +51,7 @@ val result1: (Int, String) = par(computation1, computation2)
 
 // timeout a computation
 def computation: Int = { sleep(2.seconds); 1 }
-val result2: Try[Int] = Try(timeout(1.second)(computation))
+val result2: Either[Throwable, Int] = catching(timeout(1.second)(computation))
 
 // structured concurrency & supervision
 supervised {
@@ -67,28 +68,38 @@ supervised {
 
 // retry a computation
 def computationR: Int = ???
-retry(computationR)(RetryPolicy.backoff(3, 100.millis, 5.minutes, Jitter.Equal))
+retry(RetryPolicy.backoff(3, 100.millis, 5.minutes, Jitter.Equal))(computationR)
 
 // create channels & transform them using high-level operations
 supervised {
   Source.iterate(0)(_ + 1) // natural numbers
-    .transform(_.filter(_ % 2 == 0).map(_ + 1).take(10))
-    .foreach(n => println(n.toString))
+          .transform(_.filter(_ % 2 == 0).map(_ + 1).take(10))
+          .foreach(n => println(n.toString))
 }
 
 // select from a number of channels
 val c = Channel.rendezvous[Int]
 val d = Channel.rendezvous[Int]
 select(c.sendClause(10), d.receiveClause)
+
+// unwrap eithers and combine errors in a union type
+val v1: Either[Int, String] = ???
+val v2: Either[Long, String] = ???
+
+val result: Either[Int | Long, String] = either:
+  v1.ok() ++ v2.ok()
 ```
 
 More examples [in the docs!](https://ox.softwaremill.com).
 
 ## Other projects
 
-The wider goal of direct-style Scala is enabling teams to deliver working software quickly and with confidence. Our
+The wider goal of direct style Scala is enabling teams to deliver working software quickly and with confidence. Our
 other projects, including [sttp client](https://sttp.softwaremill.com) and [tapir](https://tapir.softwaremill.com),
-also include integrations directly tailored towards direct-style.
+also include integrations directly tailored towards direct style.
+
+Moreover, also check out the [gears](https://github.com/lampepfl/gears) project, an experimental multi-platform library
+also covering direct style Scala.
 
 ## Contributing
 

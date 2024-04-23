@@ -69,7 +69,7 @@ We offer commercial support for ox and related technologies, as well as developm
 
 ## Table of contents
 
-```eval_rst
+```{eval-rst}
 .. toctree::
    :maxdepth: 2
    :caption: Core

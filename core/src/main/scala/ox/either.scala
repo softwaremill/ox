@@ -3,6 +3,7 @@ package ox
 import scala.compiletime.{error, summonFrom}
 import scala.util.boundary
 import scala.util.boundary.{Label, break}
+import scala.util.control.NonFatal
 
 object either:
   /** Within an [[either]] block, allows unwrapping [[Either]] and [[Option]] values using [[ok()]]. The result is the right-value of an
@@ -68,3 +69,8 @@ object either:
         case given boundary.Label[Either[Nothing, Nothing]] =>
           error("The enclosing `either` call uses a different error type.\nIf it's explicitly typed, is the error type correct?")
       }
+
+/** Catches non-fatal exceptions that occur when evaluating `t` and returns them as the left side of the returned `Either`. */
+inline def catching[T](inline t: => T): Either[Throwable, T] =
+  try Right(t)
+  catch case NonFatal(e) => Left(e)

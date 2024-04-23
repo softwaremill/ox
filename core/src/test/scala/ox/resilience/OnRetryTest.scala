@@ -1,9 +1,9 @@
-package ox.retry
+package ox.resilience
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.{EitherValues, TryValues}
-import ox.retry.*
+import ox.resilience.*
 
 class OnRetryTest extends AnyFlatSpec with Matchers with EitherValues with TryValues:
   behavior of "RetryPolicy onRetry callback"

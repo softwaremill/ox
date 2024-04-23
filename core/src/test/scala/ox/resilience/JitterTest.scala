@@ -1,4 +1,4 @@
-package ox.retry
+package ox.resilience
 
 import org.scalatest.Inspectors
 import org.scalatest.flatspec.AnyFlatSpec

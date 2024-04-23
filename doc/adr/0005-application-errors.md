@@ -9,7 +9,7 @@ In some cases, it's useful to treat some return values as errors, which should c
 ## Decision
 
 For computation combinators, which include `par`, `race` and `supervised`, we decided to introduce the concept of
-application errors. These are values of a shape defined by an `ErrorMode`, which are specially treated by ox - if
+application errors. These are values of a shape defined by an `ErrorMode`, which are specially treated by Ox - if
 such a value represents an error, the enclosing scope ends.
 
 Some design limitations include:

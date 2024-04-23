@@ -29,8 +29,8 @@ when invoking `Fork.join`.
 ## Supervised scope with application errors
 
 Additionally, supervised scopes can be created with an error mode, which allows ending the scope when a fork returns
-a value that is an [application error](error-handling.md). This can be done by using `supervisedError` and `forkError`, 
-for example:
+a value that is an [application error](../basics/error-handling.md). This can be done by using `supervisedError` and 
+`forkError`, for example:
 
 ```scala mdoc:compile-only
 import ox.{EitherMode, forkUserError, supervisedError}

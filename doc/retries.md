@@ -8,17 +8,9 @@ delay between attempts).
 The basic syntax for retries is:
 
 ```scala
-import ox.retry.retry
+import ox.resilience.retry
 
 retry(operation)(policy)
-```
-
-or, using [`pipe`](utility.md) sugar:
-
-```scala
-import ox.pipe
-
-operation.pipe(retry(policy))
 ```
 
 ## Operation definition
@@ -26,7 +18,7 @@ operation.pipe(retry(policy))
 The `operation` can be provided directly using a by-name parameter, i.e. `f: => T`.
 
 There's also a `retryEither` variant which accepts a by-name `Either[E, T]`, i.e. `f: => Either[E, T]`, as well as one
-which accepts arbitrary [error modes](error-handling.md), accepting the computation in an `F` context: `f: => F[T]`.
+which accepts arbitrary [error modes](basics/error-handling.md), accepting the computation in an `F` context: `f: => F[T]`.
 
 ## Policies
 
@@ -139,8 +131,8 @@ If you want to customize a part of the result policy, you can use the following 
 
 ```scala mdoc:compile-only
 import ox.UnionMode
-import ox.retry.{retry, retryEither, retryWithErrorMode}
-import ox.retry.{Jitter, ResultPolicy, RetryPolicy, Schedule}
+import ox.resilience.{retry, retryEither, retryWithErrorMode}
+import ox.resilience.{Jitter, ResultPolicy, RetryPolicy, Schedule}
 import scala.concurrent.duration.*
 
 def directOperation: Int = ???
@@ -171,4 +163,4 @@ retryEither(RetryPolicy(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fata
 retryWithErrorMode(UnionMode[String])(RetryPolicy(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")))(unionOperation)
 ```
 
-See the tests in `ox.retry.*` for more.
+See the tests in `ox.resilience.*` for more.

@@ -10,7 +10,7 @@ Actor invocations are fully type-safe, with minimal overhead. They use [channels
 One of the use-cases is integrating with external APIs, which are represented by an object containing mutable state.
 Such integrations must be protected and cannot be accessed by multiple threads concurrently.
 
-```eval_rst
+```{eval-rst}
 .. note::
 
   Note that actors as described below are a very basic implementation, covering only some use cases for local 

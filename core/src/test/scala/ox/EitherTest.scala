@@ -3,7 +3,7 @@ package ox
 import org.scalatest.exceptions.TestFailedException
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import ox.either.{ok, fail}
+import ox.either.{fail, ok}
 
 class EitherTest extends AnyFlatSpec with Matchers:
   val ok1: Either[Int, String] = Right("x")
@@ -99,4 +99,14 @@ class EitherTest extends AnyFlatSpec with Matchers:
     val e = intercept[TestFailedException](assertCompiles("""val r: Either[Int, Int] = either("x".fail())"""))
 
     e.getMessage should include("The enclosing `either` call uses a different error type.")
+  }
+
+  it should "catch exceptions" in {
+    catching(throw new RuntimeException("boom")).left.map(_.getMessage) shouldBe Left("boom")
+  }
+
+  it should "not catch fatal exceptions" in {
+    val e = intercept[InterruptedException](catching(throw new InterruptedException()))
+
+    e shouldBe a[InterruptedException]
   }

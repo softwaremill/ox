@@ -1,4 +1,4 @@
-package ox.retry
+package ox.resilience
 
 import scala.concurrent.duration.*
 

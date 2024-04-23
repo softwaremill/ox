@@ -4,7 +4,7 @@ Date: 2024-04-17
 
 ## Context
 
-Originally, ox had only `scoped` which created non-supervised scopes, that is errors were only discovered via explicit
+Originally, Ox had only `scoped` which created non-supervised scopes, that is errors were only discovered via explicit
 joining. This was later changed by introducing `supervised` and `unsupervised` scopes, where the former would end
 immediately when any fork failed, and the latter would not. However, `supervised` scopes have an overhead: they create
 an additional fork, in which the scope's main body is run. Is it possible to avoid this extra fork?

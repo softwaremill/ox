@@ -1,10 +1,10 @@
-package ox.retry
+package ox.resilience
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.{EitherValues, TryValues}
 import ox.ElapsedTime
-import ox.retry.*
+import ox.resilience.*
 
 import scala.concurrent.duration.*
 

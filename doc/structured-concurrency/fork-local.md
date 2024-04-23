@@ -1,6 +1,6 @@
 # Fork locals
 
-`ForkLocal`s replace usages of `ThreadLocal` when using ox's forks and structural concurrency. They are useful to
+`ForkLocal`s replace usages of `ThreadLocal` when using Ox's forks and structural concurrency. They are useful to
 propagate auxiliary context, e.g. trace or correlation ids.
 
 Implementation note: `ForkLocal`s are based on `ScopedValue`s, which are part of [JEP 429](https://openjdk.org/jeps/429).
@@ -29,11 +29,10 @@ supervised {
 
 Scoped values propagate across nested scopes.
 
-```eval_rst
-.. note::
-
-  Due to the "structured" nature of setting a fork local's value, forks using external (wider) scopes should not be 
-  created, as an attempt to do so will throw a ``java.util.concurrent.StructureViolationException``.
+```{note}
+Due to the "structured" nature of setting a fork local's value, forks using external (wider) scopes should not be 
+created within a block where a fork local is set. An attempt to do so will throw a 
+`java.util.concurrent.StructureViolationException`.
 ```
 
 ## Creating helper functions which set fork locals
