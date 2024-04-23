@@ -2,8 +2,8 @@
 
 Ox uses two channels, through which errors can be signalled:
 
-1. exceptions: used in case of bugs, unexpected situations, integrating with Java libraries
-2. application/logical errors: represented as values, using `Either` or as part of a custom data type
+1. exceptions: used in case of bugs, unexpected situations, when integrating with Java libraries
+2. application/logical errors: represented as values, using `Either`s, or as part of a custom data type
 
 ## Exceptions
 

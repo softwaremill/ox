@@ -5,7 +5,7 @@
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.softwaremill.ox/core_3/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.softwaremill.ox/core_3)
 
 Safe direct style concurrency and resiliency for Scala on the JVM. Requires JDK 21 & Scala 3. The areas that we'd like 
-to cover with ox are:
+to cover with Ox are:
 
 * concurrency: developer-friendly structured concurrency, high-level concurrency operators, safe low-level primitives, 
   communication between concurrently running computations
@@ -20,7 +20,7 @@ developer-friendly stack traces, and without compromising performance.
 Some of the above are already addressed in the API, some are coming up in the future. We’d love your help in shaping 
 the project!
 
-To test ox, use the following dependency, using either [sbt](https://www.scala-sbt.org):
+To test Ox, use the following dependency, using either [sbt](https://www.scala-sbt.org):
 
 ```scala
 "com.softwaremill.ox" %% "core" % "0.0.26"

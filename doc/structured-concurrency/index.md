@@ -16,4 +16,4 @@ These characteristics make structured concurrency an ideal candidate to make con
 programming, while keeping blocking-like method calls. Structured concurrency enables local reasoning on the threading 
 effects, which is also one of the prime tenets of functional programming!
 
-Ox extends the structured concurrency concepts with various form of error handling, described in the following sections.
+Ox extends the structured concurrency concepts with various forms of error handling, described in the following sections.

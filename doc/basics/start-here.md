@@ -1,6 +1,6 @@
 # Start here
 
-## Adding ox to your project
+## Adding Ox to your project
 
 ```scala
 // sbt dependency
@@ -10,9 +10,9 @@
 //> using dep "com.softwaremill.ox::core:@VERSION@"
 ```
 
-## Scope of the ox project
+## Scope of the Ox project
 
-The areas that we'd like to cover with ox are:
+The areas that we'd like to cover with Ox are:
 
 * concurrency: developer-friendly structured concurrency, high-level concurrency operators, safe low-level primitives, 
   communication between concurrently running computations
@@ -34,7 +34,7 @@ Alternatively, you can create an issue or submit a pull request on [GitHub](http
 
 ## Sponsors
 
-Development and maintenance of ox is sponsored by [SoftwareMill](https://softwaremill.com), a software development and consulting company. 
+Development and maintenance of Ox is sponsored by [SoftwareMill](https://softwaremill.com), a software development and consulting company. 
 We help clients scale their business through software. Our areas of expertise include backends, distributed systems, 
 machine learning and data analytics.
 
@@ -42,7 +42,7 @@ machine learning and data analytics.
 
 ## Commercial Support
 
-We offer commercial support for ox and related technologies, as well as development services. 
+We offer commercial support for Ox and related technologies, as well as development services. 
 [Contact us](https://softwaremill.com/contact/) to learn more about our offer!
 
 ## Introductory articles

@@ -17,7 +17,7 @@ is needed. This takes various forms on various platforms:
 * [coroutines in Kotlin](https://kotlinlang.org/docs/coroutines-overview.html), where the compiler transforms functions
   which are "colored" using `suspend` to a finite state machine (using continuation-passing style - CPS)
 * similar coloring using `async` is done in [async-await in JavaScript](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/async_function)
-* [abilities in Unison](https://www.unison-lang.org/docs/language-reference/abilities-and-ability-handlers) adds an
+* [abilities in Unison](https://www.unison-lang.org/docs/language-reference/abilities-and-ability-handlers) add an
   algebraic effect system, which is used to guide the CPS transformation 
 * the [gears for Scala Native](https://github.com/lampepfl/gears) support relies on a runtime implementation of 
   delimited continuations
@@ -32,7 +32,7 @@ matching that of reactive and asynchronous libraries, while keeping syntax of Ja
 
 To achieve that, the JVM runtime manages a pool of platform threads, onto which multiple virtual threads are scheduled. 
 Moreover, all blocking operations have been retrofitted to be virtual-thread aware. Virtual threads have a low memory 
-footprint, cheap to create and fast to switch between.
+footprint, are cheap to create and fast to switch between.
 
 ## Direct style using Ox
 
@@ -45,10 +45,10 @@ Note, however, that in all other aspects direct style Scala remains functional: 
 higher order functions, typeclasses, restricting effects, separating code and data, favoring function composition, etc.
 
 Ox uses the above mentioned virtual threads in Java 21 to implement a safe approach to concurrency, combined with 
-Go-like channels for inter-thread communication. Moreover, ox supports and proposes an approach to error handling, along 
-with multiple utility functions providing a safe resiliency, resource management, scheduling and others.
+Go-like channels for inter-thread communication. Moreover, Ox supports and proposes an approach to error handling, along 
+with multiple utility functions providing safe resiliency, resource management, scheduling and others.
 
-The overarching goal of ox is enabling safe direct style programming using the power of the Scala 3 language. While 
+The overarching goal of Ox is enabling safe direct style programming using the power of the Scala 3 language. While 
 still in its early days, a lot of functionality is available in ox today!
 
 ## Other direct style Scala projects
@@ -57,5 +57,5 @@ The wider goal of direct style Scala is enabling teams to deliver working softwa
 other projects, including [sttp client](https://sttp.softwaremill.com) and [tapir](https://tapir.softwaremill.com),
 also include integrations directly tailored towards direct style.
 
-Moreover, also check out the [gears](https://github.com/lampepfl/gears) project, an experimental multi-platform library
-also covering direct style Scala.
+Moreover, also check out the [gears](https://github.com/lampepfl/gears) project, an experimental multi-platform library 
+covering direct style Scala.

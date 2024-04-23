@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# ox documentation build configuration file, created by
+# Ox documentation build configuration file, created by
 # sphinx-quickstart on Thu Oct 12 15:51:09 2017.
 #
 # This file is execfile()d with the current directory set to its
@@ -49,7 +49,7 @@ source_suffix = {
 master_doc = 'index'
 
 # General information about the project.
-project = u'ox'
+project = u'Ox'
 copyright = u'2024, SoftwareMill'
 author = u'SoftwareMill'
 
@@ -155,7 +155,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'ox', u'ox documentation',
+    (master_doc, 'Ox', u'ox documentation',
      [author], 1)
 ]
 
@@ -166,8 +166,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'ox', u'ox documentation',
-     author, 'ox', 'Safe direct-style concurrency and resiliency for Scala on the JVM',
+    (master_doc, 'Ox', u'ox documentation',
+     author, 'Ox', 'Safe direct-style concurrency and resiliency for Scala on the JVM',
      'Scala'),
 ]
 
