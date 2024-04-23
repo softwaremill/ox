@@ -1,5 +1,7 @@
 # Parallelize collection operations
 
+Ox contains a number of methods which allow parallelizing operations on collections.
+
 ## mapPar
 
 ```scala
@@ -55,5 +57,5 @@ val result: List[Int] = input.collectPar(4) {
 // (3, 5, 7, 9, 11)
 ```
 
-Similar to `mapPar` but only applies transformation to elements for which
-the partial function is defined. Other elements are skipped.
+Similar to `mapPar` but only applies transformation to elements for which the partial function is defined. Other 
+elements are skipped.

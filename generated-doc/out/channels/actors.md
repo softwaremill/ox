@@ -1,22 +1,20 @@
 # Actors
 
-Actors in ox enable invoking methods on an object serially, keeping the behavior as close as possible to a direct 
+Actors in Ox enable invoking methods on an object serially, keeping the behavior as close as possible to a direct 
 invocation. That is, even though invocations may happen from multiple threads, they are guaranteed to happen one after 
 the other, not concurrently.
 
 Actor invocations are fully type-safe, with minimal overhead. They use [channels](index.md) and 
-[scopes](../fork-join.md) behind the scenes.
+[scopes](../structured-concurrency/fork-join.md) behind the scenes.
 
 One of the use-cases is integrating with external APIs, which are represented by an object containing mutable state.
 Such integrations must be protected and cannot be accessed by multiple threads concurrently.
 
-```{eval-rst}
-.. note::
-
-  Note that actors as described below are a very basic implementation, covering only some use cases for local 
-  concurrency. In general, actors are especially useful when working in distributedor clustered systems, or when 
-  implementing patterns such as event sourcing. For these use-cases, see the `Pekko <https://pekko.apache.org>`_ 
-  project.
+```{note}
+Note that actors as described below are a very basic implementation, covering only some use cases for local 
+concurrency. In general, actors are especially useful when working in distributedor clustered systems, or when 
+implementing patterns such as event sourcing. For these use-cases, see the [Pekko](https://pekko.apache.org) 
+project.
 ```
 
 An actor can be created given any value (representing the actor's state) using `Actor.create`. This creates a fork in 

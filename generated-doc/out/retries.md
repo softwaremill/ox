@@ -13,20 +13,12 @@ import ox.resilience.retry
 retry(operation)(policy)
 ```
 
-or, using [`pipe`](utility.md) sugar:
-
-```scala
-import ox.pipe
-
-operation.pipe(retry(policy))
-```
-
 ## Operation definition
 
 The `operation` can be provided directly using a by-name parameter, i.e. `f: => T`.
 
 There's also a `retryEither` variant which accepts a by-name `Either[E, T]`, i.e. `f: => Either[E, T]`, as well as one
-which accepts arbitrary [error modes](error-handling.md), accepting the computation in an `F` context: `f: => F[T]`.
+which accepts arbitrary [error modes](basics/error-handling.md), accepting the computation in an `F` context: `f: => F[T]`.
 
 ## Policies
 
@@ -171,4 +163,4 @@ retryEither(RetryPolicy(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fata
 retryWithErrorMode(UnionMode[String])(RetryPolicy(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")))(unionOperation)
 ```
 
-See the tests in `ox.retry.*` for more.
+See the tests in `ox.resilience.*` for more.

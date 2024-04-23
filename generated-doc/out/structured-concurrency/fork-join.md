@@ -113,8 +113,8 @@ Finally, entirely unsupervised forks can be started using `forkPlain`.
 An unsupervised scope can be created using `unsupervised`. Within such scopes, only `forkPlain` and `forkCancellable` 
 forks can be started.
 
-Such a scope ends, once the code block passed to `unsupervised` completes. Then, all running forks are cancelled. Still, 
-the scope completes (that is, the `unsupervised` block returns) only once all forks have completed.
+Once the code block passed to `unsupervised` completes, the scope ends, that is, all running forks are cancelled. Still, 
+the `unsupervised` method returns (the scope completes) only once all forks have completed.
 
 Fork failures aren't handled in any special way, and can be inspected using the `Fork.join()` method.
 

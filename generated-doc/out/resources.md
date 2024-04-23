@@ -1,9 +1,9 @@
 # Resources
 
-## Individual resource
+## Single scoped resource
 
-Ox provides convenience methods to allocate, use and (uninterruptibly) release resources with a try-finally block: `use`
-and `useCloseable`. For example:
+Ox provides convenience inline methods to allocate, use and (uninterruptibly) release resources with a try-finally 
+block: `use` and `useCloseable`. For example:
 
 ```scala
 import ox.useCloseable
