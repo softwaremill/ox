@@ -117,3 +117,27 @@ object Schedule:
       extends Infinite:
     override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration =
       Backoff.nextDelay(attempt, initialDelay, maxDelay, jitter, lastDelay)
+
+  private[resilience] sealed trait Combined extends Schedule:
+    val base: Finite
+    val fallback: Schedule
+    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration =
+      if base.maxRetries > attempt then base.nextDelay(attempt, lastDelay)
+      else fallback.nextDelay(attempt - base.maxRetries, lastDelay)
+
+  /** A schedule that combines two schedules, using [[base]] first [[base.maxRetries]] number of times, and then using [[fallback]]
+    * [[fallback.maxRetries]] number of times.
+    */
+  case class Combination(base: Finite, fallback: Finite) extends Combined, Finite:
+    override def maxRetries: Int = base.maxRetries + fallback.maxRetries
+
+  object Combination:
+    /** A schedule that retries indefinitely, using [[base]] first [[base.maxRetries]] number of times, and then always using [[fallback]].
+      */
+    def forever(base: Finite, fallback: Infinite): Infinite = CombinationForever(base, fallback)
+
+  case class CombinationForever private[resilience](base: Finite, fallback: Infinite) extends Combined, Infinite
+
+  extension (schedule: Finite)
+    def fallbackTo(fallback: Finite): Finite = Combination(schedule, fallback)
+    def fallbackTo(fallback: Infinite): Infinite = Combination.forever(schedule, fallback)
