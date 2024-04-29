@@ -56,6 +56,3 @@ still in its early days, a lot of functionality is available in ox today!
 The wider goal of direct style Scala is enabling teams to deliver working software quickly and with confidence. Our
 other projects, including [sttp client](https://sttp.softwaremill.com) and [tapir](https://tapir.softwaremill.com),
 also include integrations directly tailored towards direct style.
-
-Moreover, also check out the [gears](https://github.com/lampepfl/gears) project, an experimental multi-platform library 
-covering direct style Scala.

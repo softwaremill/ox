@@ -80,3 +80,4 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
    dictionary
    best-practices
    performance
+   compare-gears
