@@ -81,3 +81,4 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
    best-practices
    performance
    compare-gears
+   compare-funeff
