@@ -10,7 +10,7 @@ The basic syntax for retries is:
 ```scala
 import ox.resilience.retry
 
-retry(operation)(policy)
+retry(policy)(operation)
 ```
 
 ## Operation definition
