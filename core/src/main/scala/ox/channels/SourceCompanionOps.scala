@@ -3,11 +3,15 @@ package ox.channels
 import ox.*
 import ox.channels.ChannelClosedUnion.isValue
 
+import java.io.InputStream
 import java.util
 import scala.collection.mutable
+import scala.concurrent.ExecutionContext
+import scala.concurrent.ExecutionException
+import scala.concurrent.Future
 import scala.concurrent.duration.FiniteDuration
-import scala.concurrent.{ExecutionContext, ExecutionException, Future}
-import scala.util.{Failure, Success}
+import scala.util.Failure
+import scala.util.Success
 
 trait SourceCompanionOps:
   def fromIterable[T](it: Iterable[T])(using Ox, StageCapacity): Source[T] = fromIterator(it.iterator)
@@ -383,3 +387,44 @@ trait SourceCompanionOps:
     val c = Channel.rendezvous[T]
     c.errorOrClosed(t)
     c
+
+  def fromInputStream(is: InputStream, chunkSize: Int = 1024)(using Ox): Source[Chunk[Byte]] =
+    val chunks = StageCapacity.newChannel[Chunk[Byte]]
+    fork {
+      try
+        repeatWhile {
+          val a = new Array[Byte](chunkSize)
+          val r = is.read(a)
+          if r == -1 then
+            chunks.done()
+            false
+          else
+            val chunk = if r == chunkSize then Chunk.fromArray(a) else Chunk.fromArray(a.take(r))
+            chunks.send(chunk)
+            true
+        }
+      catch
+        case t: Throwable =>
+          chunks.errorOrClosed(t)
+      finally
+        try is.close()
+        catch case _: Throwable => ()
+    }
+    chunks
+
+extension (source: Source[Chunk[Byte]]) {
+  def asInputStream: InputStream = new InputStream:
+    private var currentChunk: Iterator[Byte] = Iterator.empty
+
+    override def read(): Int =
+      if !currentChunk.hasNext then
+        source.receiveOrClosed() match
+          case ChannelClosed.Done     => return -1
+          case ChannelClosed.Error(t) => throw t
+          case chunk: Chunk[Byte] =>
+            currentChunk = chunk.iterator
+      currentChunk.next() & 0xff // Convert to unsigned
+
+    override def available: Int =
+      currentChunk.length
+}
