@@ -8,9 +8,9 @@ Revisiting ADR #1, what should happen when an error is encountered when processi
 
 ## Decision
 
-In addition to what's mentioned in ADR #1, operators don't throw, but propagate, because"
+In addition to what's mentioned in ADR #1, operators don't throw, but propagate, because:
        
 * we might be in a non-supervised scope, so the errors would disappear silently (as the intermediate forks aren't visible to the end user, and are not supervised in this scenario)
-* we want to allow throw-free coding style. When errors are propagate, on error every daemon operator thread shuts down, and we end the scope gracefully.
+* we want to allow throw-free coding style. When errors are propagated, on error every daemon operator thread shuts down, and we end the scope gracefully.
 
 Additionally, we assume that data only flows downstream - and this includes errors.
