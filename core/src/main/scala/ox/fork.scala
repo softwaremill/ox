@@ -144,8 +144,8 @@ def forkCancellable[T](f: => T)(using OxUnsupervised): CancellableFork[T] =
   val done = new Semaphore(0)
   val ox = summon[OxUnsupervised]
   ox.scope.fork { () =>
-    scopedWithCapability(OxError(ox.supervisor, NoErrorMode)) {
-      val nestedOx = summon[Ox]
+    val nestedOx = OxError(NoOpSupervisor, NoErrorMode)
+    scopedWithCapability(nestedOx) {
       nestedOx.scope.fork { () =>
         // "else" means that the fork is already cancelled, so doing nothing in that case
         if !started.getAndSet(true) then
