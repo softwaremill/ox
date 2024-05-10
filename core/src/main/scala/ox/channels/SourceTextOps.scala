@@ -6,6 +6,11 @@ import scala.annotation.tailrec
 trait SourceTextOps[+T]:
   outer: Source[T] =>
 
+  /**
+      * Transforms a Source of byte chunks such that each emitted `String` is a text line from the input.
+      *
+      * @return a Source emitting lines read from the input byte chunks, assuming they represent text.
+      */
   def lines(using Ox, T <:< Chunk[Byte]): Source[String] =
     // buffer == null is a special state for handling empty chunks in onComplete, in order to tell them apart from empty lines
     outer

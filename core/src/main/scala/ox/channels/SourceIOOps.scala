@@ -7,6 +7,7 @@ import java.io.InputStream
 trait SourceIOOps[+T]:
   outer: Source[T] =>
 
+  /** Creates a [[java.io.InputStream]] out of this Source. The InputStream can read bytes from the underlying channel. */
   def asInputStream(using T <:< Chunk[Byte]): InputStream = new InputStream:
     private var currentChunk: Iterator[Byte] = Iterator.empty
 
