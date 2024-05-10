@@ -2,6 +2,10 @@ package ox
 
 import scala.reflect.{ClassTag, classTag}
 
+/** An immutable finite indexed sequence of elements. Backed by Array, meant to be used as a standard abstraction in Sources where passing
+  * around Array is not desirable. Standard operations like concatenation, drop, splitAt, etc. used in Source processing can be used just
+  * like with arrays, but their internal implementation can be optimized to avoid unnecessary expensive data copying.
+  */
 abstract sealed class Chunk[+A] extends IndexedSeq[A]:
   override def drop(n: Int): Chunk[A] = this match
     case a: ArrayChunk[?] =>
@@ -14,6 +18,7 @@ abstract sealed class Chunk[+A] extends IndexedSeq[A]:
       ArrayChunk(a.array.take(n))
     case Empty =>
       Empty
+
   override def splitAt(n: Int): (Chunk[A], Chunk[A]) = (take(n), drop(n))
   final def ++[A1 >: A](that: Chunk[A1]): Chunk[A1] =
     given ct: ClassTag[A1] = that match {
@@ -22,7 +27,8 @@ abstract sealed class Chunk[+A] extends IndexedSeq[A]:
     }
     Chunk.fromArray(toArray[A1] ++ that.toArray)
 
-  final def asString(using ev: Chunk.IsText[A]) =
+  /** Converts a chunk of into a String, if supported by element type (for example for byte chunks). */
+  final def asString(using ev: Chunk.IsText[A]): String =
     ev.convert(this)
 
 final case class ArrayChunk[A](array: Array[A]) extends Chunk[A]:
