@@ -2,9 +2,11 @@ package ox
 
 import scala.reflect.{ClassTag, classTag}
 
-/** An immutable finite indexed sequence of elements. Backed by Array, meant to be used as a standard abstraction in Sources where passing
-  * around Array is not desirable. Standard operations like concatenation, drop, splitAt, etc. used in Source processing can be used just
-  * like with arrays, but their internal implementation can be optimized to avoid unnecessary expensive data copying.
+/** An immutable finite indexed sequence of elements, backed by Array. Raw rrays are expensive performance-wise when you want to do
+  * operations like concatenation, splitAt, drop, etc. Such operations are often useful when doing Source processing. `Chunk` offers a
+  * wrapper focused primarly on performance optimizations for such costly operations, while maintaining familiar API of an `IndexedSeq`.
+  * Underneath, a `Chunk` should leverage lazy data structures to avoid unnecessary data copying, which is a typical drawback for most Array
+  * combinators.
   */
 abstract sealed class Chunk[+A] extends IndexedSeq[A]:
   override def drop(n: Int): Chunk[A] = this match

@@ -6,13 +6,15 @@ import java.io.InputStream
 
 trait SourceCompanionIOOps:
 
-/**
-  * Converts a [[java.io.InputStream]] into a `Source[Chunk[Bytes]]`.
-  *
-  * @param is an `InputStream` to read bytes from.
-  * @param chunkSize maximum number of bytes to read from the underlying `InputStream` before emitting a new chunk.
-  * @return a `Source` of chunks of bytes.
-  */
+  /** Converts a [[java.io.InputStream]] into a `Source[Chunk[Bytes]]`.
+    *
+    * @param is
+    *   an `InputStream` to read bytes from.
+    * @param chunkSize
+    *   maximum number of bytes to read from the underlying `InputStream` before emitting a new chunk.
+    * @return
+    *   a `Source` of chunks of bytes.
+    */
   def fromInputStream(is: InputStream, chunkSize: Int = 1024)(using Ox): Source[Chunk[Byte]] =
     val chunks = StageCapacity.newChannel[Chunk[Byte]]
     fork {
@@ -30,9 +32,11 @@ trait SourceCompanionIOOps:
         }
       catch
         case t: Throwable =>
-          chunks.errorOrClosed(t)
+          chunks.errorOrClosed(t).discard
       finally
         try is.close()
-        catch case _: Throwable => ()
+        catch
+          case t: Throwable =>
+            chunks.errorOrClosed(t).discard
     }
     chunks
