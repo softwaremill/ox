@@ -4,11 +4,13 @@ import org.scalatest.concurrent.Eventually.*
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import ox.{timeout as _, *}
+
 import java.io.ByteArrayInputStream
 import java.util.concurrent.atomic.AtomicBoolean
 import java.io.InputStream
 import scala.concurrent.duration.*
-class SourceCompanionOpsInputStreamTest extends AnyWordSpec with Matchers:
+
+class SourceCompanionIOOpsTest extends AnyWordSpec with Matchers:
 
   def emptyInputStream: TestStream = new TestStream("")
   def inputStream(text: String, failing: Boolean = false): TestStream = new TestStream(text, failing)
@@ -36,14 +38,14 @@ class SourceCompanionOpsInputStreamTest extends AnyWordSpec with Matchers:
       val is = inputStream("abc")
       is.isClosed shouldBe false
       Source.fromInputStream(is).toList.discard
-      eventually (timeout(5.seconds)) { is.isClosed shouldBe true }
+      eventually(timeout(5.seconds)) { is.isClosed shouldBe true }
     }
 
     "close the InputStream after failing with an exception" in supervised {
       val is = inputStream("abc", failing = true)
       is.isClosed shouldBe false
       assertThrows[Exception](Source.fromInputStream(is).toList.discard)
-      eventually (timeout(5.seconds)) { is.isClosed shouldBe true }
+      eventually(timeout(5.seconds)) { is.isClosed shouldBe true }
     }
   }
 
