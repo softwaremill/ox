@@ -2,14 +2,19 @@ package ox
 
 import scala.reflect.{ClassTag, classTag}
 
-abstract sealed class Chunk[+A]:
-  def drop(n: Int): Chunk[A]
-  def indexWhere(f: A => Boolean): Int
-  def iterator: Iterator[A]
-  def length: Int
-  def splitAt(n: Int): (Chunk[A], Chunk[A])
-  def toArray[A1 >: A: ClassTag]: Array[A1]
+abstract sealed class Chunk[+A] extends IndexedSeq[A]:
+  override def drop(n: Int): Chunk[A] = this match
+    case a: ArrayChunk[?] =>
+      ArrayChunk(a.array.drop(n))
+    case Empty =>
+      Empty
 
+  override def take(n: Int): Chunk[A] = this match
+    case a: ArrayChunk[?] =>
+      ArrayChunk(a.array.take(n))
+    case Empty =>
+      Empty
+  override def splitAt(n: Int): (Chunk[A], Chunk[A]) = (take(n), drop(n))
   final def ++[A1 >: A](that: Chunk[A1]): Chunk[A1] =
     given ct: ClassTag[A1] = that match {
       case a: ArrayChunk[_] => ClassTag(a.array.getClass.getComponentType)
@@ -21,23 +26,20 @@ abstract sealed class Chunk[+A]:
     ev.convert(this)
 
 final case class ArrayChunk[A](array: Array[A]) extends Chunk[A]:
-  override def drop(n: Int): Chunk[A] = ArrayChunk(array.drop(n))
+  override def apply(i: Int): A = array(i)
   override def iterator: Iterator[A] = array.iterator
   override def length: Int = array.length
+  override def take(n: Int): Chunk[A] = ArrayChunk(array.take(n))
   override def toArray[A1 >: A: ClassTag]: Array[A1] = array.asInstanceOf[Array[A1]]
-  override def indexWhere(f: A => Boolean): Int = array.indexWhere(f)
-  override def splitAt(n: Int): (Chunk[A], Chunk[A]) =
-    array.splitAt(n) match
-      case (a, b) => (Chunk.fromArray(a), Chunk.fromArray(b))
+  override def indexWhere(f: A => Boolean, from: Int): Int = array.indexWhere(f, from)
 
 case object Empty extends Chunk[Nothing]:
-  override def drop(n: Int): Chunk[Nothing] = this
+  override def apply(i: Int): Nothing = throw new IndexOutOfBoundsException(s"Empty($i) called")
   override def iterator: Iterator[Nothing] = Iterator.empty
   override def length: Int = 0
   override def toArray[A1: ClassTag]: Array[A1] =
     Array.empty
-  override def indexWhere(f: Nothing => Boolean): Int = -1
-  override def splitAt(n: Int): (Chunk[Nothing], Chunk[Nothing]) = (this, this)
+  override def indexWhere(f: Nothing => Boolean, from: Int): Int = -1
 
 object Chunk:
   def empty[A]: Chunk[A] = Empty
