@@ -10,6 +10,8 @@ object Schedule:
 
   private[resilience] sealed trait Finite extends Schedule:
     def maxRetries: Int
+    def fallbackTo(fallback: Finite): Finite = Combination(this, fallback)
+    def fallbackTo(fallback: Infinite): Infinite = Combination.forever(this, fallback)
 
   private[resilience] sealed trait Infinite extends Schedule
 
@@ -137,7 +139,3 @@ object Schedule:
     def forever(base: Finite, fallback: Infinite): Infinite = CombinationForever(base, fallback)
 
   case class CombinationForever private[resilience](base: Finite, fallback: Infinite) extends Combined, Infinite
-
-  extension (schedule: Finite)
-    def fallbackTo(fallback: Finite): Finite = Combination(schedule, fallback)
-    def fallbackTo(fallback: Infinite): Infinite = Combination.forever(schedule, fallback)
