@@ -119,8 +119,8 @@ object Schedule:
       Backoff.nextDelay(attempt, initialDelay, maxDelay, jitter, lastDelay)
 
   private[resilience] sealed trait Combined extends Schedule:
-    val base: Finite
-    val fallback: Schedule
+    def base: Finite
+    def fallback: Schedule
     override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration =
       if base.maxRetries > attempt then base.nextDelay(attempt, lastDelay)
       else fallback.nextDelay(attempt - base.maxRetries, lastDelay)
