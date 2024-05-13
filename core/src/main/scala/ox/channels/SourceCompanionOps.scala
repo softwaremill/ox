@@ -5,9 +5,12 @@ import ox.channels.ChannelClosedUnion.isValue
 
 import java.util
 import scala.collection.mutable
+import scala.concurrent.ExecutionContext
+import scala.concurrent.ExecutionException
+import scala.concurrent.Future
 import scala.concurrent.duration.FiniteDuration
-import scala.concurrent.{ExecutionContext, ExecutionException, Future}
-import scala.util.{Failure, Success}
+import scala.util.Failure
+import scala.util.Success
 
 trait SourceCompanionOps:
   def fromIterable[T](it: Iterable[T])(using Ox, StageCapacity): Source[T] = fromIterator(it.iterator)
@@ -383,3 +386,4 @@ trait SourceCompanionOps:
     val c = Channel.rendezvous[T]
     c.errorOrClosed(t)
     c
+
