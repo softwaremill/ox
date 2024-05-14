@@ -7,7 +7,6 @@ import ox.{timeout as _, *}
 
 import java.io.ByteArrayInputStream
 import java.util.concurrent.atomic.AtomicBoolean
-import java.io.InputStream
 import scala.concurrent.duration.*
 import java.nio.file.Files
 import java.nio.file.NoSuchFileException
@@ -19,10 +18,6 @@ class SourceCompanionIOOpsTest extends AnyWordSpec with Matchers:
   def emptyInputStream: TestStream = new TestStream("")
   def inputStream(text: String, failing: Boolean = false): TestStream = new TestStream(text, failing)
 
-  def inputStreamToString(is: InputStream)(using Ox): String = {
-    val source = useInScope(scala.io.Source.fromInputStream(is))(_.close())
-    source.mkString
-  }
 
   "Source.fromInputStream" should {
 
@@ -50,36 +45,6 @@ class SourceCompanionIOOpsTest extends AnyWordSpec with Matchers:
       is.isClosed shouldBe false
       assertThrows[Exception](Source.fromInputStream(is).toList.discard)
       eventually(timeout(5.seconds)) { is.isClosed shouldBe true }
-    }
-  }
-
-  "source.asInputStream" should {
-
-    "return an empty InputStream for an empty source" in supervised {
-      val source = Source.empty
-      val stream = useInScope(source.asInputStream)(_.close())
-      inputStreamToString(stream) shouldBe ""
-    }
-
-    "return an InputStream for a simple source" in supervised {
-      val source = Source.fromValues(Chunk.fromArray("chunk1".getBytes), Chunk.fromArray("chunk2".getBytes))
-      val stream = useInScope(source.asInputStream)(_.close())
-      inputStreamToString(stream) shouldBe "chunk1chunk2"
-    }
-
-    "correctly track available bytes" in supervised {
-      val source = Source.fromValues(Chunk.fromArray("chunk1".getBytes), Chunk.fromArray("chunk2".getBytes))
-      val stream = useInScope(source.asInputStream)(_.close())
-      stream.available shouldBe 0
-      stream.read().discard
-      stream.available shouldBe 5
-      stream.readNBytes(5).discard
-      stream.available shouldBe 0
-      stream.read().discard
-      stream.read().discard
-      stream.available shouldBe 4
-      stream.readNBytes(5).discard
-      stream.available shouldBe 0
     }
   }
 

@@ -81,7 +81,9 @@ trait SourceCompanionIOOps:
             try
               jFileChannel.close()
               chunks.done()
-            catch case NonFatal(closeException) => chunks.errorOrClosed(closeException).discard
+            catch
+              case NonFatal(closeException) =>
+                chunks.errorOrClosed(closeException).discard
             false
           else if readBytes == 0 then
             chunks.send(Chunk.empty)
@@ -91,10 +93,11 @@ trait SourceCompanionIOOps:
             true
         } catch
           case e =>
-            try
-              jFileChannel.close()
-              chunks.errorOrClosed(e).discard
-            catch case NonFatal(closeException) => chunks.errorOrClosed(closeException).discard
+            try jFileChannel.close()
+            catch
+              case NonFatal(closeException) =>
+                e.addSuppressed(closeException)
+            finally chunks.errorOrClosed(e).discard
             false
       }
     }
