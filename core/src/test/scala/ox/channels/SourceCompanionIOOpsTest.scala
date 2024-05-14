@@ -9,6 +9,10 @@ import java.io.ByteArrayInputStream
 import java.util.concurrent.atomic.AtomicBoolean
 import java.io.InputStream
 import scala.concurrent.duration.*
+import java.nio.file.Files
+import java.nio.file.NoSuchFileException
+import java.nio.file.Paths
+import java.io.IOException
 
 class SourceCompanionIOOpsTest extends AnyWordSpec with Matchers:
 
@@ -76,6 +80,37 @@ class SourceCompanionIOOpsTest extends AnyWordSpec with Matchers:
       stream.available shouldBe 4
       stream.readNBytes(5).discard
       stream.available shouldBe 0
+    }
+  }
+
+  "Source.fromFile" should {
+
+    "read content from a file smaller than chunk size" in supervised {
+      val path = useInScope(Files.createTempFile("ox", "test-readfile1"))(Files.deleteIfExists(_).discard)
+      Files.write(path, "Test1 file content".getBytes)
+      Source.fromFile(path).toList.map(_.asString) shouldBe List("Test1 file content")
+    }
+
+    "read content from a file larger than chunk size" in supervised {
+      val path = useInScope(Files.createTempFile("ox", "test-readfile1"))(Files.deleteIfExists(_).discard)
+      Files.write(path, "Test2 file content".getBytes)
+      Source.fromFile(path, chunkSize = 3).toList.map(_.asString) shouldBe List("Tes", "t2 ", "fil", "e c", "ont", "ent")
+    }
+
+    "handle an empty file" in supervised {
+      val path = useInScope(Files.createTempFile("ox", "test-readfile1"))(Files.deleteIfExists(_).discard)
+      Source.fromFile(path).toList.map(_.asString) shouldBe List.empty
+    }
+
+    "throw an exception for missing file" in supervised {
+      val path = Paths.get("/no/such/file.txt")
+      assertThrows[NoSuchFileException](Source.fromFile(path))
+    }
+
+    "throw an exception if path is a directory" in supervised {
+      val path = Paths.get(getClass.getResource("/").toURI)
+      val exception = intercept[IOException](Source.fromFile(path))
+      exception.getMessage should endWith("is a directory")
     }
   }
 
