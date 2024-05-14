@@ -32,15 +32,15 @@ trait SourceIOOps[+T]:
 
   def toFile(path: Path)(using T <:< Chunk[Byte]): Unit =
     if Files.isDirectory(path) then throw new IOException(s"Path $path is a directory")
-    val jFileChannel = 
+    val jFileChannel =
       try {
         FileChannel.open(path, StandardOpenOption.WRITE)
       } catch
         case _: UnsupportedOperationException =>
           // Some file systems don't support file channels
           Files.newByteChannel(path, StandardOpenOption.WRITE)
-    
-    def closeJFileChannel(cause: Option[Throwable]): Unit =
+
+    inline def closeJFileChannel(cause: Option[Throwable]): Unit =
       try jFileChannel.close()
       catch
         case NonFatal(e) =>
