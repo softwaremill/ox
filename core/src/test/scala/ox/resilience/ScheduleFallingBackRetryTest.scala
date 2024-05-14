@@ -6,7 +6,7 @@ import ox.ElapsedTime
 
 import scala.concurrent.duration.*
 
-class ScheduleCombinationRetryTest extends AnyFlatSpec with Matchers with ElapsedTime:
+class ScheduleFallingBackRetryTest extends AnyFlatSpec with Matchers with ElapsedTime:
   behavior of "retry with combination of schedules"
 
   it should "retry 3 times immediately and then 2 times with delay" in {

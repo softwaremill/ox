@@ -10,8 +10,8 @@ object Schedule:
 
   private[resilience] sealed trait Finite extends Schedule:
     def maxRetries: Int
-    def fallbackTo(fallback: Finite): Finite = Combination(this, fallback)
-    def fallbackTo(fallback: Infinite): Infinite = Combination.forever(this, fallback)
+    def fallbackTo(fallback: Finite): Finite = FallingBack(this, fallback)
+    def fallbackTo(fallback: Infinite): Infinite = FallingBack.forever(this, fallback)
 
   private[resilience] sealed trait Infinite extends Schedule
 
@@ -120,7 +120,7 @@ object Schedule:
     override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration =
       Backoff.nextDelay(attempt, initialDelay, maxDelay, jitter, lastDelay)
 
-  private[resilience] sealed trait Combined extends Schedule:
+  private[resilience] sealed trait WithFallback extends Schedule:
     def base: Finite
     def fallback: Schedule
     override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration =
@@ -130,12 +130,12 @@ object Schedule:
   /** A schedule that combines two schedules, using [[base]] first [[base.maxRetries]] number of times, and then using [[fallback]]
     * [[fallback.maxRetries]] number of times.
     */
-  case class Combination(base: Finite, fallback: Finite) extends Combined, Finite:
+  case class FallingBack(base: Finite, fallback: Finite) extends WithFallback, Finite:
     override def maxRetries: Int = base.maxRetries + fallback.maxRetries
 
-  object Combination:
+  object FallingBack:
     /** A schedule that retries indefinitely, using [[base]] first [[base.maxRetries]] number of times, and then always using [[fallback]].
       */
-    def forever(base: Finite, fallback: Infinite): Infinite = CombinationForever(base, fallback)
+    def forever(base: Finite, fallback: Infinite): Infinite = FallingBackForever(base, fallback)
 
-  case class CombinationForever private[resilience](base: Finite, fallback: Infinite) extends Combined, Infinite
+  case class FallingBackForever private[resilience] (base: Finite, fallback: Infinite) extends WithFallback, Infinite
