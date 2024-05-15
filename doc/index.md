@@ -70,7 +70,7 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
 
 .. toctree::
    :maxdepth: 2
-   :caption: Kafka integrations
+   :caption: Kafka integration
 
    kafka
 
