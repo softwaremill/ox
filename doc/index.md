@@ -66,12 +66,12 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
    channels/errors
    channels/backpressure
    channels/actors
+   channels/io
 
 .. toctree::
    :maxdepth: 2
-   :caption: Integrations
+   :caption: Kafka integrations
 
-   io
    kafka
 
 .. toctree::
