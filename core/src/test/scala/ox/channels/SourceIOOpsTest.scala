@@ -74,12 +74,31 @@ class SourceIOOpsTest extends AnyWordSpec with Matchers:
       assert(outputStream.isClosed)
     }
 
-    "close the OutputStream on error" in supervised {
+    "handle an empty Source" in supervised {
       val outputStream = newOutputStream()
-      val sourceContent = "source.toOutputStream test2 content"
-      val source = Source.fromIterable(sourceContent.grouped(4).toList.map(chunkStr => Chunk.fromArray(chunkStr.getBytes)))
-      assert(!outputStream.isClosed)
+      val source = Source.empty[Chunk[Byte]]
       source.toOutputStream(outputStream)
+      outputStream.toString shouldBe ""
+      assert(outputStream.isClosed)
+    }
+
+    "close the OutputStream on write error" in supervised {
+      val outputStream = newOutputStream(failing = true)
+      val sourceContent = "source.toOutputStream test3 content"
+      val source = Source.fromValues(Chunk.fromArray(sourceContent.getBytes))
+      assert(!outputStream.isClosed)
+      val exception = intercept[Exception](source.toOutputStream(outputStream))
+      assert(outputStream.isClosed)
+      exception.getMessage shouldBe "expected failed write"          
+    }
+    
+    "close the OutputStream on Source error" in supervised {
+      val outputStream = newOutputStream()
+      val source = Source.fromValues(Chunk.fromArray("initial content".getBytes))
+        .concat(Source.failed(new Exception("expected source error")))
+      assert(!outputStream.isClosed)
+      val exception = intercept[Exception](source.toOutputStream(outputStream))
+      exception.getMessage shouldBe "expected source error"
       assert(outputStream.isClosed)
     }
   }
@@ -87,7 +106,7 @@ class SourceIOOpsTest extends AnyWordSpec with Matchers:
   "source.toFile" should {
 
     "create a file and write a single chunk with bytes" in supervised {
-      val path = Files.createTempFile("ox", "test-writefile1")
+      val path = useInScope(Files.createTempFile("ox", "test-writefile1"))(Files.deleteIfExists(_).discard)
       val sourceContent = "source.toFile test1 content"
       val source = Source.fromValues(Chunk.fromArray(sourceContent.getBytes))
       source.toFile(path)
@@ -96,7 +115,7 @@ class SourceIOOpsTest extends AnyWordSpec with Matchers:
     }
     
     "create a file and write multiple chunks with bytes" in supervised {
-      val path = Files.createTempFile("ox", "test-writefile1")
+      val path = useInScope(Files.createTempFile("ox", "test-writefile2"))(Files.deleteIfExists(_).discard)
       val sourceContent = "source.toFile test2 content"
       val source = Source.fromIterable(sourceContent.grouped(4).toList.map(chunkStr => Chunk.fromArray(chunkStr.getBytes)))
       source.toFile(path)
@@ -105,13 +124,29 @@ class SourceIOOpsTest extends AnyWordSpec with Matchers:
     }
 
     "use an existing file and overwrite it a single chunk with bytes" in supervised {
-      val path = Files.createTempFile("ox", "test-writefile2")
+      val path = useInScope(Files.createTempFile("ox", "test-writefile3"))(Files.deleteIfExists(_).discard)
       Files.write(path, "Some initial content".getBytes)
       val sourceContent = "source.toFile test3 content"
       val source = Source.fromValues(Chunk.fromArray(sourceContent.getBytes))
       source.toFile(path)
 
       Source.fromFile(path).toList.map(_.asString) shouldBe List(sourceContent)
+    }
+    
+    "handle an empty source" in supervised {
+      val path = useInScope(Files.createTempFile("ox", "test-writefile4"))(Files.deleteIfExists(_).discard)
+      val source = Source.empty[Chunk[Byte]]
+      source.toFile(path)
+
+      Source.fromFile(path).toList.map(_.asString) shouldBe List.empty
+    }
+    
+    "throw an exception on failing Source" in supervised {
+      val path = useInScope(Files.createTempFile("ox", "test-writefile5"))(Files.deleteIfExists(_).discard)
+      val source = Source.fromValues(Chunk.fromArray("initial content".getBytes))
+        .concat(Source.failed(new Exception("expected source error")))
+      val exception = intercept[Exception](source.toFile(path))
+      exception.getMessage shouldBe "expected source error"
     }
 
     "throw an exception if path is a directory" in supervised {
