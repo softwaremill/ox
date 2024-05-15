@@ -2,7 +2,9 @@
 
 Ox allows creating a `Source` which reads from a file or `InpuStream`, as well as directing an existing source into a file or an `OutputStream`. These methods work only with a `Source[Chunk[Byte]]`. Ox takes care of closing files/streams after processing and on errors.
 
-## Source.fromInputStream
+## InputStream and OutputStream
+
+### Source.fromInputStream 
 
 An `InputStream` can be converted to a `Source[Chunk[Byte]]`:
 
@@ -41,7 +43,7 @@ supervised {
 }
 ```
 
-## source.toOutputStream
+### source.toOutputStream
 
 A `Source[Chunk[Byte]]` can be directed to write to an `OutputStream`:
 
@@ -62,7 +64,9 @@ supervised {
 outputStream.toString // "TEXT1,TEXT2"
 ```
 
-## Source.fromFile
+## Files
+
+### Source.fromFile
 
 You can obtain a `Source` of byte chunks read from a file for a given path:
 
@@ -82,7 +86,7 @@ supervised {
 
 Similarly to `.fromInputStream`, you can define custom chunk size using `Source.fromFile(path: Path, chunkSize: Int)`.
 
-## source.toFile
+### source.toFile
 
 A `Source[Chunk[Byte]]` can be written to a file under a given path:
 
