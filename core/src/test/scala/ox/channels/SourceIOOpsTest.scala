@@ -5,11 +5,13 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import ox.{timeout as _, *}
 
+import java.io.ByteArrayOutputStream
+import java.io.IOException
 import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.NoSuchFileException
 import java.nio.file.Paths
-import java.io.IOException
+import java.util.concurrent.atomic.AtomicBoolean
 
 class SourceIOOpsTest extends AnyWordSpec with Matchers:
 
@@ -48,23 +50,68 @@ class SourceIOOpsTest extends AnyWordSpec with Matchers:
     }
   }
 
+  "source.toOutputStream" should {
+
+    def newOutputStream(failing: Boolean = false): TestOutputStream = new TestOutputStream(failing)
+
+    "write a single chunk with bytes to an OutputStream" in supervised {
+      val outputStream = newOutputStream()
+      val sourceContent = "source.toOutputStream test1 content"
+      val source = Source.fromValues(Chunk.fromArray(sourceContent.getBytes))
+      assert(!outputStream.isClosed)
+      source.toOutputStream(outputStream)
+      outputStream.toString shouldBe sourceContent
+      assert(outputStream.isClosed)
+    }
+
+    "write multiple chunks with bytes to an OutputStream" in supervised {
+      val outputStream = newOutputStream()
+      val sourceContent = "source.toOutputStream test2 content"
+      val source = Source.fromValues(Chunk.fromArray(sourceContent.getBytes))
+      assert(!outputStream.isClosed)
+      source.toOutputStream(outputStream)
+      outputStream.toString shouldBe sourceContent
+      assert(outputStream.isClosed)
+    }
+
+    "close the OutputStream on error" in supervised {
+      val outputStream = newOutputStream()
+      val sourceContent = "source.toOutputStream test2 content"
+      val source = Source.fromIterable(sourceContent.grouped(4).toList.map(chunkStr => Chunk.fromArray(chunkStr.getBytes)))
+      assert(!outputStream.isClosed)
+      source.toOutputStream(outputStream)
+      assert(outputStream.isClosed)
+    }
+  }
+
   "source.toFile" should {
 
     "create a file and write a single chunk with bytes" in supervised {
       val path = Files.createTempFile("ox", "test-writefile1")
-      val source = Source.fromValues(Chunk.fromArray("source.toFile test1 content".getBytes))
+      val sourceContent = "source.toFile test1 content"
+      val source = Source.fromValues(Chunk.fromArray(sourceContent.getBytes))
       source.toFile(path)
 
-      Source.fromFile(path).toList.map(_.asString) shouldBe List("source.toFile test1 content")
+      Source.fromFile(path).toList.map(_.asString) shouldBe List(sourceContent)
+    }
+    
+    "create a file and write multiple chunks with bytes" in supervised {
+      val path = Files.createTempFile("ox", "test-writefile1")
+      val sourceContent = "source.toFile test2 content"
+      val source = Source.fromIterable(sourceContent.grouped(4).toList.map(chunkStr => Chunk.fromArray(chunkStr.getBytes)))
+      source.toFile(path)
+
+      Source.fromFile(path).toList.map(_.asString) shouldBe List(sourceContent)
     }
 
     "use an existing file and overwrite it a single chunk with bytes" in supervised {
       val path = Files.createTempFile("ox", "test-writefile2")
       Files.write(path, "Some initial content".getBytes)
-      val source = Source.fromValues(Chunk.fromArray("source.toFile test2 content".getBytes))
+      val sourceContent = "source.toFile test3 content"
+      val source = Source.fromValues(Chunk.fromArray(sourceContent.getBytes))
       source.toFile(path)
 
-      Source.fromFile(path).toList.map(_.asString) shouldBe List("source.toFile test2 content")
+      Source.fromFile(path).toList.map(_.asString) shouldBe List(sourceContent)
     }
 
     "throw an exception if path is a directory" in supervised {
@@ -80,3 +127,15 @@ class SourceIOOpsTest extends AnyWordSpec with Matchers:
       assertThrows[NoSuchFileException](source.toFile(path))
     }
   }
+
+class TestOutputStream(throwOnWrite: Boolean = false) extends ByteArrayOutputStream:
+  val closed: AtomicBoolean = new AtomicBoolean(false)
+
+  override def close(): Unit =
+    closed.set(true)
+    super.close()
+
+  override def write(bytes: Array[Byte]): Unit =
+    if throwOnWrite then throw new Exception("expected failed write") else super.write(bytes)
+
+  def isClosed: Boolean = closed.get

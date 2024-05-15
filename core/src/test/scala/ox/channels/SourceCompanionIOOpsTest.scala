@@ -15,9 +15,8 @@ import java.io.IOException
 
 class SourceCompanionIOOpsTest extends AnyWordSpec with Matchers:
 
-  def emptyInputStream: TestStream = new TestStream("")
-  def inputStream(text: String, failing: Boolean = false): TestStream = new TestStream(text, failing)
-
+  def emptyInputStream: TestInputStream = new TestInputStream("")
+  def inputStream(text: String, failing: Boolean = false): TestInputStream = new TestInputStream(text, failing)
 
   "Source.fromInputStream" should {
 
@@ -79,7 +78,7 @@ class SourceCompanionIOOpsTest extends AnyWordSpec with Matchers:
     }
   }
 
-class TestStream(text: String, throwOnRead: Boolean = false) extends ByteArrayInputStream(text.getBytes):
+class TestInputStream(text: String, throwOnRead: Boolean = false) extends ByteArrayInputStream(text.getBytes):
   val closed: AtomicBoolean = new AtomicBoolean(false)
 
   override def close(): Unit =
