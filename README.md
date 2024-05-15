@@ -23,13 +23,13 @@ the project!
 To test Ox, use the following dependency, using either [sbt](https://www.scala-sbt.org):
 
 ```scala
-"com.softwaremill.ox" %% "core" % "0.1.0"
+"com.softwaremill.ox" %% "core" % "0.1.1"
 ```
 
 Or [scala-cli](https://scala-cli.virtuslab.org):
 
 ```scala
-//> using dep "com.softwaremill.ox::core:0.1.0"
+//> using dep "com.softwaremill.ox::core:0.1.1"
 ```
 
 Documentation is available at [https://ox.softwaremill.com](https://ox.softwaremill.com), ScalaDocs can be browsed at [https://javadoc.io](https://www.javadoc.io/doc/com.softwaremill.ox).
@@ -119,8 +119,9 @@ If you are having doubts on the _why_ or _how_ something works, don't hesitate t
 code is unclear and can be improved for the benefit of all.
 
 In order to develop the documentation, you can use the `doc/watch.sh` script, which runs Sphinx using Python.
-Use `doc/requirements.txt` to set up your Python environment with `pip`. Moreover, you can use the 
-`compileDocumentation` sbt task to verify, that all code snippets compile properly.
+Use `doc/requirements.txt` to set up your Python environment with `pip`. 
+Alternatively, if you're a Nix user, run `nix develop` in `doc/` to start a shell with an environment allowing to run `watch.sh`.
+Moreover, you can use the `compileDocumentation` sbt task to verify, that all code snippets compile properly.
 
 ## Project sponsor
 

@@ -56,6 +56,15 @@ trait SourceOps[+T] { outer: Source[T] =>
 
   // run ops (eager)
 
+  /*
+  Implementation note: why we catch Throwable (a) at all, (b) why not NonFatal?
+  As far (a), sea ADR #3.
+  As for (b), in case there's an InterruptedException, we do catch it and propagate, but we also stop the fork.
+  Propagating is needed as there might be downstream consumers, which are outside the scope, and would be otherwise
+  unaware that producing from the source stopped. We also don't rethrow, as the scope is already winding down (as we're
+  in a supervised scope, there's no other possibility to interrupt the fork).
+   */
+
   /** Applies the given mapping function `f` to each element received from this source, and sends the results to the returned channel.
     *
     * Errors from this channel are propagated to the returned channel. Any exceptions that occur when invoking `f` are propagated as errors
