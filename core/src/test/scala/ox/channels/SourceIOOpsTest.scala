@@ -5,10 +5,7 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import ox.{timeout as _, *}
 
-import java.io.ByteArrayInputStream
-import java.util.concurrent.atomic.AtomicBoolean
 import java.io.InputStream
-import scala.concurrent.duration.*
 import java.nio.file.Files
 import java.nio.file.NoSuchFileException
 import java.nio.file.Paths
@@ -80,6 +77,6 @@ class SourceIOOpsTest extends AnyWordSpec with Matchers:
     "throw an exception if file cannot be opened" in supervised {
       val path = Paths.get("/").resolve("/not-existing-directory/not-existing-file.txt")
       val source = Source.fromValues(Chunk.empty[Byte])
-      val exception = assertThrows[NoSuchFileException](source.toFile(path))
+      assertThrows[NoSuchFileException](source.toFile(path))
     }
   }

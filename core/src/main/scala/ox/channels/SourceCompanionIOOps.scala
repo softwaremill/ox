@@ -64,26 +64,20 @@ trait SourceCompanionIOOps:
   def fromFile(path: Path, chunkSize: Int = 1024)(using Ox): Source[Chunk[Byte]] =
     if Files.isDirectory(path) then throw new IOException(s"Path $path is a directory")
     val chunks = StageCapacity.newChannel[Chunk[Byte]]
-    val jFileChannel = useInScope {
-      try {
-        FileChannel.open(path, StandardOpenOption.READ)
-      } catch
+    val jFileChannel =
+      try FileChannel.open(path, StandardOpenOption.READ)
+      catch
         case _: UnsupportedOperationException =>
           // Some file systems don't support file channels
           Files.newByteChannel(path, StandardOpenOption.READ)
-    }(_.close())
+
     fork {
-      repeatWhile {
-        val buf = ByteBuffer.allocate(chunkSize)
-        try {
+      try {
+        repeatWhile {
+          val buf = ByteBuffer.allocate(chunkSize)
           val readBytes = jFileChannel.read(buf)
           if readBytes < 0 then
-            try
-              jFileChannel.close()
-              chunks.done()
-            catch
-              case NonFatal(closeException) =>
-                chunks.errorOrClosed(closeException).discard
+            chunks.done()
             false
           else if readBytes == 0 then
             chunks.send(Chunk.empty)
@@ -91,14 +85,12 @@ trait SourceCompanionIOOps:
           else
             chunks.send(Chunk.fromArray(if readBytes == chunkSize then buf.array else buf.array.take(readBytes)))
             true
-        } catch
-          case e =>
-            try jFileChannel.close()
-            catch
-              case NonFatal(closeException) =>
-                e.addSuppressed(closeException)
-            finally chunks.errorOrClosed(e).discard
-            false
-      }
+        }
+      } catch case e => chunks.errorOrClosed(e).discard
+      finally
+        try jFileChannel.close()
+        catch
+          case NonFatal(closeException) =>
+            chunks.errorOrClosed(closeException).discard
     }
     chunks

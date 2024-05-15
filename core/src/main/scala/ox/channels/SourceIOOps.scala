@@ -30,6 +30,13 @@ trait SourceIOOps[+T]:
     override def available: Int =
       currentChunk.length
 
+  /** Writes content of this `Source` to a file.
+    *
+    * @param path
+    *   Path to the target file. If not exists, it will be created.
+    * @throws IOException
+    *   when an error occurs when opening the file or during the write process.
+    */
   def toFile(path: Path)(using T <:< Chunk[Byte]): Unit =
     if Files.isDirectory(path) then throw new IOException(s"Path $path is a directory")
     val jFileChannel =
