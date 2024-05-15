@@ -3,6 +3,7 @@ package ox.channels
 import org.scalatest.concurrent.Eventually.*
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
+import ox.util.UnsafeIO
 import ox.{timeout as _, *}
 
 import java.io.ByteArrayOutputStream
@@ -13,7 +14,7 @@ import java.nio.file.NoSuchFileException
 import java.nio.file.Paths
 import java.util.concurrent.atomic.AtomicBoolean
 
-class SourceIOOpsTest extends AnyWordSpec with Matchers:
+class SourceIOOpsTest extends AnyWordSpec with Matchers with UnsafeIO:
 
   def inputStreamToString(is: InputStream)(using Ox): String = {
     val source = useInScope(scala.io.Source.fromInputStream(is))(_.close())
@@ -163,7 +164,7 @@ class SourceIOOpsTest extends AnyWordSpec with Matchers:
     }
   }
 
-class TestOutputStream(throwOnWrite: Boolean = false) extends ByteArrayOutputStream:
+class TestOutputStream(throwOnWrite: Boolean = false)(using IO) extends ByteArrayOutputStream:
   val closed: AtomicBoolean = new AtomicBoolean(false)
 
   override def close(): Unit =

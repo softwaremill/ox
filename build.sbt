@@ -24,6 +24,18 @@ compileDocumentation := {
   (documentation / mdoc).toTask(" --out target/ox-doc").value
 }
 
+val useRequireIOPlugin =
+  // Based on:
+  // https://stackoverflow.com/questions/54660122/how-to-include-a-scala-compiler-plugin-from-a-local-path
+  Compile / scalacOptions ++= {
+    val jar = (plugin / Compile / Keys.`package`).value
+    System.setProperty("sbt.paths.plugin.jar", jar.getAbsolutePath)
+
+    val addPlugin = "-Xplugin:" + jar.getAbsolutePath
+    val dummy = "-Jdummy=" + jar.lastModified
+    Seq(addPlugin, dummy)
+  }
+
 lazy val rootProject = (project in file("."))
   .settings(commonSettings)
   .settings(publishArtifact := false, name := "ox")
@@ -36,7 +48,9 @@ lazy val core: Project = (project in file("core"))
     libraryDependencies ++= Seq(
       "com.softwaremill.jox" % "core" % "0.2.0",
       scalaTest
-    )
+    ),
+    // Check IO usage in core
+    useRequireIOPlugin
   )
 
 lazy val plugin: Project = (project in file("plugin"))
@@ -57,16 +71,8 @@ lazy val pluginTest: Project = (project in file("plugin-test"))
     publishArtifact := false,
 //    autoCompilerPlugins := true,
 //    addCompilerPlugin("com.softwaremill.ox" %% "plugin" % "0.1.0")
-    // Playground testing, based on:
-    // https://stackoverflow.com/questions/54660122/how-to-include-a-scala-compiler-plugin-from-a-local-path
-    Compile / scalacOptions ++= {
-      val jar = (plugin / Compile / Keys.`package`).value
-      System.setProperty("sbt.paths.plugin.jar", jar.getAbsolutePath)
-
-      val addPlugin = "-Xplugin:" + jar.getAbsolutePath
-      val dummy = "-Jdummy=" + jar.lastModified
-      Seq(addPlugin, dummy)
-    },
+    // Playground testing
+    useRequireIOPlugin,
     // Unit testing, based on:
     // https://github.com/xebia-functional/munit-compiler-toolkit/
     Test / javaOptions += {

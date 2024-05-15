@@ -39,7 +39,7 @@ trait SourceIOOps[+T]:
     * @throws IOException
     *   if an error occurs when writing or closing of the `OutputStream`.
     */
-  def toOutputStream(outputStream: OutputStream)(using T <:< Chunk[Byte]): Unit = 
+  def toOutputStream(outputStream: OutputStream)(using T <:< Chunk[Byte], IO): Unit = 
       repeatWhile {
         outer.receiveOrClosed() match
           case ChannelClosed.Done =>
@@ -64,7 +64,7 @@ trait SourceIOOps[+T]:
     * @throws IOException
     *   if an error occurs when opening the file or during the write process.
     */
-  def toFile(path: Path)(using T <:< Chunk[Byte]): Unit =
+  def toFile(path: Path)(using T <:< Chunk[Byte], IO): Unit =
     if Files.isDirectory(path) then throw new IOException(s"Path $path is a directory")
     val jFileChannel =
       try {
@@ -91,7 +91,7 @@ trait SourceIOOps[+T]:
             throw e
     }
 
-  private inline def close(closeable: Closeable, cause: Option[Throwable] = None): Unit =
+  private inline def close(closeable: Closeable, cause: Option[Throwable] = None)(using IO): Unit =
     try 
       closeable.close()
     catch

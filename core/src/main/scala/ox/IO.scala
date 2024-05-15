@@ -9,11 +9,17 @@ package ox
   *   def transform(path: String)(f: String => String)(using IO): Unit =
   *     writeToFile(path, f(readFromFile(path))
   * }}}
+  *
+  * Take care not to capture the capability e.g. using constructors (unless you are sure such usage is safe), as this might circumvent the
+  * tracking of I/O operations. Similarly, the capability might be captured by lambdas, which might later be used when the IO capability is
+  * not in scope. In future Scala and Ox releases, these problems should be detected at compile-time using the upcoming capture checker.
   */
 trait IO
 
 object IO:
-  /** Grants the [[IO]] capability when executing the given block of code. Ideally should only be used at the edges of your application
-    * (e.g. in the `main` method), or when integrating with third-party libraries.
+  /** Grants the [[IO]] capability when executing the given block of code. Ideally should **only** be used:
+    *   - at the edges of your application (e.g. in the `main` method)
+    *   - when integrating with third-party libraries
+    *   - in tests
     */
-  def unsafe[T](f: IO ?=> T): T = f(using new IO {})
+  inline def unsafe[T](f: IO ?=> T): T = f(using new IO {})
