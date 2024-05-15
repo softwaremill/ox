@@ -10,6 +10,7 @@ import java.io.IOException
 import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.NoSuchFileException
+import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -89,12 +90,13 @@ class SourceIOOpsTest extends AnyWordSpec with Matchers:
       assert(!outputStream.isClosed)
       val exception = intercept[Exception](source.toOutputStream(outputStream))
       assert(outputStream.isClosed)
-      exception.getMessage shouldBe "expected failed write"          
+      exception.getMessage shouldBe "expected failed write"
     }
-    
+
     "close the OutputStream on Source error" in supervised {
       val outputStream = newOutputStream()
-      val source = Source.fromValues(Chunk.fromArray("initial content".getBytes))
+      val source = Source
+        .fromValues(Chunk.fromArray("initial content".getBytes))
         .concat(Source.failed(new Exception("expected source error")))
       assert(!outputStream.isClosed)
       val exception = intercept[Exception](source.toOutputStream(outputStream))
@@ -111,16 +113,16 @@ class SourceIOOpsTest extends AnyWordSpec with Matchers:
       val source = Source.fromValues(Chunk.fromArray(sourceContent.getBytes))
       source.toFile(path)
 
-      Source.fromFile(path).toList.map(_.asString) shouldBe List(sourceContent)
+      fileContent(path) shouldBe List(sourceContent)
     }
-    
+
     "create a file and write multiple chunks with bytes" in supervised {
       val path = useInScope(Files.createTempFile("ox", "test-writefile2"))(Files.deleteIfExists(_).discard)
       val sourceContent = "source.toFile test2 content"
       val source = Source.fromIterable(sourceContent.grouped(4).toList.map(chunkStr => Chunk.fromArray(chunkStr.getBytes)))
       source.toFile(path)
 
-      Source.fromFile(path).toList.map(_.asString) shouldBe List(sourceContent)
+      fileContent(path) shouldBe List(sourceContent)
     }
 
     "use an existing file and overwrite it a single chunk with bytes" in supervised {
@@ -130,20 +132,21 @@ class SourceIOOpsTest extends AnyWordSpec with Matchers:
       val source = Source.fromValues(Chunk.fromArray(sourceContent.getBytes))
       source.toFile(path)
 
-      Source.fromFile(path).toList.map(_.asString) shouldBe List(sourceContent)
+      fileContent(path) shouldBe List(sourceContent)
     }
-    
+
     "handle an empty source" in supervised {
       val path = useInScope(Files.createTempFile("ox", "test-writefile4"))(Files.deleteIfExists(_).discard)
       val source = Source.empty[Chunk[Byte]]
       source.toFile(path)
 
-      Source.fromFile(path).toList.map(_.asString) shouldBe List.empty
+      fileContent(path) shouldBe List.empty
     }
-    
+
     "throw an exception on failing Source" in supervised {
       val path = useInScope(Files.createTempFile("ox", "test-writefile5"))(Files.deleteIfExists(_).discard)
-      val source = Source.fromValues(Chunk.fromArray("initial content".getBytes))
+      val source = Source
+        .fromValues(Chunk.fromArray("initial content".getBytes))
         .concat(Source.failed(new Exception("expected source error")))
       val exception = intercept[Exception](source.toFile(path))
       exception.getMessage shouldBe "expected source error"
@@ -161,7 +164,11 @@ class SourceIOOpsTest extends AnyWordSpec with Matchers:
       val source = Source.fromValues(Chunk.empty[Byte])
       assertThrows[NoSuchFileException](source.toFile(path))
     }
+
   }
+
+  private def fileContent(path: Path)(using Ox): List[String] =
+    Source.fromFile(path).toList.map(_.asStringUtf8)
 
 class TestOutputStream(throwOnWrite: Boolean = false) extends ByteArrayOutputStream:
   val closed: AtomicBoolean = new AtomicBoolean(false)
