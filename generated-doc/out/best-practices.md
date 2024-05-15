@@ -25,7 +25,7 @@ a default clause.
 
 ## Use `using Ox` sparingly
 
-Passing the `Ox` capability gives the method the power to start new threads - which can be a powerful tool! The goal
+Passing the `Ox` capability gives the method the power to start new threads - which can be a dangerous tool! The goal
 of structured concurrency is to localise thread creation as much as possible, and disallow methods which create a
 thread as an effect. `using Ox` partially circumvents this guarantee, hence use this with caution, and pay attention
 not to pass it through several layers of method calls, which might make the code hard to understand.
@@ -39,3 +39,11 @@ to create views of channels.
 
 In a channel view, the processing logic is run lazily, on the thread that performs the `receive` operation. Channel
 views can be created using `.mapAsView`, `.filterAsView`, and `.collectAsView`.
+
+## Avoid returning `Fork`
+
+Accidental concurrency is often cited as a problem with using `Future`s: if you call two methods which return a 
+`Future`, they will run concurrently, even though you might have never intended that. The same problem can occur if 
+a method returns Ox's `Fork`. Hence, avoid returning `Fork`s from methods. Instead, model concurrency on the caller's
+side - if something should be run in parallel, the caller can do so, using `supervised` and `fork`, and by calling
+blocking methods within the forks.
