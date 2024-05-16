@@ -62,7 +62,7 @@ compile-time using the upcoming capture checker.
 ## The requireIO compiler plugin
 
 Ox provides a compiler plugin, which verifies at compile-time that the `IO` capability is present when invoking any
-methods from the JDK or Java libraries that specify to throw an `java.io.IOException`. 
+methods from the JDK or Java libraries that specify to throw an IO-related exception, such as `java.io.IOException`. 
 
 To use the plugin, add the following settings to your sbt configuration:
 
@@ -122,3 +122,8 @@ In a scala-cli directive:
 ```bash
 //> using option -P:requireIO:com.example.MyIOException
 ```
+
+Currently, by default the plugin checks for the following exceptions:
+
+* `java.io.IOException`
+* `java.sql.SQLException`

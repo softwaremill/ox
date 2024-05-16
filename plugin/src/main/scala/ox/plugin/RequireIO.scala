@@ -32,7 +32,7 @@ class RequireIOPhase(ioLikeExceptionClasses: List[String]) extends PluginPhase:
   private var io: Symbol = _
 
   override def run(using Context): Unit = {
-    ioLikeExceptions = ("java.io.IOException" :: ioLikeExceptionClasses).map(requiredClass)
+    ioLikeExceptions = ("java.io.IOException" :: "java.sql.SQLException" :: ioLikeExceptionClasses).map(requiredClass)
     io = requiredClass("ox.IO")
 
     super.run
@@ -69,8 +69,8 @@ class RequireIOPhase(ioLikeExceptionClasses: List[String]) extends PluginPhase:
                |
                |Try adding a `using IO` clause to the enclosing method.
                |
-               |In tests, you might `import ox.IO.globalForTesting.given`. Alternatively, 
-               |you can wrap your code with `IO.unsafe`, however this should only be used 
+               |In tests, you might `import ox.IO.globalForTesting.given`. Alternatively,
+               |you can wrap your code with `IO.unsafe`, however this should only be used
                |in special circumstances, as it bypasses Ox's tracking of I/O.""".stripMargin,
             tree.sourcePos
           )
