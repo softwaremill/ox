@@ -18,7 +18,7 @@ val inputStream: InputStream = new ByteArrayInputStream("some input".getBytes)
 supervised {
   Source
     .fromInputStream(inputStream) // Source[Chunk[Byte]]
-    .map(_.asString)
+    .decodeStringUtf8
     .map(_.toUpperCase)
     .foreach(println) // "SOME INPUT"
 }
@@ -37,7 +37,7 @@ val inputStream: InputStream = new ByteArrayInputStream("some input".getBytes)
 supervised {
   Source
     .fromInputStream(inputStream, chunkSize = 4) // Source[Chunk[Byte]]
-    .map(_.asString)
+    .decodeStringUtf8
     .map(_.toUpperCase)
     .foreach(println) // "SOME", " INPUT"
 }
@@ -78,7 +78,7 @@ import java.nio.file.Paths
 supervised {
   Source
     .fromFile(Paths.get("/path/to/my/file.txt"))
-    .lines
+    .linesUtf8
     .map(_.toUpperCase)
     .toList // List("FILE_LINE1", "FILE_LINE2")
 }
