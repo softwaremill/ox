@@ -1,6 +1,9 @@
 package ox
 
-import scala.reflect.{ClassTag, classTag}
+import java.nio.charset.Charset
+import java.nio.charset.StandardCharsets
+import scala.reflect.ClassTag
+import scala.reflect.classTag
 
 /** An immutable finite indexed sequence of elements, backed by Array. Currently represents only a think wrapper, delegating all operations
   * from `IndexedSeq` directly to underlying `Array` equivalents. Such operations can be expensive when you want to do concatenation,
@@ -29,8 +32,11 @@ abstract sealed class Chunk[+A] extends IndexedSeq[A]:
     Chunk.fromArray(toArray[A1] ++ that.toArray)
 
   /** Converts a chunk of into a String, if supported by element type (for example for byte chunks). */
-  final def asString(using ev: Chunk.IsText[A]): String =
-    ev.convert(this)
+  final def asStringUtf8(using ev: Chunk.IsText[A]): String =
+    ev.convert(this, StandardCharsets.UTF_8)
+
+  final def asString(charset: Charset)(using ev: Chunk.IsText[A]): String =
+    ev.convert(this, charset)
 
 final case class ArrayChunk[A](array: Array[A]) extends Chunk[A]:
   override def apply(i: Int): A = array(i)
@@ -55,10 +61,10 @@ object Chunk:
     ArrayChunk(array)
 
   sealed trait IsText[-T] {
-    def convert(chunk: Chunk[T]): String
+    def convert(chunk: Chunk[T], charset: Charset): String
   }
 
   object IsText {
     given byteIsText: IsText[Byte] =
-      new IsText[Byte] { def convert(chunk: Chunk[Byte]): String = new String(chunk.toArray) }
+      new IsText[Byte] { def convert(chunk: Chunk[Byte], charset: Charset): String = new String(chunk.toArray, charset) }
   }
