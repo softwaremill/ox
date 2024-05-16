@@ -90,8 +90,8 @@ object Test:
 [error] -- Error: Test.scala:8:11
 [error] 8 |    is.read()
 [error]   |    ^^^^^^^^^
-[error]   |The java.io.InputStream.read method throws an java.io.IOException,
-[error]   |but the ox.IO capability is not available in the implicit scope.
+[error]   |The `java.io.InputStream.read` method throws an `java.io.IOException`,
+[error]   |but the `ox.IO` capability is not available in the implicit scope.
 [error]   |
 [error]   |Try adding a `using IO` clause to the enclosing method.
  */
