@@ -7,7 +7,7 @@ package ox
   *   def readFromFile(path: String)(using IO): String = ...
   *   def writeToFile(path: String, content: String)(using IO): Unit = ...
   *   def transform(path: String)(f: String => String)(using IO): Unit =
-  *     writeToFile(path, f(readFromFile(path))
+  *     writeToFile(path, f(readFromFile(path)))
   * }}}
   *
   * The capability can be introduced using [[IO.unsafe]] or by `import ox.IO.globalForTesting.given`.

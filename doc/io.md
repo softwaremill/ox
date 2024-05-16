@@ -4,13 +4,13 @@ Ox includes the `IO` capability, which is designed to be part of the signature o
 either directly or indirectly. The goal is for method signatures to by truthful, and specify the possible side effects,
 failure modes and timing in a reasonably precise and practical way. For example:
 
-```scala mdoc:compile
+```scala mdoc:compile-only
 import ox.IO
 
 def readFromFile(path: String)(using IO): String = ???
 def writeToFile(path: String, content: String)(using IO): Unit = ???
 def transform(path: String)(f: String => String)(using IO): Unit =
-  writeToFile(path, f(readFromFile(path))
+  writeToFile(path, f(readFromFile(path)))
 ```
 
 In other words, the presence of a `using IO` parameter indicates that the method might:
@@ -30,7 +30,7 @@ should be passed as an implicit parameter. Such an ideal scenario might not poss
 tracking: by looking up the usages of `IO.unsafe` it's possible to quickly find the "roots" where the `IO` capability 
 is introduced. For example:
 
-```scala mdoc:compile
+```scala
 import ox.IO
 
 def sendHTTPRequest(body: String)(using IO): String = ???
@@ -44,7 +44,8 @@ For testing purposes, instead of using `IO.unsafe`, there's a special import whi
 scope of the import. By having different mechanisms for introducing `IO` in production and test code, test usages don't
 pollute the search results, when verifying `IO.unsafe` usages (which should be as limited as possible). For example:
 
-```scala mdoc:compile
+```scala mdoc:compile-only
+import ox.IO
 import ox.IO.globalForTesting.given
 
 def myMethod()(using IO): Unit = ???

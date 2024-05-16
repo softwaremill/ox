@@ -64,13 +64,14 @@ class RequireIOPhase(ioLikeExceptionClasses: List[String]) extends PluginPhase:
 
         if !ioAvailableAsImplicit && !ctxAtPhase.property(ioAvailableProperty).getOrElse(false) then
           report.error(
-            s"""The ${tree.fun.symbol.showFullName} method throws an ${ex.showFullName},
-               |but the ox.IO capability is not available in the implicit scope.
+            s"""The `${tree.fun.symbol.showFullName}` method throws an `${ex.showFullName}`,
+               |but the `ox.IO` capability is not available in the implicit scope.
                |
                |Try adding a `using IO` clause to the enclosing method.
                |
-               |Alternatively, you can wrap your code with `IO.unsafe`, however this should only
-               |be used in special circumstances, as it bypasses Ox's tracking of I/O.""".stripMargin,
+               |In tests, you might `import ox.IO.globalForTesting.given`. Alternatively, 
+               |you can wrap your code with `IO.unsafe`, however this should only be used 
+               |in special circumstances, as it bypasses Ox's tracking of I/O.""".stripMargin,
             tree.sourcePos
           )
 

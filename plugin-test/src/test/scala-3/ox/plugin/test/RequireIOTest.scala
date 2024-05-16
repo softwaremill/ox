@@ -35,7 +35,7 @@ class RequireIOTest extends AnyFunSpec with Matchers:
     result should not be empty
     result.map(_.msg).mkString("\n")
 
-  val expectedError = "The java.io.InputStream.read method throws an java.io.IOException"
+  val expectedError = "The `java.io.InputStream.read` method throws an `java.io.IOException`"
 
   describe("should not compile") {
     it("direct invocations") {
@@ -89,7 +89,7 @@ class RequireIOTest extends AnyFunSpec with Matchers:
           |  }
           |}""".stripMargin,
         List("requireIO:java.util.concurrent.ExecutionException")
-      ) should include("The java.util.concurrent.Future.get method throws an java.util.concurrent.ExecutionException")
+      ) should include("The `java.util.concurrent.Future.get` method throws an `java.util.concurrent.ExecutionException`")
     }
   }
 

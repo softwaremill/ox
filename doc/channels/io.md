@@ -55,7 +55,6 @@ A `Source[Chunk[Byte]]` can be directed to write to an `OutputStream`:
 import ox.channels.Source
 import ox.{Chunk, IO, supervised}
 import java.io.ByteArrayOutputStream
-import java.io.OutputStream
 
 val outputStream = new ByteArrayOutputStream()
 supervised {

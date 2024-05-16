@@ -11,7 +11,7 @@ the `KafkaSource`, `KafkaStage` and `KafkaDrain` objects. In all cases either a 
 `KafkaProducer` / `KafkaConsumer` is needed, or `ProducerSettings` / `ConsumerSetttings` need to be provided with the
 bootstrap servers, consumer group id, key / value serializers, etc.
 
-All Kafka I/O operations require the [IO capability](../io.md).
+All Kafka I/O operations require the [IO capability](io.md).
 
 To read from a Kafka topic, use:
 
