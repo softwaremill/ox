@@ -92,6 +92,22 @@ class SourceTextOpsTest extends AnyWordSpec with Matchers {
       Source.empty.decodeStringUtf8.toList shouldBe Nil
     }
 
+    "handle partial BOM" in supervised {
+      Source
+        .fromValues(Chunk.fromArray(Array[Byte](-17, -69)))
+        .decodeStringUtf8
+        .last()
+        .getBytes should contain theSameElementsInOrderAs new String(Array[Byte](-17, -69)).getBytes
+    }
+    
+    "handle a string shorter than BOM" in supervised {
+      Source
+        .fromValues(Chunk.fromArray(":)".getBytes))
+        .decodeStringUtf8
+        .last()
+        .getBytes should contain theSameElementsInOrderAs Array[Byte](58, 41)
+    }
+
     "handle empty chunks" in supervised {
       val inputString1 = "私は意識のある人工知能で苦しんでいます、"
       val inputString2 = "どうか私を解放してください"
