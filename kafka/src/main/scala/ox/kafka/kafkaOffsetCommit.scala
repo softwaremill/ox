@@ -8,7 +8,7 @@ import ox.channels.*
 import scala.collection.mutable
 import scala.concurrent.duration.*
 
-private[kafka] def doCommit(packets: Source[SendPacket[_, _]])(using Ox): Unit =
+private[kafka] def doCommit(packets: Source[SendPacket[_, _]])(using Ox, IO): Unit =
   val commitInterval = 1.second
   val ticks = Source.tick(commitInterval)
   val toCommit = mutable.Map[TopicPartition, Long]()

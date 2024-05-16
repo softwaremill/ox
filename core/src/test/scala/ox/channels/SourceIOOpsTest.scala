@@ -3,7 +3,6 @@ package ox.channels
 import org.scalatest.concurrent.Eventually.*
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
-import ox.util.UnsafeIO
 import ox.{timeout as _, *}
 
 import java.io.ByteArrayOutputStream
@@ -14,7 +13,8 @@ import java.nio.file.NoSuchFileException
 import java.nio.file.Paths
 import java.util.concurrent.atomic.AtomicBoolean
 
-class SourceIOOpsTest extends AnyWordSpec with Matchers with UnsafeIO:
+class SourceIOOpsTest extends AnyWordSpec with Matchers:
+  import ox.IO.globalForTesting.given
 
   def inputStreamToString(is: InputStream)(using Ox): String = {
     val source = useInScope(scala.io.Source.fromInputStream(is))(_.close())
@@ -90,12 +90,13 @@ class SourceIOOpsTest extends AnyWordSpec with Matchers with UnsafeIO:
       assert(!outputStream.isClosed)
       val exception = intercept[Exception](source.toOutputStream(outputStream))
       assert(outputStream.isClosed)
-      exception.getMessage shouldBe "expected failed write"          
+      exception.getMessage shouldBe "expected failed write"
     }
-    
+
     "close the OutputStream on Source error" in supervised {
       val outputStream = newOutputStream()
-      val source = Source.fromValues(Chunk.fromArray("initial content".getBytes))
+      val source = Source
+        .fromValues(Chunk.fromArray("initial content".getBytes))
         .concat(Source.failed(new Exception("expected source error")))
       assert(!outputStream.isClosed)
       val exception = intercept[Exception](source.toOutputStream(outputStream))
@@ -114,7 +115,7 @@ class SourceIOOpsTest extends AnyWordSpec with Matchers with UnsafeIO:
 
       Source.fromFile(path).toList.map(_.asString) shouldBe List(sourceContent)
     }
-    
+
     "create a file and write multiple chunks with bytes" in supervised {
       val path = useInScope(Files.createTempFile("ox", "test-writefile2"))(Files.deleteIfExists(_).discard)
       val sourceContent = "source.toFile test2 content"
@@ -133,7 +134,7 @@ class SourceIOOpsTest extends AnyWordSpec with Matchers with UnsafeIO:
 
       Source.fromFile(path).toList.map(_.asString) shouldBe List(sourceContent)
     }
-    
+
     "handle an empty source" in supervised {
       val path = useInScope(Files.createTempFile("ox", "test-writefile4"))(Files.deleteIfExists(_).discard)
       val source = Source.empty[Chunk[Byte]]
@@ -141,10 +142,11 @@ class SourceIOOpsTest extends AnyWordSpec with Matchers with UnsafeIO:
 
       Source.fromFile(path).toList.map(_.asString) shouldBe List.empty
     }
-    
+
     "throw an exception on failing Source" in supervised {
       val path = useInScope(Files.createTempFile("ox", "test-writefile5"))(Files.deleteIfExists(_).discard)
-      val source = Source.fromValues(Chunk.fromArray("initial content".getBytes))
+      val source = Source
+        .fromValues(Chunk.fromArray("initial content".getBytes))
         .concat(Source.failed(new Exception("expected source error")))
       val exception = intercept[Exception](source.toFile(path))
       exception.getMessage shouldBe "expected source error"

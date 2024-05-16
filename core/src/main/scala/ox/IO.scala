@@ -14,12 +14,17 @@ package ox
   * tracking of I/O operations. Similarly, the capability might be captured by lambdas, which might later be used when the IO capability is
   * not in scope. In future Scala and Ox releases, these problems should be detected at compile-time using the upcoming capture checker.
   */
-trait IO
+class IO private[ox] ()
 
 object IO:
+  private val IOInstance = new IO
   /** Grants the [[IO]] capability when executing the given block of code. Ideally should **only** be used:
     *   - at the edges of your application (e.g. in the `main` method)
     *   - when integrating with third-party libraries
-    *   - in tests
+    *
+    * In tests, you can import {{}}
     */
-  inline def unsafe[T](f: IO ?=> T): T = f(using new IO {})
+  inline def unsafe[T](f: IO ?=> T): T = f(using IOInstance)
+
+  object globalForTesting:
+    given IO = IOInstance

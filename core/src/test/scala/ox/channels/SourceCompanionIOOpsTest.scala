@@ -3,7 +3,6 @@ package ox.channels
 import org.scalatest.concurrent.Eventually.*
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
-import ox.util.UnsafeIO
 import ox.{timeout as _, *}
 
 import java.io.ByteArrayInputStream
@@ -14,7 +13,8 @@ import java.nio.file.NoSuchFileException
 import java.nio.file.Paths
 import java.io.IOException
 
-class SourceCompanionIOOpsTest extends AnyWordSpec with Matchers with UnsafeIO:
+class SourceCompanionIOOpsTest extends AnyWordSpec with Matchers:
+  import ox.IO.globalForTesting.given
 
   def emptyInputStream: TestInputStream = new TestInputStream("")
   def inputStream(text: String, failing: Boolean = false): TestInputStream = new TestInputStream(text, failing)

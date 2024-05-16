@@ -10,18 +10,21 @@ object KafkaSource:
 
   def subscribe[K, V](settings: ConsumerSettings[K, V], topic: String, otherTopics: String*)(using
       StageCapacity,
-      Ox
+      Ox,
+      IO
   ): Source[ReceivedMessage[K, V]] =
     subscribe(settings.toConsumer, closeWhenComplete = true, topic, otherTopics: _*)
 
   def subscribe[K, V](kafkaConsumer: KafkaConsumer[K, V], closeWhenComplete: Boolean, topic: String, otherTopics: String*)(using
       StageCapacity,
-      Ox
+      Ox,
+      IO
   ): Source[ReceivedMessage[K, V]] = subscribe(KafkaConsumerWrapper(kafkaConsumer, closeWhenComplete), topic, otherTopics: _*)
 
   def subscribe[K, V](kafkaConsumer: ActorRef[KafkaConsumerWrapper[K, V]], topic: String, otherTopics: String*)(using
       StageCapacity,
-      Ox
+      Ox,
+      IO
   ): Source[ReceivedMessage[K, V]] =
     kafkaConsumer.tell(_.subscribe(topic :: otherTopics.toList))
 
