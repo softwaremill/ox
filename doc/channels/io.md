@@ -10,17 +10,18 @@ An `InputStream` can be converted to a `Source[Chunk[Byte]]`:
 
 ```scala mdoc:compile-only
 import ox.channels.Source
-import ox.supervised
+import ox.{IO, supervised}
 import java.io.ByteArrayInputStream
 import java.io.InputStream
 
 val inputStream: InputStream = new ByteArrayInputStream("some input".getBytes) 
 supervised {
-  Source
-    .fromInputStream(inputStream) // Source[Chunk[Byte]]
-    .map(_.asString)
-    .map(_.toUpperCase)
-    .foreach(println) // "SOME INPUT"
+  IO.unsafe:
+    Source
+      .fromInputStream(inputStream) // Source[Chunk[Byte]]
+      .map(_.asString)
+      .map(_.toUpperCase)
+      .foreach(println) // "SOME INPUT"
 }
 ```
 
@@ -29,17 +30,18 @@ You can define a custom chunk size instead of using the default:
 
 ```scala mdoc:compile-only
 import ox.channels.Source
-import ox.supervised
+import ox.{IO, supervised}
 import java.io.ByteArrayInputStream
 import java.io.InputStream
 
 val inputStream: InputStream = new ByteArrayInputStream("some input".getBytes) 
 supervised {
-  Source
-    .fromInputStream(inputStream, chunkSize = 4) // Source[Chunk[Byte]]
-    .map(_.asString)
-    .map(_.toUpperCase)
-    .foreach(println) // "SOME", " INPUT"
+  IO.unsafe:
+    Source
+      .fromInputStream(inputStream, chunkSize = 4) // Source[Chunk[Byte]]
+      .map(_.asString)
+      .map(_.toUpperCase)
+      .foreach(println) // "SOME", " INPUT"
 }
 ```
 
@@ -49,17 +51,17 @@ A `Source[Chunk[Byte]]` can be directed to write to an `OutputStream`:
 
 ```scala mdoc:compile-only
 import ox.channels.Source
-import ox.Chunk
-import ox.supervised
+import ox.{Chunk, IO, supervised}
 import java.io.ByteArrayOutputStream
 import java.io.OutputStream
 
 val outputStream = new ByteArrayOutputStream()
 supervised {
   val source = Source.fromIterable(List("text1,", "text2"))
-  source
-    .map(str => Chunk.fromArray(str.getBytes))
-    .toOutputStream(outputStream)
+  IO.unsafe:
+    source
+      .map(str => Chunk.fromArray(str.getBytes))
+      .toOutputStream(outputStream)
 }
 outputStream.toString // "TEXT1,TEXT2"
 ```
@@ -72,15 +74,16 @@ You can obtain a `Source` of byte chunks read from a file for a given path:
 
 ```scala mdoc:compile-only
 import ox.channels.Source
-import ox.supervised
+import ox.{IO, supervised}
 import java.nio.file.Paths
 
 supervised {
-  Source
-    .fromFile(Paths.get("/path/to/my/file.txt"))
-    .lines
-    .map(_.toUpperCase)
-    .toList // List("FILE_LINE1", "FILE_LINE2")
+  IO.unsafe:
+    Source
+      .fromFile(Paths.get("/path/to/my/file.txt"))
+      .lines
+      .map(_.toUpperCase)
+      .toList // List("FILE_LINE1", "FILE_LINE2")
 }
 ```
 
@@ -93,14 +96,14 @@ A `Source[Chunk[Byte]]` can be written to a file under a given path:
 ```scala mdoc:compile-only
 
 import ox.channels.Source
-import ox.Chunk
-import ox.supervised
+import ox.{Chunk, IO, supervised}
 import java.nio.file.Paths
 
 supervised {
   val source = Source.fromIterable(List("text1,", "text2"))
-  source
-    .map(str => Chunk.fromArray(str.getBytes))
-    .toFile(Paths.get("/path/to/my/target/file.txt"))
+  IO.unsafe:
+    source
+      .map(str => Chunk.fromArray(str.getBytes))
+      .toFile(Paths.get("/path/to/my/target/file.txt"))
 }
 ```

@@ -17,14 +17,16 @@ To read from a Kafka topic, use:
 import ox.channels.ChannelClosed
 import ox.kafka.{ConsumerSettings, KafkaSource, ReceivedMessage}
 import ox.kafka.ConsumerSettings.AutoOffsetReset
-import ox.supervised
+import ox.{IO, supervised}
 
 supervised {
   val settings = ConsumerSettings.default("my_group").bootstrapServers("localhost:9092").autoOffsetReset(AutoOffsetReset.Earliest)
   val topic = "my_topic"
-  val source = KafkaSource.subscribe(settings, topic)
-
-  source.receive(): ReceivedMessage[String, String] | ChannelClosed
+  
+  IO.unsafe:
+    val source = KafkaSource.subscribe(settings, topic)
+  
+    source.receive(): ReceivedMessage[String, String] | ChannelClosed
 }
 ```
 
@@ -33,15 +35,16 @@ To publish data to a Kafka topic:
 ```scala mdoc:compile-only
 import ox.channels.Source
 import ox.kafka.{ProducerSettings, KafkaDrain}
-import ox.{pipe, supervised}
+import ox.{IO, pipe, supervised}
 import org.apache.kafka.clients.producer.ProducerRecord
 
 supervised {
   val settings = ProducerSettings.default.bootstrapServers("localhost:9092")
-  Source
-    .fromIterable(List("a", "b", "c"))
-    .mapAsView(msg => ProducerRecord[String, String]("my_topic", msg))
-    .pipe(KafkaDrain.publish(settings))
+  IO.unsafe:
+    Source
+      .fromIterable(List("a", "b", "c"))
+      .mapAsView(msg => ProducerRecord[String, String]("my_topic", msg))
+      .pipe(KafkaDrain.publish(settings))
 }
 ```
 
@@ -66,7 +69,7 @@ computed. For example:
 ```scala mdoc:compile-only
 import ox.kafka.{ConsumerSettings, KafkaDrain, KafkaSource, ProducerSettings, SendPacket}
 import ox.kafka.ConsumerSettings.AutoOffsetReset
-import ox.{pipe, supervised}
+import ox.{IO, pipe, supervised}
 import org.apache.kafka.clients.producer.ProducerRecord
 
 supervised {
@@ -75,11 +78,12 @@ supervised {
   val sourceTopic = "source_topic"
   val destTopic = "dest_topic"
 
-  KafkaSource
-    .subscribe(consumerSettings, sourceTopic)
-    .map(in => (in.value.toLong * 2, in))
-    .map((value, original) => SendPacket(ProducerRecord[String, String](destTopic, value.toString), original))
-    .pipe(KafkaDrain.publishAndCommit(producerSettings))
+  IO.unsafe:
+    KafkaSource
+      .subscribe(consumerSettings, sourceTopic)
+      .map(in => (in.value.toLong * 2, in))
+      .map((value, original) => SendPacket(ProducerRecord[String, String](destTopic, value.toString), original))
+      .pipe(KafkaDrain.publishAndCommit(producerSettings))
 }
 ```
 
@@ -91,16 +95,17 @@ To publish data as a mapping stage:
 import ox.channels.Source
 import ox.kafka.ProducerSettings
 import ox.kafka.KafkaStage.*
-import ox.supervised
+import ox.{IO, supervised}
 import org.apache.kafka.clients.producer.{ProducerRecord, RecordMetadata}
 
 supervised {
   val settings = ProducerSettings.default.bootstrapServers("localhost:9092")
-  val metadatas: Source[RecordMetadata] = Source
-    .fromIterable(List("a", "b", "c"))
-    .mapAsView(msg => ProducerRecord[String, String]("my_topic", msg))
-    .mapPublish(settings)
+  IO.unsafe:
+    val metadatas: Source[RecordMetadata] = Source
+      .fromIterable(List("a", "b", "c"))
+      .mapAsView(msg => ProducerRecord[String, String]("my_topic", msg))
+      .mapPublish(settings)
   
-  // process the metadatas source further
+    // process the metadatas source further
 }
 ```
