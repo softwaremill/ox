@@ -1,7 +1,7 @@
 # I/O
 
 Ox includes the `IO` capability, which is designed to be part of the signature of any method, which performs I/O
-either directly or indirectly. The goal is for method signatures to by truthful, and specify the possible side effects,
+either directly or indirectly. The goal is for method signatures to be truthful, and specify the possible side effects,
 failure modes and timing in a reasonably precise and practical way. For example:
 
 ```scala mdoc:compile-only
@@ -21,8 +21,9 @@ In other words, the presence of a `using IO` parameter indicates that the method
   [application errors](basics/error-handling.md))
 
 Quite importantly, the **absence** of `using IO` specifies that the method has **no** I/O side effects (however, it 
-might still block the thread, e.g. when using a channel, or have other side effects, such as throwing exceptions).
-Compiler assists in checking this property, but only to a certain degree - it's possible to cheat!
+might still block the thread, e.g. when using a channel, or have other side effects, such as throwing exceptions,
+accessing the current time, or generating a random number). Compiler assists in checking this property, but only to a 
+certain degree - it's possible to cheat!
 
 The `IO` capability can be introduced using `IO.unsafe`. Ideally, this method should only be used at the edges of your 
 application (e.g. in the `main` method), or when integrating with third-party libraries. Otherwise, the capability
@@ -97,9 +98,9 @@ object Test:
  */
 ```
 
-You can think of the plugin as of a way to translate between the effect system that is part of Java - exceptions - and 
-the `IO` effect specified by Ox. Note that only usages of Java methods which have the proper `throws` clauses will be 
-checked (or of Scala methods, which have the `@throws` annotation). 
+You can think of the plugin as a way to translate between the effect system that is part of Java - checked exceptions - 
+and the `IO` effect specified by Ox. Note that only usages of Java methods which have the proper `throws` clauses will 
+be checked (or of Scala methods, which have the `@throws` annotation). 
 
 ```{note}
 If you are using a Scala library that uses Java's I/O under the covers, such usages can't (and won't) be 
