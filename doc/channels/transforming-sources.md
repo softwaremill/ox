@@ -75,8 +75,8 @@ from the source on which it is run.
 
 When dealing with Sources with chunks of bytes or Strings, you can leverage following built-in combinators for useful transformations:
 
-* `decodeStringUtf8` to decode a `Source[Chunk[Byte]]` into a `Source[String]`
-* `encodeUtf8` to encode a `Source[String]` into a `Source[Chunk[Byte]]`
-* `linesUtf8` to handle a multiline text from a `Source[Chunk[Byte]]` and emit each line as a `Source[String]`
+* `encodeUtf8` encodes a `Source[String]` into a `Source[Chunk[Byte]]`
+* `linesUtf8` decodes a `Source[Chunk[Byte]]` into a `Source[String]`. Assumes that the input represents text with line breaks. The `String` elements emitted by resulting `Source[String]` represent text lines.
+* `decodeStringUtf8` to decode a `Source[Chunk[Byte]]` into a `Source[String]`, without handling line breaks, just processing input bytes as UTF-8 characters, even if a multi-byte character is divided into two chunks.
 
 Such operations may be useful when dealing with I/O like files, `InputStream`, etc.. See [examples here](io.md).
