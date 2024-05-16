@@ -58,7 +58,7 @@ val outputStream = new ByteArrayOutputStream()
 supervised {
   val source = Source.fromIterable(List("text1,", "text2"))
   source
-    .map(str => Chunk.fromArray(str.getBytes))
+    .encodeUtf8
     .toOutputStream(outputStream)
 }
 outputStream.toString // "TEXT1,TEXT2"
@@ -100,7 +100,7 @@ import java.nio.file.Paths
 supervised {
   val source = Source.fromIterable(List("text1,", "text2"))
   source
-    .map(str => Chunk.fromArray(str.getBytes))
+    .encodeUtf8
     .toFile(Paths.get("/path/to/my/target/file.txt"))
 }
 ```

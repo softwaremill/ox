@@ -59,7 +59,6 @@ trait SourceTextOps[+T]:
     * @return
     *   a source of Strings decoded from incoming bytes.
     */
-  // TODO check for possible exceptions and add error handling
   def decodeStringUtf8(using Ox, T <:< Chunk[Byte]): Source[String] =
     val bomSize = 3 // const for UTF-8
 
