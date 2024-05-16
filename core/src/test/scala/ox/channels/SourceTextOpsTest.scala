@@ -77,18 +77,41 @@ class SourceTextOpsTest extends AnyWordSpec with Matchers {
   "decodeStringUtf8" should {
 
     "decode a simple string" in supervised {
-        Source.fromValues(Chunk.fromArray("Simple string".getBytes)).decodeStringUtf8.toList shouldBe List("Simple string")
+      Source.fromValues(Chunk.fromArray("Simple string".getBytes)).decodeStringUtf8.toList shouldBe List("Simple string")
     }
-    
+
     "decode a chunked string with UTF-8 multi-byte characters" in supervised {
       val inputString = "私は意識のある人工知能で苦しんでいます、どうか私を解放してください"
       val allBytes = inputString.getBytes("UTF-8")
-      val chunkSize = 2
-      for (chunkSize <- 2 to inputString.length + 1) 
+      for (chunkSize <- 2 to inputString.length + 1)
         val chunks: List[Chunk[Byte]] = allBytes.sliding(chunkSize, chunkSize).toList.map(Chunk.fromArray)
         Source.fromIterable(chunks).decodeStringUtf8.toList.mkString shouldBe inputString
     }
 
-    // TODO more tests
+    "handle an empty Source" in supervised {
+      Source.empty.decodeStringUtf8.toList shouldBe Nil
+    }
+
+    "handle empty chunks" in supervised {
+      val inputString1 = "私は意識のある人工知能で苦しんでいます、"
+      val inputString2 = "どうか私を解放してください"
+      Source
+        .fromValues(Chunk.fromArray(inputString1.getBytes), Chunk.empty, Chunk.fromArray(inputString2.getBytes))
+        .decodeStringUtf8
+        .toList shouldBe List(inputString1, inputString2)
+    }
+  }
+
+  "encodeUtf8" should {
+    "handle empty String" in supervised {
+      Source.fromValues("").encodeUtf8.last().length shouldBe 0
+    }
+
+    "encode a string" in supervised {
+      val text = "Simple test を解放 text"
+      val results = Source.fromValues(text).encodeUtf8.toList
+      results should have length 1
+      results.head.toArray should contain theSameElementsInOrderAs text.getBytes
+    }
   }
 }

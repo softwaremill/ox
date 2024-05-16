@@ -49,13 +49,17 @@ trait SourceTextOps[+T]:
   def linesUtf8(using Ox, T <:< Chunk[Byte]): Source[String] =
     lines(StandardCharsets.UTF_8)
 
-    /** Decodes a stream of chunks of bytes into UTF-8 Strings. This function is able to handle UTF-8 characters encoded on multiple bytes
-      * that are split across chunks.
-      *
-      * @return
-      *   a source of Strings decoded from incoming bytes.
-      */
-    // TODO check for possible exceptions and add error handling
+  /** Encodes a source of `String` in to a source of bytes using UTF-8. */
+  def encodeUtf8(using Ox, T <:< String): Source[Chunk[Byte]] =
+    outer.mapAsView(s => Chunk.fromArray(s.getBytes(StandardCharsets.UTF_8)))
+
+  /** Decodes a stream of chunks of bytes into UTF-8 Strings. This function is able to handle UTF-8 characters encoded on multiple bytes
+    * that are split across chunks.
+    *
+    * @return
+    *   a source of Strings decoded from incoming bytes.
+    */
+  // TODO check for possible exceptions and add error handling
   def decodeStringUtf8(using Ox, T <:< Chunk[Byte]): Source[String] =
     val bomSize = 3 // const for UTF-8
 
