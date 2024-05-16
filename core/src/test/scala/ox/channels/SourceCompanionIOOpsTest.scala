@@ -12,7 +12,6 @@ import java.nio.file.Files
 import java.nio.file.NoSuchFileException
 import java.nio.file.Paths
 import java.io.IOException
-import scala.io.StdIn
 
 class SourceCompanionIOOpsTest extends AnyWordSpec with Matchers:
 
