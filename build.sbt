@@ -69,8 +69,6 @@ lazy val pluginTest: Project = (project in file("plugin-test"))
       scalaTest
     ),
     publishArtifact := false,
-//    autoCompilerPlugins := true,
-//    addCompilerPlugin("com.softwaremill.ox" %% "plugin" % "0.1.0")
     // Playground testing
     useRequireIOPlugin,
     // Unit testing, based on:

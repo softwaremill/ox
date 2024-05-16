@@ -2,6 +2,8 @@
 
 Ox allows creating a `Source` which reads from a file or `InpuStream`, as well as directing an existing source into a file or an `OutputStream`. These methods work only with a `Source[Chunk[Byte]]`. Ox takes care of closing files/streams after processing and on errors.
 
+All I/O operations require the [IO capability](../io.md).
+
 ## InputStream and OutputStream
 
 ### Source.fromInputStream 
