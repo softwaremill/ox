@@ -119,5 +119,5 @@ class EitherTest extends AnyFlatSpec with Matchers:
     r1 shouldBe Right(1 to 20)
 
     val r2 = either((1 to 20).toVector.mapPar(3)(i => intToEither(i).ok()))
-    r2 shouldBe Left("1 is odd")
+    (1 to 20).filter(_ % 2 == 1).map(i => Left(s"$i is odd")) should contain (r2)
   }
