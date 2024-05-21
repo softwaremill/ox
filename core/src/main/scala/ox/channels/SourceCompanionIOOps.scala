@@ -13,7 +13,8 @@ import scala.util.control.NonFatal
 
 trait SourceCompanionIOOps:
 
-  /** Converts a [[java.io.InputStream]] into a `Source[Chunk[Bytes]]`.
+  /** Converts a [[java.io.InputStream]] into a `Source[Chunk[Bytes]]`. Implicit `StageCapacity` can be used to control the number of
+    * buffered chunks.
     *
     * @param is
     *   an `InputStream` to read bytes from.
@@ -22,19 +23,19 @@ trait SourceCompanionIOOps:
     * @return
     *   a `Source` of chunks of bytes.
     */
-  def fromInputStream(is: InputStream, chunkSize: Int = 1024)(using Ox, IO): Source[Chunk[Byte]] =
+  def fromInputStream(is: InputStream, chunkSize: Int = 1024)(using Ox, StageCapacity, IO): Source[Chunk[Byte]] =
     val chunks = StageCapacity.newChannel[Chunk[Byte]]
     fork {
       try
         repeatWhile {
-          val a = new Array[Byte](chunkSize)
-          val r = is.read(a)
-          if r == -1 then
+          val buf = new Array[Byte](chunkSize)
+          val readBytes = is.read(buf)
+          if readBytes == -1 then
             chunks.done()
             false
           else
-            val chunk = if r == chunkSize then Chunk.fromArray(a) else Chunk.fromArray(a.take(r))
-            chunks.send(chunk)
+            if readBytes > 0 then
+              chunks.send(if readBytes == chunkSize then Chunk.fromArray(buf) else Chunk.fromArray(buf.take(readBytes)))
             true
         }
       catch
@@ -48,7 +49,8 @@ trait SourceCompanionIOOps:
     }
     chunks
 
-    /** Creates a `Source` that emits byte chunks read from a file.
+    /** Creates a `Source` that emits byte chunks read from a file. Implicit `StageCapacity` can be used to control the number of buffered
+      * chunks.
       *
       * @param path
       *   path the file to read from.
@@ -61,7 +63,7 @@ trait SourceCompanionIOOps:
       * @throws SecurityException
       *   If SecurityManager error occurs when opening the file.
       */
-  def fromFile(path: Path, chunkSize: Int = 1024)(using Ox, IO): Source[Chunk[Byte]] =
+  def fromFile(path: Path, chunkSize: Int = 1024)(using Ox, StageCapacity, IO): Source[Chunk[Byte]] =
     if Files.isDirectory(path) then throw new IOException(s"Path $path is a directory")
     val chunks = StageCapacity.newChannel[Chunk[Byte]]
     val jFileChannel =
@@ -79,11 +81,8 @@ trait SourceCompanionIOOps:
           if readBytes < 0 then
             chunks.done()
             false
-          else if readBytes == 0 then
-            chunks.send(Chunk.empty)
-            true
           else
-            chunks.send(Chunk.fromArray(if readBytes == chunkSize then buf.array else buf.array.take(readBytes)))
+            if readBytes > 0 then chunks.send(Chunk.fromArray(if readBytes == chunkSize then buf.array else buf.array.take(readBytes)))
             true
         }
       } catch case e => chunks.errorOrClosed(e).discard

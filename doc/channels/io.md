@@ -21,7 +21,7 @@ supervised {
   IO.unsafe:
     Source
       .fromInputStream(inputStream) // Source[Chunk[Byte]]
-      .map(_.asString)
+      .decodeStringUtf8
       .map(_.toUpperCase)
       .foreach(println) // "SOME INPUT"
 }
@@ -41,7 +41,7 @@ supervised {
   IO.unsafe:
     Source
       .fromInputStream(inputStream, chunkSize = 4) // Source[Chunk[Byte]]
-      .map(_.asString)
+      .decodeStringUtf8
       .map(_.toUpperCase)
       .foreach(println) // "SOME", " INPUT"
 }
@@ -61,7 +61,7 @@ supervised {
   val source = Source.fromIterable(List("text1,", "text2"))
   IO.unsafe:
     source
-      .map(str => Chunk.fromArray(str.getBytes))
+      .encodeUtf8
       .toOutputStream(outputStream)
 }
 outputStream.toString // "TEXT1,TEXT2"
@@ -82,7 +82,7 @@ supervised {
   IO.unsafe:
     Source
       .fromFile(Paths.get("/path/to/my/file.txt"))
-      .lines
+      .linesUtf8
       .map(_.toUpperCase)
       .toList // List("FILE_LINE1", "FILE_LINE2")
 }
@@ -104,7 +104,7 @@ supervised {
   val source = Source.fromIterable(List("text1,", "text2"))
   IO.unsafe:
     source
-      .map(str => Chunk.fromArray(str.getBytes))
+      .encodeUtf8
       .toFile(Paths.get("/path/to/my/target/file.txt"))
 }
 ```

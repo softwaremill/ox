@@ -69,4 +69,14 @@ The mapping function (`s => s.length()`) will only be invoked when the source is
 fork.
 
 Hence, creating views doesn't need to be run within a scope, and creating the view itself doesn't consume any elements
-from the source on which it is run. 
+from the source on which it is run.
+
+## Text transformations
+
+When dealing with Sources with chunks of bytes or Strings, you can leverage following built-in combinators for useful transformations:
+
+* `encodeUtf8` encodes a `Source[String]` into a `Source[Chunk[Byte]]`
+* `linesUtf8` decodes a `Source[Chunk[Byte]]` into a `Source[String]`. Assumes that the input represents text with line breaks. The `String` elements emitted by resulting `Source[String]` represent text lines.
+* `decodeStringUtf8` to decode a `Source[Chunk[Byte]]` into a `Source[String]`, without handling line breaks, just processing input bytes as UTF-8 characters, even if a multi-byte character is divided into two chunks.
+
+Such operations may be useful when dealing with I/O like files, `InputStream`, etc.. See [examples here](io.md).

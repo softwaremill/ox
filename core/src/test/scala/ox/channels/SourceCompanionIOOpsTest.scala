@@ -26,11 +26,11 @@ class SourceCompanionIOOpsTest extends AnyWordSpec with Matchers:
     }
 
     "handle InputStream shorter than buffer size" in supervised {
-      Source.fromInputStream(inputStream("abc")).toList.map(_.asString) shouldBe List("abc")
+      toStrings(Source.fromInputStream(inputStream("abc"))) shouldBe List("abc")
     }
 
     "handle InputStream longer than buffer size" in supervised {
-      Source.fromInputStream(inputStream("some text"), chunkSize = 3).toList.map(_.asString) shouldBe List("som", "e t", "ext")
+      toStrings(Source.fromInputStream(inputStream("some text"), chunkSize = 3)) shouldBe List("som", "e t", "ext")
     }
 
     "close the InputStream after reading it" in supervised {
@@ -53,18 +53,18 @@ class SourceCompanionIOOpsTest extends AnyWordSpec with Matchers:
     "read content from a file smaller than chunk size" in supervised {
       val path = useInScope(Files.createTempFile("ox", "test-readfile1"))(Files.deleteIfExists(_).discard)
       Files.write(path, "Test1 file content".getBytes)
-      Source.fromFile(path).toList.map(_.asString) shouldBe List("Test1 file content")
+      toStrings(Source.fromFile(path)) shouldBe List("Test1 file content")
     }
 
     "read content from a file larger than chunk size" in supervised {
       val path = useInScope(Files.createTempFile("ox", "test-readfile1"))(Files.deleteIfExists(_).discard)
       Files.write(path, "Test2 file content".getBytes)
-      Source.fromFile(path, chunkSize = 3).toList.map(_.asString) shouldBe List("Tes", "t2 ", "fil", "e c", "ont", "ent")
+      toStrings(Source.fromFile(path, chunkSize = 3)) shouldBe List("Tes", "t2 ", "fil", "e c", "ont", "ent")
     }
 
     "handle an empty file" in supervised {
       val path = useInScope(Files.createTempFile("ox", "test-readfile1"))(Files.deleteIfExists(_).discard)
-      Source.fromFile(path).toList.map(_.asString) shouldBe List.empty
+      toStrings(Source.fromFile(path)) shouldBe List.empty
     }
 
     "throw an exception for missing file" in supervised {
@@ -78,6 +78,9 @@ class SourceCompanionIOOpsTest extends AnyWordSpec with Matchers:
       exception.getMessage should endWith("is a directory")
     }
   }
+
+  private def toStrings(source: Source[Chunk[Byte]]): List[String] =
+    source.toList.map(_.asStringUtf8)
 
 class TestInputStream(text: String, throwOnRead: Boolean = false)(using IO) extends ByteArrayInputStream(text.getBytes):
   val closed: AtomicBoolean = new AtomicBoolean(false)

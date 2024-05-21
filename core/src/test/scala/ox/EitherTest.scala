@@ -110,3 +110,14 @@ class EitherTest extends AnyFlatSpec with Matchers:
 
     e shouldBe a[InterruptedException]
   }
+
+  it should "work when combined with mapPar" in {
+    def intToEither(i: Int): Either[String, Int] =
+      if i % 2 == 0 then Right(i) else Left(s"$i is odd")
+
+    val r1 = either((1 to 20).toVector.mapPar(3)(i => Right(i).ok()))
+    r1 shouldBe Right(1 to 20)
+
+    val r2 = either((1 to 20).toVector.mapPar(3)(i => intToEither(i).ok()))
+    (1 to 20).filter(_ % 2 == 1).map(i => Left(s"$i is odd")) should contain (r2)
+  }
