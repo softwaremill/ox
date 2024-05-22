@@ -62,7 +62,7 @@ Scopes can be arbitrarily nested.
 * `forkUser`: supervised, user fork (scope will wait for it to complete, if there are no other errors)
 * `forkError`: supervised, daemon fork, which is allowed to fail with an application error
 * `forkUserError`: supervised, user fork, which is allowed to fail with an application error
-* `forkPlain`: unsupervised fork
+* `forkUnsupervised`: unsupervised fork
 * `forkCancellable`: unsupervised, cancellable fork
 
 ## Supervision
@@ -106,20 +106,20 @@ Alternatively, a user fork can be created using `forkUser`. Such a fork is requi
 for the scope to end successfully. Hence, when the body of the scope completes, the scope will wait until all user
 forks have completed as well.
 
-Finally, entirely unsupervised forks can be started using `forkPlain`.
+Finally, entirely unsupervised forks can be started using `forkUnsupervised`.
 
 ## Unsupervised scopes
 
-An unsupervised scope can be created using `unsupervised`. Within such scopes, only `forkPlain` and `forkCancellable` 
-forks can be started.
+An unsupervised scope can be created using `unsupervised`. Within such scopes, only `forkUnsupervised` and 
+`forkCancellable` forks can be started.
 
 Once the code block passed to `unsupervised` completes, the scope ends, that is, all running forks are cancelled. Still, 
 the `unsupervised` method returns (the scope completes) only once all forks have completed.
 
 Fork failures aren't handled in any special way, and can be inspected using the `Fork.join()` method.
 
-For helper method, the capability that needs to be passed is `OxPlain`, a subtype of `Ox` that only allows starting
-unsupervised forks.
+For helper method, the capability that needs to be passed is `OxUnsupervised`, a subtype of `Ox` that only allows 
+starting unsupervised forks.
 
 ## Cancelling forks
 
