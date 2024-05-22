@@ -18,12 +18,13 @@ import ox.kafka.ConsumerSettings.AutoOffsetReset
       val bootstrapServer = "localhost:29092"
       val consumerSettings = ConsumerSettings.default(group).bootstrapServers(bootstrapServer).autoOffsetReset(AutoOffsetReset.Earliest)
       val producerSettings = ProducerSettings.default.bootstrapServers(bootstrapServer)
-      KafkaSource
-        .subscribe(consumerSettings, sourceTopic)
-        .take(10_000_000)
-        .map(in => (in.value.reverse, in))
-        .map((value, original) => SendPacket(ProducerRecord[String, String](destTopic, value), original))
-        .mapPublishAndCommit(producerSettings)
-        .drain()
+      IO.unsafe:
+        KafkaSource
+          .subscribe(consumerSettings, sourceTopic)
+          .take(10_000_000)
+          .map(in => (in.value.reverse, in))
+          .map((value, original) => SendPacket(ProducerRecord[String, String](destTopic, value), original))
+          .mapPublishAndCommit(producerSettings)
+          .drain()
     }
   }

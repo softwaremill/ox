@@ -6,6 +6,7 @@ import org.scalatest.wordspec.AnyWordSpec
 import java.nio.charset.Charset
 
 class SourceTextOpsTest extends AnyWordSpec with Matchers {
+  import ox.IO.globalForTesting.given
 
   "source.linesUtf8" should {
 

@@ -19,7 +19,7 @@ object KafkaStage:
       * @return
       *   A stream of published records metadata, in the order in which the [[ProducerRecord]]s are received.
       */
-    def mapPublish(settings: ProducerSettings[K, V])(using StageCapacity, Ox): Source[RecordMetadata] =
+    def mapPublish(settings: ProducerSettings[K, V])(using StageCapacity, Ox, IO): Source[RecordMetadata] =
       mapPublish(settings.toProducer, closeWhenComplete = true)
 
     /** Publish the messages using the given `producer`. The producer is closed depending on the `closeWhenComplete` flag, after all
@@ -28,7 +28,7 @@ object KafkaStage:
       * @return
       *   A stream of published records metadata, in the order in which the [[ProducerRecord]]s are received.
       */
-    def mapPublish(producer: KafkaProducer[K, V], closeWhenComplete: Boolean)(using StageCapacity, Ox): Source[RecordMetadata] =
+    def mapPublish(producer: KafkaProducer[K, V], closeWhenComplete: Boolean)(using StageCapacity, Ox, IO): Source[RecordMetadata] =
       source.mapAsView(r => SendPacket(List(r), Nil)).mapPublishAndCommit(producer, closeWhenComplete, commitOffsets = false)
 
   extension [K, V](source: Source[SendPacket[K, V]])
@@ -39,7 +39,7 @@ object KafkaStage:
       * @return
       *   A stream of published records metadata, in the order in which the [[SendPacket]]s are received.
       */
-    def mapPublishAndCommit(producerSettings: ProducerSettings[K, V])(using StageCapacity, Ox): Source[RecordMetadata] =
+    def mapPublishAndCommit(producerSettings: ProducerSettings[K, V])(using StageCapacity, Ox, IO): Source[RecordMetadata] =
       mapPublishAndCommit(producerSettings.toProducer, closeWhenComplete = true)
 
     /** For each packet, first all messages (producer records) are sent, using the given `producer`. Then, all messages from
@@ -52,12 +52,17 @@ object KafkaStage:
       * @return
       *   A stream of published records metadata, in the order in which the [[SendPacket]]s are received.
       */
-    def mapPublishAndCommit(producer: KafkaProducer[K, V], closeWhenComplete: Boolean)(using StageCapacity, Ox): Source[RecordMetadata] =
+    def mapPublishAndCommit(producer: KafkaProducer[K, V], closeWhenComplete: Boolean)(using
+        StageCapacity,
+        Ox,
+        IO
+    ): Source[RecordMetadata] =
       mapPublishAndCommit(producer, closeWhenComplete, commitOffsets = true)
 
     private def mapPublishAndCommit(producer: KafkaProducer[K, V], closeWhenComplete: Boolean, commitOffsets: Boolean)(using
         StageCapacity,
-        Ox
+        Ox,
+        IO
     ): Source[RecordMetadata] =
       // source - the upstream from which packets are received
 
@@ -80,7 +85,8 @@ object KafkaStage:
           unsupervised {
             // committer
             val commitDoneSource =
-              if commitOffsets then Source.fromFork(fork(doCommit(toCommit).tapException(e => c.errorOrClosed(e).discard))) else Source.empty
+              if commitOffsets then Source.fromFork(fork(doCommit(toCommit).tapException(e => c.errorOrClosed(e).discard)))
+              else Source.empty
 
             repeatWhile {
               selectOrClosed(exceptions.receiveClause, metadata.receiveClause, source.receiveClause) match
@@ -124,7 +130,7 @@ object KafkaStage:
       exceptions: Sink[Exception],
       metadata: Sink[(Long, RecordMetadata)],
       commitOffsets: Boolean
-  ): Unit =
+  )(using IO): Unit =
     val leftToSend = new AtomicInteger(packet.send.size)
     packet.send.foreach { toSend =>
       val sequenceNo = sendInSequence.nextSequenceNo

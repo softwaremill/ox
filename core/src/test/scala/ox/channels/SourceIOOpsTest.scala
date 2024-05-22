@@ -15,6 +15,7 @@ import java.nio.file.Paths
 import java.util.concurrent.atomic.AtomicBoolean
 
 class SourceIOOpsTest extends AnyWordSpec with Matchers:
+  import ox.IO.globalForTesting.given
 
   def inputStreamToString(is: InputStream)(using Ox): String = {
     val source = useInScope(scala.io.Source.fromInputStream(is))(_.close())
@@ -170,7 +171,7 @@ class SourceIOOpsTest extends AnyWordSpec with Matchers:
   private def fileContent(path: Path)(using Ox): List[String] =
     Source.fromFile(path).toList.map(_.asStringUtf8)
 
-class TestOutputStream(throwOnWrite: Boolean = false) extends ByteArrayOutputStream:
+class TestOutputStream(throwOnWrite: Boolean = false)(using IO) extends ByteArrayOutputStream:
   val closed: AtomicBoolean = new AtomicBoolean(false)
 
   override def close(): Unit =
