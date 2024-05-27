@@ -127,3 +127,14 @@ Currently, by default the plugin checks for the following exceptions:
 
 * `java.io.IOException`
 * `java.sql.SQLException`
+
+## Potential benefits of tracking methods that perform I/O
+
+Tracking which methods perform I/O using the `IO` capability has the only benefit of giving you method signatures, 
+which carry more information. In other words: more type safety. The specific benefits might include:
+
+* better code readability (what does this method do?
+* local reasoning (does this method perform I/O?)
+* safer refactoring (adding I/O to a previously pure method triggers errors in the compiler, you need to consciously add the capability)
+* documentation through types (an IO method can take a longer time, have side-effects)
+* possible failure modes (an IO method might throw an exception)
