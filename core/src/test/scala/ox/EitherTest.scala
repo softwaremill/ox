@@ -5,6 +5,8 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.either.{fail, ok}
 
+import scala.util.boundary.Label
+
 class EitherTest extends AnyFlatSpec with Matchers:
   val ok1: Either[Int, String] = Right("x")
   val ok2: Either[Int, String] = Right("y")
@@ -119,5 +121,29 @@ class EitherTest extends AnyFlatSpec with Matchers:
     r1 shouldBe Right(1 to 20)
 
     val r2 = either((1 to 20).toVector.mapPar(3)(i => intToEither(i).ok()))
-    (1 to 20).filter(_ % 2 == 1).map(i => Left(s"$i is odd")) should contain (r2)
+    (1 to 20).filter(_ % 2 == 1).map(i => Left(s"$i is odd")) should contain(r2)
   }
+
+  it should "not allow nesting of eithers" in {
+    receivesNoEitherNestingError("""
+      val effectMatchingInnerEither: Either[String, Int] = Right(3)
+      val effectMatchingOuterEither: Either[Throwable, Unit] = Left(Exception("oh no"))
+      val outer: Either[Throwable, Unit] = either {
+        val inner: Either[String, Int] = either {
+          effectMatchingOuterEither.ok()
+          effectMatchingInnerEither.ok()
+        }
+
+        ()
+      }
+      """)
+  }
+
+  private transparent inline def receivesNoEitherNestingError(inline code: String): Unit =
+    val errs = scala.compiletime.testing.typeCheckErrors(code)
+    if !errs
+        .map(_.message)
+        .contains(
+          "Nesting of either blocks is not allowed as it's bug prone with type inference. Consider extracting the nested either block to a separate function."
+        )
+    then throw Exception(errs.mkString("\n"))
