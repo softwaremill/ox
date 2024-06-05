@@ -8,6 +8,7 @@ import java.util
 import java.util.concurrent.{CountDownLatch, Semaphore}
 import scala.collection.IterableOnce
 import scala.concurrent.duration.*
+import scala.util.control.NonFatal
 
 trait SourceOps[+T] { outer: Source[T] =>
   // view ops (lazy)
@@ -269,7 +270,7 @@ trait SourceOps[+T] { outer: Source[T] =>
     * Done.
     *
     * @param f
-    *   A predicate function called on incoming elements.
+    *   A predicate function called on incoming elements. If it throws an exception, the result `Source` will be failed with that exception.
     * @param includeFailed
     *   Whether the source should also emit the first element that failed the predicate (`false` by default).
     * @example
@@ -294,14 +295,19 @@ trait SourceOps[+T] { outer: Source[T] =>
             c.doneOrClosed().discard
             false
           case ChannelClosed.Error(r) =>
-            c.error(r)
+            c.errorOrClosed(r).discard
             false
           case t: T @unchecked =>
-            if f(t) then c.sendOrClosed(t).isValue
-            else
-              if includeFailed then c.sendOrClosed(t).discard
-              c.doneOrClosed().discard
-              false
+            try
+              if f(t) then c.sendOrClosed(t).isValue
+              else
+                if includeFailed then c.sendOrClosed(t).discard
+                c.doneOrClosed().discard
+                false
+            catch
+              case NonFatal(e) =>
+                c.errorOrClosed(e).discard
+                false
       }
     }
     c

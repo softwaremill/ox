@@ -45,13 +45,28 @@ class SourceOpsTakeWhileTest extends AnyFlatSpec with Matchers {
     s2.receiveOrClosed() shouldBe ChannelClosed.Done
   }
 
-  it should "fail with the same exception as the initial source" in supervised {
+  it should "fail the sourcewith the same exception as the initial source" in supervised {
     val c = Channel.buffered[Int](1)
     c.send(1)
     val s = c.takeWhile(_ < 3)
     s.receive() shouldBe 1
     val testException = new Exception("expected error")
     c.error(testException)
+    s.receiveOrClosed() shouldBe ChannelClosed.Error(testException)
+  }
+
+  it should "fail the source with the same exception as predicate" in supervised {
+    val c = Channel.buffered[Int](1)
+    val testException = new Exception("expected predicate error")
+    fork {
+      c.send(1)
+      c.send(2)
+    }
+    val s = c.takeWhile {
+      case 1 => true
+      case _ => throw testException
+    }
+    s.receive() shouldBe 1
     s.receiveOrClosed() shouldBe ChannelClosed.Error(testException)
   }
 
