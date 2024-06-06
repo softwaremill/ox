@@ -294,8 +294,8 @@ trait SourceOps[+T] { outer: Source[T] =>
           case ChannelClosed.Done =>
             c.doneOrClosed().discard
             false
-          case ChannelClosed.Error(r) =>
-            c.errorOrClosed(r).discard
+          case ChannelClosed.Error(reason) =>
+            c.errorOrClosed(reason).discard
             false
           case t: T @unchecked =>
             try
@@ -305,8 +305,8 @@ trait SourceOps[+T] { outer: Source[T] =>
                 c.doneOrClosed().discard
                 false
             catch
-              case NonFatal(e) =>
-                c.errorOrClosed(e).discard
+              case t: Throwable =>
+                c.errorOrClosed(t).discard
                 false
       }
     }
