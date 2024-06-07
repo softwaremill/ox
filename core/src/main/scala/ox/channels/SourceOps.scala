@@ -8,6 +8,7 @@ import java.util
 import java.util.concurrent.{CountDownLatch, Semaphore}
 import scala.collection.IterableOnce
 import scala.concurrent.duration.*
+import scala.util.control.NonFatal
 
 trait SourceOps[+T] { outer: Source[T] =>
   // view ops (lazy)
@@ -264,11 +265,14 @@ trait SourceOps[+T] { outer: Source[T] =>
 
   def take(n: Int)(using Ox, StageCapacity): Source[T] = transform(_.take(n))
 
-  /** Sends elements to the returned channel until predicate `f` is satisfied (returns `true`). Note that when the predicate `f` is not
-    * satisfied (returns `false`), subsequent elements are dropped even if they could still satisfy it.
+  /** Transform the source so that it returns elements as long as predicate `f` is satisfied (returns `true`). If `includeFailed` is `true`,
+    * the returned source will additionally return the first element that failed the predicate. After that, the source will complete as
+    * Done.
     *
     * @param f
-    *   A predicate function.
+    *   A predicate function called on incoming elements. If it throws an exception, the result `Source` will be failed with that exception.
+    * @param includeFailed
+    *   Whether the source should also emit the first element that failed the predicate (`false` by default).
     * @example
     *   {{{
     *   import ox.*
@@ -277,11 +281,36 @@ trait SourceOps[+T] { outer: Source[T] =>
     *   supervised {
     *     Source.empty[Int].takeWhile(_ > 3).toList          // List()
     *     Source.fromValues(1, 2, 3).takeWhile(_ < 3).toList // List(1, 2)
+    *     Source.fromValues(1, 2, 3, 4).takeWhile(_ < 3, includeFailed = true).toList // List(1, 2, 3)
     *     Source.fromValues(3, 2, 1).takeWhile(_ < 3).toList // List()
     *   }
     *   }}}
     */
-  def takeWhile(f: T => Boolean)(using Ox, StageCapacity): Source[T] = transform(_.takeWhile(f))
+  def takeWhile(f: T => Boolean, includeFailed: Boolean = false)(using Ox, StageCapacity): Source[T] =
+    val c = StageCapacity.newChannel[T]
+    fork {
+      repeatWhile {
+        receiveOrClosed() match
+          case ChannelClosed.Done =>
+            c.doneOrClosed().discard
+            false
+          case ChannelClosed.Error(reason) =>
+            c.errorOrClosed(reason).discard
+            false
+          case t: T @unchecked =>
+            try
+              if f(t) then c.sendOrClosed(t).isValue
+              else
+                if includeFailed then c.sendOrClosed(t).discard
+                c.doneOrClosed().discard
+                false
+            catch
+              case t: Throwable =>
+                c.errorOrClosed(t).discard
+                false
+      }
+    }
+    c
 
   /** Drops `n` elements from this source and forwards subsequent elements to the returned channel.
     *
