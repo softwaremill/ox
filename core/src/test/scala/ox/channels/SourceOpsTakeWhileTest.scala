@@ -26,10 +26,10 @@ class SourceOpsTakeWhileTest extends AnyFlatSpec with Matchers {
     s.receiveOrClosed() shouldBe ChannelClosed.Done
   }
 
-  it should "take the failed element if includeFailed = true" in supervised {
+  it should "take the failed element if includeFirstFailing = true" in supervised {
     val c = Channel.buffered[Int](4)
     for i <- 1 to 4 do c.send(i)
-    val s = c.takeWhile(_ < 3, includeFailed = true)
+    val s = c.takeWhile(_ < 3, includeFirstFailing = true)
     s.receive() shouldBe 1
     s.receive() shouldBe 2
     s.receive() shouldBe 3
