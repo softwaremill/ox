@@ -38,7 +38,7 @@ object either:
     */
   inline def apply[E, A](inline body: Label[Either[E, A]] ?=> A)(using
       @implicitNotFound(
-        "Nesting of either blocks is not allowed as it's bug prone with type inference. Consider extracting the nested either block to a separate function."
+        "Nesting of either blocks is not allowed as it's error prone, due to type inference. Consider extracting the nested either block to a separate function."
       ) nn: NotNested
   ): Either[E, A] = boundary(Right(body))
 
