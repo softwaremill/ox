@@ -120,3 +120,53 @@ import ox.catching
 
 val result: Either[Throwable, String] = catching(throw new RuntimeException("boom"))
 ```
+
+Either blocks cannot be nested in the same scope to prevent surprising failures after refactors. The `.ok()` combinator
+is typed using inference and therefore nesting of `either:` blocks can quickly lead to a scenario where a change of return
+type of a method another `either:` block will be selected by `.ok()` combinator leading to a change in execution semantics 
+without a compile error. Consider this:
+
+```scala
+import ox.either, either.*
+
+def returnsEither: Either[String, Int] = ???
+
+val outerResult: Either[Exception, Unit] = either:
+  val innerResult: Either[String, Int] = either:
+    val i = returnsEither.ok() // this would jump to innerResult on Left
+    // ...
+    i
+  ()
+```
+
+Now, after a small refactor of `returnsEither` return type the `returnsEither.ok()` expression would still compile but 
+instead of short-circuiting the inner `either:` block, it would immediately jump to the outer `either:` block on errors.
+
+```scala 
+import ox.either, either.*
+
+def returnsEither: Either[Exception, Int] = ???
+
+val outerResult: Either[Exception, Unit] = either:
+  val innerResult: Either[String, Int] = either:
+    val i = returnsEither.ok() // this would jump to outerResult on Left now!
+    // ...
+    i
+  ()
+```
+
+Proper way to solve this is to extract the inner `either:` block to a separate function:
+
+```scala mdoc:compile-only
+import ox.either, either.*
+
+def returnsEither: Either[Exception, Int] = ???
+
+def inner(): Either[String, Int] = either:
+  val i = returnsEither.ok() // this can only jump to either on the opening of this function
+  i
+
+val outerResult: Either[Exception, Unit] = either:
+  val innerResult = inner()
+  ()
+```
