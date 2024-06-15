@@ -386,4 +386,3 @@ trait SourceCompanionOps:
     val c = Channel.rendezvous[T]
     c.errorOrClosed(t)
     c
-

@@ -48,7 +48,7 @@ object Schedule:
       */
     def forever(delay: FiniteDuration): Infinite = DelayForever(delay)
 
-  case class DelayForever private[resilience](delay: FiniteDuration) extends Infinite:
+  case class DelayForever private[resilience] (delay: FiniteDuration) extends Infinite:
     override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration = delay
 
   /** A schedule that retries up to a given number of times, with an increasing delay (backoff) between subsequent attempts.
@@ -115,8 +115,11 @@ object Schedule:
     def forever(initialDelay: FiniteDuration, maxDelay: FiniteDuration = 1.minute, jitter: Jitter = Jitter.None): Infinite =
       BackoffForever(initialDelay, maxDelay, jitter)
 
-  case class BackoffForever private[resilience](initialDelay: FiniteDuration, maxDelay: FiniteDuration = 1.minute, jitter: Jitter = Jitter.None)
-      extends Infinite:
+  case class BackoffForever private[resilience] (
+      initialDelay: FiniteDuration,
+      maxDelay: FiniteDuration = 1.minute,
+      jitter: Jitter = Jitter.None
+  ) extends Infinite:
     override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration =
       Backoff.nextDelay(attempt, initialDelay, maxDelay, jitter, lastDelay)
 

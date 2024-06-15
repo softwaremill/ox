@@ -49,14 +49,14 @@ class UtilTest extends AnyFlatSpec with Matchers {
   }
 
   "pipe" should "work" in {
-    (1+2).pipe(_ * 2) shouldBe 6
+    (1 + 2).pipe(_ * 2) shouldBe 6
   }
 
   "tap" should "work" in {
     val t = Trail()
     {
       t.add("Adding")
-      1+2
+      1 + 2
     }.tap(v => t.add(s"Got: $v")) shouldBe 3
     t.get shouldBe Vector("Adding", "Got: 3")
   }

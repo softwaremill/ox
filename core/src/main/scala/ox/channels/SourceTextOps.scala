@@ -158,7 +158,7 @@ trait SourceTextOps[+T]:
       outer.receiveOrClosed() match
         // end of channel before getting enough bytes to resolve BOM, assuming no BOM
         case ChannelClosed.Done =>
-          if (buffer != null) then 
+          if (buffer != null) then
             // There's a buffer accumulated (not BOM), decode it directly
             outputChannel.send(buffer.asStringUtf8)
           outputChannel.done()

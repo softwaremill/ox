@@ -45,8 +45,7 @@ class ActorRef[T](c: Sink[T => Unit]):
   def ask[U](f: T => U): U =
     val cf = new CompletableFuture[U]()
     c.send { t =>
-      try
-        cf.complete(f(t)).discard
+      try cf.complete(f(t)).discard
       catch
         case NonFatal(e) =>
           // since this is an ask, only propagating the exception to the caller, not to the scope

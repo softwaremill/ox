@@ -39,23 +39,24 @@ trait SourceIOOps[+T]:
     * @throws IOException
     *   if an error occurs when writing or closing of the `OutputStream`.
     */
-  def toOutputStream(outputStream: OutputStream)(using T <:< Chunk[Byte], IO): Unit = 
-      repeatWhile {
-        outer.receiveOrClosed() match
-          case ChannelClosed.Done =>
-            close(outputStream)
-            false
-          case ChannelClosed.Error(e) =>
-            close(outputStream, Some(e))
-            throw e
-          case chunk: T @unchecked =>
-            try 
-              outputStream.write(chunk.toArray)
-              true
-            catch case NonFatal(e) =>          
+  def toOutputStream(outputStream: OutputStream)(using T <:< Chunk[Byte], IO): Unit =
+    repeatWhile {
+      outer.receiveOrClosed() match
+        case ChannelClosed.Done =>
+          close(outputStream)
+          false
+        case ChannelClosed.Error(e) =>
+          close(outputStream, Some(e))
+          throw e
+        case chunk: T @unchecked =>
+          try
+            outputStream.write(chunk.toArray)
+            true
+          catch
+            case NonFatal(e) =>
               close(outputStream, Some(e))
-              throw e                    
-      }
+              throw e
+    }
 
   /** Writes content of this `Source` to a file.
     *
@@ -86,14 +87,14 @@ trait SourceIOOps[+T]:
           try
             jFileChannel.write(ByteBuffer.wrap(chunk.toArray))
             true
-          catch case NonFatal(e) =>
-            close(jFileChannel, Some(e))
-            throw e
+          catch
+            case NonFatal(e) =>
+              close(jFileChannel, Some(e))
+              throw e
     }
 
   private inline def close(closeable: Closeable, cause: Option[Throwable] = None)(using IO): Unit =
-    try 
-      closeable.close()
+    try closeable.close()
     catch
       case NonFatal(closeException) =>
         cause.foreach(_.addSuppressed(closeException))
