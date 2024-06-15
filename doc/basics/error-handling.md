@@ -121,12 +121,14 @@ import ox.catching
 val result: Either[Throwable, String] = catching(throw new RuntimeException("boom"))
 ```
 
-Either blocks cannot be nested in the same scope to prevent surprising failures after refactors. The `.ok()` combinator
-is typed using inference and therefore nesting of `either:` blocks can quickly lead to a scenario where a change of return
-type of a method another `either:` block will be selected by `.ok()` combinator leading to a change in execution semantics 
-without a compile error. Consider this:
+### Nested `either` blocks
 
-```scala
+Either blocks cannot be nested in the same scope to prevent surprising failures after refactors. The `.ok()` combinator
+is typed using inference. Therefore, nesting of `either:` blocks can quickly lead to a scenario where due to a change 
+in the return type of a method, another `either:` block will be selected by the `.ok()` combinator. This could lead to a
+change in execution semantics without a compile error. Consider:
+
+```scala 
 import ox.either, either.*
 
 def returnsEither: Either[String, Int] = ???
@@ -142,7 +144,7 @@ val outerResult: Either[Exception, Unit] = either:
 Now, after a small refactor of `returnsEither` return type the `returnsEither.ok()` expression would still compile but 
 instead of short-circuiting the inner `either:` block, it would immediately jump to the outer `either:` block on errors.
 
-```scala 
+```scala
 import ox.either, either.*
 
 def returnsEither: Either[Exception, Int] = ???
