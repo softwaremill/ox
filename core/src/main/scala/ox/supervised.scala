@@ -12,17 +12,17 @@ import scala.reflect.ClassTag
   *     [[fork]] (daemon) don't have to complete successfully for the scope to end.
   *   - the scope also ends once the first supervised fork (including the `f` main body) fails with an exception
   *   - when the scope **ends**, all running forks are cancelled
-  *   - the scope **completes** (that is, this method returns) only once all forks started by `f` have completed (either successfully, or with
-  *     an exception)
+  *   - the scope **completes** (that is, this method returns) only once all forks started by `f` have completed (either successfully, or
+  *     with an exception)
   *
   * Upon successful completion, returns the result of evaluating `f`. Upon failure, the exception that caused the scope to end is re-thrown
   * (regardless if the exception was thrown from the main body, or from a fork). Any other exceptions that occur when completing the scope
   * are added as suppressed.
   *
   * @see
-  * [[unsupervised]] Starts a scope in unsupervised mode
+  *   [[unsupervised]] Starts a scope in unsupervised mode
   * @see
-  * [[supervisedError]] Starts a scope in supervised mode, with the additional ability to report application errors
+  *   [[supervisedError]] Starts a scope in supervised mode, with the additional ability to report application errors
   */
 def supervised[T](f: Ox ?=> T): T = supervisedError(NoErrorMode)(f)
 

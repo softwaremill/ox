@@ -34,8 +34,7 @@ trait SourceCompanionIOOps:
             chunks.done()
             false
           else
-            if readBytes > 0 then
-              chunks.send(if readBytes == chunkSize then Chunk.fromArray(buf) else Chunk.fromArray(buf.take(readBytes)))
+            if readBytes > 0 then chunks.send(if readBytes == chunkSize then Chunk.fromArray(buf) else Chunk.fromArray(buf.take(readBytes)))
             true
         }
       catch

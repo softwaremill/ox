@@ -100,7 +100,7 @@ class SourceTextOpsTest extends AnyWordSpec with Matchers {
         .last()
         .getBytes should contain theSameElementsInOrderAs new String(Array[Byte](-17, -69)).getBytes
     }
-    
+
     "handle a string shorter than BOM" in supervised {
       Source
         .fromValues(Chunk.fromArray(":)".getBytes))
