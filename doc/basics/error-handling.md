@@ -173,4 +173,4 @@ val outerResult: Either[Exception, Unit] = either:
   ()
 ```
 
-Now refactoring `returnsEither` to return `Either[Exception, Int]` would yield a compile error on `returnsEither.ok()`.
+After this change refactoring `returnsEither` to return `Either[Exception, Int]` would yield a compile error on `returnsEither.ok()`.
