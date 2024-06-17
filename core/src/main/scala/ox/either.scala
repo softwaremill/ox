@@ -1,11 +1,15 @@
 package ox
 
+import scala.annotation.implicitNotFound
 import scala.compiletime.{error, summonFrom}
-import scala.util.boundary
+import scala.util.{NotGiven, boundary}
 import scala.util.boundary.{Label, break}
 import scala.util.control.NonFatal
 
 object either:
+
+  private type NotNested = NotGiven[Label[Either[Nothing, Nothing]]]
+
   /** Within an [[either]] block, allows unwrapping [[Either]] and [[Option]] values using [[ok()]]. The result is the right-value of an
     * `Either`, or the defined-value of the `Option`. In case a failure is encountered (a left-value of an `Either`, or a `None`), the
     * computation is short-circuited and the failure becomes the result. Failures can also be reported using [[fail()]].
@@ -32,7 +36,11 @@ object either:
     *       v1.ok() ++ v2.ok()
     *   }}}
     */
-  inline def apply[E, A](inline body: Label[Either[E, A]] ?=> A): Either[E, A] = boundary(Right(body))
+  inline def apply[E, A](inline body: Label[Either[E, A]] ?=> A)(using
+      @implicitNotFound(
+        "Nesting of either blocks is not allowed as it's error prone, due to type inference. Consider extracting the nested either block to a separate function."
+      ) nn: NotNested
+  ): Either[E, A] = boundary(Right(body))
 
   extension [E, A](inline t: Either[E, A])
     /** Unwrap the value of the `Either`, short-circuiting the computation to the enclosing [[either]], in case this is a left-value. */
