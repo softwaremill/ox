@@ -162,7 +162,7 @@ Proper way to solve this is to extract the inner `either:` block to a separate f
 ```scala mdoc:compile-only
 import ox.either, either.*
 
-def returnsEither: Either[Exception, Int] = ???
+def returnsEither: Either[String, Int] = ???
 
 def inner(): Either[String, Int] = either:
   val i = returnsEither.ok() // this can only jump to either on the opening of this function
@@ -172,3 +172,5 @@ val outerResult: Either[Exception, Unit] = either:
   val innerResult = inner()
   ()
 ```
+
+Now refactoring `returnsEither` to return `Either[Exception, Int]` would yield a compile error on `returnsEither.ok()`.
