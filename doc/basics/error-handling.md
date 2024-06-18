@@ -87,7 +87,7 @@ val result: Either[Int | Long, String] = either:
   v1.ok() ++ v2.ok()
 ```
 
-Finally, options can be unwrapped as well; the error type is then `Unit`:
+Options can be unwrapped as well; the error type is then `Unit`:
 
 ```scala mdoc:compile-only
 import ox.either
@@ -98,6 +98,21 @@ val v2: Option[Int] = ???
 
 val result: Either[Unit, String] = either:
   v1.ok() * v2.ok()
+```
+
+Finally, a forked computation, resulting in an `Either`, can be joined & unwrapped using a single `ok()` invocation:
+
+```scala mdoc:compile-only
+import ox.{either, fork, Fork, supervised}
+import ox.either.ok
+
+val v1: Either[Int, String] = ???
+
+supervised:
+  val forkedResult: Fork[Either[Int, String]] = fork(either(v1.ok()))
+
+  val result: Either[Int, String] = either:
+    forkedResult.ok()
 ```
 
 Failures can be reported using `.fail()`. For example (although a pattern match would be better in such a simple case):

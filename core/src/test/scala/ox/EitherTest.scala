@@ -59,6 +59,17 @@ class EitherTest extends AnyFlatSpec with Matchers:
     r3 shouldBe Left(())
   }
 
+  it should "work correctly when invoked on fork" in {
+    supervised:
+      val f =
+        fork:
+          either:
+            ok1.ok()
+
+      either:
+        f.ok() shouldBe "x"
+  }
+
   it should "report a proper compilation error when used outside of either:" in {
     val e = intercept[TestFailedException](assertCompiles("ok1.ok()"))
 

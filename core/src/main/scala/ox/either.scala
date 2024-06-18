@@ -70,6 +70,12 @@ object either:
         case _ => error("`.ok()` can only be used within an `either` call.\nIs it present?")
       }
 
+  extension [E, A](inline f: Fork[Either[E, A]])
+    /** Join the fork and unwrap the value of its `Either` result, short-circuiting the computation to the enclosing [[either]], in case
+      * this is a left-value.
+      */
+    transparent inline def ok(): A = f.join().ok()
+
   extension [E](e: E)
     transparent inline def fail(): Nothing =
       summonFrom {
