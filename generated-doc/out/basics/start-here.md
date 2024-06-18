@@ -4,10 +4,10 @@
 
 ```scala
 // sbt dependency
-"com.softwaremill.ox" %% "core" % "0.2.1"
+"com.softwaremill.ox" %% "core" % "0.2.2"
 
 // scala-cli dependency
-//> using dep "com.softwaremill.ox::core:0.2.1"
+//> using dep "com.softwaremill.ox::core:0.2.2"
 ```
 
 ## Scope of the Ox project
