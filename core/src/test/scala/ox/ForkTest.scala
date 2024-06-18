@@ -7,7 +7,7 @@ import ox.util.Trail
 
 import scala.concurrent.duration.*
 
-class ForkTest extends AnyFlatSpec with Matchers {
+class ForkTest extends AnyFlatSpec with Matchers:
   "fork" should "run two forks concurrently" in {
     val trail = Trail()
     unsupervised {
@@ -73,4 +73,4 @@ class ForkTest extends AnyFlatSpec with Matchers {
 
     trail.get shouldBe Vector("main mid", "f1 complete", "result = 5", "f2 interrupted")
   }
-}
+

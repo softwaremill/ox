@@ -193,10 +193,15 @@ private[ox] inline def unwrapExecutionException[T](f: => T): T =
   */
 trait Fork[T]:
   /** Blocks until the fork completes with a result. Throws an exception, if the fork completed with an exception, and is unsupervised.
+    *
+    * @see
+    *   If `T` is an `Either`, and there's an enclosing [[either]] block, the result can be unwrapped using [[either.ok]].
     */
   def join(): T
 
-  /** Blocks until the fork completes with a result. */
+  /** Blocks until the fork completes with a result. Only makes sens in unsupervised scoped: otherwise a thrown exception causes the scope
+    * to end, and is re-thrown by the [[supervised]] block.
+    */
   def joinEither(): Either[Throwable, T] =
     try Right(join())
     catch
