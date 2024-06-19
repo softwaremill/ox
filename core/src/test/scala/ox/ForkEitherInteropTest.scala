@@ -144,21 +144,23 @@ class ForkEitherInteropTest extends AnyFlatSpec with Matchers {
 
   // empty line at the beginning of every snippet left to improve error reporting readability, do not remove
   "fork/either interop" should "compile correct combinations" in {
-    """
-    import ox.*
-    import ox.either.*
+    // first example made illegal by prevent nested either blocks PR:
 
-    val e1: Either[Throwable, Unit] = Left(Exception("uh oh"))
-    either {
-      supervised {
-        fork {
-          either {
-            e1.ok()
-          }
-        }
-      }
-    }
-    """ should compile
+//    """
+//    import ox.*
+//    import ox.either.*
+//
+//    val e1: Either[Throwable, Unit] = Left(Exception("uh oh"))
+//    either {
+//      supervised {
+//        fork {
+//          either {
+//            e1.ok()
+//          }
+//        }
+//      }
+//    }
+//    """ should compile
 
     """
        import ox.*
@@ -297,27 +299,29 @@ class ForkEitherInteropTest extends AnyFlatSpec with Matchers {
        }""" shouldNot compile
   }
 
-  "fork/either interop" should "work with either scopes nested in forks" in {
-    import ox.*
-    import ox.either.*
+  // made illegal by prevent nested either blocks PR:
 
-    val e1: Either[Throwable, String] = Right("it works!")
-    val outer = either {
-      supervised {
-        val f1 = fork {
-          either {
-            e1.ok()
-          }
-        }
-
-        f1.join() shouldEqual Right("it works!")
-
-        "outer"
-      }
-    }
-
-    outer.shouldEqual(Right("outer"))
-  }
+//  "fork/either interop" should "work with either scopes nested in forks" in {
+//    import ox.*
+//    import ox.either.*
+//
+//    val e1: Either[Throwable, String] = Right("it works!")
+//    val outer = either {
+//      supervised {
+//        val f1 = fork {
+//          either {
+//            e1.ok()
+//          }
+//        }
+//
+//        f1.join() shouldEqual Right("it works!")
+//
+//        "outer"
+//      }
+//    }
+//
+//    outer.shouldEqual(Right("outer"))
+//  }
 
   "fork/either interop" should "allow ok() combinators if supervised block guarantees either block correctness" in {
     import ox.*
