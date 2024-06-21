@@ -74,9 +74,8 @@ object either:
     /** Join the fork and unwrap the value of its `Either` result, short-circuiting the computation to the enclosing [[either]], in case
       * this is a left-value.
       *
-      * If the fork fails with an exception, the enclosing scope ends (when started with [[fork]] within a [[supervised]] scope). Exceptions
-      * are re-thrown by this method only when the enclosing scope is [[unsupervised]], or if the fork is started using [[forkUnsupervised]]
-      * or [[forkCancellable]]).
+      * If the fork fails with an exception, the enclosing scope ends (when the fork was started with [[fork]]). Exceptions are re-thrown by
+      * this method only when the fork is started using [[forkUnsupervised]] or [[forkCancellable]]).
       */
     transparent inline def ok(): A = f.join().ok()
 
