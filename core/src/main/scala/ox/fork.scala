@@ -199,8 +199,9 @@ trait Fork[T]:
     */
   def join(): T
 
-  /** Blocks until the fork completes with a result. Only makes sens in unsupervised scoped: otherwise a thrown exception causes the scope
-    * to end, and is re-thrown by the [[supervised]] block.
+  /** Blocks until the fork completes with a result. Only makes sense in [[unsupervised]] scopes, or when the fork is started using
+    * [[forkUnsupervised]] or [[forkCancellable]]: otherwise a thrown exception causes the scope to end, and is re-thrown by the
+    * [[supervised]] block.
     */
   def joinEither(): Either[Throwable, T] =
     try Right(join())
