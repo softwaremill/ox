@@ -56,7 +56,11 @@ class SourceOpsTakeWhileTest extends AnyFlatSpec with Matchers {
   }
 
   it should "fail the source with the same exception as predicate" in supervised {
-    val c = Channel.buffered[Int](1)
+    // we use rendezvous channels to ensure that processing in the fork created by `takeWhile` only progresses
+    // *after* we receive the first element, so that the channel doesn't end up in an error state too early
+    given StageCapacity = StageCapacity(0)
+    val c = StageCapacity.newChannel[Int]
+
     val testException = new Exception("expected predicate error")
     fork {
       c.send(1)
