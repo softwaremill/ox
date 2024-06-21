@@ -11,7 +11,7 @@ import scala.collection.IterableOnce
 import scala.concurrent.duration.*
 import scala.util.{Failure, Success, Try}
 
-case class GroupingTimeout(marker: Long)
+case class GroupingTimeout()
 
 trait SourceOps[+T] { outer: Source[T] =>
   // view ops (lazy)
@@ -751,7 +751,6 @@ trait SourceOps[+T] { outer: Source[T] =>
   def groupedWithin(n: Int, duration: FiniteDuration)(using Ox, StageCapacity): Source[Seq[T]] =
     val c2 = StageCapacity.newChannel[Seq[T]]
     val timerChannel = StageCapacity.newChannel[GroupingTimeout]
-    val currentTimeoutMarker = new AtomicLong(0)
     fork {
       var buffer = Vector.empty[T]
       repeatWhile {
@@ -764,15 +763,13 @@ trait SourceOps[+T] { outer: Source[T] =>
             false
           case ChannelClosed.Error(r) =>
             c2.errorOrClosed(r); false
-          case timerChannel.Received(GroupingTimeout(timeoutMarker)) =>
-            if timeoutMarker == currentTimeoutMarker.get() then
-              // no new element has been received since the fork was created - sending grouped elements
+          case timerChannel.Received(GroupingTimeout()) =>
+            // timeout - sending all elements from the buffer
+            if buffer.nonEmpty then
               val isValue = c2.sendOrClosed(buffer).isValue
               buffer = Vector.empty
               isValue
-            else
-              // a new element has been received since the fork was created - ignoring this timeout
-              true
+            else true
           case Received(t) =>
             buffer = buffer :+ t
             if buffer.size == n then
@@ -784,7 +781,7 @@ trait SourceOps[+T] { outer: Source[T] =>
               // buffer is not full - enqueuing marker to the timeout channel
               fork {
                 sleep(duration)
-                timerChannel.sendOrClosed(GroupingTimeout(currentTimeoutMarker.incrementAndGet()))
+                timerChannel.sendOrClosed(GroupingTimeout())
               }
               true
       }
