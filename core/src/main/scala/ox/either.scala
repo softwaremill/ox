@@ -75,7 +75,7 @@ object either:
       * this is a left-value.
       *
       * If the fork fails with an exception, the enclosing scope ends (when the fork was started with [[fork]]). Exceptions are re-thrown by
-      * this method only when the fork is started using [[forkUnsupervised]] or [[forkCancellable]]).
+      * this method only when the fork is started using [[forkUnsupervised]] or [[forkCancellable]].
       */
     transparent inline def ok(): A = f.join().ok()
 
