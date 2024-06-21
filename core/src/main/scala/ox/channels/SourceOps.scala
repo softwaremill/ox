@@ -5,9 +5,13 @@ import ox.*
 import ox.channels.ChannelClosedUnion.isValue
 
 import java.util
+import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.{CountDownLatch, Semaphore}
 import scala.collection.IterableOnce
 import scala.concurrent.duration.*
+import scala.util.{Failure, Success, Try}
+
+case class GroupingTimeout(marker: Long)
 
 trait SourceOps[+T] { outer: Source[T] =>
   // view ops (lazy)
@@ -738,6 +742,51 @@ trait SourceOps[+T] { outer: Source[T] =>
               buffer = Vector.empty
               isValue
             else true
+      }
+    }
+    c2
+
+  /** TODO: documentation
+    */
+  def groupedWithin(n: Int, duration: FiniteDuration)(using Ox, StageCapacity): Source[Seq[T]] =
+    val c2 = StageCapacity.newChannel[Seq[T]]
+    val timerChannel = StageCapacity.newChannel[GroupingTimeout]
+    val currentTimeoutMarker = new AtomicLong(0)
+    fork {
+      var buffer = Vector.empty[T]
+      repeatWhile {
+        selectOrClosed(receiveClause, timerChannel.receiveClause) match
+          case ChannelClosed.Done =>
+            if buffer.nonEmpty then
+              c2.sendOrClosed(buffer)
+              ()
+            c2.doneOrClosed();
+            false
+          case ChannelClosed.Error(r) =>
+            c2.errorOrClosed(r); false
+          case timerChannel.Received(GroupingTimeout(timeoutMarker)) =>
+            if timeoutMarker == currentTimeoutMarker.get() then
+              // no new element has been received since the fork was created - sending grouped elements
+              val isValue = c2.sendOrClosed(buffer).isValue
+              buffer = Vector.empty
+              isValue
+            else
+              // a new element has been received since the fork was created - ignoring this timeout
+              true
+          case Received(t) =>
+            buffer = buffer :+ t
+            if buffer.size == n then
+              // buffer is full - sending grouped elements
+              val isValue = c2.sendOrClosed(buffer).isValue
+              buffer = Vector.empty
+              isValue
+            else
+              // buffer is not full - enqueuing marker to the timeout channel
+              fork {
+                sleep(duration)
+                timerChannel.sendOrClosed(GroupingTimeout(currentTimeoutMarker.incrementAndGet()))
+              }
+              true
       }
     }
     c2

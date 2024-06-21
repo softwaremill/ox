@@ -2,6 +2,7 @@ package ox.channels
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
+import scala.concurrent.duration.DurationInt
 import ox.*
 
 class SourceOpsGroupedTest extends AnyFlatSpec with Matchers {
@@ -18,5 +19,43 @@ class SourceOpsGroupedTest extends AnyFlatSpec with Matchers {
   it should "return failed source when the original source is failed" in supervised {
     val failure = new RuntimeException()
     Source.failed(failure).grouped(3).receiveOrClosed() shouldBe ChannelClosed.Error(failure)
+  }
+
+  behavior of "SourceOps.groupedWithin"
+
+  it should "group elements on timeout in the first batch" in supervised {
+    val c = StageCapacity.newChannel[Int]
+    fork {
+        c.send(1)
+        c.send(2)
+        sleep(100.millis)
+        c.send(3)
+        c.send(4)
+        c.send(5)
+        c.send(6)
+        c.done()
+    }
+    c.groupedWithin(3, 50.millis).toList shouldBe List(List(1, 2), List(3, 4, 5), List(6))
+  }
+
+  it should "group elements on timeout in the second batch" in supervised {
+    val c = StageCapacity.newChannel[Int]
+    fork {
+      c.send(1)
+      c.send(2)
+      c.send(3)
+      c.send(4)
+      sleep(100.millis)
+      c.send(5)
+      c.send(6)
+      c.send(7)
+      c.done()
+    }
+    c.groupedWithin(3, 50.millis).toList shouldBe List(List(1, 2, 3), List(4), List(5, 6, 7))
+  }
+
+  it should "return failed source when the original source is failed" in supervised {
+    val failure = new RuntimeException()
+    Source.failed(failure).groupedWithin(3, 10.seconds).receiveOrClosed() shouldBe ChannelClosed.Error(failure)
   }
 }
