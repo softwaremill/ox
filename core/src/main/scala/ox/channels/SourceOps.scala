@@ -716,4 +716,29 @@ trait SourceOps[+T] { outer: Source[T] =>
         case t: T @unchecked        => c.sendOrClosed(t); pipeTo(c)
     }
     c
+
+  /** TODO: documentation
+    */
+  def grouped(n: Int)(using Ox, StageCapacity): Source[Seq[T]] =
+    val c2 = StageCapacity.newChannel[Seq[T]]
+    val buffer = scala.collection.mutable.Buffer.empty[T]
+    fork {
+      repeatWhile {
+        receiveOrClosed() match
+          case ChannelClosed.Done =>
+            if buffer.nonEmpty then
+              c2.sendOrClosed(buffer.toSeq); ()
+            c2.doneOrClosed(); false
+          case ChannelClosed.Error(r) =>
+            c2.errorOrClosed(r); false
+          case t: T @unchecked =>
+            buffer += t
+            if buffer.size == n then
+              val isValue = c2.sendOrClosed(buffer.toSeq).isValue
+              buffer.clear()
+              isValue
+            else true
+      }
+    }
+    c2
 }
