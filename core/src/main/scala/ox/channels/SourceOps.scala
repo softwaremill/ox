@@ -723,23 +723,32 @@ trait SourceOps[+T] { outer: Source[T] =>
 
   /** TODO: documentation
     */
-  def grouped(n: Int)(using Ox, StageCapacity): Source[Seq[T]] =
+  def grouped(n: Int)(using Ox, StageCapacity): Source[Seq[T]] = groupedWeighted(n)(_ => 1)
+
+  /** TODO: documentation
+    */
+  def groupedWeighted(minWeight: Long)(costFn: T => Long)(using Ox, StageCapacity): Source[Seq[T]] =
     val c2 = StageCapacity.newChannel[Seq[T]]
     fork {
       var buffer = Vector.empty[T]
+      var accumulatedCost = 0L
       repeatWhile {
         receiveOrClosed() match
           case ChannelClosed.Done =>
             if buffer.nonEmpty then
-              c2.sendOrClosed(buffer); ()
-            c2.doneOrClosed(); false
+              c2.sendOrClosed(buffer);
+              ()
+            c2.doneOrClosed();
+            false
           case ChannelClosed.Error(r) =>
             c2.errorOrClosed(r); false
           case t: T @unchecked =>
             buffer = buffer :+ t
-            if buffer.size == n then
+            accumulatedCost += costFn(t)
+            if accumulatedCost >= minWeight then
               val isValue = c2.sendOrClosed(buffer).isValue
               buffer = Vector.empty
+              accumulatedCost = 0
               isValue
             else true
       }
@@ -748,11 +757,16 @@ trait SourceOps[+T] { outer: Source[T] =>
 
   /** TODO: documentation
     */
-  def groupedWithin(n: Int, duration: FiniteDuration)(using Ox, StageCapacity): Source[Seq[T]] =
+  def groupedWithin(n: Int, duration: FiniteDuration)(using Ox, StageCapacity): Source[Seq[T]] = groupedWeightedWithin(n, duration)(_ => 1)
+
+  /** TODO: documentation
+    */
+  def groupedWeightedWithin(maxWeight: Long, duration: FiniteDuration)(costFn: T => Long)(using Ox, StageCapacity): Source[Seq[T]] =
     val c2 = StageCapacity.newChannel[Seq[T]]
     val timerChannel = StageCapacity.newChannel[GroupingTimeout]
     fork {
       var buffer = Vector.empty[T]
+      var accumulatedCost = 0L
       repeatWhile {
         selectOrClosed(receiveClause, timerChannel.receiveClause) match
           case ChannelClosed.Done =>
@@ -768,17 +782,20 @@ trait SourceOps[+T] { outer: Source[T] =>
             if buffer.nonEmpty then
               val isValue = c2.sendOrClosed(buffer).isValue
               buffer = Vector.empty
+              accumulatedCost = 0
               isValue
             else true
           case Received(t) =>
             buffer = buffer :+ t
-            if buffer.size == n then
+            accumulatedCost += costFn(t)
+            if accumulatedCost >= maxWeight then
               // buffer is full - sending grouped elements
               val isValue = c2.sendOrClosed(buffer).isValue
               buffer = Vector.empty
+              accumulatedCost = 0
               isValue
             else
-              // buffer is not full - enqueuing marker to the timeout channel
+              // buffer is not full - enqueuing timeout to the separate channel
               fork {
                 sleep(duration)
                 timerChannel.sendOrClosed(GroupingTimeout())
