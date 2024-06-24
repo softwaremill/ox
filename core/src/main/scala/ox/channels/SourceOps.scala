@@ -9,7 +9,7 @@ import java.util.concurrent.{CountDownLatch, Semaphore}
 import scala.collection.IterableOnce
 import scala.concurrent.duration.*
 
-private[channels] case object GroupingTimeout
+private[channels] case class GroupingTimeout(batchId: Long)
 
 trait SourceOps[+T] { outer: Source[T] =>
   // view ops (lazy)
@@ -849,10 +849,12 @@ trait SourceOps[+T] { outer: Source[T] =>
     */
   def groupedWeightedWithin(minWeight: Long, duration: FiniteDuration)(costFn: T => Long)(using Ox, StageCapacity): Source[Seq[T]] =
     val c2 = StageCapacity.newChannel[Seq[T]]
-    val timerChannel = StageCapacity.newChannel[GroupingTimeout.type]
+    val timerChannel = StageCapacity.newChannel[GroupingTimeout]
     fork {
       var buffer = Vector.empty[T]
-      var accumulatedCost = 0L
+      var accumulatedCost: Long = 0
+      var currentBatchId: Long = 0
+      var lastBatchIdWithStartedTimeout: Long = -1
       repeatWhile {
         selectOrClosed(receiveClause, timerChannel.receiveClause) match
           case ChannelClosed.Done =>
@@ -861,12 +863,13 @@ trait SourceOps[+T] { outer: Source[T] =>
             false
           case ChannelClosed.Error(r) =>
             c2.errorOrClosed(r); false
-          case timerChannel.Received(GroupingTimeout) =>
-            // timeout - sending all elements from the buffer
-            if buffer.nonEmpty then
+          case timerChannel.Received(GroupingTimeout(batchId)) =>
+            if buffer.nonEmpty && batchId == currentBatchId then
+              // timeout - sending all elements from the buffer
               val isValue = c2.sendOrClosed(buffer).isValue
               buffer = Vector.empty
               accumulatedCost = 0
+              currentBatchId += 1
               isValue
             else true
           case Received(t) =>
@@ -877,13 +880,17 @@ trait SourceOps[+T] { outer: Source[T] =>
               val isValue = c2.sendOrClosed(buffer).isValue
               buffer = Vector.empty
               accumulatedCost = 0
+              currentBatchId += 1 // effectively cancels currently enqueued timeout
               isValue
             else
-              // buffer is not full - enqueuing timeout to the separate channel
-              fork {
-                sleep(duration)
-                timerChannel.sendOrClosed(GroupingTimeout)
-              }
+              // buffer is not full - enqueuing timeout to the separate channel if this is the first element in the new batch
+              if lastBatchIdWithStartedTimeout != currentBatchId then
+                lastBatchIdWithStartedTimeout = currentBatchId
+                val currentBatchIdCopy = currentBatchId // immutable copy for the fork
+                fork {
+                  sleep(duration)
+                  timerChannel.sendOrClosed(GroupingTimeout(currentBatchIdCopy))
+                }.discard
               true
       }
     }

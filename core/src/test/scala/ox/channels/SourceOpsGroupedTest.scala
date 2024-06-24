@@ -40,35 +40,52 @@ class SourceOpsGroupedTest extends AnyFlatSpec with Matchers {
 
   behavior of "SourceOps.groupedWithin"
 
-  it should "group elements on timeout in the first batch" in supervised {
+  it should "group first batch of elements due to limit and second batch due to timeout" in supervised {
     val c = StageCapacity.newChannel[Int]
+    val start = System.currentTimeMillis()
     fork {
       c.send(1)
       c.send(2)
-      sleep(200.millis)
       c.send(3)
+      sleep(50.millis)
       c.send(4)
-      c.send(5)
-      c.send(6)
+      sleep(200.millis) // to ensure the timeout is executed before the channel closes
       c.done()
     }
-    c.groupedWithin(3, 100.millis).toList shouldBe List(List(1, 2), List(3, 4, 5), List(6))
+    val elementsWithEmittedTimeOffset = c.groupedWithin(3, 100.millis).map(s => (s, System.currentTimeMillis() - start)).toList
+
+    elementsWithEmittedTimeOffset.map(_._1) shouldBe List(List(1, 2, 3), List(4))
+    elementsWithEmittedTimeOffset(0)._2 should be < 50L // first batch is emitted immediately as it fills up
+    elementsWithEmittedTimeOffset(1)._2 should be > 150L // second batch is emitted after 100ms delay after 50ms delay after the first batch
   }
 
-  it should "group elements on timeout in the second batch" in supervised {
+  it should "group first batch of elements due to timeout and second batch due to limit" in supervised {
+    val c = StageCapacity.newChannel[Int]
+    val start = System.currentTimeMillis()
+    fork {
+      c.send(1)
+      c.send(2)
+      sleep(200.millis)
+      c.send(3)
+      c.send(4)
+      c.send(5)
+      c.done()
+    }
+    val elementsWithEmittedTimeOffset = c.groupedWithin(3, 100.millis).map(s => (s, System.currentTimeMillis() - start)).toList
+
+    elementsWithEmittedTimeOffset.map(_._1) shouldBe List(List(1, 2), List(3, 4, 5))
+    elementsWithEmittedTimeOffset(0)._2 should (be > 100L and be < 150L) // first batch is emitted after 100ms timeout
+    elementsWithEmittedTimeOffset(1)._2 should be > 150L // second batch is emitted immediately after 200ms delay
+  }
+
+  it should "send the group only once when the channel is closed" in supervised {
     val c = StageCapacity.newChannel[Int]
     fork {
       c.send(1)
       c.send(2)
-      c.send(3)
-      c.send(4)
-      sleep(200.millis)
-      c.send(5)
-      c.send(6)
-      c.send(7)
       c.done()
     }
-    c.groupedWithin(3, 100.millis).toList shouldBe List(List(1, 2, 3), List(4), List(5, 6, 7))
+    c.groupedWithin(3, 100.millis).toList shouldBe List(List(1, 2))
   }
 
   it should "return failed source when the original source is failed" in supervised {
