@@ -765,9 +765,7 @@ trait SourceOps[+T] { outer: Source[T] =>
       repeatWhile {
         receiveOrClosed() match
           case ChannelClosed.Done =>
-            if buffer.nonEmpty then
-              c2.sendOrClosed(buffer);
-              ()
+            if buffer.nonEmpty then c2.sendOrClosed(buffer).discard
             c2.doneOrClosed();
             false
           case ChannelClosed.Error(r) =>
@@ -858,9 +856,7 @@ trait SourceOps[+T] { outer: Source[T] =>
       repeatWhile {
         selectOrClosed(receiveClause, timerChannel.receiveClause) match
           case ChannelClosed.Done =>
-            if buffer.nonEmpty then
-              c2.sendOrClosed(buffer)
-              ()
+            if buffer.nonEmpty then c2.sendOrClosed(buffer).discard
             c2.doneOrClosed();
             false
           case ChannelClosed.Error(r) =>
