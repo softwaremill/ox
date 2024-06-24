@@ -5,11 +5,9 @@ import ox.*
 import ox.channels.ChannelClosedUnion.isValue
 
 import java.util
-import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.{CountDownLatch, Semaphore}
 import scala.collection.IterableOnce
 import scala.concurrent.duration.*
-import scala.util.{Failure, Success, Try}
 
 case class GroupingTimeout()
 
@@ -721,45 +719,44 @@ trait SourceOps[+T] { outer: Source[T] =>
     }
     c
 
-  /** Chunks up the elements into groups of the specified size. The last group may be smaller due to channel being closed.
-   * If this source is failed then failure is passed to the returned channel.
-   *
-   * @param n
-   *   The number of elements in a group.
-   * @return
-   *   A source that emits grouped elements.
-   * @example
-   *   {{{
-   *   import ox.*
-   *   import ox.channels.Source
-   *
-   *   supervised {
-   *     Source.fromValues(1, 2, 3, 4, 5, 6, 7).grouped(3).toList // List(Seq(1, 2, 3), Seq(4, 5, 6), Seq(7))
-   *   }
-   *   }}}
-   */
+  /** Chunks up the elements into groups of the specified size. The last group may be smaller due to channel being closed. If this source is
+    * failed then failure is passed to the returned channel.
+    *
+    * @param n
+    *   The number of elements in a group.
+    * @return
+    *   A source that emits grouped elements.
+    * @example
+    *   {{{
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   supervised {
+    *     Source.fromValues(1, 2, 3, 4, 5, 6, 7).grouped(3).toList // List(Seq(1, 2, 3), Seq(4, 5, 6), Seq(7))
+    *   }
+    *   }}}
+    */
   def grouped(n: Int)(using Ox, StageCapacity): Source[Seq[T]] = groupedWeighted(n)(_ => 1)
 
-  /** Chunks up the elements into groups that have a cumulative weight greater or equal to the `minWeight`.
-   * The last group may be smaller due to channel being closed.
-   * If this source is failed then failure is passed to the returned channel.
-   *
-   * @param minWeight
-   *   The minimum cumulative weight of elements in a group.
-   * @param costFn
-   *   The function that calculates the weight of an element.
-   * @return
-   *   A source that emits grouped elements.
-   * @example
-   *   {{{
-   *   import ox.*
-   *   import ox.channels.Source
-   *
-   *   supervised {
-   *     Source.fromValues(1, 2, 3, 4, 5, 6, 7).groupedWeighted(10)(n => n * 2).toList // List(Seq(1, 2, 3), Seq(4, 5), Seq(6), Seq(7))
-   *   }
-   *   }}}
-   */
+  /** Chunks up the elements into groups that have a cumulative weight greater or equal to the `minWeight`. The last group may be smaller
+    * due to channel being closed. If this source is failed then failure is passed to the returned channel.
+    *
+    * @param minWeight
+    *   The minimum cumulative weight of elements in a group.
+    * @param costFn
+    *   The function that calculates the weight of an element.
+    * @return
+    *   A source that emits grouped elements.
+    * @example
+    *   {{{
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   supervised {
+    *     Source.fromValues(1, 2, 3, 4, 5, 6, 7).groupedWeighted(10)(n => n * 2).toList // List(Seq(1, 2, 3), Seq(4, 5), Seq(6), Seq(7))
+    *   }
+    *   }}}
+    */
   def groupedWeighted(minWeight: Long)(costFn: T => Long)(using Ox, StageCapacity): Source[Seq[T]] =
     val c2 = StageCapacity.newChannel[Seq[T]]
     fork {
@@ -788,71 +785,70 @@ trait SourceOps[+T] { outer: Source[T] =>
     }
     c2
 
-  /** Chunks up the elements into groups received within a time window or limited by the specified number of elements, whatever happens first.
-   * If this source is failed then failure is passed to the returned channel.
-   *
-   * @param n
-   *   The maximum number of elements in a group.
-   * @param duration
-   *   The time window in which the elements are grouped.
-   * @return
-   *   A source that emits grouped elements.
-   * @example
-   *   {{{
-   *   import ox.*
-   *   import ox.channels.Source
-   *
-   *   supervised {
-   *     val c = StageCapacity.newChannel[Int]
-   *     fork {
-   *       c.send(1)
-   *       c.send(2)
-   *       sleep(200.millis)
-   *       c.send(3)
-   *       c.send(4)
-   *       c.send(5)
-   *       c.send(6)
-   *       c.done()
-   *     }
-   *     c.groupedWithin(3, 100.millis).toList // List(Seq(1, 2), Seq(3, 4, 5), Seq(6))
-   *   }
-   *   }}}
-   */
+  /** Chunks up the elements into groups received within a time window or limited by the specified number of elements, whatever happens
+    * first. If this source is failed then failure is passed to the returned channel.
+    *
+    * @param n
+    *   The maximum number of elements in a group.
+    * @param duration
+    *   The time window in which the elements are grouped.
+    * @return
+    *   A source that emits grouped elements.
+    * @example
+    *   {{{
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   supervised {
+    *     val c = StageCapacity.newChannel[Int]
+    *     fork {
+    *       c.send(1)
+    *       c.send(2)
+    *       sleep(200.millis)
+    *       c.send(3)
+    *       c.send(4)
+    *       c.send(5)
+    *       c.send(6)
+    *       c.done()
+    *     }
+    *     c.groupedWithin(3, 100.millis).toList // List(Seq(1, 2), Seq(3, 4, 5), Seq(6))
+    *   }
+    *   }}}
+    */
   def groupedWithin(n: Int, duration: FiniteDuration)(using Ox, StageCapacity): Source[Seq[T]] = groupedWeightedWithin(n, duration)(_ => 1)
 
-  /** Chunks up the elements into groups received within a time window or limited 
-   * by the cumulative weight being greater or equal to the `minWeight`, whatever happens first.
-   * If this source is failed then failure is passed to the returned channel.
-   *
-   * @param minWeight
-   *   The minimum cumulative weight of elements in a group if no timeout happens.
-   * @param duration
-   *   The time window in which the elements are grouped.
-   * @param costFn
-   *   The function that calculates the weight of an element.
-   * @return
-   *   A source that emits grouped elements.
-   * @example
-   *   {{{
-   *   import ox.*
-   *   import ox.channels.Source
-   *
-   *   supervised {
-   *     val c = StageCapacity.newChannel[Int]
-   *     fork {
-   *       c.send(1)
-   *       c.send(2)
-   *       sleep(200.millis)
-   *       c.send(3)
-   *       c.send(4)
-   *       c.send(5)
-   *       c.send(6)
-   *       c.done()
-   *     }
-   *     c.groupedWeightedWithin(10, 100.millis)(n => n * 2).toList // List(Seq(1, 2), Seq(3, 4), Seq(5), Seq(6))
-   *   }
-   *   }}}
-   */
+  /** Chunks up the elements into groups received within a time window or limited by the cumulative weight being greater or equal to the
+    * `minWeight`, whatever happens first. If this source is failed then failure is passed to the returned channel.
+    *
+    * @param minWeight
+    *   The minimum cumulative weight of elements in a group if no timeout happens.
+    * @param duration
+    *   The time window in which the elements are grouped.
+    * @param costFn
+    *   The function that calculates the weight of an element.
+    * @return
+    *   A source that emits grouped elements.
+    * @example
+    *   {{{
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   supervised {
+    *     val c = StageCapacity.newChannel[Int]
+    *     fork {
+    *       c.send(1)
+    *       c.send(2)
+    *       sleep(200.millis)
+    *       c.send(3)
+    *       c.send(4)
+    *       c.send(5)
+    *       c.send(6)
+    *       c.done()
+    *     }
+    *     c.groupedWeightedWithin(10, 100.millis)(n => n * 2).toList // List(Seq(1, 2), Seq(3, 4), Seq(5), Seq(6))
+    *   }
+    *   }}}
+    */
   def groupedWeightedWithin(minWeight: Long, duration: FiniteDuration)(costFn: T => Long)(using Ox, StageCapacity): Source[Seq[T]] =
     val c2 = StageCapacity.newChannel[Seq[T]]
     val timerChannel = StageCapacity.newChannel[GroupingTimeout]
