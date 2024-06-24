@@ -2,7 +2,7 @@ package ox.channels
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import scala.concurrent.duration.DurationInt
+import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import ox.*
 
 class SourceOpsGroupedTest extends AnyFlatSpec with Matchers {
@@ -52,11 +52,14 @@ class SourceOpsGroupedTest extends AnyFlatSpec with Matchers {
       sleep(200.millis) // to ensure the timeout is executed before the channel closes
       c.done()
     }
-    val elementsWithEmittedTimeOffset = c.groupedWithin(3, 100.millis).map(s => (s, System.currentTimeMillis() - start)).toList
+    val elementsWithEmittedTimeOffset =
+      c.groupedWithin(3, 100.millis).map(s => (s, FiniteDuration(System.currentTimeMillis() - start, "ms"))).toList
 
     elementsWithEmittedTimeOffset.map(_._1) shouldBe List(List(1, 2, 3), List(4))
-    elementsWithEmittedTimeOffset(0)._2 should be < 50L // first batch is emitted immediately as it fills up
-    elementsWithEmittedTimeOffset(1)._2 should be >= 150L // second batch is emitted after 100ms delay after 50ms delay after the first batch
+    // first batch is emitted immediately as it fills up
+    elementsWithEmittedTimeOffset(0)._2 should be < 50.millis
+    // second batch is emitted after 100ms delay after 50ms delay after the first batch
+    elementsWithEmittedTimeOffset(1)._2 should be >= 150.millis
   }
 
   it should "group first batch of elements due to timeout and second batch due to limit" in supervised {
@@ -71,11 +74,16 @@ class SourceOpsGroupedTest extends AnyFlatSpec with Matchers {
       c.send(5)
       c.done()
     }
-    val elementsWithEmittedTimeOffset = c.groupedWithin(3, 100.millis).map(s => (s, System.currentTimeMillis() - start)).toList
+    val elementsWithEmittedTimeOffset = c
+      .groupedWithin(3, 100.millis)
+      .map(s => (s, FiniteDuration(System.currentTimeMillis() - start, "ms")))
+      .toList
 
     elementsWithEmittedTimeOffset.map(_._1) shouldBe List(List(1, 2), List(3, 4, 5))
-    elementsWithEmittedTimeOffset(0)._2 should (be > 100L and be < 150L) // first batch is emitted after 100ms timeout
-    elementsWithEmittedTimeOffset(1)._2 should be >= 200L // second batch is emitted immediately after 200ms delay
+    // first batch is emitted after 100ms timeout
+    elementsWithEmittedTimeOffset(0)._2 should (be >= 100.millis and be < 150.millis)
+    // second batch is emitted immediately after 200ms delay
+    elementsWithEmittedTimeOffset(1)._2 should be >= 200.millis
   }
 
   it should "send the group only once when the channel is closed" in supervised {
