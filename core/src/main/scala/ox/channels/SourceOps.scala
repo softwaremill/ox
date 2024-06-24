@@ -9,7 +9,8 @@ import java.util.concurrent.{CountDownLatch, Semaphore}
 import scala.collection.IterableOnce
 import scala.concurrent.duration.*
 
-case class GroupingTimeout()
+private[channels] trait Timeout
+private[channels] case object GroupingTimeout extends Timeout
 
 trait SourceOps[+T] { outer: Source[T] =>
   // view ops (lazy)
@@ -851,7 +852,7 @@ trait SourceOps[+T] { outer: Source[T] =>
     */
   def groupedWeightedWithin(minWeight: Long, duration: FiniteDuration)(costFn: T => Long)(using Ox, StageCapacity): Source[Seq[T]] =
     val c2 = StageCapacity.newChannel[Seq[T]]
-    val timerChannel = StageCapacity.newChannel[GroupingTimeout]
+    val timerChannel = StageCapacity.newChannel[Timeout]
     fork {
       var buffer = Vector.empty[T]
       var accumulatedCost = 0L
@@ -865,7 +866,7 @@ trait SourceOps[+T] { outer: Source[T] =>
             false
           case ChannelClosed.Error(r) =>
             c2.errorOrClosed(r); false
-          case timerChannel.Received(GroupingTimeout()) =>
+          case timerChannel.Received(_) =>
             // timeout - sending all elements from the buffer
             if buffer.nonEmpty then
               val isValue = c2.sendOrClosed(buffer).isValue
@@ -886,7 +887,7 @@ trait SourceOps[+T] { outer: Source[T] =>
               // buffer is not full - enqueuing timeout to the separate channel
               fork {
                 sleep(duration)
-                timerChannel.sendOrClosed(GroupingTimeout())
+                timerChannel.sendOrClosed(GroupingTimeout)
               }
               true
       }
