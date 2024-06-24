@@ -854,7 +854,7 @@ trait SourceOps[+T] { outer: Source[T] =>
       var buffer = Vector.empty[T]
       var accumulatedCost: Long = 0
       var currentBatchId: Long = 0
-      var lastBatchIdWithStartedTimeout: Long = -1
+      var startedTimeoutFork: Option[CancellableFork[Unit]] = None
       repeatWhile {
         selectOrClosed(receiveClause, timerChannel.receiveClause) match
           case ChannelClosed.Done =>
@@ -881,16 +881,19 @@ trait SourceOps[+T] { outer: Source[T] =>
               buffer = Vector.empty
               accumulatedCost = 0
               currentBatchId += 1 // effectively cancels currently enqueued timeout
+              if startedTimeoutFork.isDefined then
+                // for performance reasons it may be valuable to cancel the timeout fork because it won't be needed anymore
+                startedTimeoutFork.get.cancel()
+                startedTimeoutFork = None
               isValue
             else
               // buffer is not full - enqueuing timeout to the separate channel if this is the first element in the new batch
-              if lastBatchIdWithStartedTimeout != currentBatchId then
-                lastBatchIdWithStartedTimeout = currentBatchId
+              if startedTimeoutFork.isEmpty then
                 val currentBatchIdCopy = currentBatchId // immutable copy for the fork
-                fork {
+                startedTimeoutFork = Some(forkCancellable {
                   sleep(duration)
-                  timerChannel.sendOrClosed(GroupingTimeout(currentBatchIdCopy))
-                }.discard
+                  timerChannel.sendOrClosed(GroupingTimeout(currentBatchIdCopy)).discard
+                })
               true
       }
     }
