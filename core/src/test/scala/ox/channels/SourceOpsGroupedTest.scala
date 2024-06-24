@@ -56,7 +56,7 @@ class SourceOpsGroupedTest extends AnyFlatSpec with Matchers {
 
     elementsWithEmittedTimeOffset.map(_._1) shouldBe List(List(1, 2, 3), List(4))
     elementsWithEmittedTimeOffset(0)._2 should be < 50L // first batch is emitted immediately as it fills up
-    elementsWithEmittedTimeOffset(1)._2 should be > 150L // second batch is emitted after 100ms delay after 50ms delay after the first batch
+    elementsWithEmittedTimeOffset(1)._2 should be >= 150L // second batch is emitted after 100ms delay after 50ms delay after the first batch
   }
 
   it should "group first batch of elements due to timeout and second batch due to limit" in supervised {
@@ -75,7 +75,7 @@ class SourceOpsGroupedTest extends AnyFlatSpec with Matchers {
 
     elementsWithEmittedTimeOffset.map(_._1) shouldBe List(List(1, 2), List(3, 4, 5))
     elementsWithEmittedTimeOffset(0)._2 should (be > 100L and be < 150L) // first batch is emitted after 100ms timeout
-    elementsWithEmittedTimeOffset(1)._2 should be > 150L // second batch is emitted immediately after 200ms delay
+    elementsWithEmittedTimeOffset(1)._2 should be >= 200L // second batch is emitted immediately after 200ms delay
   }
 
   it should "send the group only once when the channel is closed" in supervised {
