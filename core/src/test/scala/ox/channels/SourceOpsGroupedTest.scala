@@ -123,28 +123,6 @@ class SourceOpsGroupedTest extends AnyFlatSpec with Matchers {
     Try(timeout(2.seconds)(c.groupedWithin(3, 5.minutes).toList)) shouldBe Success(List(List(1, 2)))
   }
 
-//  it should "benchmark" in supervised {
-//    val c = StageCapacity.newChannel[Int]
-//    fork {
-//      for (i <- 1 to 10000000) c.send(i)
-//      c.done()
-//    }
-////    c.grouped(3).toList
-//    c.groupedWithin(3, 1.second).toList
-//  }
-
-//  it should "foo" in {
-//    supervised {
-//      for (i <- 1 to 15) {
-//        val c = Source.range(1, 1000000, 1)
-//        val start = System.nanoTime()
-//        c.groupedWithin(3, 1.second).drain()
-//        val dur = System.nanoTime() - start
-//        println(dur / 1000000)
-//      }
-//    }
-//  }
-
   it should "return failed source when the original source is failed" in supervised {
     val failure = new RuntimeException()
     Source.failed(failure).groupedWithin(3, 10.seconds).receiveOrClosed() shouldBe ChannelClosed.Error(failure)
