@@ -2,8 +2,11 @@ package ox.channels
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
+
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import ox.*
+
+import scala.util.{Success, Try}
 
 class SourceOpsGroupedTest extends AnyFlatSpec with Matchers {
   behavior of "SourceOps.grouped"
@@ -117,7 +120,7 @@ class SourceOpsGroupedTest extends AnyFlatSpec with Matchers {
       c.send(2)
       c.done()
     }
-    c.groupedWithin(3, 100.millis).toList shouldBe List(List(1, 2))
+    Try(timeout(2.seconds)(c.groupedWithin(3, 5.minutes).toList)) shouldBe Success(List(List(1, 2)))
   }
 
 //  it should "benchmark" in supervised {
