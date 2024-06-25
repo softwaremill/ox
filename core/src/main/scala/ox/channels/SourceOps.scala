@@ -855,47 +855,40 @@ trait SourceOps[+T] { outer: Source[T] =>
     fork {
       var buffer = Vector.empty[T]
       var accumulatedCost: Long = 0
-      var timeoutFork: Option[CancellableFork[Unit]] = None
 
-      def sendBuffer(): Boolean =
+      def forkTimeout() = forkCancellable {
+        sleep(duration)
+        timerChannel.sendOrClosed(GroupingTimeout).discard
+      }
+      var timeoutFork: Option[CancellableFork[Unit]] = Some(forkTimeout())
+
+      def sendBufferAndForkNewTimeout(): Boolean =
         val isValue = c2.sendOrClosed(buffer).isValue
         buffer = Vector.empty
         accumulatedCost = 0
+        timeoutFork.foreach(_.cancelNow())
+        timeoutFork = Some(forkTimeout())
         isValue
-
-      def forkTimeout(): Unit =
-        timeoutFork = Some(forkCancellable {
-          sleep(duration)
-          timerChannel.sendOrClosed(GroupingTimeout).discard
-        })
 
       repeatWhile {
         selectOrClosed(receiveClause, timerChannel.receiveClause) match
           case ChannelClosed.Done =>
+            timeoutFork.foreach(_.cancelNow())
             if buffer.nonEmpty then c2.sendOrClosed(buffer).discard
             c2.doneOrClosed()
             false
           case ChannelClosed.Error(r) =>
+            timeoutFork.foreach(_.cancelNow())
             c2.errorOrClosed(r); false
           case timerChannel.Received(GroupingTimeout) =>
-            timeoutFork = None
-            if buffer.nonEmpty then
-              // timeout - sending all elements from the buffer
-              sendBuffer()
+            timeoutFork = None // enter 'timed out state', may stay in this state if buffer is empty
+            if buffer.nonEmpty then sendBufferAndForkNewTimeout()
             else true
           case Received(t) =>
             buffer = buffer :+ t
             accumulatedCost += costFn(t)
-            if timeoutFork.isEmpty then
-              // need to start a new timeout on first element in the channel or later, when the previous timeout has expired
-              forkTimeout()
-            if accumulatedCost >= minWeight then
-              // buffer is full - sending grouped elements
-              val isValue = sendBuffer()
-              // cancelling already enqueued timeout and starting a new one
-              if timeoutFork.nonEmpty then timeoutFork.get.cancelNow()
-              forkTimeout()
-              isValue
+            if timeoutFork.isEmpty || accumulatedCost >= minWeight then // timeout passed when buffer was empty or buffer full
+              sendBufferAndForkNewTimeout()
             else true
       }
     }

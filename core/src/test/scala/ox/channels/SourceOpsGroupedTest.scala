@@ -86,7 +86,7 @@ class SourceOpsGroupedTest extends AnyFlatSpec with Matchers {
     elementsWithEmittedTimeOffset(1)._2 should be >= 200.millis
   }
 
-  it should "wake up on new element after first batch is sent" in supervised {
+  it should "wake up on new element and send it immediately after first batch is sent and channel goes to time-out mode" in supervised {
     val c = StageCapacity.newChannel[Int]
     val start = System.currentTimeMillis()
     fork {
@@ -107,7 +107,7 @@ class SourceOpsGroupedTest extends AnyFlatSpec with Matchers {
     // first batch is emitted immediately as it fills up
     elementsWithEmittedTimeOffset(0)._2 should be < 50.millis
     // second batch is emitted immediately after 100ms timeout after 200ms sleep
-    elementsWithEmittedTimeOffset(1)._2 should be >= 300.millis
+    elementsWithEmittedTimeOffset(1)._2 should (be >= 200.millis and be < 250.millis)
   }
 
   it should "send the group only once when the channel is closed" in supervised {
@@ -132,7 +132,7 @@ class SourceOpsGroupedTest extends AnyFlatSpec with Matchers {
     fork {
       c.send(1)
       c.send(2)
-      sleep(200.millis)
+      sleep(150.millis)
       c.send(3)
       c.send(4)
       c.send(5)
