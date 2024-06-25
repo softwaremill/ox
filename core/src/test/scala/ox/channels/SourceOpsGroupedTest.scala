@@ -58,8 +58,8 @@ class SourceOpsGroupedTest extends AnyFlatSpec with Matchers {
     elementsWithEmittedTimeOffset.map(_._1) shouldBe List(List(1, 2, 3), List(4))
     // first batch is emitted immediately as it fills up
     elementsWithEmittedTimeOffset(0)._2 should be < 50.millis
-    // second batch is emitted after 100ms delay after 50ms delay after the first batch
-    elementsWithEmittedTimeOffset(1)._2 should be >= 150.millis
+    // second batch is emitted after 100ms timeout after 50ms sleep after the first batch
+    elementsWithEmittedTimeOffset(1)._2 should be >= 100.millis
   }
 
   it should "group first batch of elements due to timeout and second batch due to limit" in supervised {
@@ -82,8 +82,32 @@ class SourceOpsGroupedTest extends AnyFlatSpec with Matchers {
     elementsWithEmittedTimeOffset.map(_._1) shouldBe List(List(1, 2), List(3, 4, 5))
     // first batch is emitted after 100ms timeout
     elementsWithEmittedTimeOffset(0)._2 should (be >= 100.millis and be < 150.millis)
-    // second batch is emitted immediately after 200ms delay
+    // second batch is emitted immediately after 200ms sleep
     elementsWithEmittedTimeOffset(1)._2 should be >= 200.millis
+  }
+
+  it should "wake up on new element after first batch is sent" in supervised {
+    val c = StageCapacity.newChannel[Int]
+    val start = System.currentTimeMillis()
+    fork {
+      c.send(1)
+      c.send(2)
+      c.send(3)
+      sleep(200.millis)
+      c.send(3)
+      sleep(200.millis) // to ensure the timeout is executed before the channel closes
+      c.done()
+    }
+    val elementsWithEmittedTimeOffset = c
+      .groupedWithin(3, 100.millis)
+      .map(s => (s, FiniteDuration(System.currentTimeMillis() - start, "ms")))
+      .toList
+
+    elementsWithEmittedTimeOffset.map(_._1) shouldBe List(List(1, 2, 3), List(3))
+    // first batch is emitted immediately as it fills up
+    elementsWithEmittedTimeOffset(0)._2 should be < 50.millis
+    // second batch is emitted immediately after 100ms timeout after 200ms sleep
+    elementsWithEmittedTimeOffset(1)._2 should be >= 300.millis
   }
 
   it should "send the group only once when the channel is closed" in supervised {
