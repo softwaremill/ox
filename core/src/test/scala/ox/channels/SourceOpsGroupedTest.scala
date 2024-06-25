@@ -42,7 +42,7 @@ class SourceOpsGroupedTest extends AnyFlatSpec with Matchers {
 
   it should "group first batch of elements due to limit and second batch due to timeout" in supervised {
     val c = StageCapacity.newChannel[Int]
-    val start = System.currentTimeMillis()
+    val start = System.nanoTime()
     fork {
       c.send(1)
       c.send(2)
@@ -53,7 +53,7 @@ class SourceOpsGroupedTest extends AnyFlatSpec with Matchers {
       c.done()
     }
     val elementsWithEmittedTimeOffset =
-      c.groupedWithin(3, 100.millis).map(s => (s, FiniteDuration(System.currentTimeMillis() - start, "ms"))).toList
+      c.groupedWithin(3, 100.millis).map(s => (s, FiniteDuration(System.nanoTime() - start, "nanos"))).toList
 
     elementsWithEmittedTimeOffset.map(_._1) shouldBe List(List(1, 2, 3), List(4))
     // first batch is emitted immediately as it fills up
@@ -64,7 +64,7 @@ class SourceOpsGroupedTest extends AnyFlatSpec with Matchers {
 
   it should "group first batch of elements due to timeout and second batch due to limit" in supervised {
     val c = StageCapacity.newChannel[Int]
-    val start = System.currentTimeMillis()
+    val start = System.nanoTime()
     fork {
       c.send(1)
       c.send(2)
@@ -76,7 +76,7 @@ class SourceOpsGroupedTest extends AnyFlatSpec with Matchers {
     }
     val elementsWithEmittedTimeOffset = c
       .groupedWithin(3, 100.millis)
-      .map(s => (s, FiniteDuration(System.currentTimeMillis() - start, "ms")))
+      .map(s => (s, FiniteDuration(System.nanoTime() - start, "nanos")))
       .toList
 
     elementsWithEmittedTimeOffset.map(_._1) shouldBe List(List(1, 2), List(3, 4, 5))
@@ -88,7 +88,7 @@ class SourceOpsGroupedTest extends AnyFlatSpec with Matchers {
 
   it should "wake up on new element and send it immediately after first batch is sent and channel goes to time-out mode" in supervised {
     val c = StageCapacity.newChannel[Int]
-    val start = System.currentTimeMillis()
+    val start = System.nanoTime()
     fork {
       c.send(1)
       c.send(2)
@@ -100,7 +100,7 @@ class SourceOpsGroupedTest extends AnyFlatSpec with Matchers {
     }
     val elementsWithEmittedTimeOffset = c
       .groupedWithin(3, 100.millis)
-      .map(s => (s, FiniteDuration(System.currentTimeMillis() - start, "ms")))
+      .map(s => (s, FiniteDuration(System.nanoTime() - start, "nanos")))
       .toList
 
     elementsWithEmittedTimeOffset.map(_._1) shouldBe List(List(1, 2, 3), List(3))
@@ -119,6 +119,28 @@ class SourceOpsGroupedTest extends AnyFlatSpec with Matchers {
     }
     c.groupedWithin(3, 100.millis).toList shouldBe List(List(1, 2))
   }
+
+//  it should "benchmark" in supervised {
+//    val c = StageCapacity.newChannel[Int]
+//    fork {
+//      for (i <- 1 to 10000000) c.send(i)
+//      c.done()
+//    }
+////    c.grouped(3).toList
+//    c.groupedWithin(3, 1.second).toList
+//  }
+
+//  it should "foo" in {
+//    supervised {
+//      for (i <- 1 to 15) {
+//        val c = Source.range(1, 1000000, 1)
+//        val start = System.nanoTime()
+//        c.groupedWithin(3, 1.second).drain()
+//        val dur = System.nanoTime() - start
+//        println(dur / 1000000)
+//      }
+//    }
+//  }
 
   it should "return failed source when the original source is failed" in supervised {
     val failure = new RuntimeException()
