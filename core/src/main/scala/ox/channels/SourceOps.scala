@@ -741,6 +741,8 @@ trait SourceOps[+T] { outer: Source[T] =>
   /** Chunks up the elements into groups that have a cumulative weight greater or equal to the `minWeight`. The last group may be smaller
     * due to channel being closed. If this source is failed then failure is passed to the returned channel.
     *
+    * Upstream error or exception thrown by costFn will result in this Source failing with that error.
+    *
     * @param minWeight
     *   The minimum cumulative weight of elements in a group.
     * @param costFn
@@ -766,16 +768,18 @@ trait SourceOps[+T] { outer: Source[T] =>
         receiveOrClosed() match
           case ChannelClosed.Done =>
             if buffer.nonEmpty then c2.sendOrClosed(buffer).discard
-            c2.doneOrClosed();
+            c2.doneOrClosed()
             false
           case ChannelClosed.Error(r) =>
-            c2.errorOrClosed(r); false
+            c2.errorOrClosed(r)
+            false
           case t: T @unchecked =>
             buffer = buffer :+ t
 
             val wasCostEvaluationSuccessful =
               try
-                accumulatedCost += costFn(t); true
+                accumulatedCost += costFn(t)
+                true
               catch
                 case t: Throwable =>
                   c2.errorOrClosed(t).discard
@@ -792,8 +796,10 @@ trait SourceOps[+T] { outer: Source[T] =>
     c2
 
   /** Chunks up the elements into groups received within a time window or limited by the specified number of elements, whatever happens
-    * first. Timeout is counted since the last group has been emitted or no timeout is being counted. If this source is failed then failure
-    * is passed to the returned channel.
+    * first. The timeout is reset after a group is emitted. If timeout expires and the buffer is empty, nothing is emitted. As soon as a new
+    * element is received, the source will emit it as a single-element group and reset the timer.
+    *
+    * If this source is failed then failure is passed to the returned channel.
     *
     * @param n
     *   The maximum number of elements in a group.
@@ -825,8 +831,10 @@ trait SourceOps[+T] { outer: Source[T] =>
   def groupedWithin(n: Int, duration: FiniteDuration)(using Ox, StageCapacity): Source[Seq[T]] = groupedWeightedWithin(n, duration)(_ => 1)
 
   /** Chunks up the elements into groups received within a time window or limited by the cumulative weight being greater or equal to the
-    * `minWeight`, whatever happens first. Timeout is counted since the last group has been emitted or no timeout is being counted. If this
-    * source is failed then failure is passed to the returned channel.
+    * `minWeight`, whatever happens first. The timeout is reset after a group is emitted. If timeout expires and the buffer is empty,
+    * nothing is emitted. As soon as a new element is received, the source will emit it as a single-element group and reset the timer.
+    *
+    * Upstream error or exception thrown by costFn will result in this Source failing with that error.
     *
     * @param minWeight
     *   The minimum cumulative weight of elements in a group if no timeout happens.
@@ -887,7 +895,8 @@ trait SourceOps[+T] { outer: Source[T] =>
             false
           case ChannelClosed.Error(r) =>
             timeoutFork.foreach(_.cancelNow())
-            c2.errorOrClosed(r); false
+            c2.errorOrClosed(r)
+            false
           case timerChannel.Received(GroupingTimeout) =>
             timeoutFork = None // enter 'timed out state', may stay in this state if buffer is empty
             if buffer.nonEmpty then sendBufferAndForkNewTimeout()
@@ -896,7 +905,8 @@ trait SourceOps[+T] { outer: Source[T] =>
             buffer = buffer :+ t
             val wasCostEvaluationSuccessful =
               try
-                accumulatedCost += costFn(t); true
+                accumulatedCost += costFn(t)
+                true
               catch
                 case t: Throwable =>
                   c2.errorOrClosed(t).discard
