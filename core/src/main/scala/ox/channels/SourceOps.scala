@@ -376,8 +376,41 @@ trait SourceOps[+T] { outer: Source[T] =>
     }
     c
 
+  /** Concatenates this source with the `other` source. The resulting source will emit elements from this source first, and then from the
+    * `other` source.
+    *
+    * @param other
+    *   The source to be appended to this source.
+    * @example
+    *   {{{
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   supervised {
+    *     Source.fromValues(1, 2).concat(Source.fromValues(3, 4)).toList // List(1, 2, 3, 4)
+    *   }
+    *   }}}
+    */
   def concat[U >: T](other: Source[U])(using Ox, StageCapacity): Source[U] =
     Source.concat(List(() => this, () => other))
+
+  /** Prepends `other` source to this source. The resulting source will emit elements from `other` source first, and then from the this
+    * source.
+    *
+    * @param other
+    *   The source to be prepended to this source.
+    * @example
+    *   {{{
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   supervised {
+    *     Source.fromValues(1, 2).prepend(Source.fromValues(3, 4)).toList // List(3, 4, 1, 2)
+    *   }
+    *   }}}
+    */
+  def prepend[U >: T](other: Source[U])(using Ox, StageCapacity): Source[U] =
+    Source.concat(List(() => other, () => this))
 
   def zip[U](other: Source[U])(using Ox, StageCapacity): Source[(T, U)] =
     val c = StageCapacity.newChannel[(T, U)]
