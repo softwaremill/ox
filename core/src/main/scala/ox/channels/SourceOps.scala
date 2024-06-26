@@ -772,13 +772,21 @@ trait SourceOps[+T] { outer: Source[T] =>
             c2.errorOrClosed(r); false
           case t: T @unchecked =>
             buffer = buffer :+ t
-            accumulatedCost += costFn(t)
-            if accumulatedCost >= minWeight then
+
+            val wasCostEvaluationSuccessful =
+              try
+                accumulatedCost += costFn(t); true
+              catch
+                case t: Throwable =>
+                  c2.errorOrClosed(t);
+                  false
+
+            if wasCostEvaluationSuccessful && accumulatedCost >= minWeight then
               val isValue = c2.sendOrClosed(buffer).isValue
               buffer = Vector.empty
               accumulatedCost = 0
               isValue
-            else true
+            else wasCostEvaluationSuccessful
       }
     }
     c2
@@ -886,10 +894,19 @@ trait SourceOps[+T] { outer: Source[T] =>
             else true
           case Received(t) =>
             buffer = buffer :+ t
-            accumulatedCost += costFn(t)
-            if timeoutFork.isEmpty || accumulatedCost >= minWeight then // timeout passed when buffer was empty or buffer full
+            val wasCostEvaluationSuccessful =
+              try
+                accumulatedCost += costFn(t); true
+              catch
+                case t: Throwable =>
+                  c2.errorOrClosed(t);
+                  timeoutFork.foreach(_.cancelNow())
+                  false
+
+            if wasCostEvaluationSuccessful && (timeoutFork.isEmpty || accumulatedCost >= minWeight) then
+              // timeout passed when buffer was empty or buffer full
               sendBufferAndForkNewTimeout()
-            else true
+            else wasCostEvaluationSuccessful
       }
     }
     c2

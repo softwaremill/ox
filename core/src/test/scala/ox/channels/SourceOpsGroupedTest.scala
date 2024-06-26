@@ -36,6 +36,14 @@ class SourceOpsGroupedTest extends AnyFlatSpec with Matchers {
     )
   }
 
+  it should "return failed source when cost function throws exception" in supervised {
+    val source = Source.fromValues(1, 2, 3, 0, 4, 5, 6, 7).groupedWeighted(150)(n => 100 / n)
+    source.receiveOrClosed() shouldBe Seq(1, 2)
+    source.receiveOrClosed() should matchPattern {
+      case ChannelClosed.Error(reason) if reason.isInstanceOf[ArithmeticException] =>
+    }
+  }
+
   it should "return failed source when the original source is failed" in supervised {
     val failure = new RuntimeException()
     Source.failed[Long](failure).groupedWeighted(10)(n => n * 2).receiveOrClosed() shouldBe ChannelClosed.Error(failure)
@@ -143,6 +151,14 @@ class SourceOpsGroupedTest extends AnyFlatSpec with Matchers {
       c.done()
     }
     c.groupedWeightedWithin(10, 100.millis)(n => n * 2).toList shouldBe List(List(1, 2), List(3, 4), List(5), List(6))
+  }
+
+  it should "return failed source when cost function throws exception" in supervised {
+    val source = Source.fromValues(1, 2, 3, 0, 4, 5, 6, 7).groupedWeightedWithin(150, 100.millis)(n => 100 / n)
+    source.receiveOrClosed() shouldBe Seq(1, 2)
+    source.receiveOrClosed() should matchPattern {
+      case ChannelClosed.Error(reason) if reason.isInstanceOf[ArithmeticException] =>
+    }
   }
 
   it should "return failed source when the original source is failed" in supervised {
