@@ -864,11 +864,10 @@ trait SourceOps[+T] { outer: Source[T] =>
 
       def sendBufferAndForkNewTimeout(): Boolean =
         val isValue = c2.sendOrClosed(buffer).isValue
-        if isValue then
-          buffer = Vector.empty
-          accumulatedCost = 0
-          timeoutFork.foreach(_.cancelNow())
-          timeoutFork = Some(forkTimeout())
+        buffer = Vector.empty
+        accumulatedCost = 0
+        timeoutFork.foreach(_.cancelNow())
+        if isValue then timeoutFork = Some(forkTimeout()) // start a new timeout only if channel was not closed
         isValue
 
       repeatWhile {
