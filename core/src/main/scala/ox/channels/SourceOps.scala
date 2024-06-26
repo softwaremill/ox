@@ -9,6 +9,8 @@ import java.util.concurrent.{CountDownLatch, Semaphore}
 import scala.collection.IterableOnce
 import scala.concurrent.duration.*
 
+private[channels] case object GroupingTimeout
+
 trait SourceOps[+T] { outer: Source[T] =>
   // view ops (lazy)
 
@@ -716,4 +718,206 @@ trait SourceOps[+T] { outer: Source[T] =>
         case t: T @unchecked        => c.sendOrClosed(t); pipeTo(c)
     }
     c
+
+  /** Chunks up the elements into groups of the specified size. The last group may be smaller due to channel being closed. If this source is
+    * failed then failure is passed to the returned channel.
+    *
+    * @param n
+    *   The number of elements in a group.
+    * @return
+    *   A source that emits grouped elements.
+    * @example
+    *   {{{
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   supervised {
+    *     Source.fromValues(1, 2, 3, 4, 5, 6, 7).grouped(3).toList // List(Seq(1, 2, 3), Seq(4, 5, 6), Seq(7))
+    *   }
+    *   }}}
+    */
+  def grouped(n: Int)(using Ox, StageCapacity): Source[Seq[T]] = groupedWeighted(n)(_ => 1)
+
+  /** Chunks up the elements into groups that have a cumulative weight greater or equal to the `minWeight`. The last group may be smaller
+    * due to channel being closed. If this source is failed then failure is passed to the returned channel.
+    *
+    * Upstream error or exception thrown by costFn will result in this Source failing with that error.
+    *
+    * @param minWeight
+    *   The minimum cumulative weight of elements in a group.
+    * @param costFn
+    *   The function that calculates the weight of an element.
+    * @return
+    *   A source that emits grouped elements.
+    * @example
+    *   {{{
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   supervised {
+    *     Source.fromValues(1, 2, 3, 4, 5, 6, 7).groupedWeighted(10)(n => n * 2).toList // List(Seq(1, 2, 3), Seq(4, 5), Seq(6), Seq(7))
+    *   }
+    *   }}}
+    */
+  def groupedWeighted(minWeight: Long)(costFn: T => Long)(using Ox, StageCapacity): Source[Seq[T]] =
+    val c2 = StageCapacity.newChannel[Seq[T]]
+    fork {
+      var buffer = Vector.empty[T]
+      var accumulatedCost = 0L
+      repeatWhile {
+        receiveOrClosed() match
+          case ChannelClosed.Done =>
+            if buffer.nonEmpty then c2.sendOrClosed(buffer).discard
+            c2.doneOrClosed()
+            false
+          case ChannelClosed.Error(r) =>
+            c2.errorOrClosed(r)
+            false
+          case t: T @unchecked =>
+            buffer = buffer :+ t
+
+            val wasCostEvaluationSuccessful =
+              try
+                accumulatedCost += costFn(t)
+                true
+              catch
+                case t: Throwable =>
+                  c2.errorOrClosed(t).discard
+                  false
+
+            if wasCostEvaluationSuccessful && accumulatedCost >= minWeight then
+              val isValue = c2.sendOrClosed(buffer).isValue
+              buffer = Vector.empty
+              accumulatedCost = 0
+              isValue
+            else wasCostEvaluationSuccessful
+      }
+    }
+    c2
+
+  /** Chunks up the elements into groups received within a time window or limited by the specified number of elements, whatever happens
+    * first. The timeout is reset after a group is emitted. If timeout expires and the buffer is empty, nothing is emitted. As soon as a new
+    * element is received, the source will emit it as a single-element group and reset the timer.
+    *
+    * If this source is failed then failure is passed to the returned channel.
+    *
+    * @param n
+    *   The maximum number of elements in a group.
+    * @param duration
+    *   The time window in which the elements are grouped.
+    * @return
+    *   A source that emits grouped elements.
+    * @example
+    *   {{{
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   supervised {
+    *     val c = StageCapacity.newChannel[Int]
+    *     fork {
+    *       c.send(1)
+    *       c.send(2)
+    *       sleep(200.millis)
+    *       c.send(3)
+    *       c.send(4)
+    *       c.send(5)
+    *       c.send(6)
+    *       c.done()
+    *     }
+    *     c.groupedWithin(3, 100.millis).toList // List(Seq(1, 2), Seq(3, 4, 5), Seq(6))
+    *   }
+    *   }}}
+    */
+  def groupedWithin(n: Int, duration: FiniteDuration)(using Ox, StageCapacity): Source[Seq[T]] = groupedWeightedWithin(n, duration)(_ => 1)
+
+  /** Chunks up the elements into groups received within a time window or limited by the cumulative weight being greater or equal to the
+    * `minWeight`, whatever happens first. The timeout is reset after a group is emitted. If timeout expires and the buffer is empty,
+    * nothing is emitted. As soon as a new element is received, the source will emit it as a single-element group and reset the timer.
+    *
+    * Upstream error or exception thrown by costFn will result in this Source failing with that error.
+    *
+    * @param minWeight
+    *   The minimum cumulative weight of elements in a group if no timeout happens.
+    * @param duration
+    *   The time window in which the elements are grouped.
+    * @param costFn
+    *   The function that calculates the weight of an element.
+    * @return
+    *   A source that emits grouped elements.
+    * @example
+    *   {{{
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   supervised {
+    *     val c = StageCapacity.newChannel[Int]
+    *     fork {
+    *       c.send(1)
+    *       c.send(2)
+    *       sleep(200.millis)
+    *       c.send(3)
+    *       c.send(4)
+    *       c.send(5)
+    *       c.send(6)
+    *       c.done()
+    *     }
+    *     c.groupedWeightedWithin(10, 100.millis)(n => n * 2).toList // List(Seq(1, 2), Seq(3, 4), Seq(5), Seq(6))
+    *   }
+    *   }}}
+    */
+  def groupedWeightedWithin(minWeight: Long, duration: FiniteDuration)(costFn: T => Long)(using Ox, StageCapacity): Source[Seq[T]] =
+    val c2 = StageCapacity.newChannel[Seq[T]]
+    val timerChannel = StageCapacity.newChannel[GroupingTimeout.type]
+    fork {
+      var buffer = Vector.empty[T]
+      var accumulatedCost: Long = 0
+
+      def forkTimeout() = forkCancellable {
+        sleep(duration)
+        timerChannel.sendOrClosed(GroupingTimeout).discard
+      }
+      var timeoutFork: Option[CancellableFork[Unit]] = Some(forkTimeout())
+
+      def sendBufferAndForkNewTimeout(): Boolean =
+        val isValue = c2.sendOrClosed(buffer).isValue
+        buffer = Vector.empty
+        accumulatedCost = 0
+        timeoutFork.foreach(_.cancelNow())
+        if isValue then timeoutFork = Some(forkTimeout()) // start a new timeout only if channel was not closed
+        isValue
+
+      repeatWhile {
+        selectOrClosed(receiveClause, timerChannel.receiveClause) match
+          case ChannelClosed.Done =>
+            timeoutFork.foreach(_.cancelNow())
+            if buffer.nonEmpty then c2.sendOrClosed(buffer).discard
+            c2.doneOrClosed()
+            false
+          case ChannelClosed.Error(r) =>
+            timeoutFork.foreach(_.cancelNow())
+            c2.errorOrClosed(r)
+            false
+          case timerChannel.Received(GroupingTimeout) =>
+            timeoutFork = None // enter 'timed out state', may stay in this state if buffer is empty
+            if buffer.nonEmpty then sendBufferAndForkNewTimeout()
+            else true
+          case Received(t) =>
+            buffer = buffer :+ t
+            val wasCostEvaluationSuccessful =
+              try
+                accumulatedCost += costFn(t)
+                true
+              catch
+                case t: Throwable =>
+                  c2.errorOrClosed(t).discard
+                  timeoutFork.foreach(_.cancelNow())
+                  false
+
+            if wasCostEvaluationSuccessful && (timeoutFork.isEmpty || accumulatedCost >= minWeight) then
+              // timeout passed when buffer was empty or buffer full
+              sendBufferAndForkNewTimeout()
+            else wasCostEvaluationSuccessful
+      }
+    }
+    c2
 }
