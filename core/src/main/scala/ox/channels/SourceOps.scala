@@ -778,7 +778,7 @@ trait SourceOps[+T] { outer: Source[T] =>
                 accumulatedCost += costFn(t); true
               catch
                 case t: Throwable =>
-                  c2.errorOrClosed(t);
+                  c2.errorOrClosed(t).discard
                   false
 
             if wasCostEvaluationSuccessful && accumulatedCost >= minWeight then
@@ -899,7 +899,7 @@ trait SourceOps[+T] { outer: Source[T] =>
                 accumulatedCost += costFn(t); true
               catch
                 case t: Throwable =>
-                  c2.errorOrClosed(t);
+                  c2.errorOrClosed(t).discard
                   timeoutFork.foreach(_.cancelNow())
                   false
 
