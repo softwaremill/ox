@@ -79,7 +79,7 @@ class SourceOpsGroupedTest extends AnyFlatSpec with Matchers {
     fork {
       c.send(1)
       c.send(2)
-      sleep(200.millis)
+      sleep(150.millis)
       c.send(3)
       c.send(4)
       c.send(5)
@@ -94,7 +94,7 @@ class SourceOpsGroupedTest extends AnyFlatSpec with Matchers {
     // first batch is emitted after 100ms timeout
     elementsWithEmittedTimeOffset(0)._2 should (be >= 100.millis and be < 150.millis)
     // second batch is emitted immediately after 200ms sleep
-    elementsWithEmittedTimeOffset(1)._2 should be >= 200.millis
+    elementsWithEmittedTimeOffset(1)._2 should be >= 150.millis
   }
 
   it should "wake up on new element and send it immediately after first batch is sent and channel goes to time-out mode" in supervised {
