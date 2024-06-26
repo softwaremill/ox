@@ -985,9 +985,7 @@ trait SourceOps[+T] { outer: Source[T] =>
         receiveOrClosed() match
           case ChannelClosed.Done =>
             // send the remaining elements, only if these elements were not yet sent
-            if (buffer.nonEmpty && buffer.size < n) {
-              c.sendOrClosed(buffer).discard
-            }
+            if buffer.nonEmpty && buffer.size < n then c.sendOrClosed(buffer).discard
             c.doneOrClosed()
             false
           case ChannelClosed.Error(r) =>
