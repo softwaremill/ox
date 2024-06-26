@@ -1003,11 +1003,10 @@ trait SourceOps[+T] { outer: Source[T] =>
               // in special case when step == 1, we have to send the buffer immediately
               if buffer.size == n then c.sendOrClosed(buffer).isValue
               else true
-            else if step > n then
-              // if step is > n we drop `step` elements and continue appending until buffer size is n
+            else
+              // step > n -  we drop `step` elements and continue appending until buffer size is n
               if buffer.size == step then buffer = buffer.drop(step)
               true
-            else true
       }
     }
     c
