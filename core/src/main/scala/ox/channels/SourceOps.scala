@@ -953,4 +953,59 @@ trait SourceOps[+T] { outer: Source[T] =>
       }
     }
     c2
+
+  /** Creates sliding windows of elements from this source. The window slides by `step` elements. The last window may be smaller due to
+    * channel being closed.
+    *
+    * If this source is failed then failure is passed to the returned channel.
+    *
+    * @param n
+    *   The number of elements in a window.
+    * @param step
+    *   The number of elements the window slides by.
+    * @return
+    *   A source that emits grouped elements.
+    * @example
+    *   {{{
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   supervised {
+    *     Source.fromValues(1, 2, 3, 4, 5, 6).sliding(3, 2).toList // List(Seq(1, 2, 3), Seq(3, 4, 5), Seq(5, 6))
+    *   }
+    *   }}}
+    */
+  def sliding(n: Int, step: Int = 1)(using Ox, StageCapacity): Source[Seq[T]] =
+    if n <= 0 then throw IllegalArgumentException("n must be > 0")
+    if step <= 0 then throw IllegalArgumentException("step must be > 0")
+    val c = StageCapacity.newChannel[Seq[T]]
+    fork {
+      var buffer = Vector.empty[T]
+      repeatWhile {
+        receiveOrClosed() match
+          case ChannelClosed.Done =>
+            // send the remaining elements, only if these elements were not yet sent
+            if buffer.nonEmpty && buffer.size < n then c.sendOrClosed(buffer).discard
+            c.doneOrClosed()
+            false
+          case ChannelClosed.Error(r) =>
+            c.errorOrClosed(r)
+            false
+          case t: T @unchecked =>
+            buffer = buffer :+ t
+            if buffer.size < n then true // do nothing
+            else if buffer.size == n then c.sendOrClosed(buffer).isValue
+            else if step <= n then
+              // if step is <= n we simply drop `step` elements and continue appending until buffer size is n
+              buffer = buffer.drop(step)
+              // in special case when step == 1, we have to send the buffer immediately
+              if buffer.size == n then c.sendOrClosed(buffer).isValue
+              else true
+            else
+              // step > n -  we drop `step` elements and continue appending until buffer size is n
+              if buffer.size == step then buffer = buffer.drop(step)
+              true
+      }
+    }
+    c
 }
