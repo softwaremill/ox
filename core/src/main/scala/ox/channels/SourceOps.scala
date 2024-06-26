@@ -984,8 +984,7 @@ trait SourceOps[+T] { outer: Source[T] =>
       repeatWhile {
         receiveOrClosed() match
           case ChannelClosed.Done =>
-            // if buffer size is less than n, it means that the source did not have a chance to fill the buffer
-            // or step > n, so we need to send the remaining elements
+            // send the remaining elements, only if these elements were not yet sent
             if (buffer.nonEmpty && buffer.size < n) {
               c.sendOrClosed(buffer).discard
             }
