@@ -10,7 +10,7 @@ class SourceOpsAlsoToTest extends AnyFlatSpec with Matchers {
 
   it should "send to both sinks" in supervised {
     val c = Channel.withCapacity[Int](10)
-    Source.fromValues(1, 2, 3).alsoTo(c).toList
+    Source.fromValues(1, 2, 3).alsoTo(c).toList shouldBe List(1, 2, 3)
     c.toList shouldBe List(1, 2, 3)
   }
 

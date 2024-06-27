@@ -1035,11 +1035,14 @@ trait SourceOps[+T] { outer: Source[T] =>
     }
     c2
 
-  def wireTap[U >: T](other: Sink[U])(using Ox, StageCapacity): Source[U] =
+  case object Ack
+  def wireTap[U >: T](other: Sink[U], maxPending: Long = 3)(using Ox, StageCapacity): Source[U] =
+    val acks = StageCapacity.newChannel[Ack.type]
     val c2 = StageCapacity.newChannel[U]
     fork {
+      var pending: Int = 0
       repeatWhile {
-        receiveOrClosed() match
+        selectOrClosed(receiveClause, acks.receiveClause) match
           case ChannelClosed.Done =>
             c2.doneOrClosed()
             other.doneOrClosed()
@@ -1048,8 +1051,16 @@ trait SourceOps[+T] { outer: Source[T] =>
             c2.errorOrClosed(r)
             other.errorOrClosed(r)
             false
-          case t: T @unchecked =>
-            other.sendOrClosed(t).discard
+          case acks.Received(Ack) =>
+            pending -= 1
+            true
+          case Received(t) =>
+            if pending < maxPending then
+              pending += 1
+              fork {
+                other.sendOrClosed(t).discard
+                acks.sendOrClosed(Ack).discard
+              }.discard
             c2.sendOrClosed(t).isValue
       }
     }
