@@ -1008,4 +1008,50 @@ trait SourceOps[+T] { outer: Source[T] =>
       }
     }
     c
+
+  def alsoTo[U >: T](other: Sink[U])(using Ox, StageCapacity): Source[U] =
+    val c2 = StageCapacity.newChannel[U]
+    fork {
+      repeatWhile {
+        receiveOrClosed() match
+          case ChannelClosed.Done =>
+            c2.doneOrClosed()
+            other.doneOrClosed()
+            false
+          case ChannelClosed.Error(r) =>
+            c2.errorOrClosed(r)
+            other.errorOrClosed(r)
+            false
+          case t: T @unchecked =>
+            if other.sendOrClosed(t).isValue then
+              if c2.sendOrClosed(t).isValue then true
+              else
+                other.doneOrClosed().discard
+                false
+            else
+              c2.doneOrClosed().discard
+              false
+      }
+    }
+    c2
+
+  def wireTap[U >: T](other: Sink[U])(using Ox, StageCapacity): Source[U] =
+    val c2 = StageCapacity.newChannel[U]
+    fork {
+      repeatWhile {
+        receiveOrClosed() match
+          case ChannelClosed.Done =>
+            c2.doneOrClosed()
+            other.doneOrClosed()
+            false
+          case ChannelClosed.Error(r) =>
+            c2.errorOrClosed(r)
+            other.errorOrClosed(r)
+            false
+          case t: T @unchecked =>
+            other.sendOrClosed(t).discard
+            c2.sendOrClosed(t).isValue
+      }
+    }
+    c2
 }
