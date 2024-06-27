@@ -9,13 +9,13 @@ class SourceOpsWireTapTest extends AnyFlatSpec with Matchers {
 
   behavior of "Source.wireTap"
 
-  it should "send to both sinks when other is fast" in supervised {
+  it should "send to both sinks when other is faster" in supervised {
     val other = Channel.withCapacity[Int](10)
-    Source.fromValues(1, 2, 3).wireTap(other).toList shouldBe List(1, 2, 3)
+    Source.fromValues(1, 2, 3).wireTap(other).map(v => { sleep(50.millis); v }).toList shouldBe List(1, 2, 3)
     other.toList shouldBe List(1, 2, 3)
   }
 
-  it should "send to both sinks when other is slow" in supervised {
+  it should "send to both sinks when other is slower" in supervised {
     val other = Channel.rendezvous[Int]
     val slowConsumerFork = fork {
       var vec = Vector.empty[Int]
