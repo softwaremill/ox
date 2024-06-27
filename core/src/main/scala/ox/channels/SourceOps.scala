@@ -793,6 +793,7 @@ trait SourceOps[+T] { outer: Source[T] =>
     *   }}}
     */
   def groupedWeighted(minWeight: Long)(costFn: T => Long)(using Ox, StageCapacity): Source[Seq[T]] =
+    if minWeight <= 0 then throw IllegalArgumentException("minWeight must be > 0")
     val c2 = StageCapacity.newChannel[Seq[T]]
     fork {
       var buffer = Vector.empty[T]
@@ -899,6 +900,8 @@ trait SourceOps[+T] { outer: Source[T] =>
     *   }}}
     */
   def groupedWeightedWithin(minWeight: Long, duration: FiniteDuration)(costFn: T => Long)(using Ox, StageCapacity): Source[Seq[T]] =
+    if minWeight <= 0 then throw IllegalArgumentException("minWeight must be > 0")
+    if duration <= 0.seconds then throw IllegalArgumentException("duration must be > 0")
     val c2 = StageCapacity.newChannel[Seq[T]]
     val timerChannel = StageCapacity.newChannel[GroupingTimeout.type]
     fork {
