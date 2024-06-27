@@ -1023,13 +1023,13 @@ trait SourceOps[+T] { outer: Source[T] =>
             other.errorOrClosed(r)
             false
           case t: T @unchecked =>
-            if other.sendOrClosed(t).isValue then
-              if c2.sendOrClosed(t).isValue then true
+            if c2.sendOrClosed(t).isValue then
+              if other.sendOrClosed(t).isValue then true
               else
-                other.doneOrClosed().discard
+                c2.doneOrClosed().discard
                 false
             else
-              c2.doneOrClosed().discard
+              other.doneOrClosed().discard
               false
       }
     }
