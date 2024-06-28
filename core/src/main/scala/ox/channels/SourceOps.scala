@@ -10,6 +10,7 @@ import scala.collection.IterableOnce
 import scala.concurrent.duration.*
 
 private[channels] case object GroupingTimeout
+private[channels] case object Ack
 
 trait SourceOps[+T] { outer: Source[T] =>
   // view ops (lazy)
@@ -1009,6 +1010,27 @@ trait SourceOps[+T] { outer: Source[T] =>
     }
     c
 
+  /** Attaches the given Sink to this Source, meaning that elements that pass through will also be sent to the Sink. If the `other` Sink
+    * blocks, the returned channel also blocks.
+    *
+    * If this source is failed then failure is passed to the returned and channel and the `other` Sink.
+    *
+    * @param other
+    *   The Sink to which elements from this source will be sent.
+    * @return
+    *   A source that emits input elements.
+    * @example
+    *   {{{
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   supervised {
+    *     val c = Channel.withCapacity[Int](10)
+    *     Source.fromValues(1, 2, 3).alsoTo(c).toList // List(1, 2, 3)
+    *     c.toList // List(1, 2, 3)
+    *   }
+    *   }}}
+    */
   def alsoTo[U >: T](other: Sink[U])(using Ox, StageCapacity): Source[U] =
     val c2 = StageCapacity.newChannel[U]
     fork {
@@ -1016,7 +1038,7 @@ trait SourceOps[+T] { outer: Source[T] =>
         receiveOrClosed() match
           case ChannelClosed.Done =>
             c2.doneOrClosed()
-            other.doneOrClosed()
+            other.doneOrClosed() // TODO: should we close other channel?
             false
           case ChannelClosed.Error(r) =>
             c2.errorOrClosed(r)
@@ -1029,14 +1051,38 @@ trait SourceOps[+T] { outer: Source[T] =>
                 c2.doneOrClosed().discard
                 false
             else
-              other.doneOrClosed().discard
+              other.doneOrClosed().discard // TODO: should we close other channel?
               false
       }
     }
     c2
 
-  case object Ack
-  def wireTap[U >: T](other: Sink[U], maxPending: Long = 3)(using Ox, StageCapacity): Source[U] =
+  /** Attaches the given Sink to this Source, meaning that elements that pass through will also be sent to the Sink. The elements sent to
+    * `other` Sink are enqueued, which means that the returned channel does not block when the `other` Sink is blocked. If the queue is
+    * full, the elements are still sent to returned channel, but not to the `other` Sink, meaning that some elements may be dropped.
+    *
+    * If this source is failed then failure is passed to the returned and channel and the `other` Sink.
+    *
+    * @param other
+    *   The Sink to which elements from this source will be sent.
+    * @param queueSize
+    *   Specifies the size of the queue that buffers elements sent to the `other` Sink.
+    * @return
+    *   A source that emits input elements.
+    * @example
+    *   {{{
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   supervised {
+    *     val c = Channel.withCapacity[Int](10)
+    *     Source.fromValues(1, 2, 3).wireTap(c).toList // List(1, 2, 3)
+    *     c.toList // List(1, 2, 3) but not guaranteed
+    *   }
+    *   }}}
+    */
+  def wireTap[U >: T](other: Sink[U], queueSize: Long = 3)(using Ox, StageCapacity): Source[U] =
+    require(queueSize > 0, "queueSize must be > 0")
     val acks = StageCapacity.newChannel[Ack.type]
     val c2 = StageCapacity.newChannel[U]
     fork {
@@ -1063,7 +1109,7 @@ trait SourceOps[+T] { outer: Source[T] =>
             pending -= 1
             true
           case Received(t) =>
-            if pending < maxPending then
+            if pending < queueSize then
               pending += 1
               fork {
                 other.sendOrClosed(t).discard
