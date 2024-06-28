@@ -1045,7 +1045,15 @@ trait SourceOps[+T] { outer: Source[T] =>
         selectOrClosed(receiveClause, acks.receiveClause) match
           case ChannelClosed.Done =>
             c2.doneOrClosed()
-            other.doneOrClosed()
+            // drain ack channel to ensure that all enqueued elements are sent
+            if pending != 0 then
+              repeatWhile {
+                acks.receiveOrClosed() match
+                  case ChannelClosed.Done     => false
+                  case ChannelClosed.Error(r) => false
+                  case Ack                    => pending -= 1; pending != 0
+              }
+              other.doneOrClosed().discard // TODO: should we close the other channel?
             false
           case ChannelClosed.Error(r) =>
             c2.errorOrClosed(r)
