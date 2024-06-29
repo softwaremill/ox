@@ -22,7 +22,7 @@ trait OxApp:
       mountShutdownHook(interruptThread)
 
       cancellableMainFork.joinEither() match
-        case Left(iex: InterruptedException) => exit(0)
+        case Left(iex: InterruptedException) => exit(130)
         case Left(fatalErr)                  => throw fatalErr
         case Right(exitCode)                 => exit(exitCode.code)
 
@@ -51,15 +51,21 @@ object OxApp:
 
     def run(using Ox): Unit
 
-  trait WithErrors[E] extends OxApp:
+  trait WithErrorMode[E, F[_]](em: ErrorMode[E, F]) extends OxApp:
+    override def run(args: Vector[String])(using ox: Ox): ExitCode =
+      val result = run(args.toList)
+      if em.isError(result) then handleError(em.getError(result))
+      else ExitCode.Success
+
+    def handleError(e: E): ExitCode
+
+    def run(args: List[String])(using Ox): F[ExitCode]
+
+  abstract class WithEitherErrors[E] extends WithErrorMode(EitherMode[E]()):
 
     type EitherScope[Err] = Label[Either[Err, ExitCode]]
 
-    override final def run(args: Vector[String])(using ox: Ox): ExitCode =
-      either[E, ExitCode](label ?=> run(args)(using ox, label)) match
-        case Left(e)   => handleErrors(e)
-        case Right(ec) => ec
-
-    def handleErrors(e: E): ExitCode
+    override final def run(args: List[String])(using ox: Ox): Either[E, ExitCode] =
+      either[E, ExitCode](label ?=> run(args.toVector)(using ox, label))
 
     def run(args: Vector[String])(using Ox, EitherScope[E]): ExitCode
