@@ -131,9 +131,9 @@ Exception-throwing code can be converted to an `Either` using `catching`. Note t
 exceptions!
 
 ```scala
-import ox.catching
+import ox.either
 
-val result: Either[Throwable, String] = catching(throw new RuntimeException("boom"))
+val result: Either[Throwable, String] = either.catching(throw new RuntimeException("boom"))
 ```
 
 ### Nested `either` blocks
