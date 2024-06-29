@@ -122,6 +122,7 @@ def forkAll[T](fs: Seq[() => T])(using Ox): Fork[Seq[T]] =
   val forks = fs.map(f => fork(f()))
   new Fork[Seq[T]]:
     override def join(): Seq[T] = forks.map(_.join())
+    override def wasInterrupted: Boolean = forks.forall(_.wasInterrupted)
 
 /** Starts a fork (logical thread of execution), which is guaranteed to complete before the enclosing [[supervised]], [[supervisedError]] or
   * [[unsupervised]] block completes, and which can be cancelled on-demand.
@@ -177,8 +178,12 @@ def forkCancellable[T](f: => T)(using OxUnsupervised): CancellableFork[T] =
       if !started.getAndSet(true)
       then result.completeExceptionally(new InterruptedException("fork was cancelled before it started")).discard
 
+    override def wasInterrupted: Boolean = result.isCompletedExceptionally && result.exceptionNow().isInstanceOf[InterruptedException]
+
 private def newForkUsingResult[T](result: CompletableFuture[T]): Fork[T] = new Fork[T]:
   override def join(): T = unwrapExecutionException(result.get())
+  override def wasInterrupted: Boolean =
+    result.isCompletedExceptionally && result.exceptionNow().isInstanceOf[InterruptedException]
 
 private[ox] inline def unwrapExecutionException[T](f: => T): T =
   try f
@@ -208,16 +213,23 @@ trait Fork[T]:
   def joinEither(): Either[Throwable, T] =
     try Right(join())
     catch
-      // normally IE is fatal, but here it was meant to cancel the fork, not the joining parent, hence we catch it
-      case e: InterruptedException => Left(e)
+      // normally IE is fatal, but here it could have meant that the fork was cancelled, hence we catch it
+      // we do discern between the fork and the current thread being cancelled and rethrow if it's us who's getting the axe
+      case e: InterruptedException => if wasInterrupted then Left(e) else throw e
       case NonFatal(e)             => Left(e)
+
+  def wasInterrupted: Boolean
 
 object Fork:
   /** A dummy pretending to represent a fork which successfully completed with the given value. */
-  def successful[T](value: T): Fork[T] = () => value
+  def successful[T](value: T): Fork[T] = new Fork[T]:
+    override def join(): T = value
+    override def wasInterrupted: Boolean = false
 
   /** A dummy pretending to represent a fork which failed with the given exception. */
-  def failed[T](e: Throwable): Fork[T] = () => throw e
+  def failed[T](e: Throwable): Fork[T] = new Fork[T]:
+    override def join(): T = throw e
+    override def wasInterrupted: Boolean = e.isInstanceOf[InterruptedException]
 
 /** A fork started using [[forkCancellable]], backed by a (virtual) thread. */
 trait CancellableFork[T] extends Fork[T]:
