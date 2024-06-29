@@ -7,6 +7,8 @@ import ox.either.{fail, ok}
 
 import scala.util.boundary.Label
 
+case class ComparableException(msg: String) extends Exception(msg)
+
 class EitherTest extends AnyFlatSpec with Matchers:
   val ok1: Either[Int, String] = Right("x")
   val ok2: Either[Int, String] = Right("y")
@@ -115,13 +117,25 @@ class EitherTest extends AnyFlatSpec with Matchers:
   }
 
   it should "catch exceptions" in {
-    catching(throw new RuntimeException("boom")).left.map(_.getMessage) shouldBe Left("boom")
+    either.catching(throw new RuntimeException("boom")).left.map(_.getMessage) shouldBe Left("boom")
   }
 
   it should "not catch fatal exceptions" in {
-    val e = intercept[InterruptedException](catching(throw new InterruptedException()))
+    val e = intercept[InterruptedException](either.catching(throw new InterruptedException()))
 
     e shouldBe a[InterruptedException]
+  }
+
+  it should "provide an either scope when catching" in {
+    val val1: Either[Throwable, Int] = Left(ComparableException("oh no"))
+
+    either.catching(val1.ok()) shouldBe Left(ComparableException("oh no"))
+  }
+
+  it should "report a proper compilation error when wrong error type is used for ok() in catching block" in {
+    val e = intercept[TestFailedException](assertCompiles("""either.catching(fail1.ok())"""))
+
+    e.getMessage should include("The enclosing `either` call uses a different error type.")
   }
 
   it should "work when combined with mapPar" in {

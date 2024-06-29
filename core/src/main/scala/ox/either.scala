@@ -8,6 +8,11 @@ import scala.util.control.NonFatal
 
 object either:
 
+  /** Catches non-fatal exceptions that occur when evaluating `t` and returns them as the left side of the returned `Either`. */
+  inline def catching[T](inline t: Label[Either[Throwable, T]] ?=> T): Either[Throwable, T] =
+    try boundary(Right(t))
+    catch case NonFatal(e) => Left(e)
+
   private type NotNested = NotGiven[Label[Either[Nothing, Nothing]]]
 
   /** Within an [[either]] block, allows unwrapping [[Either]] and [[Option]] values using [[ok()]]. The result is the right-value of an
@@ -41,6 +46,23 @@ object either:
         "Nesting of either blocks is not allowed as it's error prone, due to type inference. Consider extracting the nested either block to a separate function."
       ) nn: NotNested
   ): Either[E, A] = boundary(Right(body))
+
+  extension [E, A](inline t: Right[E, A])
+    /** Unwrap the value of the `Either`, returning value of type `A` on guaranteed `Right` case. */
+    transparent inline def ok(): A =
+      t match
+        case Right(a) => a
+
+  extension [E, A](inline t: Left[E, A])
+    /** Unwrap the value of the `Either`, short-circuiting the computation to the enclosing [[either]]. */
+    transparent inline def ok(): A =
+      summonFrom {
+        case given boundary.Label[Either[E, Nothing]] =>
+          break(t.asInstanceOf[Either[E, Nothing]])
+        case given boundary.Label[Either[Nothing, Nothing]] =>
+          error("The enclosing `either` call uses a different error type.\nIf it's explicitly typed, is the error type correct?")
+        case _ => error("`.ok()` can only be used within an `either` call.\nIs it present?")
+      }
 
   extension [E, A](inline t: Either[E, A])
     /** Unwrap the value of the `Either`, short-circuiting the computation to the enclosing [[either]], in case this is a left-value. */
@@ -86,8 +108,3 @@ object either:
         case given boundary.Label[Either[Nothing, Nothing]] =>
           error("The enclosing `either` call uses a different error type.\nIf it's explicitly typed, is the error type correct?")
       }
-
-/** Catches non-fatal exceptions that occur when evaluating `t` and returns them as the left side of the returned `Either`. */
-inline def catching[T](inline t: => T): Either[Throwable, T] =
-  try Right(t)
-  catch case NonFatal(e) => Left(e)
