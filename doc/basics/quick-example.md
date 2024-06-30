@@ -18,7 +18,7 @@ val result1: (Int, String) = par(computation1, computation2)
 
 // timeout a computation
 def computation: Int = { sleep(2.seconds); 1 }
-val result2: Either[Throwable, Int] = catching(timeout(1.second)(computation))
+val result2: Either[Throwable, Int] = either.catching(timeout(1.second)(computation))
 
 // structured concurrency & supervision
 supervised {
