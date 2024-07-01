@@ -1010,8 +1010,9 @@ trait SourceOps[+T] { outer: Source[T] =>
     }
     c
 
-  /** Attaches the given Sink to this Source, meaning that elements that pass through will also be sent to the Sink. If the `other` Sink
-    * blocks, the returned channel also blocks.
+  /** Attaches the given Sink to this Source, meaning that elements that pass through will also be sent to the Sink. If sending to the
+    * output channel or the `other` Sink blocks, no elements will be processed until both channels can receive elements again. The source
+    * elements are first sent to the output channel and then, only if the sent is successful, to the `other` Sink.
     *
     * If this source is failed then failure is passed to the returned and channel and the `other` Sink.
     *
@@ -1058,8 +1059,9 @@ trait SourceOps[+T] { outer: Source[T] =>
     c2
 
   /** Attaches the given Sink to this Source, meaning that elements that pass through will also be sent to the Sink. The elements sent to
-    * `other` Sink are enqueued, which means that the returned channel does not block when the `other` Sink is blocked. If the queue is
-    * full, the elements are still sent to returned channel, but not to the `other` Sink, meaning that some elements may be dropped.
+    * `other` Sink are enqueued, which means that the returned channel keeps receiving elements when sending to the `other` Sink is blocked.
+    * If the queue is full, the elements are still sent to returned channel, but not to the `other` Sink, meaning that some elements may be
+    * dropped.
     *
     * If this source is failed then failure is passed to the returned and channel and the `other` Sink.
     *
