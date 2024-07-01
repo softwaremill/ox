@@ -1011,4 +1011,23 @@ trait SourceOps[+T] { outer: Source[T] =>
       }
     }
     c
+
+  enum LogLevel:
+    case Trace, Debug, Info, Warn, Error
+
+  def log(name: String, level: LogLevel = LogLevel.Info, formatter: T => String = _.toString)(using Ox, StageCapacity): Source[T] =
+    val logger = org.slf4j.LoggerFactory.getLogger(name)
+    map(t => { logF(logger, level)(formatter(t)); t })
+
+  def logAsView(name: String, level: LogLevel = LogLevel.Info, formatter: T => String = _.toString)(using Ox, StageCapacity): Source[T] =
+    val logger = org.slf4j.LoggerFactory.getLogger(name)
+    mapAsView(t => { logF(logger, level)(formatter(t)); t })
+
+  private def logF(logger: org.slf4j.Logger, level: LogLevel): String => Unit =
+    level match
+      case LogLevel.Trace => logger.trace
+      case LogLevel.Debug => logger.debug
+      case LogLevel.Info  => logger.info
+      case LogLevel.Warn  => logger.warn
+      case LogLevel.Error => logger.error
 }
