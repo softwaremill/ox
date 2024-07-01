@@ -1038,7 +1038,7 @@ trait SourceOps[+T] { outer: Source[T] =>
         receiveOrClosed() match
           case ChannelClosed.Done =>
             c2.doneOrClosed()
-            other.doneOrClosed() // TODO: should we close other channel?
+            other.doneOrClosed()
             false
           case ChannelClosed.Error(r) =>
             c2.errorOrClosed(r)
@@ -1051,7 +1051,7 @@ trait SourceOps[+T] { outer: Source[T] =>
                 c2.doneOrClosed().discard
                 false
             else
-              other.doneOrClosed().discard // TODO: should we close other channel?
+              other.doneOrClosed().discard
               false
       }
     }
