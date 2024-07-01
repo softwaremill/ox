@@ -10,7 +10,7 @@ import scala.collection.IterableOnce
 import scala.concurrent.duration.*
 
 private[channels] case object GroupingTimeout
-private[channels] case object Ack
+private[channels] case object NotSent
 
 trait SourceOps[+T] { outer: Source[T] =>
   // view ops (lazy)
@@ -1084,41 +1084,23 @@ trait SourceOps[+T] { outer: Source[T] =>
     *   }
     *   }}}
     */
-  def wireTap[U >: T](other: Sink[U], queueSize: Long = 3)(using Ox, StageCapacity): Source[U] =
-    require(queueSize > 0, "queueSize must be > 0")
-    val acks = StageCapacity.newChannel[Ack.type]
+  def wireTap[U >: T](other: Sink[U])(using Ox, StageCapacity): Source[U] =
     val c2 = StageCapacity.newChannel[U]
     fork {
-      var pending: Int = 0
       repeatWhile {
-        selectOrClosed(receiveClause, acks.receiveClause) match
+        receiveOrClosed() match
           case ChannelClosed.Done =>
             c2.doneOrClosed()
-            // drain ack channel to ensure that all enqueued elements are sent
-            if pending != 0 then
-              repeatWhile {
-                acks.receiveOrClosed() match
-                  case ChannelClosed.Done     => false
-                  case ChannelClosed.Error(r) => false
-                  case Ack                    => pending -= 1; pending != 0
-              }
-              other.doneOrClosed().discard // TODO: should we close the other channel?
+            other.doneOrClosed()
             false
           case ChannelClosed.Error(r) =>
             c2.errorOrClosed(r)
             other.errorOrClosed(r)
             false
-          case acks.Received(Ack) =>
-            pending -= 1
-            true
-          case Received(t) =>
-            if pending < queueSize then
-              pending += 1
-              fork {
-                other.sendOrClosed(t).discard
-                acks.sendOrClosed(Ack).discard
-              }.discard
-            c2.sendOrClosed(t).isValue
+          case t: T @unchecked =>
+            propagateOrElse(c2.sendOrClosed(t), other) {
+              selectOrClosed(other.sendClause(t), Default(NotSent)).discard; true
+            }
       }
     }
     c2
