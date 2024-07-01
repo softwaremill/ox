@@ -1046,14 +1046,14 @@ trait SourceOps[+T] { outer: Source[T] =>
             other.errorOrClosed(r)
             false
           case t: T @unchecked =>
-            if c2.sendOrClosed(t).isValue then
-              if other.sendOrClosed(t).isValue then true
-              else
-                c2.doneOrClosed().discard
-                false
-            else
-              other.doneOrClosed().discard
-              false
+            c2.sendOrClosed(t) match
+              case ChannelClosed.Done     => other.doneOrClosed().discard; false
+              case ChannelClosed.Error(r) => other.errorOrClosed(r).discard; false
+              case _ =>
+                other.sendOrClosed(t) match
+                  case ChannelClosed.Done     => c2.doneOrClosed().discard; false
+                  case ChannelClosed.Error(r) => c2.errorOrClosed(r).discard; false
+                  case _                      => true
       }
     }
     c2
