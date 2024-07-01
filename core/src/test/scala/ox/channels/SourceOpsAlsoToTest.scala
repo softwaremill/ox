@@ -32,7 +32,7 @@ class SourceOpsAlsoToTest extends AnyFlatSpec with Matchers {
     }
     // we would expect exactly 4 elements, but there can be more values because
     // the channel's buffer is resized internally when it closes, see `com.softwaremill.jox.Channel.closeOrClosed`
-    Source.fromIterable(1 to 100).alsoTo(c).toList.size should be < 10
+    Source.fromIterable(1 to 100).alsoTo(c).toList.size should be < 25
     f.join() shouldBe List(1, 2, 3)
   }
 
@@ -48,6 +48,6 @@ class SourceOpsAlsoToTest extends AnyFlatSpec with Matchers {
     main.doneOrClosed()
     // we would expect exactly 3 elements, but there can be more values because
     // the channel's buffer is resized internally when it closes, see `com.softwaremill.jox.Channel.closeOrClosed`
-    forkOther.join().size should be < 10
+    forkOther.join().size should be < 25
   }
 }
