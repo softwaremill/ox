@@ -8,6 +8,11 @@ import scala.util.control.NonFatal
 
 object either:
 
+  /** Catches non-fatal exceptions that occur when evaluating `t` and returns them as the left side of the returned `Either`. */
+  inline def catching[T](inline t: Label[Either[Throwable, T]] ?=> T): Either[Throwable, T] =
+    try boundary(Right(t))
+    catch case NonFatal(e) => Left(e)
+
   private type NotNested = NotGiven[Label[Either[Nothing, Nothing]]]
 
   /** Within an [[either]] block, allows unwrapping [[Either]] and [[Option]] values using [[ok()]]. The result is the right-value of an
@@ -55,6 +60,24 @@ object either:
         case _ => error("`.ok()` can only be used within an `either` call.\nIs it present?")
       }
 
+  /** Specialized extensions for Right & Left are necessary to prevent compile-time warning about unreachable cases in inlined pattern
+    * matches when call site has a specific type.
+    */
+  extension [E, A](inline t: Right[E, A])
+    /** Unwrap the value of the `Either`, returning value of type `A` on guaranteed `Right` case. */
+    transparent inline def ok(): A = t.value
+
+  extension [E, A](inline t: Left[E, A])
+    /** Unwrap the value of the `Either`, short-circuiting the computation to the enclosing [[either]]. */
+    transparent inline def ok(): A =
+      summonFrom {
+        case given boundary.Label[Either[E, Nothing]] =>
+          break(t.asInstanceOf[Either[E, Nothing]])
+        case given boundary.Label[Either[Nothing, Nothing]] =>
+          error("The enclosing `either` call uses a different error type.\nIf it's explicitly typed, is the error type correct?")
+        case _ => error("`.ok()` can only be used within an `either` call.\nIs it present?")
+      }
+
   extension [A](inline t: Option[A])
     /** Unwrap the value of the `Option`, short-circuiting the computation to the enclosing [[either]], in case this is a `None`. */
     transparent inline def ok(): A =
@@ -63,6 +86,25 @@ object either:
           t match
             case None    => break(Left(()))
             case Some(a) => a
+        case given boundary.Label[Either[Nothing, Nothing]] =>
+          error(
+            "The enclosing `either` call uses a different error type.\nIf it's explicitly typed, is the error type correct?\nNote that for options, the error type must contain a `Unit`."
+          )
+        case _ => error("`.ok()` can only be used within an `either` call.\nIs it present?")
+      }
+
+  /** Specialized extensions for Some & None are necessary to prevent compile-time warning about unreachable cases in inlined pattern
+    * matches when call site has a specific type.
+    */
+  extension [A](inline t: Some[A])
+    /** Unwrap the value of the `Option`, returning value of type `A` on guaranteed `Some` case. */
+    transparent inline def ok(): A = t.value
+
+  extension [A](inline t: None.type)
+    /** Unwrap the value of the `Option`, short-circuiting the computation to the enclosing [[either]] on guaranteed `None`. */
+    transparent inline def ok(): A =
+      summonFrom {
+        case given boundary.Label[Either[Unit, Nothing]] => break(Left(()))
         case given boundary.Label[Either[Nothing, Nothing]] =>
           error(
             "The enclosing `either` call uses a different error type.\nIf it's explicitly typed, is the error type correct?\nNote that for options, the error type must contain a `Unit`."
@@ -86,8 +128,3 @@ object either:
         case given boundary.Label[Either[Nothing, Nothing]] =>
           error("The enclosing `either` call uses a different error type.\nIf it's explicitly typed, is the error type correct?")
       }
-
-/** Catches non-fatal exceptions that occur when evaluating `t` and returns them as the left side of the returned `Either`. */
-inline def catching[T](inline t: => T): Either[Throwable, T] =
-  try Right(t)
-  catch case NonFatal(e) => Left(e)
