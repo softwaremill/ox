@@ -1046,17 +1046,18 @@ trait SourceOps[+T] { outer: Source[T] =>
             other.errorOrClosed(r)
             false
           case t: T @unchecked =>
-            c2.sendOrClosed(t) match
-              case ChannelClosed.Done     => other.doneOrClosed().discard; false
-              case ChannelClosed.Error(r) => other.errorOrClosed(r).discard; false
-              case _ =>
-                other.sendOrClosed(t) match
-                  case ChannelClosed.Done     => c2.doneOrClosed().discard; false
-                  case ChannelClosed.Error(r) => c2.errorOrClosed(r).discard; false
-                  case _                      => true
+            propagateOrElse(c2.sendOrClosed(t), other) {
+              propagateOrElse(other.sendOrClosed(t), c2)(true)
+            }
       }
     }
     c2
+
+  private def propagateOrElse(unitOrClosed: Unit | ChannelClosed, otherSink: Sink[T])(ifNotClosed: => Boolean): Boolean =
+    unitOrClosed match
+      case ChannelClosed.Done     => otherSink.doneOrClosed().discard; false
+      case ChannelClosed.Error(r) => otherSink.errorOrClosed(r).discard; false
+      case _                      => ifNotClosed
 
   /** Attaches the given Sink to this Source, meaning that elements that pass through will also be sent to the Sink. The elements sent to
     * `other` Sink are enqueued, which means that the returned channel keeps receiving elements when sending to the `other` Sink is blocked.
