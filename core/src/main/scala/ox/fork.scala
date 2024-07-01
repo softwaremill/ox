@@ -122,7 +122,7 @@ def forkAll[T](fs: Seq[() => T])(using Ox): Fork[Seq[T]] =
   val forks = fs.map(f => fork(f()))
   new Fork[Seq[T]]:
     override def join(): Seq[T] = forks.map(_.join())
-    override def wasInterruptedWith(ie: InterruptedException): Boolean = forks.exists(_.wasInterruptedWith(ie))
+    override private[ox] def wasInterruptedWith(ie: InterruptedException): Boolean = forks.exists(_.wasInterruptedWith(ie))
 
 /** Starts a fork (logical thread of execution), which is guaranteed to complete before the enclosing [[supervised]], [[supervisedError]] or
   * [[unsupervised]] block completes, and which can be cancelled on-demand.
@@ -178,12 +178,12 @@ def forkCancellable[T](f: => T)(using OxUnsupervised): CancellableFork[T] =
       if !started.getAndSet(true)
       then result.completeExceptionally(new InterruptedException("fork was cancelled before it started")).discard
 
-    override def wasInterruptedWith(ie: InterruptedException): Boolean =
+    override private[ox] def wasInterruptedWith(ie: InterruptedException): Boolean =
       result.isCompletedExceptionally && (result.exceptionNow() eq ie)
 
 private def newForkUsingResult[T](result: CompletableFuture[T]): Fork[T] = new Fork[T]:
   override def join(): T = unwrapExecutionException(result.get())
-  override def wasInterruptedWith(ie: InterruptedException): Boolean =
+  override private[ox] def wasInterruptedWith(ie: InterruptedException): Boolean =
     result.isCompletedExceptionally && (result.exceptionNow() eq ie)
 
 private[ox] inline def unwrapExecutionException[T](f: => T): T =
@@ -219,18 +219,18 @@ trait Fork[T]:
       case e: InterruptedException => if wasInterruptedWith(e) then Left(e) else throw e
       case NonFatal(e)             => Left(e)
 
-  def wasInterruptedWith(ie: InterruptedException): Boolean
+  private[ox] def wasInterruptedWith(ie: InterruptedException): Boolean
 
 object Fork:
   /** A dummy pretending to represent a fork which successfully completed with the given value. */
   def successful[T](value: T): Fork[T] = new Fork[T]:
     override def join(): T = value
-    override def wasInterruptedWith(ie: InterruptedException): Boolean = false
+    override private[ox] def wasInterruptedWith(ie: InterruptedException): Boolean = false
 
   /** A dummy pretending to represent a fork which failed with the given exception. */
   def failed[T](e: Throwable): Fork[T] = new Fork[T]:
     override def join(): T = throw e
-    override def wasInterruptedWith(ie: InterruptedException): Boolean = e eq ie
+    override private[ox] def wasInterruptedWith(ie: InterruptedException): Boolean = e eq ie
 
 /** A fork started using [[forkCancellable]], backed by a (virtual) thread. */
 trait CancellableFork[T] extends Fork[T]:
