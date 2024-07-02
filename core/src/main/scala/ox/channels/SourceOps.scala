@@ -10,6 +10,7 @@ import scala.collection.IterableOnce
 import scala.concurrent.duration.*
 
 private[channels] case object GroupingTimeout
+private[channels] case object NotSent
 
 trait SourceOps[+T] { outer: Source[T] =>
   // view ops (lazy)
@@ -1041,4 +1042,102 @@ trait SourceOps[+T] { outer: Source[T] =>
       }
     }
     c
+
+  /** Attaches the given Sink to this Source, meaning elements that pass through will also be sent to the Sink. If sending to the output
+    * channel or the `other` Sink blocks, no elements will be processed until both channels can receive elements again. The source elements
+    * are first sent to the output channel and then, only if the sent is successful, to the `other` Sink.
+    *
+    * If this source is failed, then failure is passed to the returned channel and the `other` Sink. If the `other` sink fails or closes,
+    * then failure or closure is passed to the returned channel as well (contrary to [[alsoToTap]] where it's ignored).
+    *
+    * @param other
+    *   The Sink to which elements from this source will be sent.
+    * @return
+    *   A source that emits input elements.
+    * @example
+    *   {{{
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   supervised {
+    *     val c = Channel.withCapacity[Int](10)
+    *     Source.fromValues(1, 2, 3).alsoTo(c).toList // List(1, 2, 3)
+    *     c.toList // List(1, 2, 3)
+    *   }
+    *   }}}
+    * @see
+    *   [[alsoToTap]] for a version that drops elements when the `other` Sink is not available for receive.
+    */
+  def alsoTo[U >: T](other: Sink[U])(using Ox, StageCapacity): Source[U] =
+    val c2 = StageCapacity.newChannel[U]
+    fork {
+      repeatWhile {
+        receiveOrClosed() match
+          case ChannelClosed.Done =>
+            c2.doneOrClosed()
+            other.doneOrClosed()
+            false
+          case ChannelClosed.Error(r) =>
+            c2.errorOrClosed(r)
+            other.errorOrClosed(r)
+            false
+          case t: T @unchecked =>
+            propagateOrElse(c2.sendOrClosed(t), other) {
+              propagateOrElse(other.sendOrClosed(t), c2)(true)
+            }
+      }
+    }
+    c2
+
+  /** Attaches the given Sink to this Source, meaning elements that pass through will also be sent to the Sink. If the `other` Sink is not
+    * available for receive, the elements are still sent to returned channel, but not to the `other` Sink, meaning that some elements may be
+    * dropped.
+    *
+    * If this source is failed, then failure is passed to the returned channel and the `other` Sink. If the `other` sink fails or closes,
+    * then failure or closure is ignored and it doesn't affect the resulting source (contrary to [[alsoTo]] where it's propagated).
+    *
+    * @param other
+    *   The Sink to which elements from this source will be sent.
+    * @return
+    *   A source that emits input elements.
+    * @example
+    *   {{{
+    *   import ox.*
+    *   import ox.channels.Source
+    *
+    *   supervised {
+    *     val c = Channel.withCapacity[Int](10)
+    *     Source.fromValues(1, 2, 3).alsoToTap(c).toList // List(1, 2, 3)
+    *     c.toList // List(1, 2, 3) but not guaranteed
+    *   }
+    *   }}}
+    * @see
+    *   [[alsoTo]] for a version that ensures that elements are sent to both the output and the `other` Sink.
+    */
+  def alsoToTap[U >: T](other: Sink[U])(using Ox, StageCapacity): Source[U] =
+    val c2 = StageCapacity.newChannel[U]
+    fork {
+      repeatWhile {
+        receiveOrClosed() match
+          case ChannelClosed.Done =>
+            c2.doneOrClosed()
+            other.doneOrClosed()
+            false
+          case ChannelClosed.Error(r) =>
+            c2.errorOrClosed(r)
+            other.errorOrClosed(r)
+            false
+          case t: T @unchecked =>
+            propagateOrElse(c2.sendOrClosed(t), other) {
+              selectOrClosed(other.sendClause(t), Default(NotSent)).discard; true
+            }
+      }
+    }
+    c2
+
+  private inline def propagateOrElse(unitOrClosed: Unit | ChannelClosed, otherSink: Sink[T])(inline ifNotClosed: Boolean): Boolean =
+    unitOrClosed match
+      case ChannelClosed.Done     => otherSink.doneOrClosed().discard; false
+      case ChannelClosed.Error(r) => otherSink.errorOrClosed(r).discard; false
+      case _                      => ifNotClosed
 }
