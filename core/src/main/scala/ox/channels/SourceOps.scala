@@ -1031,6 +1031,8 @@ trait SourceOps[+T] { outer: Source[T] =>
     *     c.toList // List(1, 2, 3)
     *   }
     *   }}}
+    * @see
+    *   [[wireTap]] for a version that drops elements when the `other` Sink is not available for receive.
     */
   def alsoTo[U >: T](other: Sink[U])(using Ox, StageCapacity): Source[U] =
     val c2 = StageCapacity.newChannel[U]
@@ -1062,8 +1064,6 @@ trait SourceOps[+T] { outer: Source[T] =>
     *
     * @param other
     *   The Sink to which elements from this source will be sent.
-    * @param queueSize
-    *   Specifies the size of the queue that buffers elements sent to the `other` Sink.
     * @return
     *   A source that emits input elements.
     * @example
@@ -1077,6 +1077,8 @@ trait SourceOps[+T] { outer: Source[T] =>
     *     c.toList // List(1, 2, 3) but not guaranteed
     *   }
     *   }}}
+    * @see
+    *   [[alsoTo]] for a version that ensures that elements are sent to both the output and the `other` Sink.
     */
   def wireTap[U >: T](other: Sink[U])(using Ox, StageCapacity): Source[U] =
     val c2 = StageCapacity.newChannel[U]
