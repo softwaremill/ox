@@ -5,13 +5,13 @@ import org.scalatest.matchers.should.Matchers
 import ox.*
 import scala.concurrent.duration.*
 
-class SourceOpsWireTapTest extends AnyFlatSpec with Matchers {
+class SourceOpsAlsoToTapTest extends AnyFlatSpec with Matchers {
 
-  behavior of "Source.wireTap"
+  behavior of "Source.alsoToTap"
 
   it should "send to both sinks when other is faster" in supervised {
     val other = Channel.withCapacity[Int](10)
-    Source.fromValues(1, 2, 3).wireTap(other).map(v => { sleep(50.millis); v }).toList shouldBe List(1, 2, 3)
+    Source.fromValues(1, 2, 3).alsoToTap(other).map(v => { sleep(50.millis); v }).toList shouldBe List(1, 2, 3)
     other.toList shouldBe List(1, 2, 3)
   }
 
@@ -36,7 +36,7 @@ class SourceOpsWireTapTest extends AnyFlatSpec with Matchers {
       }
       main.done()
     }
-    main.wireTap(other).toList shouldBe (1 to 20).toList
+    main.alsoToTap(other).toList shouldBe (1 to 20).toList
     val otherElements = slowConsumerFork.join()
     otherElements.size should be < 10
   }

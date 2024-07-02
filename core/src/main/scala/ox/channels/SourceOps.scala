@@ -1032,7 +1032,7 @@ trait SourceOps[+T] { outer: Source[T] =>
     *   }
     *   }}}
     * @see
-    *   [[wireTap]] for a version that drops elements when the `other` Sink is not available for receive.
+    *   [[alsoToTap]] for a version that drops elements when the `other` Sink is not available for receive.
     */
   def alsoTo[U >: T](other: Sink[U])(using Ox, StageCapacity): Source[U] =
     val c2 = StageCapacity.newChannel[U]
@@ -1072,14 +1072,14 @@ trait SourceOps[+T] { outer: Source[T] =>
     *
     *   supervised {
     *     val c = Channel.withCapacity[Int](10)
-    *     Source.fromValues(1, 2, 3).wireTap(c).toList // List(1, 2, 3)
+    *     Source.fromValues(1, 2, 3).alsoToTap(c).toList // List(1, 2, 3)
     *     c.toList // List(1, 2, 3) but not guaranteed
     *   }
     *   }}}
     * @see
     *   [[alsoTo]] for a version that ensures that elements are sent to both the output and the `other` Sink.
     */
-  def wireTap[U >: T](other: Sink[U])(using Ox, StageCapacity): Source[U] =
+  def alsoToTap[U >: T](other: Sink[U])(using Ox, StageCapacity): Source[U] =
     val c2 = StageCapacity.newChannel[U]
     fork {
       repeatWhile {
