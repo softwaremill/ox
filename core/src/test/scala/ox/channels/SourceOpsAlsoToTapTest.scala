@@ -40,4 +40,28 @@ class SourceOpsAlsoToTapTest extends AnyFlatSpec with Matchers {
     val otherElements = slowConsumerFork.join()
     otherElements.size should be < 10
   }
+
+  it should "not fail the channel when the other sink fails" in supervised {
+    val other = Channel.rendezvous[Int]
+    val f = fork {
+      val v = other.receiveOrClosed()
+      other.error(new RuntimeException("boom!"))
+      v
+    }
+    Source.fromValues(1, 2, 3).alsoToTap(other).map(v => { sleep(50.millis); v }).toList shouldBe List(1, 2, 3)
+    f.join() shouldBe 1
+  }
+
+  it should "not close the channel when the other sink closes" in supervised {
+    val other = Channel.rendezvous[Int]
+    val f = fork {
+      val v = other.receiveOrClosed()
+      other.done()
+      v
+    }
+    Source.fromValues(1, 2, 3).alsoToTap(other).map(v => {
+      sleep(50.millis); v
+    }).toList shouldBe List(1, 2, 3)
+    f.join() shouldBe 1
+  }
 }
