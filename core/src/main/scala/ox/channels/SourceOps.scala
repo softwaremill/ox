@@ -1010,11 +1010,12 @@ trait SourceOps[+T] { outer: Source[T] =>
     }
     c
 
-  /** Attaches the given Sink to this Source, meaning that elements that pass through will also be sent to the Sink. If sending to the
-    * output channel or the `other` Sink blocks, no elements will be processed until both channels can receive elements again. The source
-    * elements are first sent to the output channel and then, only if the sent is successful, to the `other` Sink.
+  /** Attaches the given Sink to this Source, meaning elements that pass through will also be sent to the Sink. If sending to the output
+    * channel or the `other` Sink blocks, no elements will be processed until both channels can receive elements again. The source elements
+    * are first sent to the output channel and then, only if the sent is successful, to the `other` Sink.
     *
-    * If this source is failed then failure is passed to the returned and channel and the `other` Sink.
+    * If this source is failed, then failure is passed to the returned channel and the `other` Sink. If the `other` sink fails or closes,
+    * then failure or closure is passed to the returned channel as well (contrary to [[alsoToTap]] where it's ignored).
     *
     * @param other
     *   The Sink to which elements from this source will be sent.
@@ -1055,11 +1056,12 @@ trait SourceOps[+T] { outer: Source[T] =>
     }
     c2
 
-  /** Attaches the given Sink to this Source, meaning that elements that pass through will also be sent to the Sink. If the `other` Sink is
-    * not available for receive, the elements are still sent to returned channel, but not to the `other` Sink, meaning that some elements
-    * may be dropped.
+  /** Attaches the given Sink to this Source, meaning elements that pass through will also be sent to the Sink. If the `other` Sink is not
+    * available for receive, the elements are still sent to returned channel, but not to the `other` Sink, meaning that some elements may be
+    * dropped.
     *
-    * If this source is failed then failure is passed to the returned and channel and the `other` Sink.
+    * If this source is failed, then failure is passed to the returned channel and the `other` Sink. If the `other` sink fails or closes,
+    * then failure or closure is ignored and it doesn't affect the resulting source (contrary to [[alsoTo]] where it's propagated).
     *
     * @param other
     *   The Sink to which elements from this source will be sent.
