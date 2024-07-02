@@ -48,7 +48,7 @@ class SourceOpsAlsoToTapTest extends AnyFlatSpec with Matchers {
       other.error(new RuntimeException("boom!"))
       v
     }
-    Source.fromValues(1, 2, 3).alsoToTap(other).map(v => { sleep(50.millis); v }).toList shouldBe List(1, 2, 3)
+    Source.fromIterable(1 to 10).map(v => { sleep(10.millis); v }).alsoToTap(other).toList shouldBe (1 to 10).toList
     f.join() shouldBe 1
   }
 
@@ -59,9 +59,7 @@ class SourceOpsAlsoToTapTest extends AnyFlatSpec with Matchers {
       other.done()
       v
     }
-    Source.fromValues(1, 2, 3).alsoToTap(other).map(v => {
-      sleep(50.millis); v
-    }).toList shouldBe List(1, 2, 3)
+    Source.fromIterable(1 to 10).map(v => { sleep(10.millis); v }).alsoToTap(other).toList shouldBe (1 to 10).toList
     f.join() shouldBe 1
   }
 }
