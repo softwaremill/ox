@@ -7,6 +7,7 @@ import ox.ExitCode.*
 import java.io.{PrintWriter, StringWriter}
 import java.util.concurrent.CountDownLatch
 import scala.util.boundary.*
+import scala.concurrent.duration.*
 
 class OxAppTest extends AnyFlatSpec with Matchers:
 
@@ -14,8 +15,8 @@ class OxAppTest extends AnyFlatSpec with Matchers:
     var ec = Int.MinValue
 
     object Main1 extends OxApp:
-      override def exit(code: Int): Unit =
-        ec = code
+      override def exit(exitCode: ExitCode): Unit =
+        ec = exitCode.code
 
       def run(args: Vector[String])(using Ox): ExitCode = Success
 
@@ -38,18 +39,18 @@ class OxAppTest extends AnyFlatSpec with Matchers:
 
         damoclesThread.start()
 
-      override private[ox] def exit(code: Int): Unit =
-        ec = code
+      override private[ox] def exit(exitCode: ExitCode): Unit =
+        ec = exitCode.code
 
       def run(args: Vector[String])(using Ox): ExitCode =
         forever: // will never finish
-          Thread.sleep(10)
+          sleep(10.millis)
 
         Success
 
     supervised:
       fork(Main2.main(Array.empty))
-      Thread.sleep(10)
+      sleep(10.millis)
       shutdownLatch.countDown()
 
     ec shouldEqual 0
@@ -63,8 +64,8 @@ class OxAppTest extends AnyFlatSpec with Matchers:
       override def run(args: Vector[String])(using Ox): ExitCode =
         Failure(23)
 
-      override private[ox] def exit(code: Int): Unit =
-        ec = code
+      override private[ox] def exit(exitCode: ExitCode): Unit =
+        ec = exitCode.code
 
     Main3.main(Array.empty)
 
@@ -82,8 +83,8 @@ class OxAppTest extends AnyFlatSpec with Matchers:
         t.printStackTrace(pw)
         stackTrace = sw.toString
 
-      override private[ox] def exit(code: Int): Unit =
-        ec = code
+      override private[ox] def exit(exitCode: ExitCode): Unit =
+        ec = exitCode.code
 
     Main4.main(Array.empty)
 
@@ -95,8 +96,8 @@ class OxAppTest extends AnyFlatSpec with Matchers:
     var ec = Int.MinValue
 
     object Main5 extends OxApp.Simple:
-      override def exit(code: Int): Unit =
-        ec = code
+      override def exit(exitCode: ExitCode): Unit =
+        ec = exitCode.code
 
       override def run(using Ox): Unit = ()
 
@@ -119,16 +120,16 @@ class OxAppTest extends AnyFlatSpec with Matchers:
 
         damoclesThread.start()
 
-      override def exit(code: Int): Unit =
-        ec = code
+      override def exit(exitCode: ExitCode): Unit =
+        ec = exitCode.code
 
       override def run(using Ox): Unit =
         forever:
-          Thread.sleep(10)
+          sleep(10.millis)
 
     supervised:
       fork(Main6.main(Array.empty))
-      Thread.sleep(10)
+      sleep(10.millis)
       shutdownLatch.countDown()
 
     ec shouldEqual 0
@@ -147,8 +148,8 @@ class OxAppTest extends AnyFlatSpec with Matchers:
         t.printStackTrace(pw)
         stackTrace = sw.toString
 
-      override private[ox] def exit(code: Int): Unit =
-        ec = code
+      override private[ox] def exit(exitCode: ExitCode): Unit =
+        ec = exitCode.code
 
     Main7.main(Array.empty)
 
@@ -164,13 +165,13 @@ class OxAppTest extends AnyFlatSpec with Matchers:
     var ec = Int.MinValue
     val errOrEc: Either[FunException, ExitCode] = Right(Success)
 
-    object Main8 extends OxApp.WithErrors[FunException]:
-      override def exit(code: Int): Unit =
-        ec = code
+    object Main8 extends OxApp.WithEitherErrors[FunException]:
+      override def exit(exitCode: ExitCode): Unit =
+        ec = exitCode.code
 
-      override def handleErrors(e: FunException): ExitCode = Failure(e.code)
+      override def handleError(e: FunException): ExitCode = Failure(e.code)
 
-      override def run(args: Vector[String])(using Ox, EitherScope[FunException]): ExitCode =
+      override def run(args: Vector[String])(using Ox, EitherError[FunException]): ExitCode =
         errOrEc.ok()
 
     Main8.main(Array.empty)
@@ -183,7 +184,7 @@ class OxAppTest extends AnyFlatSpec with Matchers:
     val shutdownLatch = CountDownLatch(1)
     val errOrEc: Either[FunException, ExitCode] = Left(FunException(23))
 
-    object Main9 extends OxApp.WithErrors[FunException]:
+    object Main9 extends OxApp.WithEitherErrors[FunException]:
       override private[ox] def mountShutdownHook(thread: Thread): Unit =
         val damoclesThread = Thread(() => {
           shutdownLatch.await()
@@ -193,20 +194,20 @@ class OxAppTest extends AnyFlatSpec with Matchers:
 
         damoclesThread.start()
 
-      override def handleErrors(e: FunException): ExitCode = Failure(e.code)
+      override def handleError(e: FunException): ExitCode = Failure(e.code)
 
-      override private[ox] def exit(code: Int): Unit =
-        ec = code
+      override private[ox] def exit(exitCode: ExitCode): Unit =
+        ec = exitCode.code
 
-      override def run(args: Vector[String])(using Ox, EitherScope[FunException]): ExitCode =
+      override def run(args: Vector[String])(using Ox, EitherError[FunException]): ExitCode =
         forever: // will never finish
-          Thread.sleep(10)
+          sleep(10.millis)
 
         errOrEc.ok()
 
     supervised:
       fork(Main9.main(Array.empty))
-      Thread.sleep(10)
+      sleep(10.millis)
       shutdownLatch.countDown()
 
     ec shouldEqual 0
@@ -217,14 +218,14 @@ class OxAppTest extends AnyFlatSpec with Matchers:
     val errOrEc: Either[FunException, ExitCode] = Left(FunException(23))
     var stackTrace = ""
 
-    object Main10 extends OxApp.WithErrors[FunException]:
-      override def run(args: Vector[String])(using Ox, EitherScope[FunException]): ExitCode =
+    object Main10 extends OxApp.WithEitherErrors[FunException]:
+      override def run(args: Vector[String])(using Ox, EitherError[FunException]): ExitCode =
         errOrEc.ok()
 
-      override private[ox] def exit(code: Int): Unit =
-        ec = code
+      override private[ox] def exit(exitCode: ExitCode): Unit =
+        ec = exitCode.code
 
-      override def handleErrors(e: FunException): ExitCode = Failure(e.code)
+      override def handleError(e: FunException): ExitCode = Failure(e.code)
 
     Main10.main(Array.empty)
 
@@ -232,12 +233,12 @@ class OxAppTest extends AnyFlatSpec with Matchers:
 
     ec = Int.MinValue
 
-    object Main11 extends OxApp.WithErrors[FunException]:
-      override def run(args: Vector[String])(using Ox, EitherScope[FunException]): ExitCode =
+    object Main11 extends OxApp.WithEitherErrors[FunException]:
+      override def run(args: Vector[String])(using Ox, EitherError[FunException]): ExitCode =
         throw Exception("oh no")
 
-      override private[ox] def exit(code: Int): Unit =
-        ec = code
+      override private[ox] def exit(exitCode: ExitCode): Unit =
+        ec = exitCode.code
 
       override private[ox] def printStackTrace(t: Throwable): Unit =
         val sw = StringWriter()
@@ -245,7 +246,7 @@ class OxAppTest extends AnyFlatSpec with Matchers:
         t.printStackTrace(pw)
         stackTrace = sw.toString
 
-      def handleErrors(e: FunException): ExitCode = ??? // should not get called!
+      override def handleError(e: FunException): ExitCode = ??? // should not get called!
 
     Main11.main(Array.empty)
 
