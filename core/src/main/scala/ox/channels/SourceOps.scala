@@ -28,6 +28,20 @@ trait SourceOps[+T] { outer: Source[T] =>
     override val delegate: JSource[Any] = outer.delegate.asInstanceOf[JSource[T]].collectAsView(t => f(t))
   }
 
+  /** Lazily-evaluated tap: creates a view of this source, where the results of [[receive]] will be applied to the given function `f` on the
+    * consumer's thread. Useful for logging and debugging values emitted from the source. For an eager, asynchronous version, see [[tap]].
+    *
+    * The same logic applies to receive clauses created using this source, which can be used in [[select]].
+    *
+    * @param f
+    *   The consumer function.
+    * @return
+    *   A source which is a view of this source, with the consumer function applied.
+    */
+  def tapAsView(f: T => Unit): Source[T] = new Source[T] {
+    override val delegate: JSource[Any] = outer.delegate.asInstanceOf[JSource[T]].collectAsView(t => { f(t); t })
+  }
+
   /** Lazily-evaluated filter: Creates a view of this source, where the results of [[receive]] will be filtered on the consumer's thread
     * using the given predicate `p`. For an eager, asynchronous version, see [[filter]].
     *
@@ -70,7 +84,7 @@ trait SourceOps[+T] { outer: Source[T] =>
   /** Applies the given mapping function `f` to each element received from this source, and sends the results to the returned channel.
     *
     * Errors from this channel are propagated to the returned channel. Any exceptions that occur when invoking `f` are propagated as errors
-    * to the returned channel as wel.
+    * to the returned channel as well.
     *
     * Must be run within a scope, as a child fork is created, which receives from this source and sends the mapped values to the resulting
     * one.
@@ -100,6 +114,23 @@ trait SourceOps[+T] { outer: Source[T] =>
       }
     }
     c2
+
+  /** Applies the given consumer function `f` to each element received from this source.
+    *
+    * Errors from this channel are propagated to the returned channel. Any exceptions that occur when invoking `f` are propagated as errors
+    * to the returned channel as well.
+    *
+    * Must be run within a scope, as a child fork is created, which receives from this source and sends the mapped values to the resulting
+    * one.
+    *
+    * Useful for logging and debugging values emitted from the source. For a lazily-evaluated version, see [[tapAsView]].
+    *
+    * @param f
+    *   The consumer function.
+    * @return
+    *   A source, which the elements from the input source are passed to.
+    */
+  def tap(f: T => Unit)(using Ox, StageCapacity): Source[T] = map(t => { f(t); t })
 
   /** Intersperses this source with provided element and forwards it to the returned channel.
     *
