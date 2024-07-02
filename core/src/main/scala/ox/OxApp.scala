@@ -91,7 +91,7 @@ object OxApp:
     */
   trait WithErrorMode[E, F[_]](em: ErrorMode[E, F]) extends OxApp:
     override final def run(args: Vector[String])(using ox: Ox): ExitCode =
-      val result = run(args.toList)
+      val result = runWithErrors(args)
       if em.isError(result) then handleError(em.getError(result))
       else ExitCode.Success
 
@@ -103,14 +103,15 @@ object OxApp:
       */
     def handleError(e: E): ExitCode
 
-    /** This template method has to take a List[String] argument to avoid signature clash with `run` inherited from OxApp.
+    /** This template method is to be implemented by abstract classes that add integration for particular error handling data structure of
+      * type F[_].
       *
       * @param args
       *   List[String]
       * @return
       *   F[ExitCode]
       */
-    def run(args: List[String])(using Ox): F[ExitCode]
+    def runWithErrors(args: Vector[String])(using Ox): F[ExitCode]
 
   /** WithEitherErrors variant of OxApp integrates OxApp with an `either` block and allows for usage of `.ok()` combinators in the body of
     * the main function.
@@ -122,7 +123,7 @@ object OxApp:
 
     type EitherError[Err] = Label[Either[Err, ExitCode]]
 
-    override final def run(args: List[String])(using ox: Ox): Either[E, ExitCode] =
+    override final def runWithErrors(args: Vector[String])(using ox: Ox): Either[E, ExitCode] =
       either[E, ExitCode](label ?=> run(args.toVector)(using ox, label))
 
     def run(args: Vector[String])(using Ox, EitherError[E]): ExitCode
