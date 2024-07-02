@@ -39,9 +39,7 @@ trait SourceOps[+T] { outer: Source[T] =>
     * @return
     *   A source which is a view of this source, with the consumer function applied.
     */
-  def tapAsView(f: T => Unit): Source[T] = new Source[T] {
-    override val delegate: JSource[Any] = outer.delegate.asInstanceOf[JSource[T]].collectAsView(t => { f(t); t })
-  }
+  def tapAsView(f: T => Unit): Source[T] = mapAsView(t => { f(t); t })
 
   /** Lazily-evaluated filter: Creates a view of this source, where the results of [[receive]] will be filtered on the consumer's thread
     * using the given predicate `p`. For an eager, asynchronous version, see [[filter]].
