@@ -80,3 +80,23 @@ When dealing with Sources with chunks of bytes or Strings, you can leverage foll
 * `decodeStringUtf8` to decode a `Source[Chunk[Byte]]` into a `Source[String]`, without handling line breaks, just processing input bytes as UTF-8 characters, even if a multi-byte character is divided into two chunks.
 
 Such operations may be useful when dealing with I/O like files, `InputStream`, etc.. See [examples here](io.md).
+
+## Logging
+
+Ox does not have any integrations with logging libraries, but it provides a simple way to log elements flowing through channels
+using the `.tap` (eagerly evaluated) or `.tapAsView` (lazily evaluated) methods.
+
+```scala mdoc:compile-only
+import ox.supervised
+import ox.channels.Source
+
+supervised {
+  Source.fromValues(1, 2, 3)
+    .tap(n => println(s"Received: $n")) // prints as soon as the element is sent from the source
+    .toList
+
+  Source.fromValues(1, 2, 3)
+    .tapAsView(n => println(s"Received: $n")) // prints when the element is consumed by `toList`
+    .toList
+}
+```

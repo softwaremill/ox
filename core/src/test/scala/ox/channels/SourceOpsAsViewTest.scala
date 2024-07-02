@@ -5,6 +5,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.*
 
+import java.util.concurrent.atomic.AtomicInteger
 import scala.jdk.CollectionConverters.*
 import scala.util.{Failure, Try}
 
@@ -108,6 +109,27 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually {
       val s2 = c2.filterAsView(_ % 2 == 0)
 
       (for (_ <- 1 to 4) yield select(s1.receiveClause, s2.receiveClause).value).toSet shouldBe Set(2, 4, 12, 14)
+    }
+  }
+
+  it should "tap over a source as a view" in {
+    val c: Channel[Int] = Channel.rendezvous
+    val sum = new AtomicInteger()
+
+    supervised {
+      fork {
+        c.send(1)
+        c.send(2)
+        c.send(3)
+        c.done()
+      }
+
+      val s2 = c.tapAsView(v => sum.addAndGet(v).discard)
+      s2.receive() shouldBe 1
+      s2.receive() shouldBe 2
+      s2.receive() shouldBe 3
+      s2.receiveOrClosed() shouldBe ChannelClosed.Done
+      sum.get() shouldBe 6
     }
   }
 

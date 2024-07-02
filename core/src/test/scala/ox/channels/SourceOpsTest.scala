@@ -5,9 +5,11 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.*
 
+import java.util.concurrent.atomic.AtomicInteger
 import scala.concurrent.duration.DurationInt
 
 class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
+
   it should "timeout" in {
     supervised {
       val c = Source.timeout(100.millis)
@@ -63,6 +65,14 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
       val s = Source.concat(List(() => s1, () => s2, () => s3))
 
       s.toList shouldBe List("a", "b", "c", "d", "e", "f", "g", "h", "i")
+    }
+  }
+
+  it should "tap over a source" in {
+    supervised {
+      val sum = new AtomicInteger()
+      Source.fromValues(1, 2, 3).tap(v => sum.addAndGet(v).discard).toList shouldBe List(1, 2, 3)
+      sum.get() shouldBe 6
     }
   }
 }
