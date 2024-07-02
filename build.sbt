@@ -2,6 +2,8 @@ import com.softwaremill.SbtSoftwareMillCommon.commonSmlBuildSettings
 import com.softwaremill.Publish.{ossPublishSettings, updateDocs}
 import com.softwaremill.UpdateVersionInDocs
 
+Global / cancelable := true
+
 lazy val commonSettings = commonSmlBuildSettings ++ ossPublishSettings ++ Seq(
   organization := "com.softwaremill.ox",
   scalaVersion := "3.3.3",
@@ -50,7 +52,8 @@ lazy val core: Project = (project in file("core"))
       scalaTest
     ),
     // Check IO usage in core
-    useRequireIOPlugin
+    useRequireIOPlugin,
+    Test / fork := true
   )
 
 lazy val plugin: Project = (project in file("plugin"))
