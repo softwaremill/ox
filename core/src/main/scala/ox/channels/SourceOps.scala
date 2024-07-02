@@ -29,7 +29,8 @@ trait SourceOps[+T] { outer: Source[T] =>
   }
 
   /** Lazily-evaluated tap: creates a view of this source, where the results of [[receive]] will be applied to the given function `f` on the
-    * consumer's thread. Useful for logging and debugging values emitted from the source. For an eager, asynchronous version, see [[tap]].
+    * consumer's thread. Useful for side-effects without result values, like logging and debugging. For an eager, asynchronous version, see
+    * [[tap]].
     *
     * The same logic applies to receive clauses created using this source, which can be used in [[select]].
     *
@@ -123,7 +124,7 @@ trait SourceOps[+T] { outer: Source[T] =>
     * Must be run within a scope, as a child fork is created, which receives from this source and sends the mapped values to the resulting
     * one.
     *
-    * Useful for logging and debugging values emitted from the source. For a lazily-evaluated version, see [[tapAsView]].
+    * Useful for side-effects without result values, like logging and debugging. For a lazily-evaluated version, see [[tapAsView]].
     *
     * @param f
     *   The consumer function.
