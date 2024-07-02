@@ -1053,12 +1053,6 @@ trait SourceOps[+T] { outer: Source[T] =>
     }
     c2
 
-  private def propagateOrElse(unitOrClosed: Unit | ChannelClosed, otherSink: Sink[T])(ifNotClosed: => Boolean): Boolean =
-    unitOrClosed match
-      case ChannelClosed.Done     => otherSink.doneOrClosed().discard; false
-      case ChannelClosed.Error(r) => otherSink.errorOrClosed(r).discard; false
-      case _                      => ifNotClosed
-
   /** Attaches the given Sink to this Source, meaning that elements that pass through will also be sent to the Sink. The elements sent to
     * `other` Sink are enqueued, which means that the returned channel keeps receiving elements when sending to the `other` Sink is blocked.
     * If the queue is full, the elements are still sent to returned channel, but not to the `other` Sink, meaning that some elements may be
@@ -1104,4 +1098,10 @@ trait SourceOps[+T] { outer: Source[T] =>
       }
     }
     c2
+
+  private inline def propagateOrElse(unitOrClosed: Unit | ChannelClosed, otherSink: Sink[T])(inline ifNotClosed: Boolean): Boolean =
+    unitOrClosed match
+      case ChannelClosed.Done     => otherSink.doneOrClosed().discard; false
+      case ChannelClosed.Error(r) => otherSink.errorOrClosed(r).discard; false
+      case _                      => ifNotClosed
 }
