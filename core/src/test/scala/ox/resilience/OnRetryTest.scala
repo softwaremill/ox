@@ -4,6 +4,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.{EitherValues, TryValues}
 import ox.resilience.*
+import ox.scheduling.Schedule
 
 class OnRetryTest extends AnyFlatSpec with Matchers with EitherValues with TryValues:
   behavior of "RetryPolicy onRetry callback"

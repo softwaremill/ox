@@ -1,6 +1,7 @@
 package ox.resilience
 
 import ox.{EitherMode, ErrorMode, sleep}
+import ox.scheduling.*
 
 import scala.annotation.tailrec
 import scala.concurrent.duration.*
@@ -48,33 +49,9 @@ def retryEither[E, T](policy: RetryPolicy[E, T])(operation: => Either[E, T]): Ei
   *   - the error `E` in context `F` as returned by the last attempt if the policy decides to stop.
   */
 def retryWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(policy: RetryPolicy[E, T])(operation: => F[T]): F[T] =
-  @tailrec
-  def loop(attempt: Int, remainingAttempts: Option[Int], lastDelay: Option[FiniteDuration]): F[T] =
-    def sleepIfNeeded =
-      val delay = policy.schedule.nextDelay(attempt, lastDelay)
-      if delay.toMillis > 0 then sleep(delay)
-      delay
-
-    operation match
-      case v if em.isError(v) =>
-        val error = em.getError(v)
-        policy.onRetry(attempt, Left(error))
-
-        if policy.resultPolicy.isWorthRetrying(error) && remainingAttempts.forall(_ > 0) then
-          val delay = sleepIfNeeded
-          loop(attempt + 1, remainingAttempts.map(_ - 1), Some(delay))
-        else v
-      case v =>
-        val result = em.getT(v)
-        policy.onRetry(attempt, Right(result))
-
-        if !policy.resultPolicy.isSuccess(result) && remainingAttempts.forall(_ > 0) then
-          val delay = sleepIfNeeded
-          loop(attempt + 1, remainingAttempts.map(_ - 1), Some(delay))
-        else v
-
-  val remainingAttempts = policy.schedule match
-    case finiteSchedule: Schedule.Finite => Some(finiteSchedule.maxRetries)
-    case _                               => None
-
-  loop(1, remainingAttempts, None)
+  scheduleWithErrorMode(em)(
+    policy.schedule,
+    policy.onRetry,
+    policy.resultPolicy.isWorthRetrying,
+    t => !policy.resultPolicy.isSuccess(t)
+  )(operation)

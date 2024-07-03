@@ -1,5 +1,7 @@
 package ox.resilience
 
+import ox.scheduling.{Jitter, Schedule}
+
 import scala.concurrent.duration.*
 
 /** A policy that defines how to retry a failed operation.

@@ -5,6 +5,7 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.{EitherValues, TryValues}
 import ox.ElapsedTime
 import ox.resilience.*
+import ox.scheduling.{Jitter, Schedule}
 
 import scala.concurrent.duration.*
 

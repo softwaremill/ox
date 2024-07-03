@@ -3,6 +3,7 @@ package ox.resilience
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.ElapsedTime
+import ox.scheduling.Schedule
 
 import scala.concurrent.duration.*
 

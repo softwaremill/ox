@@ -1,19 +1,19 @@
-package ox.resilience
+package ox.scheduling
 
 import scala.concurrent.duration.*
 import scala.util.Random
 
-private[resilience] sealed trait Schedule:
-  def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration
+sealed trait Schedule:
+  def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration], lastStartTimestamp: Option[Long]): FiniteDuration
 
 object Schedule:
 
-  private[resilience] sealed trait Finite extends Schedule:
+  private[scheduling] sealed trait Finite extends Schedule:
     def maxRetries: Int
     def fallbackTo(fallback: Finite): Finite = FallingBack(this, fallback)
     def fallbackTo(fallback: Infinite): Infinite = FallingBack.forever(this, fallback)
 
-  private[resilience] sealed trait Infinite extends Schedule
+  private[scheduling] sealed trait Infinite extends Schedule
 
   /** A schedule that retries up to a given number of times, with no delay between subsequent attempts.
     *
@@ -21,14 +21,16 @@ object Schedule:
     *   The maximum number of retries.
     */
   case class Immediate(maxRetries: Int) extends Finite:
-    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration = Duration.Zero
+    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration], lastStartTimestamp: Option[Long]): FiniteDuration =
+      Duration.Zero
 
   object Immediate:
     /** A schedule that retries indefinitely, with no delay between subsequent attempts. */
     def forever: Infinite = ImmediateForever
 
   private case object ImmediateForever extends Infinite:
-    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration = Duration.Zero
+    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration], lastStartTimestamp: Option[Long]): FiniteDuration =
+      Duration.Zero
 
   /** A schedule that retries up to a given number of times, with a fixed delay between subsequent attempts.
     *
@@ -38,7 +40,7 @@ object Schedule:
     *   The delay between subsequent attempts.
     */
   case class Delay(maxRetries: Int, delay: FiniteDuration) extends Finite:
-    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration = delay
+    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration], lastStartTimestamp: Option[Long]): FiniteDuration = delay
 
   object Delay:
     /** A schedule that retries indefinitely, with a fixed delay between subsequent attempts.
@@ -48,8 +50,20 @@ object Schedule:
       */
     def forever(delay: FiniteDuration): Infinite = DelayForever(delay)
 
-  case class DelayForever private[resilience] (delay: FiniteDuration) extends Infinite:
-    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration = delay
+  case class DelayForever private[scheduling] (delay: FiniteDuration) extends Infinite:
+    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration], lastStartTimestamp: Option[Long]): FiniteDuration = delay
+
+  // TODO: doc
+  // TODO: infinite variant
+  case class Every(maxRetries: Int, duration: FiniteDuration) extends Finite:
+    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration], lastStartTimestamp: Option[Long]): FiniteDuration =
+      lastStartTimestamp match
+        case Some(startTimestamp) =>
+          val elapsed = System.nanoTime() - startTimestamp
+          val remaining = duration.toNanos - elapsed
+          if remaining > 0 then remaining.nanos
+          else Duration.Zero
+        case None => duration
 
   /** A schedule that retries up to a given number of times, with an increasing delay (backoff) between subsequent attempts.
     *
@@ -72,15 +86,16 @@ object Schedule:
       maxDelay: FiniteDuration = 1.minute,
       jitter: Jitter = Jitter.None
   ) extends Finite:
-    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration =
+    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration], lastStartTimestamp: Option[Long]): FiniteDuration =
       Backoff.nextDelay(attempt, initialDelay, maxDelay, jitter, lastDelay)
 
   object Backoff:
-    private[resilience] def delay(attempt: Int, initialDelay: FiniteDuration, maxDelay: FiniteDuration): FiniteDuration =
+    // TODO: restore the private modifier
+    def delay(attempt: Int, initialDelay: FiniteDuration, maxDelay: FiniteDuration): FiniteDuration =
       // converting Duration <-> Long back and forth to avoid exceeding maximum duration
       (initialDelay.toMillis * Math.pow(2, attempt)).toLong.min(maxDelay.toMillis).millis
 
-    private[resilience] def nextDelay(
+    private[scheduling] def nextDelay(
         attempt: Int,
         initialDelay: FiniteDuration,
         maxDelay: FiniteDuration,
@@ -115,20 +130,20 @@ object Schedule:
     def forever(initialDelay: FiniteDuration, maxDelay: FiniteDuration = 1.minute, jitter: Jitter = Jitter.None): Infinite =
       BackoffForever(initialDelay, maxDelay, jitter)
 
-  case class BackoffForever private[resilience] (
+  case class BackoffForever private[scheduling] (
       initialDelay: FiniteDuration,
       maxDelay: FiniteDuration = 1.minute,
       jitter: Jitter = Jitter.None
   ) extends Infinite:
-    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration =
+    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration], lastStartTimestamp: Option[Long]): FiniteDuration =
       Backoff.nextDelay(attempt, initialDelay, maxDelay, jitter, lastDelay)
 
-  private[resilience] sealed trait WithFallback extends Schedule:
+  private[scheduling] sealed trait WithFallback extends Schedule:
     def base: Finite
     def fallback: Schedule
-    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration =
-      if base.maxRetries > attempt then base.nextDelay(attempt, lastDelay)
-      else fallback.nextDelay(attempt - base.maxRetries, lastDelay)
+    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration], lastStartTimestamp: Option[Long]): FiniteDuration =
+      if base.maxRetries > attempt then base.nextDelay(attempt, lastDelay, lastStartTimestamp)
+      else fallback.nextDelay(attempt - base.maxRetries, lastDelay, lastStartTimestamp)
 
   /** A schedule that combines two schedules, using [[base]] first [[base.maxRetries]] number of times, and then using [[fallback]]
     * [[fallback.maxRetries]] number of times.
@@ -141,4 +156,4 @@ object Schedule:
       */
     def forever(base: Finite, fallback: Infinite): Infinite = FallingBackForever(base, fallback)
 
-  case class FallingBackForever private[resilience] (base: Finite, fallback: Infinite) extends WithFallback, Infinite
+  case class FallingBackForever private[scheduling] (base: Finite, fallback: Infinite) extends WithFallback, Infinite

@@ -4,6 +4,7 @@ import org.scalatest.{EitherValues, TryValues}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.resilience.*
+import ox.scheduling.Schedule
 
 class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues with Matchers:
 
