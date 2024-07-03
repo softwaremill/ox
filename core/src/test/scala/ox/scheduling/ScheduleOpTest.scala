@@ -12,7 +12,7 @@ class ScheduleOpTest extends AnyFlatSpec with Matchers with EitherValues with Tr
 
   behavior of "scheduleOp"
 
-  it should "schedule a function to run every n ms" in {
+  it should "schedule a function to run at fixed rate" in {
     // given
     val maxRetries = 3
     val funcSleepTime = 75.millis
@@ -24,7 +24,7 @@ class ScheduleOpTest extends AnyFlatSpec with Matchers with EitherValues with Tr
       counter
 
     // when
-    val (result, elapsedTime) = measure(schedule(Schedule.Every(maxRetries, scheduleSleepTime))(f))
+    val (result, elapsedTime) = measure(schedule(Schedule.FixedRate(maxRetries, scheduleSleepTime))(f))
 
     // then
     elapsedTime.toMillis should be >= 3 * scheduleSleepTime.toMillis + funcSleepTime.toMillis

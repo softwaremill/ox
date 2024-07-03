@@ -55,7 +55,7 @@ object Schedule:
 
   // TODO: doc
   // TODO: infinite variant
-  case class Every(maxRetries: Int, duration: FiniteDuration) extends Finite:
+  case class FixedRate(maxRetries: Int, duration: FiniteDuration) extends Finite:
     override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration], lastStartTimestamp: Option[Long]): FiniteDuration =
       lastStartTimestamp match
         case Some(startTimestamp) =>
