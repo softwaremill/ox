@@ -131,8 +131,8 @@ If you want to customize a part of the result policy, you can use the following 
 
 ```scala mdoc:compile-only
 import ox.UnionMode
-import ox.resilience.{retry, retryEither, retryWithErrorMode}
-import ox.resilience.{Jitter, ResultPolicy, RetryPolicy, Schedule}
+import ox.resilience.{retry, retryEither, retryWithErrorMode, ResultPolicy, RetryPolicy}
+import ox.scheduling.{Jitter, Schedule}
 import scala.concurrent.duration.*
 
 def directOperation: Int = ???

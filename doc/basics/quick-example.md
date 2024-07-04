@@ -8,6 +8,7 @@ import ox.*
 import ox.either.ok
 import ox.channels.*
 import ox.resilience.*
+import ox.scheduling.*
 import scala.concurrent.duration.*
 
 // run two computations in parallel
