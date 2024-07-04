@@ -8,23 +8,23 @@ import scala.util.Try
 
 def runScheduled[T](
     schedule: Schedule,
-    onTick: (Int, Either[Throwable, T]) => Unit = (_: Int, _: Either[Throwable, T]) => (),
+    onRepeat: (Int, Either[Throwable, T]) => Unit = onRepeatDefault,
     shouldContinueOnError: Throwable => Boolean = (_: Throwable) => false,
     shouldContinue: T => Boolean = (_: T) => true
 )(operation: => T): T =
-  runScheduledEither(schedule, onTick, shouldContinueOnError, shouldContinue)(Try(operation).toEither).fold(throw _, identity)
+  runScheduledEither(schedule, onRepeat, shouldContinueOnError, shouldContinue)(Try(operation).toEither).fold(throw _, identity)
 
 def runScheduledEither[E, T](
     schedule: Schedule,
-    onTick: (Int, Either[E, T]) => Unit = (_: Int, _: Either[E, T]) => (),
+    onRepeat: (Int, Either[E, T]) => Unit = onRepeatDefault,
     shouldContinueOnError: E => Boolean = (_: E) => false,
     shouldContinue: T => Boolean = (_: T) => true
 )(operation: => Either[E, T]): Either[E, T] =
-  runScheduledWithErrorMode(EitherMode[E])(schedule, onTick, shouldContinueOnError, shouldContinue)(operation)
+  runScheduledWithErrorMode(EitherMode[E])(schedule, onRepeat, shouldContinueOnError, shouldContinue)(operation)
 
 def runScheduledWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(
     schedule: Schedule,
-    onRepeat: (Int, Either[E, T]) => Unit = (_: Int, _: Either[E, T]) => (),
+    onRepeat: (Int, Either[E, T]) => Unit = onRepeatDefault,
     shouldContinueOnError: E => Boolean = (_: E) => false,
     shouldContinue: T => Boolean = (_: T) => true
 )(operation: => F[T]): F[T] =
@@ -61,3 +61,6 @@ def runScheduledWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(
   // TODO: implement and handle initial delay (the one before the first operation starts)
 
   loop(1, remainingAttempts, None)
+
+// TODO: compile error if inlined
+def onRepeatDefault[E, T](attempt: Int, result: Either[E, T]): Unit = ()
