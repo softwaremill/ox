@@ -112,4 +112,4 @@ class BackoffRetryTest extends AnyFlatSpec with Matchers with EitherValues with 
   }
 
   private def expectedTotalBackoffTimeMillis(maxRetries: Int, initialDelay: FiniteDuration, maxDelay: FiniteDuration = 1.day): Long =
-    (0 until maxRetries).map(Schedule.Backoff.delay(_, initialDelay, maxDelay).toMillis).sum
+    (0 until maxRetries).map(Schedule.Exponential.delay(_, initialDelay, maxDelay).toMillis).sum

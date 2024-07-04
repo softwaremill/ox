@@ -1,0 +1,55 @@
+package ox.scheduling
+
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.{EitherValues, TryValues}
+import ox.{ElapsedTime, sleep}
+import ox.resilience.*
+
+import scala.concurrent.duration.*
+
+class RepeatTest extends AnyFlatSpec with Matchers with EitherValues with TryValues with ElapsedTime:
+
+  behavior of "scheduleOp"
+
+  it should "repeat a function at fixed rate" in {
+    // given
+    val repeats = 3
+    val funcSleepTime = 75.millis
+    val interval = 100.millis
+    var counter = 0
+    def f =
+      counter += 1
+      sleep(funcSleepTime)
+      counter
+
+    // when
+    val (result, elapsedTime) = measure(repeat(RepeatConfig.fixedRate(repeats, interval))(f))
+
+    // then
+    elapsedTime.toMillis should be >= 3 * interval.toMillis + funcSleepTime.toMillis
+    elapsedTime.toMillis should be < 4 * interval.toMillis
+    result shouldBe 4
+    counter shouldBe 4
+  }
+
+  it should "repeat a function with delay" in {
+    // given
+    val repeats = 3
+    val funcSleepTime = 20.millis
+    val delay = 100.millis
+    var counter = 0
+
+    def f =
+      counter += 1
+      sleep(funcSleepTime)
+      counter
+
+    // when
+    val (result, elapsedTime) = measure(repeat(RepeatConfig.delay(repeats, delay))(f))
+
+    // then
+    elapsedTime.toMillis should be >= 3 * (delay.toMillis + funcSleepTime.toMillis) + funcSleepTime.toMillis
+    result shouldBe 4
+    counter shouldBe 4
+  }

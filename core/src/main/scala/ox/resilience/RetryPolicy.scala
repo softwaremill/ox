@@ -90,7 +90,7 @@ object RetryPolicy:
       maxDelay: FiniteDuration = 1.minute,
       jitter: Jitter = Jitter.None
   ): RetryPolicy[E, T] =
-    RetryPolicy(Schedule.Backoff(maxRetries, initialDelay, maxDelay, jitter))
+    RetryPolicy(Schedule.Exponential(maxRetries, initialDelay, maxDelay, jitter))
 
   /** Creates a policy that retries indefinitely, with an increasing delay (backoff) between subsequent attempts, using a default
     * [[ResultPolicy]].
@@ -113,4 +113,4 @@ object RetryPolicy:
       maxDelay: FiniteDuration = 1.minute,
       jitter: Jitter = Jitter.None
   ): RetryPolicy[E, T] =
-    RetryPolicy(Schedule.Backoff.forever(initialDelay, maxDelay, jitter))
+    RetryPolicy(Schedule.Exponential.forever(initialDelay, maxDelay, jitter))

@@ -49,7 +49,7 @@ def retryEither[E, T](policy: RetryPolicy[E, T])(operation: => Either[E, T]): Ei
   *   - the error `E` in context `F` as returned by the last attempt if the policy decides to stop.
   */
 def retryWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(policy: RetryPolicy[E, T])(operation: => F[T]): F[T] =
-  scheduleWithErrorMode(em)(
+  runScheduledWithErrorMode(em)(
     policy.schedule,
     policy.onRetry,
     policy.resultPolicy.isWorthRetrying,

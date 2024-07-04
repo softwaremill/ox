@@ -6,26 +6,26 @@ import scala.annotation.tailrec
 import scala.concurrent.duration.FiniteDuration
 import scala.util.Try
 
-def schedule[T](
+def runScheduled[T](
     schedule: Schedule,
     onTick: (Int, Either[Throwable, T]) => Unit = (_: Int, _: Either[Throwable, T]) => (),
-    shouldRetryOnError: Throwable => Boolean = (_: Throwable) => false,
+    shouldContinueOnError: Throwable => Boolean = (_: Throwable) => false,
     shouldContinue: T => Boolean = (_: T) => true
 )(operation: => T): T =
-  scheduleEither(schedule, onTick, shouldRetryOnError, shouldContinue)(Try(operation).toEither).fold(throw _, identity)
+  runScheduledEither(schedule, onTick, shouldContinueOnError, shouldContinue)(Try(operation).toEither).fold(throw _, identity)
 
-def scheduleEither[E, T](
+def runScheduledEither[E, T](
     schedule: Schedule,
     onTick: (Int, Either[E, T]) => Unit = (_: Int, _: Either[E, T]) => (),
-    shouldRetryOnError: E => Boolean = (_: E) => false,
+    shouldContinueOnError: E => Boolean = (_: E) => false,
     shouldContinue: T => Boolean = (_: T) => true
 )(operation: => Either[E, T]): Either[E, T] =
-  scheduleWithErrorMode(EitherMode[E])(schedule, onTick, shouldRetryOnError, shouldContinue)(operation)
+  runScheduledWithErrorMode(EitherMode[E])(schedule, onTick, shouldContinueOnError, shouldContinue)(operation)
 
-def scheduleWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(
+def runScheduledWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(
     schedule: Schedule,
-    onTick: (Int, Either[E, T]) => Unit = (_: Int, _: Either[E, T]) => (),
-    shouldRetryOnError: E => Boolean = (_: E) => false,
+    onRepeat: (Int, Either[E, T]) => Unit = (_: Int, _: Either[E, T]) => (),
+    shouldContinueOnError: E => Boolean = (_: E) => false,
     shouldContinue: T => Boolean = (_: T) => true
 )(operation: => F[T]): F[T] =
   @tailrec
@@ -39,15 +39,15 @@ def scheduleWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(
     operation match
       case v if em.isError(v) =>
         val error = em.getError(v)
-        onTick(attempt, Left(error))
+        onRepeat(attempt, Left(error))
 
-        if shouldRetryOnError(error) && remainingAttempts.forall(_ > 0) then
+        if shouldContinueOnError(error) && remainingAttempts.forall(_ > 0) then
           val delay = sleepIfNeeded(startTimestamp)
           loop(attempt + 1, remainingAttempts.map(_ - 1), Some(delay))
         else v
       case v =>
         val result = em.getT(v)
-        onTick(attempt, Right(result))
+        onRepeat(attempt, Right(result))
 
         if shouldContinue(result) && remainingAttempts.forall(_ > 0) then
           val delay = sleepIfNeeded(startTimestamp)
@@ -55,7 +55,9 @@ def scheduleWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(
         else v
 
   val remainingAttempts = schedule match
-    case finiteSchedule: Schedule.Finite => Some(finiteSchedule.maxRetries)
+    case finiteSchedule: Schedule.Finite => Some(finiteSchedule.maxRepeats)
     case _                               => None
+
+  // TODO: implement and handle initial delay (the one before the first operation starts)
 
   loop(1, remainingAttempts, None)
