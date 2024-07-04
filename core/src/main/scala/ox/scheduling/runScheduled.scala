@@ -8,7 +8,7 @@ import scala.util.Try
 
 def runScheduled[T](
     schedule: Schedule,
-    onRepeat: (Int, Either[Throwable, T]) => Unit = onRepeatDefault,
+    onRepeat: (Int, Either[Throwable, T]) => Unit = (_: Int, _: Either[Throwable, T]) => (),
     shouldContinueOnError: Throwable => Boolean = (_: Throwable) => false,
     shouldContinue: T => Boolean = (_: T) => true
 )(operation: => T): T =
@@ -16,7 +16,7 @@ def runScheduled[T](
 
 def runScheduledEither[E, T](
     schedule: Schedule,
-    onRepeat: (Int, Either[E, T]) => Unit = onRepeatDefault,
+    onRepeat: (Int, Either[E, T]) => Unit = (_: Int, _: Either[E, T]) => (),
     shouldContinueOnError: E => Boolean = (_: E) => false,
     shouldContinue: T => Boolean = (_: T) => true
 )(operation: => Either[E, T]): Either[E, T] =
@@ -24,7 +24,7 @@ def runScheduledEither[E, T](
 
 def runScheduledWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(
     schedule: Schedule,
-    onRepeat: (Int, Either[E, T]) => Unit = onRepeatDefault,
+    onRepeat: (Int, Either[E, T]) => Unit = (_: Int, _: Either[E, T]) => (),
     shouldContinueOnError: E => Boolean = (_: E) => false,
     shouldContinue: T => Boolean = (_: T) => true
 )(operation: => F[T]): F[T] =
@@ -61,6 +61,3 @@ def runScheduledWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(
   // TODO: implement and handle initial delay (the one before the first operation starts)
 
   loop(1, remainingAttempts, None)
-
-// TODO: compile error if inlined
-def onRepeatDefault[E, T](attempt: Int, result: Either[E, T]): Unit = ()

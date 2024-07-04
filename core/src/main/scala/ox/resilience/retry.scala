@@ -1,10 +1,8 @@
 package ox.resilience
 
-import ox.{EitherMode, ErrorMode, sleep}
+import ox.{EitherMode, ErrorMode}
 import ox.scheduling.*
 
-import scala.annotation.tailrec
-import scala.concurrent.duration.*
 import scala.util.Try
 
 /** Retries an operation returning a direct result until it succeeds or the policy decides to stop.

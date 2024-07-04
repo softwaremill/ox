@@ -1,10 +1,8 @@
 package ox.scheduling
 
 import ox.scheduling.*
-import ox.{EitherMode, ErrorMode, sleep}
+import ox.{EitherMode, ErrorMode}
 
-import scala.annotation.tailrec
-import scala.concurrent.duration.*
 import scala.util.Try
 
 def repeat[T](config: RepeatConfig[Throwable, T])(operation: => T): T =
@@ -14,7 +12,7 @@ def repeatEither[E, T](config: RepeatConfig[E, T])(operation: => Either[E, T]): 
   repeatWithErrorMode(EitherMode[E])(config)(operation)
 
 def repeatWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(config: RepeatConfig[E, T])(operation: => F[T]): F[T] =
-  runScheduledWithErrorMode(em)(
+  runScheduledWithErrorMode[E, F, T](em)(
     config.schedule,
     shouldContinueOnError = config.shouldContinueOnError,
     shouldContinue = config.shouldContinue
