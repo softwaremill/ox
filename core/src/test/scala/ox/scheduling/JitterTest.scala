@@ -11,7 +11,7 @@ class JitterTest extends AnyFlatSpec with Matchers {
 
   behavior of "Jitter"
 
-  private val baseSchedule = Schedule.Exponential(maxRepeats = 3, initialDelay = 100.millis)
+  private val baseSchedule = Schedule.Exponential(maxRepeats = 3, firstDelay = 100.millis)
 
   it should "use no jitter" in {
     // given
@@ -33,7 +33,7 @@ class JitterTest extends AnyFlatSpec with Matchers {
 
     // then
     Inspectors.forEvery(delays.zipWithIndex) { case (delay, i) =>
-      val backoffDelay = Schedule.Exponential.delay(i + 1, schedule.initialDelay, schedule.maxDelay)
+      val backoffDelay = Schedule.Exponential.delay(i + 1, schedule.firstDelay, schedule.maxDelay)
       delay should (be >= 0.millis and be <= backoffDelay)
     }
   }
@@ -47,7 +47,7 @@ class JitterTest extends AnyFlatSpec with Matchers {
 
     // then
     Inspectors.forEvery(delays.zipWithIndex) { case (delay, i) =>
-      val backoffDelay = Schedule.Exponential.delay(i + 1, schedule.initialDelay, schedule.maxDelay)
+      val backoffDelay = Schedule.Exponential.delay(i + 1, schedule.firstDelay, schedule.maxDelay)
       delay should (be >= backoffDelay / 2 and be <= backoffDelay)
     }
   }
@@ -62,7 +62,7 @@ class JitterTest extends AnyFlatSpec with Matchers {
     // then
     Inspectors.forEvery(delays.sliding(2).toList) {
       case Seq(previousDelay, delay) =>
-        delay should (be >= schedule.initialDelay and be <= previousDelay * 3)
+        delay should (be >= schedule.firstDelay and be <= previousDelay * 3)
       case _ => fail("should never happen") // so that the match is exhaustive
     }
   }

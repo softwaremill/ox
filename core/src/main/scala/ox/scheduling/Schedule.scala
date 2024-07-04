@@ -10,10 +10,17 @@ object Schedule:
 
   private[scheduling] sealed trait Finite extends Schedule:
     def maxRepeats: Int
+    def initialDelay: FiniteDuration = Duration.Zero
     def fallbackTo(fallback: Finite): Finite = FallingBack(this, fallback)
     def fallbackTo(fallback: Infinite): Infinite = FallingBack.forever(this, fallback)
 
   private[scheduling] sealed trait Infinite extends Schedule
+
+  case class InitialDelay private[scheduling] (delay: FiniteDuration) extends Finite:
+    override def maxRepeats: Int = 0
+    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration], lastStartTimestamp: Option[Long]): FiniteDuration =
+      Duration.Zero
+    override def initialDelay: FiniteDuration = delay
 
   /** A schedule that repeats up to a given number of times, with no delay between subsequent attempts.
     *
@@ -81,7 +88,7 @@ object Schedule:
     *
     * @param maxRepeats
     *   The maximum number of attempts.
-    * @param initialDelay
+    * @param firstDelay
     *   The delay before the first attempt.
     * @param maxDelay
     *   The maximum delay between subsequent attempts.
@@ -91,27 +98,27 @@ object Schedule:
     */
   case class Exponential(
       maxRepeats: Int,
-      initialDelay: FiniteDuration,
+      firstDelay: FiniteDuration,
       maxDelay: FiniteDuration = 1.minute,
       jitter: Jitter = Jitter.None
   ) extends Finite:
     override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration], lastStartTimestamp: Option[Long]): FiniteDuration =
-      Exponential.nextDelay(attempt, initialDelay, maxDelay, jitter, lastDelay)
+      Exponential.nextDelay(attempt, firstDelay, maxDelay, jitter, lastDelay)
 
   object Exponential:
     // TODO: restore the private modifier
-    def delay(attempt: Int, initialDelay: FiniteDuration, maxDelay: FiniteDuration): FiniteDuration =
+    def delay(attempt: Int, firstDelay: FiniteDuration, maxDelay: FiniteDuration): FiniteDuration =
       // converting Duration <-> Long back and forth to avoid exceeding maximum duration
-      (initialDelay.toMillis * Math.pow(2, attempt)).toLong.min(maxDelay.toMillis).millis
+      (firstDelay.toMillis * Math.pow(2, attempt)).toLong.min(maxDelay.toMillis).millis
 
     private[scheduling] def nextDelay(
         attempt: Int,
-        initialDelay: FiniteDuration,
+        firstDelay: FiniteDuration,
         maxDelay: FiniteDuration,
         jitter: Jitter,
         lastDelay: Option[FiniteDuration]
     ): FiniteDuration =
-      def exponentialDelay = Exponential.delay(attempt, initialDelay, maxDelay)
+      def exponentialDelay = Exponential.delay(attempt, firstDelay, maxDelay)
 
       jitter match
         case Jitter.None => exponentialDelay
@@ -120,15 +127,15 @@ object Schedule:
           val backoff = exponentialDelay.toMillis
           (backoff / 2 + Random.between(0, backoff / 2)).millis
         case Jitter.Decorrelated =>
-          val last = lastDelay.getOrElse(initialDelay).toMillis
-          Random.between(initialDelay.toMillis, last * 3).millis
+          val last = lastDelay.getOrElse(firstDelay).toMillis
+          Random.between(firstDelay.toMillis, last * 3).millis
 
     /** A schedule that repeats indefinitely, with an exponentially increasing delay between subsequent attempts.
       *
       * The delay is exponential with base 2 (i.e. the next delay is twice as long as the previous one), starting at the given initial delay
       * and capped at the given maximum delay.
       *
-      * @param initialDelay
+      * @param firstDelay
       *   The delay before the first attempt.
       * @param maxDelay
       *   The maximum delay between subsequent attempts.
@@ -136,16 +143,16 @@ object Schedule:
       *   A random factor used for calculating the delay between subsequent attempts. See [[Jitter]] for more details. Defaults to no
       *   jitter, i.e. an exponential backoff with no adjustments.
       */
-    def forever(initialDelay: FiniteDuration, maxDelay: FiniteDuration = 1.minute, jitter: Jitter = Jitter.None): Infinite =
-      ExponentialForever(initialDelay, maxDelay, jitter)
+    def forever(firstDelay: FiniteDuration, maxDelay: FiniteDuration = 1.minute, jitter: Jitter = Jitter.None): Infinite =
+      ExponentialForever(firstDelay, maxDelay, jitter)
 
   case class ExponentialForever private[scheduling] (
-      initialDelay: FiniteDuration,
+      firstDelay: FiniteDuration,
       maxDelay: FiniteDuration = 1.minute,
       jitter: Jitter = Jitter.None
   ) extends Infinite:
     override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration], lastStartTimestamp: Option[Long]): FiniteDuration =
-      Exponential.nextDelay(attempt, initialDelay, maxDelay, jitter, lastDelay)
+      Exponential.nextDelay(attempt, firstDelay, maxDelay, jitter, lastDelay)
 
   private[scheduling] sealed trait WithFallback extends Schedule:
     def base: Finite
@@ -159,6 +166,7 @@ object Schedule:
     */
   case class FallingBack(base: Finite, fallback: Finite) extends WithFallback, Finite:
     override def maxRepeats: Int = base.maxRepeats + fallback.maxRepeats
+    override def initialDelay: FiniteDuration = base.initialDelay
 
   object FallingBack:
     /** A schedule that repeats indefinitely, using [[base]] first [[base.maxAttempts]] number of times, and then always using [[fallback]].

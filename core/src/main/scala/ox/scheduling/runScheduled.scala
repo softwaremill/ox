@@ -3,7 +3,7 @@ package ox.scheduling
 import ox.{EitherMode, ErrorMode, sleep}
 
 import scala.annotation.tailrec
-import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.duration.{Duration, FiniteDuration}
 import scala.util.Try
 
 def runScheduled[T](
@@ -54,10 +54,12 @@ def runScheduledWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(
           loop(attempt + 1, remainingAttempts.map(_ - 1), Some(delay))
         else v
 
-  val remainingAttempts = schedule match
-    case finiteSchedule: Schedule.Finite => Some(finiteSchedule.maxRepeats)
-    case _                               => None
+  val (initialDelay, remainingAttempts) = schedule match
+    case finiteSchedule: Schedule.Finite =>
+      (finiteSchedule.initialDelay, Some(finiteSchedule.maxRepeats))
+    case _ =>
+      (Duration.Zero, None)
 
-  // TODO: implement and handle initial delay (the one before the first operation starts)
+  if initialDelay.toMillis > 0 then sleep(initialDelay)
 
   loop(1, remainingAttempts, None)
