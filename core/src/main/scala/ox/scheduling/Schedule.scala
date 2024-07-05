@@ -3,6 +3,7 @@ package ox.scheduling
 import scala.concurrent.duration.*
 import scala.util.Random
 
+// TODO: shouldn't this trait be unsealed so that users can create their own schedules?
 sealed trait Schedule:
   // TODO: consider better name that `attempt`
   def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration], lastStartTimestamp: Option[Long]): FiniteDuration
