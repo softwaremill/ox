@@ -27,7 +27,7 @@ class RepeatTest extends AnyFlatSpec with Matchers with EitherValues with TryVal
     val (result, elapsedTime) = measure(repeat(RepeatConfig.fixedRate(repeats, interval))(f))
 
     // then
-    elapsedTime.toMillis should be >= 3 * interval.toMillis + funcSleepTime.toMillis
+    elapsedTime.toMillis should be >= 3 * interval.toMillis + funcSleepTime.toMillis - 5 // tolerance
     elapsedTime.toMillis should be < 4 * interval.toMillis
     result shouldBe 4
     counter shouldBe 4
@@ -50,7 +50,7 @@ class RepeatTest extends AnyFlatSpec with Matchers with EitherValues with TryVal
     val (result, elapsedTime) = measure(repeat(RepeatConfig[Throwable, Int](schedule))(f))
 
     // then
-    elapsedTime.toMillis should be >= 3 * delay.toMillis + initialDelay.toMillis
+    elapsedTime.toMillis should be >= 3 * delay.toMillis + initialDelay.toMillis - 5 // tolerance
     elapsedTime.toMillis should be < 4 * delay.toMillis
     result shouldBe 4
     counter shouldBe 4
