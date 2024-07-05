@@ -4,7 +4,6 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.{EitherValues, TryValues}
 import ox.{ElapsedTime, sleep}
-import ox.resilience.*
 
 import scala.concurrent.duration.*
 
@@ -15,7 +14,7 @@ class RepeatTest extends AnyFlatSpec with Matchers with EitherValues with TryVal
   it should "repeat a function at fixed rate" in {
     // given
     val repeats = 3
-    val funcSleepTime = 75.millis
+    val funcSleepTime = 30.millis
     val interval = 100.millis
     var counter = 0
     def f =
