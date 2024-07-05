@@ -52,6 +52,7 @@ def retryWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(policy: RetryPolicy[E, T
       policy.schedule,
       policy.onRetry,
       shouldContinueOnError = policy.resultPolicy.isWorthRetrying,
-      shouldContinueOnResult = t => !policy.resultPolicy.isSuccess(t)
+      shouldContinueOnResult = t => !policy.resultPolicy.isSuccess(t),
+      delayPolicy = DelayPolicy.SinceTheEndOfTheLastInvocation
     )
   )(operation)
