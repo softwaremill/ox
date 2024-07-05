@@ -13,7 +13,10 @@ def repeatEither[E, T](config: RepeatConfig[E, T])(operation: => Either[E, T]): 
 
 def repeatWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(config: RepeatConfig[E, T])(operation: => F[T]): F[T] =
   runScheduledWithErrorMode[E, F, T](em)(
-    config.schedule,
-    shouldContinueOnError = config.shouldContinueOnError,
-    shouldContinue = config.shouldContinue
+    RunScheduledConfig[E, T](
+      config.schedule,
+      shouldContinueOnError = config.shouldContinueOnError,
+      shouldContinueOnResult = config.shouldContinueOnResult,
+      delayPolicy = DelayPolicy.SinceTheStartOfTheLastInvocation
+    )
   )(operation)

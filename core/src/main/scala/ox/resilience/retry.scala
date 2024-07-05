@@ -48,8 +48,10 @@ def retryEither[E, T](policy: RetryPolicy[E, T])(operation: => Either[E, T]): Ei
   */
 def retryWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(policy: RetryPolicy[E, T])(operation: => F[T]): F[T] =
   runScheduledWithErrorMode(em)(
-    policy.schedule,
-    policy.onRetry,
-    policy.resultPolicy.isWorthRetrying,
-    t => !policy.resultPolicy.isSuccess(t)
+    RunScheduledConfig(
+      policy.schedule,
+      policy.onRetry,
+      shouldContinueOnError = policy.resultPolicy.isWorthRetrying,
+      shouldContinueOnResult = t => !policy.resultPolicy.isSuccess(t)
+    )
   )(operation)

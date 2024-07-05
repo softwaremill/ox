@@ -3,35 +3,37 @@ package ox.scheduling
 import ox.{EitherMode, ErrorMode, sleep}
 
 import scala.annotation.tailrec
-import scala.concurrent.duration.{Duration, FiniteDuration}
+import scala.concurrent.duration.{Duration, FiniteDuration, DurationLong}
 import scala.util.Try
 
-def runScheduled[T](
-    schedule: Schedule,
-    onRepeat: (Int, Either[Throwable, T]) => Unit = (_: Int, _: Either[Throwable, T]) => (),
-    shouldContinueOnError: Throwable => Boolean = (_: Throwable) => false,
-    shouldContinue: T => Boolean = (_: T) => true
-)(operation: => T): T =
-  runScheduledEither(schedule, onRepeat, shouldContinueOnError, shouldContinue)(Try(operation).toEither).fold(throw _, identity)
+enum DelayPolicy:
+  case SinceTheStartOfTheLastInvocation, SinceTheEndOfTheLastInvocation
 
-def runScheduledEither[E, T](
+case class RunScheduledConfig[E, T](
     schedule: Schedule,
     onRepeat: (Int, Either[E, T]) => Unit = (_: Int, _: Either[E, T]) => (),
     shouldContinueOnError: E => Boolean = (_: E) => false,
-    shouldContinue: T => Boolean = (_: T) => true
-)(operation: => Either[E, T]): Either[E, T] =
-  runScheduledWithErrorMode(EitherMode[E])(schedule, onRepeat, shouldContinueOnError, shouldContinue)(operation)
+    shouldContinueOnResult: T => Boolean = (_: T) => true,
+    delayPolicy: DelayPolicy = DelayPolicy.SinceTheStartOfTheLastInvocation
+)
 
-def runScheduledWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(
-    schedule: Schedule,
-    onRepeat: (Int, Either[E, T]) => Unit = (_: Int, _: Either[E, T]) => (),
-    shouldContinueOnError: E => Boolean = (_: E) => false,
-    shouldContinue: T => Boolean = (_: T) => true
-)(operation: => F[T]): F[T] =
+def runScheduled[T](config: RunScheduledConfig[Throwable, T])(operation: => T): T =
+  runScheduledEither(config)(Try(operation).toEither).fold(throw _, identity)
+
+def runScheduledEither[E, T](config: RunScheduledConfig[E, T])(operation: => Either[E, T]): Either[E, T] =
+  runScheduledWithErrorMode(EitherMode[E])(config)(operation)
+
+def runScheduledWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(config: RunScheduledConfig[E, T])(operation: => F[T]): F[T] =
   @tailrec
   def loop(attempt: Int, remainingAttempts: Option[Int], lastDelay: Option[FiniteDuration]): F[T] =
     def sleepIfNeeded(startTimestamp: Long) =
-      val delay = schedule.nextDelay(attempt, lastDelay, Some(startTimestamp))
+      val nextDelay = config.schedule.nextDelay(attempt, lastDelay)
+      val delay = config.delayPolicy match
+        case DelayPolicy.SinceTheStartOfTheLastInvocation =>
+          val elapsed = System.nanoTime() - startTimestamp
+          val remaining = nextDelay.toNanos - elapsed
+          remaining.nanos
+        case DelayPolicy.SinceTheEndOfTheLastInvocation => nextDelay
       if delay.toMillis > 0 then sleep(delay)
       delay
 
@@ -39,22 +41,22 @@ def runScheduledWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(
     operation match
       case v if em.isError(v) =>
         val error = em.getError(v)
-        onRepeat(attempt, Left(error))
+        config.onRepeat(attempt, Left(error))
 
-        if shouldContinueOnError(error) && remainingAttempts.forall(_ > 0) then
+        if config.shouldContinueOnError(error) && remainingAttempts.forall(_ > 0) then
           val delay = sleepIfNeeded(startTimestamp)
           loop(attempt + 1, remainingAttempts.map(_ - 1), Some(delay))
         else v
       case v =>
         val result = em.getT(v)
-        onRepeat(attempt, Right(result))
+        config.onRepeat(attempt, Right(result))
 
-        if shouldContinue(result) && remainingAttempts.forall(_ > 0) then
+        if config.shouldContinueOnResult(result) && remainingAttempts.forall(_ > 0) then
           val delay = sleepIfNeeded(startTimestamp)
           loop(attempt + 1, remainingAttempts.map(_ - 1), Some(delay))
         else v
 
-  val (initialDelay, remainingAttempts) = schedule match
+  val (initialDelay, remainingAttempts) = config.schedule match
     case finiteSchedule: Schedule.Finite =>
       (finiteSchedule.initialDelay, Some(finiteSchedule.maxRepeats))
     case _ =>

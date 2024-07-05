@@ -6,18 +6,15 @@ import scala.concurrent.duration.DurationInt
 case class RepeatConfig[E, T](
     schedule: Schedule,
     shouldContinueOnError: E => Boolean = (_: E) => false,
-    shouldContinue: T => Boolean = (_: T) => true
+    shouldContinueOnResult: T => Boolean = (_: T) => true
 )
 
 object RepeatConfig:
   def immediate[E, T](repeats: Int): RepeatConfig[E, T] = RepeatConfig(Schedule.Immediate(repeats))
   def immediateForever[E, T]: RepeatConfig[E, T] = RepeatConfig(Schedule.Immediate.forever)
 
-  def delay[E, T](repeats: Int, delay: FiniteDuration): RepeatConfig[E, T] = RepeatConfig(Schedule.Delay(repeats, delay))
-  def delayForever[E, T](delay: FiniteDuration): RepeatConfig[E, T] = RepeatConfig(Schedule.Delay.forever(delay))
-
-  def fixedRate[E, T](repeats: Int, interval: FiniteDuration): RepeatConfig[E, T] = RepeatConfig(Schedule.FixedRate(repeats, interval))
-  def fixedRateForever[E, T](interval: FiniteDuration): RepeatConfig[E, T] = RepeatConfig(Schedule.FixedRate.forever(interval))
+  def fixedRate[E, T](repeats: Int, delay: FiniteDuration): RepeatConfig[E, T] = RepeatConfig(Schedule.Delay(repeats, delay))
+  def fixedRateForever[E, T](delay: FiniteDuration): RepeatConfig[E, T] = RepeatConfig(Schedule.Delay.forever(delay))
 
   def exponential[E, T](
       repeats: Int,

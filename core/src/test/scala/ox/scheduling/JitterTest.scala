@@ -18,7 +18,7 @@ class JitterTest extends AnyFlatSpec with Matchers {
     val schedule = baseSchedule
 
     // when
-    val delays = (1 to 5).map(schedule.nextDelay(_, None, None))
+    val delays = (1 to 5).map(schedule.nextDelay(_, None))
 
     // then
     delays should contain theSameElementsInOrderAs Seq(200, 400, 800, 1600, 3200).map(_.millis)
@@ -29,7 +29,7 @@ class JitterTest extends AnyFlatSpec with Matchers {
     val schedule = baseSchedule.copy(jitter = Jitter.Full)
 
     // when
-    val delays = (1 to 5).map(schedule.nextDelay(_, None, None))
+    val delays = (1 to 5).map(schedule.nextDelay(_, None))
 
     // then
     Inspectors.forEvery(delays.zipWithIndex) { case (delay, i) =>
@@ -43,7 +43,7 @@ class JitterTest extends AnyFlatSpec with Matchers {
     val schedule = baseSchedule.copy(jitter = Jitter.Equal)
 
     // when
-    val delays = (1 to 5).map(schedule.nextDelay(_, None, None))
+    val delays = (1 to 5).map(schedule.nextDelay(_, None))
 
     // then
     Inspectors.forEvery(delays.zipWithIndex) { case (delay, i) =>
@@ -57,7 +57,7 @@ class JitterTest extends AnyFlatSpec with Matchers {
     val schedule = baseSchedule.copy(jitter = Jitter.Decorrelated)
 
     // when
-    val delays = (1 to 5).map(schedule.nextDelay(_, None, None))
+    val delays = (1 to 5).map(schedule.nextDelay(_, None))
 
     // then
     Inspectors.forEvery(delays.sliding(2).toList) {

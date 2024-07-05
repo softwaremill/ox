@@ -6,7 +6,7 @@ import scala.util.Random
 // TODO: shouldn't this trait be unsealed so that users can create their own schedules?
 sealed trait Schedule:
   // TODO: consider better name that `attempt`
-  def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration], lastStartTimestamp: Option[Long]): FiniteDuration
+  def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration
 
 object Schedule:
 
@@ -30,7 +30,7 @@ object Schedule:
     */
   case class InitialDelay private[scheduling] (delay: FiniteDuration) extends Finite:
     override def maxRepeats: Int = 0
-    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration], lastStartTimestamp: Option[Long]): FiniteDuration =
+    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration =
       Duration.Zero
     override def initialDelay: FiniteDuration = delay
 
@@ -40,7 +40,7 @@ object Schedule:
     *   The maximum number of repeats.
     */
   case class Immediate(maxRepeats: Int) extends Finite:
-    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration], lastStartTimestamp: Option[Long]): FiniteDuration =
+    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration =
       Duration.Zero
 
   object Immediate:
@@ -48,7 +48,7 @@ object Schedule:
     def forever: Infinite = ImmediateForever
 
   private case object ImmediateForever extends Infinite:
-    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration], lastStartTimestamp: Option[Long]): FiniteDuration =
+    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration =
       Duration.Zero
 
   /** A schedule that repeats up to a given number of times, with a fixed delay between subsequent repeats.
@@ -59,7 +59,7 @@ object Schedule:
     *   The delay between subsequent repeats.
     */
   case class Delay(maxRepeats: Int, delay: FiniteDuration) extends Finite:
-    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration], lastStartTimestamp: Option[Long]): FiniteDuration = delay
+    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration = delay
 
   object Delay:
     /** A schedule that repeats indefinitely, with a fixed delay between subsequent repeats.
@@ -70,41 +70,7 @@ object Schedule:
     def forever(delay: FiniteDuration): Infinite = DelayForever(delay)
 
   private[scheduling] case class DelayForever(delay: FiniteDuration) extends Infinite:
-    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration], lastStartTimestamp: Option[Long]): FiniteDuration = delay
-
-  /** A schedule that repeats up to a given number of times, with a fixed rate between subsequent repeats. If the previous operation took
-    * longer than the interval, the next operation will be scheduled immediately.
-    *
-    * @param maxRepeats
-    *   The maximum number of repeats.
-    * @param interval
-    *   The interval between subsequent operations.
-    */
-  case class FixedRate(maxRepeats: Int, interval: FiniteDuration) extends Finite:
-    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration], lastStartTimestamp: Option[Long]): FiniteDuration =
-      FixedRate.nextDelay(interval, lastStartTimestamp)
-
-  object FixedRate:
-    /** A schedule that repeats indefinitely, with a fixed rate between subsequent repeats. If the previous operation took longer than the
-      * interval, the next operation will be scheduled immediately.
-      *
-      * @param interval
-      *   The interval between subsequent operations.
-      */
-    def forever(interval: FiniteDuration): Infinite = FixedRateForever(interval)
-
-    private[scheduling] def nextDelay(interval: FiniteDuration, lastStartTimestamp: Option[Long]) =
-      lastStartTimestamp match
-        case Some(startTimestamp) =>
-          val elapsed = System.nanoTime() - startTimestamp
-          val remaining = interval.toNanos - elapsed
-          if remaining > 0 then remaining.nanos
-          else Duration.Zero
-        case None => interval
-
-  private[scheduling] case class FixedRateForever(interval: FiniteDuration) extends Infinite:
-    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration], lastStartTimestamp: Option[Long]): FiniteDuration =
-      FixedRate.nextDelay(interval, lastStartTimestamp)
+    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration = delay
 
   /** A schedule that repeats up to a given number of times, with an exponentially increasing delay between subsequent repeats.
     *
@@ -127,7 +93,7 @@ object Schedule:
       maxDelay: FiniteDuration = 1.minute,
       jitter: Jitter = Jitter.None
   ) extends Finite:
-    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration], lastStartTimestamp: Option[Long]): FiniteDuration =
+    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration =
       Exponential.nextDelay(attempt, firstDelay, maxDelay, jitter, lastDelay)
 
   object Exponential:
@@ -176,15 +142,15 @@ object Schedule:
       maxDelay: FiniteDuration = 1.minute,
       jitter: Jitter = Jitter.None
   ) extends Infinite:
-    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration], lastStartTimestamp: Option[Long]): FiniteDuration =
+    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration =
       Exponential.nextDelay(attempt, firstDelay, maxDelay, jitter, lastDelay)
 
   private[scheduling] sealed trait WithFallback extends Schedule:
     def base: Finite
     def fallback: Schedule
-    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration], lastStartTimestamp: Option[Long]): FiniteDuration =
-      if base.maxRepeats > attempt then base.nextDelay(attempt, lastDelay, lastStartTimestamp)
-      else fallback.nextDelay(attempt - base.maxRepeats, lastDelay, lastStartTimestamp)
+    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration =
+      if base.maxRepeats > attempt then base.nextDelay(attempt, lastDelay)
+      else fallback.nextDelay(attempt - base.maxRepeats, lastDelay)
 
   /** A schedule that combines two schedules, using [[base]] first [[base.maxRepeats]] number of times, and then using [[fallback]]
     * [[fallback.maxRepeats]] number of times.
