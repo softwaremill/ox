@@ -13,19 +13,19 @@ object Schedule:
   private[scheduling] sealed trait Finite extends Schedule:
     def maxRepeats: Int
     def initialDelay: FiniteDuration = Duration.Zero
-    def fallbackTo(fallback: Finite): Finite = FallingBack(this, fallback)
-    def fallbackTo(fallback: Infinite): Infinite = FallingBack.forever(this, fallback)
+    def andThen(nextSchedule: Finite): Finite = FiniteAndFiniteSchedules(this, nextSchedule)
+    def andThen(nextSchedule: Infinite): Infinite = FiniteAndFiniteSchedules.forever(this, nextSchedule)
 
   private[scheduling] sealed trait Infinite extends Schedule
 
   /** A schedule that represents an initial delay applied before the first invocation of operation being scheduled. Usually used in
-    * combination with other schedules using [[fallbackTo]]
+    * combination with other schedules using [[andThen]]
     *
     * @param delay
     *   The initial delay.
     * @example
     *   {{{
-    *   Schedule.InitialDelay(1.second).fallbackTo(Schedule.Delay.forever(100.millis))
+    *   Schedule.InitialDelay(1.second).andThen(Schedule.Delay.forever(100.millis))
     *   }}}
     */
   case class InitialDelay private[scheduling] (delay: FiniteDuration) extends Finite:
@@ -145,23 +145,23 @@ object Schedule:
     override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration =
       Exponential.nextDelay(attempt, firstDelay, maxDelay, jitter, lastDelay)
 
-  private[scheduling] sealed trait WithFallback extends Schedule:
-    def base: Finite
-    def fallback: Schedule
+  private[scheduling] sealed trait CombinedSchedules extends Schedule:
+    def first: Finite
+    def second: Schedule
     override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration =
-      if base.maxRepeats > attempt then base.nextDelay(attempt, lastDelay)
-      else fallback.nextDelay(attempt - base.maxRepeats, lastDelay)
+      if first.maxRepeats > attempt then first.nextDelay(attempt, lastDelay)
+      else second.nextDelay(attempt - first.maxRepeats, lastDelay)
 
-  /** A schedule that combines two schedules, using [[base]] first [[base.maxRepeats]] number of times, and then using [[fallback]]
-    * [[fallback.maxRepeats]] number of times.
+  /** A schedule that combines two schedules, using [[first]] first [[first.maxRepeats]] number of times, and then using [[second]]
+    * [[second.maxRepeats]] number of times.
     */
-  case class FallingBack(base: Finite, fallback: Finite) extends WithFallback, Finite:
-    override def maxRepeats: Int = base.maxRepeats + fallback.maxRepeats
-    override def initialDelay: FiniteDuration = base.initialDelay
+  case class FiniteAndFiniteSchedules(first: Finite, second: Finite) extends CombinedSchedules, Finite:
+    override def maxRepeats: Int = first.maxRepeats + second.maxRepeats
+    override def initialDelay: FiniteDuration = first.initialDelay
 
-  object FallingBack:
-    /** A schedule that repeats indefinitely, using [[base]] first [[base.maxRepeats]] number of times, and then always using [[fallback]].
+  object FiniteAndFiniteSchedules:
+    /** A schedule that repeats indefinitely, using [[first]] first [[first.maxRepeats]] number of times, and then always using [[second]].
       */
-    def forever(base: Finite, fallback: Infinite): Infinite = FallingBackForever(base, fallback)
+    def forever(first: Finite, second: Infinite): Infinite = FiniteAndInfiniteSchedules(first, second)
 
-  case class FallingBackForever private[scheduling] (base: Finite, fallback: Infinite) extends WithFallback, Infinite
+  case class FiniteAndInfiniteSchedules private[scheduling] (first: Finite, second: Infinite) extends CombinedSchedules, Infinite

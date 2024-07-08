@@ -43,7 +43,7 @@ class RepeatTest extends AnyFlatSpec with Matchers with EitherValues with TryVal
       counter += 1
       counter
 
-    val schedule = Schedule.InitialDelay(initialDelay).fallbackTo(Schedule.Delay(repeats, delay))
+    val schedule = Schedule.InitialDelay(initialDelay).andThen(Schedule.Delay(repeats, delay))
 
     // when
     val (result, elapsedTime) = measure(repeat(RepeatConfig[Throwable, Int](schedule))(f))
