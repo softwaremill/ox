@@ -23,7 +23,7 @@ class BackoffRetryTest extends AnyFlatSpec with Matchers with EitherValues with 
       if true then throw new RuntimeException("boom")
 
     // when
-    val (result, elapsedTime) = measure(the[RuntimeException] thrownBy retry(RetryPolicy.backoff(maxRetries, initialDelay))(f))
+    val (result, elapsedTime) = measure(the[RuntimeException] thrownBy retry(RetryConfig.backoff(maxRetries, initialDelay))(f))
 
     // then
     result should have message "boom"
@@ -43,7 +43,7 @@ class BackoffRetryTest extends AnyFlatSpec with Matchers with EitherValues with 
       if counter <= retriesUntilSuccess then throw new RuntimeException("boom") else successfulResult
 
     // when
-    val result = retry(RetryPolicy.backoffForever(initialDelay, maxDelay = 2.millis))(f)
+    val result = retry(RetryConfig.backoffForever(initialDelay, maxDelay = 2.millis))(f)
 
     // then
     result shouldBe successfulResult
@@ -61,7 +61,7 @@ class BackoffRetryTest extends AnyFlatSpec with Matchers with EitherValues with 
       if true then throw new RuntimeException("boom")
 
     // when
-    val (result, elapsedTime) = measure(the[RuntimeException] thrownBy retry(RetryPolicy.backoff(maxRetries, initialDelay, maxDelay))(f))
+    val (result, elapsedTime) = measure(the[RuntimeException] thrownBy retry(RetryConfig.backoff(maxRetries, initialDelay, maxDelay))(f))
 
     // then
     result should have message "boom"
@@ -82,7 +82,7 @@ class BackoffRetryTest extends AnyFlatSpec with Matchers with EitherValues with 
 
     // when
     val (result, elapsedTime) =
-      measure(the[RuntimeException] thrownBy retry(RetryPolicy.backoff(maxRetries, initialDelay, maxDelay, Jitter.Equal))(f))
+      measure(the[RuntimeException] thrownBy retry(RetryConfig.backoff(maxRetries, initialDelay, maxDelay, Jitter.Equal))(f))
 
     // then
     result should have message "boom"
@@ -103,7 +103,7 @@ class BackoffRetryTest extends AnyFlatSpec with Matchers with EitherValues with 
       Left(errorMessage)
 
     // when
-    val (result, elapsedTime) = measure(retryEither(RetryPolicy.backoff(maxRetries, initialDelay))(f))
+    val (result, elapsedTime) = measure(retryEither(RetryConfig.backoff(maxRetries, initialDelay))(f))
 
     // then
     result.left.value shouldBe errorMessage

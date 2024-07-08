@@ -22,13 +22,13 @@ import scala.concurrent.duration.*
   * @tparam T
   *   The successful result type for the operation.
   */
-case class RetryPolicy[E, T](
+case class RetryConfig[E, T](
     schedule: Schedule,
     resultPolicy: ResultPolicy[E, T] = ResultPolicy.default[E, T],
     onRetry: (Int, Either[E, T]) => Unit = (_: Int, _: Either[E, T]) => ()
 )
 
-object RetryPolicy:
+object RetryConfig:
   /** Creates a policy that retries up to a given number of times, with no delay between subsequent attempts, using a default
     * [[ResultPolicy]].
     *
@@ -37,13 +37,13 @@ object RetryPolicy:
     * @param maxRetries
     *   The maximum number of retries.
     */
-  def immediate[E, T](maxRetries: Int): RetryPolicy[E, T] = RetryPolicy(Schedule.Immediate(maxRetries))
+  def immediate[E, T](maxRetries: Int): RetryConfig[E, T] = RetryConfig(Schedule.Immediate(maxRetries))
 
   /** Creates a policy that retries indefinitely, with no delay between subsequent attempts, using a default [[ResultPolicy]].
     *
     * This is a shorthand for {{{RetryPolicy(Schedule.Immediate.forever)}}}
     */
-  def immediateForever[E, T]: RetryPolicy[E, T] = RetryPolicy(Schedule.Immediate.forever)
+  def immediateForever[E, T]: RetryConfig[E, T] = RetryConfig(Schedule.Immediate.forever)
 
   /** Creates a policy that retries up to a given number of times, with a fixed delay between subsequent attempts, using a default
     * [[ResultPolicy]].
@@ -55,7 +55,7 @@ object RetryPolicy:
     * @param delay
     *   The delay between subsequent attempts.
     */
-  def delay[E, T](maxRetries: Int, delay: FiniteDuration): RetryPolicy[E, T] = RetryPolicy(Schedule.Delay(maxRetries, delay))
+  def delay[E, T](maxRetries: Int, delay: FiniteDuration): RetryConfig[E, T] = RetryConfig(Schedule.Delay(maxRetries, delay))
 
   /** Creates a policy that retries indefinitely, with a fixed delay between subsequent attempts, using a default [[ResultPolicy]].
     *
@@ -64,7 +64,7 @@ object RetryPolicy:
     * @param delay
     *   The delay between subsequent attempts.
     */
-  def delayForever[E, T](delay: FiniteDuration): RetryPolicy[E, T] = RetryPolicy(Schedule.Delay.forever(delay))
+  def delayForever[E, T](delay: FiniteDuration): RetryConfig[E, T] = RetryConfig(Schedule.Delay.forever(delay))
 
   /** Creates a policy that retries up to a given number of times, with an increasing delay (backoff) between subsequent attempts, using a
     * default [[ResultPolicy]].
@@ -89,8 +89,8 @@ object RetryPolicy:
       initialDelay: FiniteDuration,
       maxDelay: FiniteDuration = 1.minute,
       jitter: Jitter = Jitter.None
-  ): RetryPolicy[E, T] =
-    RetryPolicy(Schedule.Exponential(maxRetries, initialDelay, maxDelay, jitter))
+  ): RetryConfig[E, T] =
+    RetryConfig(Schedule.Exponential(maxRetries, initialDelay, maxDelay, jitter))
 
   /** Creates a policy that retries indefinitely, with an increasing delay (backoff) between subsequent attempts, using a default
     * [[ResultPolicy]].
@@ -112,5 +112,5 @@ object RetryPolicy:
       initialDelay: FiniteDuration,
       maxDelay: FiniteDuration = 1.minute,
       jitter: Jitter = Jitter.None
-  ): RetryPolicy[E, T] =
-    RetryPolicy(Schedule.Exponential.forever(initialDelay, maxDelay, jitter))
+  ): RetryConfig[E, T] =
+    RetryConfig(Schedule.Exponential.forever(initialDelay, maxDelay, jitter))
