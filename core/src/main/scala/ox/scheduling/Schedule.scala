@@ -96,8 +96,7 @@ object Schedule:
       Exponential.nextDelay(attempt, firstDelay, maxDelay, jitter, lastDelay)
 
   object Exponential:
-    // TODO: restore the private modifier
-    def delay(attempt: Int, firstDelay: FiniteDuration, maxDelay: FiniteDuration): FiniteDuration =
+    private[scheduling] def delay(attempt: Int, firstDelay: FiniteDuration, maxDelay: FiniteDuration): FiniteDuration =
       // converting Duration <-> Long back and forth to avoid exceeding maximum duration
       (firstDelay.toMillis * Math.pow(2, attempt)).toLong.min(maxDelay.toMillis).millis
 

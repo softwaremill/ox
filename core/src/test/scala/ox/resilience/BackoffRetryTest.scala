@@ -27,7 +27,7 @@ class BackoffRetryTest extends AnyFlatSpec with Matchers with EitherValues with 
 
     // then
     result should have message "boom"
-    elapsedTime.toMillis should be >= expectedTotalBackoffTimeMillis(maxRetries, initialDelay)
+    elapsedTime.toMillis should be >= (initialDelay.toMillis + 2 * initialDelay.toMillis + 4 * initialDelay.toMillis)
     counter shouldBe 4
   }
 
@@ -65,7 +65,7 @@ class BackoffRetryTest extends AnyFlatSpec with Matchers with EitherValues with 
 
     // then
     result should have message "boom"
-    elapsedTime.toMillis should be >= expectedTotalBackoffTimeMillis(maxRetries, initialDelay, maxDelay)
+    elapsedTime.toMillis should be >= (initialDelay.toMillis + maxDelay.toMillis + maxDelay.toMillis)
     elapsedTime.toMillis should be < initialDelay.toMillis + maxRetries * maxDelay.toMillis
     counter shouldBe 4
   }
@@ -86,7 +86,7 @@ class BackoffRetryTest extends AnyFlatSpec with Matchers with EitherValues with 
 
     // then
     result should have message "boom"
-    elapsedTime.toMillis should be >= expectedTotalBackoffTimeMillis(maxRetries, initialDelay, maxDelay) / 2
+    elapsedTime.toMillis should be >= (initialDelay.toMillis + maxDelay.toMillis + maxDelay.toMillis) / 2
     elapsedTime.toMillis should be < initialDelay.toMillis + maxRetries * maxDelay.toMillis
     counter shouldBe 4
   }
@@ -107,9 +107,6 @@ class BackoffRetryTest extends AnyFlatSpec with Matchers with EitherValues with 
 
     // then
     result.left.value shouldBe errorMessage
-    elapsedTime.toMillis should be >= expectedTotalBackoffTimeMillis(maxRetries, initialDelay)
+    elapsedTime.toMillis should be >= (initialDelay.toMillis + 2 * initialDelay.toMillis + 4 * initialDelay.toMillis)
     counter shouldBe 4
   }
-
-  private def expectedTotalBackoffTimeMillis(maxRetries: Int, initialDelay: FiniteDuration, maxDelay: FiniteDuration = 1.day): Long =
-    (0 until maxRetries).map(Schedule.Exponential.delay(_, initialDelay, maxDelay).toMillis).sum
