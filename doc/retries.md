@@ -111,12 +111,12 @@ When you don't need to customize the result policy (i.e. use the default one), y
 shorthands to define a retry policy with a given schedule (note that the parameters are the same as when manually
 creating the respective `Schedule`):
 
-- `RetryPolicy.immediate(maxRetries: Int)`,
-- `RetryPolicy.immediateForever`,
-- `RetryPolicy.delay(maxRetries: Int, delay: FiniteDuration)`,
-- `RetryPolicy.delayForever(delay: FiniteDuration)`,
-- `RetryPolicy.backoff(maxRetries: Int, initialDelay: FiniteDuration, maxDelay: FiniteDuration, jitter: Jitter)`,
-- `RetryPolicy.backoffForever(initialDelay: FiniteDuration, maxDelay: FiniteDuration, jitter: Jitter)`.
+- `RetryConfig.immediate(maxRetries: Int)`,
+- `RetryConfig.immediateForever`,
+- `RetryConfig.delay(maxRetries: Int, delay: FiniteDuration)`,
+- `RetryConfig.delayForever(delay: FiniteDuration)`,
+- `RetryConfig.backoff(maxRetries: Int, initialDelay: FiniteDuration, maxDelay: FiniteDuration, jitter: Jitter)`,
+- `RetryConfig.backoffForever(initialDelay: FiniteDuration, maxDelay: FiniteDuration, jitter: Jitter)`.
 
 If you want to customize a part of the result policy, you can use the following shorthands:
 
@@ -131,7 +131,7 @@ If you want to customize a part of the result policy, you can use the following 
 
 ```scala mdoc:compile-only
 import ox.UnionMode
-import ox.resilience.{retry, retryEither, retryWithErrorMode, ResultPolicy, RetryPolicy}
+import ox.resilience.{retry, retryEither, retryWithErrorMode, ResultPolicy, RetryConfig}
 import ox.scheduling.{Jitter, Schedule}
 import scala.concurrent.duration.*
 
@@ -140,27 +140,27 @@ def eitherOperation: Either[String, Int] = ???
 def unionOperation: String | Int = ???
 
 // various operation definitions - same syntax
-retry(RetryPolicy.immediate(3))(directOperation)
-retryEither(RetryPolicy.immediate(3))(eitherOperation)
+retry(RetryConfig.immediate(3))(directOperation)
+retryEither(RetryConfig.immediate(3))(eitherOperation)
 
 // various policies with custom schedules and default ResultPolicy
-retry(RetryPolicy.delay(3, 100.millis))(directOperation)
-retry(RetryPolicy.backoff(3, 100.millis))(directOperation) // defaults: maxDelay = 1.minute, jitter = Jitter.None
-retry(RetryPolicy.backoff(3, 100.millis, 5.minutes, Jitter.Equal))(directOperation)
+retry(RetryConfig.delay(3, 100.millis))(directOperation)
+retry(RetryConfig.backoff(3, 100.millis))(directOperation) // defaults: maxDelay = 1.minute, jitter = Jitter.None
+retry(RetryConfig.backoff(3, 100.millis, 5.minutes, Jitter.Equal))(directOperation)
 
 // infinite retries with a default ResultPolicy
-retry(RetryPolicy.delayForever(100.millis))(directOperation)
-retry(RetryPolicy.backoffForever(100.millis, 5.minutes, Jitter.Full))(directOperation)
+retry(RetryConfig.delayForever(100.millis))(directOperation)
+retry(RetryConfig.backoffForever(100.millis, 5.minutes, Jitter.Full))(directOperation)
 
 // result policies
 // custom success
-retry[Int](RetryPolicy(Schedule.Immediate(3), ResultPolicy.successfulWhen(_ > 0)))(directOperation)
+retry[Int](RetryConfig(Schedule.Immediate(3), ResultPolicy.successfulWhen(_ > 0)))(directOperation)
 // fail fast on certain errors
-retry(RetryPolicy(Schedule.Immediate(3), ResultPolicy.retryWhen(_.getMessage != "fatal error")))(directOperation)
-retryEither(RetryPolicy(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")))(eitherOperation)
+retry(RetryConfig(Schedule.Immediate(3), ResultPolicy.retryWhen(_.getMessage != "fatal error")))(directOperation)
+retryEither(RetryConfig(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")))(eitherOperation)
 
 // custom error mode
-retryWithErrorMode(UnionMode[String])(RetryPolicy(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")))(unionOperation)
+retryWithErrorMode(UnionMode[String])(RetryConfig(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")))(unionOperation)
 ```
 
 See the tests in `ox.resilience.*` for more.

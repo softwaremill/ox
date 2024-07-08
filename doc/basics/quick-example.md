@@ -36,7 +36,7 @@ supervised {
 
 // retry a computation
 def computationR: Int = ???
-retry(RetryPolicy.backoff(3, 100.millis, 5.minutes, Jitter.Equal))(computationR)
+retry(RetryConfig.backoff(3, 100.millis, 5.minutes, Jitter.Equal))(computationR)
 
 // create channels & transform them using high-level operations
 supervised {
