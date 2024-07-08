@@ -3,11 +3,13 @@ package ox
 import scala.util.boundary.*
 import scala.util.control.NonFatal
 
-enum ExitCode(val code: Int):
+enum ExitCode(val code: Int) {
   case Success extends ExitCode(0)
   case Failure(exitCode: Int = 1) extends ExitCode(exitCode)
+}
 
-trait OxApp:
+trait OxApp {
+
   import OxApp.AppSettings
 
   protected def settings: AppSettings = AppSettings.defaults
@@ -32,12 +34,14 @@ trait OxApp:
     }
 
   /** For testing - trapping System.exit is impossible due to SecurityManager removal so it's just overrideable in tests.
+    *
     * @param code
     *   Int exit code
     */
   private[ox] def exit(exitCode: ExitCode): Unit = System.exit(exitCode.code)
 
   /** For testing - allows to trigger shutdown hook without actually stopping the jvm.
+    *
     * @param thread
     *   Thread
     */
@@ -61,10 +65,14 @@ trait OxApp:
 
   def run(args: Vector[String])(using Ox): ExitCode
 
-object OxApp:
+}
+
+object OxApp {
 
   case class AppSettings(
-      /** This value is returned to the operating system as the exit code when the app receives SIGINT and shuts itself down gracefully. */
+      /** This value is returned to the operating system as the exit code when the app receives SIGINT and shuts itself down gracefully.
+        * Default value is `ExitCode.Success` (0). JVM itself returns code `130` when it receives `SIGINT`.
+        */
       gracefulShutdownExitCode: ExitCode = ExitCode.Success
   )
 
@@ -74,12 +82,13 @@ object OxApp:
 
   /** Simple variant of OxApp does not pass command line arguments and exits with exit code 0 if no exceptions were thrown.
     */
-  trait Simple extends OxApp:
+  trait Simple extends OxApp {
     override final def run(args: Vector[String])(using Ox): ExitCode =
       run
       ExitCode.Success
 
     def run(using Ox): Unit
+  }
 
   /** WithErrorMode variant of OxApp allows to specify what kind of error handling for the main function should be used. Base trait for
     * integrations.
@@ -89,13 +98,14 @@ object OxApp:
     * @tparam F
     *   wrapper type for given ErrorMode
     */
-  trait WithErrorMode[E, F[_]](em: ErrorMode[E, F]) extends OxApp:
+  trait WithErrorMode[E, F[_]](em: ErrorMode[E, F]) extends OxApp {
     override final def run(args: Vector[String])(using ox: Ox): ExitCode =
       val result = runWithErrors(args)
       if em.isError(result) then handleError(em.getError(result))
       else ExitCode.Success
 
     /** Allows implementor of this trait to translate an error that app finished with into a concrete ExitCode.
+      *
       * @param e
       *   E Error type
       * @return
@@ -112,6 +122,7 @@ object OxApp:
       *   F[ExitCode]
       */
     def runWithErrors(args: Vector[String])(using Ox): F[ExitCode]
+  }
 
   /** WithEitherErrors variant of OxApp integrates OxApp with an `either` block and allows for usage of `.ok()` combinators in the body of
     * the main function.
@@ -119,11 +130,14 @@ object OxApp:
     * @tparam E
     *   Error type
     */
-  abstract class WithEitherErrors[E] extends WithErrorMode(EitherMode[E]()):
+  abstract class WithEitherErrors[E] extends WithErrorMode(EitherMode[E]()) {
 
     type EitherError[Err] = Label[Either[Err, ExitCode]]
 
     override final def runWithErrors(args: Vector[String])(using ox: Ox): Either[E, ExitCode] =
-      either[E, ExitCode](label ?=> run(args.toVector)(using ox, label))
+      either[E, ExitCode](label ?=> run(args)(using ox, label))
 
     def run(args: Vector[String])(using Ox, EitherError[E]): ExitCode
+  }
+
+}
