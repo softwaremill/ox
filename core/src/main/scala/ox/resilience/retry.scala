@@ -47,12 +47,4 @@ def retryEither[E, T](config: RetryConfig[E, T])(operation: => Either[E, T]): Ei
   *   - the error `E` in context `F` as returned by the last attempt if the config decides to stop.
   */
 def retryWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(config: RetryConfig[E, T])(operation: => F[T]): F[T] =
-  scheduledWithErrorMode(em)(
-    ScheduledConfig(
-      config.schedule,
-      config.onRetry,
-      shouldContinueOnError = config.resultPolicy.isWorthRetrying,
-      shouldContinueOnResult = t => !config.resultPolicy.isSuccess(t),
-      delayPolicy = DelayPolicy.SinceTheEndOfTheLastInvocation
-    )
-  )(operation)
+  scheduledWithErrorMode(em)(config.toScheduledConfig)(operation)

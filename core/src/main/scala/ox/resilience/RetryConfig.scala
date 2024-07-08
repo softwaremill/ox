@@ -1,6 +1,6 @@
 package ox.resilience
 
-import ox.scheduling.{Jitter, Schedule}
+import ox.scheduling.{DelayPolicy, Jitter, Schedule, ScheduledConfig}
 
 import scala.concurrent.duration.*
 
@@ -26,7 +26,15 @@ case class RetryConfig[E, T](
     schedule: Schedule,
     resultPolicy: ResultPolicy[E, T] = ResultPolicy.default[E, T],
     onRetry: (Int, Either[E, T]) => Unit = (_: Int, _: Either[E, T]) => ()
-)
+) {
+  def toScheduledConfig: ScheduledConfig[E, T] = ScheduledConfig(
+    schedule,
+    onRetry,
+    shouldContinueOnError = resultPolicy.isWorthRetrying,
+    shouldContinueOnResult = t => !resultPolicy.isSuccess(t),
+    delayPolicy = DelayPolicy.SinceTheEndOfTheLastInvocation
+  )
+}
 
 object RetryConfig:
   /** Creates a config that retries up to a given number of times, with no delay between subsequent attempts, using a default
