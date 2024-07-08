@@ -12,8 +12,8 @@ def repeatEither[E, T](config: RepeatConfig[E, T])(operation: => Either[E, T]): 
   repeatWithErrorMode(EitherMode[E])(config)(operation)
 
 def repeatWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(config: RepeatConfig[E, T])(operation: => F[T]): F[T] =
-  runScheduledWithErrorMode[E, F, T](em)(
-    RunScheduledConfig[E, T](
+  scheduledWithErrorMode[E, F, T](em)(
+    ScheduledConfig[E, T](
       config.schedule,
       shouldContinueOnError = config.shouldContinueOnError,
       shouldContinueOnResult = config.shouldContinueOnResult,

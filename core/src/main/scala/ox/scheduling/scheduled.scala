@@ -9,7 +9,7 @@ import scala.util.Try
 enum DelayPolicy:
   case SinceTheStartOfTheLastInvocation, SinceTheEndOfTheLastInvocation
 
-case class RunScheduledConfig[E, T](
+case class ScheduledConfig[E, T](
     schedule: Schedule,
     onRepeat: (Int, Either[E, T]) => Unit = (_: Int, _: Either[E, T]) => (),
     shouldContinueOnError: E => Boolean = (_: E) => false,
@@ -17,13 +17,13 @@ case class RunScheduledConfig[E, T](
     delayPolicy: DelayPolicy = DelayPolicy.SinceTheStartOfTheLastInvocation
 )
 
-def runScheduled[T](config: RunScheduledConfig[Throwable, T])(operation: => T): T =
-  runScheduledEither(config)(Try(operation).toEither).fold(throw _, identity)
+def scheduled[T](config: ScheduledConfig[Throwable, T])(operation: => T): T =
+  scheduledEither(config)(Try(operation).toEither).fold(throw _, identity)
 
-def runScheduledEither[E, T](config: RunScheduledConfig[E, T])(operation: => Either[E, T]): Either[E, T] =
-  runScheduledWithErrorMode(EitherMode[E])(config)(operation)
+def scheduledEither[E, T](config: ScheduledConfig[E, T])(operation: => Either[E, T]): Either[E, T] =
+  scheduledWithErrorMode(EitherMode[E])(config)(operation)
 
-def runScheduledWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(config: RunScheduledConfig[E, T])(operation: => F[T]): F[T] =
+def scheduledWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(config: ScheduledConfig[E, T])(operation: => F[T]): F[T] =
   @tailrec
   def loop(attempt: Int, remainingAttempts: Option[Int], lastDelay: Option[FiniteDuration]): F[T] =
     def sleepIfNeeded(startTimestamp: Long) =
