@@ -38,49 +38,59 @@ case class RepeatConfig[E, T](
 }
 
 object RepeatConfig:
-  /** Creates a config that repeats up to a given number of times, with no delay between subsequent invocations.
-    *
-    * This is a shorthand for {{{RepeatConfig(Schedule.Immediate(repeats))}}}
+  /** Creates a config that repeats up to a given number of times, with no interval between subsequent invocations and optional initial
+    * delay.
     *
     * @param maxInvocations
     *   The maximum number of invocations.
+    * @param initialDelay
+    *   The initial delay before the first invocation.
     */
-  def immediate[E, T](maxInvocations: Int): RepeatConfig[E, T] = RepeatConfig(Schedule.Immediate(maxInvocations))
+  def immediate[E, T](maxInvocations: Int, initialDelay: Option[FiniteDuration] = None): RepeatConfig[E, T] =
+    initialDelay match
+      case Some(delay) => RepeatConfig(Schedule.InitialDelay(delay).andThen(Schedule.Immediate(maxInvocations)))
+      case None        => RepeatConfig(Schedule.Immediate(maxInvocations))
 
-  /** Creates a config that repeats indefinitely, with no delay between subsequent invocations.
+  /** Creates a config that repeats indefinitely, with no interval between subsequent invocations and optional initial delay.
     *
-    * This is a shorthand for {{{RepeatConfig(Schedule.Immediate.forever)}}}
+    * @param initialDelay
+    *   The initial delay before the first invocation.
     */
-  def immediateForever[E, T]: RepeatConfig[E, T] = RepeatConfig(Schedule.Immediate.forever)
+  def immediateForever[E, T](initialDelay: Option[FiniteDuration] = None): RepeatConfig[E, T] =
+    initialDelay match
+      case Some(delay) => RepeatConfig(Schedule.InitialDelay(delay).andThen(Schedule.Immediate.forever))
+      case None        => RepeatConfig(Schedule.Immediate.forever)
 
-  /** Creates a config that repeats up to a given number of times, with a fixed interval between subsequent invocations.
-    *
-    * This is a shorthand for {{{RepeatConfig(Schedule.Delay(maxInvocations, interval))}}}
+  /** Creates a config that repeats up to a given number of times, with a fixed interval between subsequent invocations and optional initial
+    * delay.
     *
     * @param maxInvocations
     *   The maximum number of invocations.
     * @param interval
     *   The interval between subsequent attempts.
+    * @param initialDelay
+    *   The initial delay before the first invocation.
     */
-  def fixedRate[E, T](maxInvocations: Int, interval: FiniteDuration): RepeatConfig[E, T] = RepeatConfig(
-    Schedule.Delay(maxInvocations, interval)
-  )
+  def fixedRate[E, T](maxInvocations: Int, interval: FiniteDuration, initialDelay: Option[FiniteDuration] = None): RepeatConfig[E, T] =
+    initialDelay match
+      case Some(delay) => RepeatConfig(Schedule.InitialDelay(delay).andThen(Schedule.Delay(maxInvocations, interval)))
+      case None        => RepeatConfig(Schedule.Delay(maxInvocations, interval))
 
-  /** Creates a config that repeats indefinitely, with a fixed interval between subsequent invocations.
-    *
-    * This is a shorthand for {{{RepeatConfig(Schedule.Delay.forever(interval))}}}
+  /** Creates a config that repeats indefinitely, with a fixed interval between subsequent invocations and optional initial delay.
     *
     * @param interval
-    *   The delay between subsequent invocations.
+    *   The interval between subsequent invocations.
     */
-  def fixedRateForever[E, T](interval: FiniteDuration): RepeatConfig[E, T] = RepeatConfig(Schedule.Delay.forever(interval))
+  def fixedRateForever[E, T](interval: FiniteDuration, initialDelay: Option[FiniteDuration] = None): RepeatConfig[E, T] =
+    initialDelay match
+      case Some(delay) => RepeatConfig(Schedule.InitialDelay(delay).andThen(Schedule.Delay.forever(interval)))
+      case None        => RepeatConfig(Schedule.Delay.forever(interval))
 
-  /** Creates a config that repeats up to a given number of times, with an increasing interval (backoff) between subsequent attempts.
+  /** Creates a config that repeats up to a given number of times, with an increasing interval (backoff) between subsequent attempts and
+    * optional initial delay.
     *
     * The backoff is exponential with base 2 (i.e. the next interval is twice as long as the previous one), starting at the given first
     * interval and capped at the given maximum interval.
-    *
-    * This is a shorthand for {{{RetryConfig(Schedule.Backoff(maxRetries, initialDelay, maxDelay, jitter))}}}
     *
     * @param maxInvocations
     *   The maximum number of invocations.
@@ -96,15 +106,19 @@ object RepeatConfig:
       maxInvocations: Int,
       firstInterval: FiniteDuration,
       maxInterval: FiniteDuration = 1.minute,
-      jitter: Jitter = Jitter.None
-  ): RepeatConfig[E, T] = RepeatConfig(Schedule.Exponential(maxInvocations, firstInterval, maxInterval, jitter))
+      jitter: Jitter = Jitter.None,
+      initialDelay: Option[FiniteDuration] = None
+  ): RepeatConfig[E, T] =
+    initialDelay match
+      case Some(delay) =>
+        RepeatConfig(Schedule.InitialDelay(delay).andThen(Schedule.Exponential(maxInvocations, firstInterval, maxInterval, jitter)))
+      case None => RepeatConfig(Schedule.Exponential(maxInvocations, firstInterval, maxInterval, jitter))
 
-  /** Creates a config that repeats indefinitely, with an increasing interval (backoff) between subsequent invocations.
+  /** Creates a config that repeats indefinitely, with an increasing interval (backoff) between subsequent invocations and optional initial
+    * delay.
     *
     * The backoff is exponential with base 2 (i.e. the next interval is twice as long as the previous one), starting at the given first
     * interval and capped at the given maximum interval.
-    *
-    * This is a shorthand for {{{RetryConfig(Schedule.Backoff.forever(initialDelay, maxDelay, jitter))}}}
     *
     * @param firstInterval
     *   The interval between the first and the second operation.
@@ -117,5 +131,10 @@ object RepeatConfig:
   def backoffForever[E, T](
       firstInterval: FiniteDuration,
       maxInterval: FiniteDuration = 1.minute,
-      jitter: Jitter = Jitter.None
-  ): RepeatConfig[E, T] = RepeatConfig(Schedule.Exponential.forever(firstInterval, maxInterval, jitter))
+      jitter: Jitter = Jitter.None,
+      initialDelay: Option[FiniteDuration] = None
+  ): RepeatConfig[E, T] =
+    initialDelay match
+      case Some(delay) =>
+        RepeatConfig(Schedule.InitialDelay(delay).andThen(Schedule.Exponential.forever(firstInterval, maxInterval, jitter)))
+      case None => RepeatConfig(Schedule.Exponential.forever(firstInterval, maxInterval, jitter))
