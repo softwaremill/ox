@@ -9,7 +9,7 @@ import scala.concurrent.duration.*
 
 class FixedRateRepeatTest extends AnyFlatSpec with Matchers with EitherValues with TryValues with ElapsedTime:
 
-  behavior of "scheduleOp"
+  behavior of "repeat"
 
   it should "repeat a function at fixed rate" in {
     // given
