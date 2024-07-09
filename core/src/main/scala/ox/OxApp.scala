@@ -7,6 +7,18 @@ enum ExitCode(val code: Int):
   case Success extends ExitCode(0)
   case Failure(exitCode: Int = 1) extends ExitCode(exitCode)
 
+/** Extend this trait when defining application entry points. Comes in several variants:
+  *
+  *   - [[OxApp.Simple]] for applications which don't use command-line arguments
+  *   - [[OxApp]] for applications which use command-line arguments
+  *   - [[OxApp.WithEitherErrors]] to be able to unwrap `Either`s (see [[either.apply()]]) in the entry point's body. If case of failure,
+  *     the applications ends with an error
+  *   - [[OxApp.WithErrorMode]] to report errors (which end the application) using other [[ErrorMode]]s
+  *
+  * The benefit of using `OxApp` compared to normal `@main` methods is that application interruptions is handled properly. A fork in a scope
+  * is created to run the application's logic. Interrupting the application (e.g. using CTRL+C) will cause the scope to end and all forks to
+  * be interrupted, allowing for a clean shutdown.
+  */
 trait OxApp:
   import OxApp.AppSettings
 
@@ -85,22 +97,11 @@ object OxApp:
       if em.isError(result) then handleError(em.getError(result))
       else ExitCode.Success
 
-    /** Allows implementor of this trait to translate an error that app finished with into a concrete ExitCode.
-      *
-      * @param e
-      *   E Error type
-      * @return
-      *   ExitCode
-      */
+    /** Allows implementor of this trait to translate an error that app finished with into a concrete ExitCode. */
     def handleError(e: E): ExitCode
 
     /** This template method is to be implemented by abstract classes that add integration for particular error handling data structure of
       * type F[_].
-      *
-      * @param args
-      *   List[String]
-      * @return
-      *   F[ExitCode]
       */
     def runWithErrors(args: Vector[String])(using Ox): F[ExitCode]
   end WithErrorMode
