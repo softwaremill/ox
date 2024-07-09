@@ -10,7 +10,7 @@ enum ExitCode(val code: Int):
 trait OxApp:
   import OxApp.AppSettings
 
-  protected def settings: AppSettings = AppSettings.defaults
+  protected def settings: AppSettings = AppSettings.Default
 
   final def main(args: Array[String]): Unit =
     unsupervised {
@@ -54,13 +54,13 @@ end OxApp
 
 object OxApp:
   /** @param gracefulShutdownExitCode
-    *   This value is returned to the operating system as the exit code when the app receives SIGINT and shuts itself down gracefully.
-    *   Default value is `ExitCode.Success` (0). JVM itself returns code `130` when it receives `SIGINT`.
+    *   This value is returned to the operating system as the exit code when the app receives SIGINT and shuts itself down gracefully. In
+    *   the [[AppSettings.Default]] settings, the value is `ExitCode.Success` (0). JVM itself returns code `130` when it receives `SIGINT`.
     */
-  case class AppSettings(gracefulShutdownExitCode: ExitCode = ExitCode.Success)
+  case class AppSettings(gracefulShutdownExitCode: ExitCode)
 
   object AppSettings:
-    lazy val defaults: AppSettings = AppSettings()
+    lazy val Default: AppSettings = AppSettings(ExitCode.Success)
 
   /** Simple variant of OxApp does not pass command line arguments and exits with exit code 0 if no exceptions were thrown.
     */
