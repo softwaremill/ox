@@ -27,7 +27,7 @@ def scheduledWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(config: ScheduledCon
   @tailrec
   def loop(attempt: Int, remainingAttempts: Option[Int], lastDelay: Option[FiniteDuration]): F[T] =
     def sleepIfNeeded(startTimestamp: Long) =
-      val nextDelay = config.schedule.nextDelay(attempt, lastDelay)
+      val nextDelay = config.schedule.nextDuration(attempt, lastDelay)
       val delay = config.delayPolicy match
         case DelayPolicy.SinceTheStartOfTheLastInvocation =>
           val elapsed = System.nanoTime() - startTimestamp

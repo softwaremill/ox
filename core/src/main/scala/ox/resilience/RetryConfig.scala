@@ -63,7 +63,7 @@ object RetryConfig:
     * @param delay
     *   The delay between subsequent attempts.
     */
-  def delay[E, T](maxRetries: Int, delay: FiniteDuration): RetryConfig[E, T] = RetryConfig(Schedule.Delay(maxRetries, delay))
+  def delay[E, T](maxRetries: Int, delay: FiniteDuration): RetryConfig[E, T] = RetryConfig(Schedule.Fixed(maxRetries, delay))
 
   /** Creates a config that retries indefinitely, with a fixed delay between subsequent attempts, using a default [[ResultPolicy]].
     *
@@ -72,7 +72,7 @@ object RetryConfig:
     * @param delay
     *   The delay between subsequent attempts.
     */
-  def delayForever[E, T](delay: FiniteDuration): RetryConfig[E, T] = RetryConfig(Schedule.Delay.forever(delay))
+  def delayForever[E, T](delay: FiniteDuration): RetryConfig[E, T] = RetryConfig(Schedule.Fixed.forever(delay))
 
   /** Creates a config that retries up to a given number of times, with an increasing delay (backoff) between subsequent attempts, using a
     * default [[ResultPolicy]].
@@ -98,7 +98,7 @@ object RetryConfig:
       maxDelay: FiniteDuration = 1.minute,
       jitter: Jitter = Jitter.None
   ): RetryConfig[E, T] =
-    RetryConfig(Schedule.Exponential(maxRetries, initialDelay, maxDelay, jitter))
+    RetryConfig(Schedule.Backoff(maxRetries, initialDelay, maxDelay, jitter))
 
   /** Creates a config that retries indefinitely, with an increasing delay (backoff) between subsequent attempts, using a default
     * [[ResultPolicy]].
@@ -121,4 +121,4 @@ object RetryConfig:
       maxDelay: FiniteDuration = 1.minute,
       jitter: Jitter = Jitter.None
   ): RetryConfig[E, T] =
-    RetryConfig(Schedule.Exponential.forever(initialDelay, maxDelay, jitter))
+    RetryConfig(Schedule.Backoff.forever(initialDelay, maxDelay, jitter))

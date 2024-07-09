@@ -5,7 +5,7 @@ import scala.util.Random
 
 sealed trait Schedule:
   // TODO: consider better name that `attempt`
-  def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration
+  def nextDuration(attempt: Int, lastDuration: Option[FiniteDuration]): FiniteDuration
 
 object Schedule:
 
@@ -29,137 +29,137 @@ object Schedule:
     */
   case class InitialDelay private[scheduling] (delay: FiniteDuration) extends Finite:
     override def maxRepeats: Int = 0
-    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration =
+    override def nextDuration(attempt: Int, lastDuration: Option[FiniteDuration]): FiniteDuration =
       Duration.Zero
     override def initialDelay: FiniteDuration = delay
 
-  /** A schedule that repeats up to a given number of times, with no delay between subsequent repeats.
+  /** A schedule that represents an immediate invocation, up to a given number of times.
     *
     * @param maxRepeats
-    *   The maximum number of repeats.
+    *   The maximum number of invocations.
     */
   case class Immediate(maxRepeats: Int) extends Finite:
-    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration =
+    override def nextDuration(attempt: Int, lastDuration: Option[FiniteDuration]): FiniteDuration =
       Duration.Zero
 
   object Immediate:
-    /** A schedule that repeats indefinitely, with no delay between subsequent repeats. */
+    /** A schedule that represents an immediate invocation without any invocations limit */
     def forever: Infinite = ImmediateForever
 
   private case object ImmediateForever extends Infinite:
-    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration =
+    override def nextDuration(attempt: Int, lastDuration: Option[FiniteDuration]): FiniteDuration =
       Duration.Zero
 
-  /** A schedule that repeats up to a given number of times, with a fixed delay between subsequent repeats.
+  /** A schedule that represents a fixed duration between invocations, up to a given number of times.
     *
     * @param maxRepeats
     *   The maximum number of repeats.
-    * @param delay
-    *   The delay between subsequent repeats.
+    * @param duration
+    *   The duration between subsequent invocations.
     */
-  case class Delay(maxRepeats: Int, delay: FiniteDuration) extends Finite:
-    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration = delay
+  case class Fixed(maxRepeats: Int, duration: FiniteDuration) extends Finite:
+    override def nextDuration(attempt: Int, lastDuration: Option[FiniteDuration]): FiniteDuration = duration
 
-  object Delay:
-    /** A schedule that repeats indefinitely, with a fixed delay between subsequent repeats.
+  object Fixed:
+    /** A schedule that represents a fixed duration between invocations without any invocations limit.
       *
-      * @param delay
-      *   The delay between subsequent repeats.
+      * @param duration
+      *   The duration between subsequent invocations.
       */
-    def forever(delay: FiniteDuration): Infinite = DelayForever(delay)
+    def forever(duration: FiniteDuration): Infinite = FixedForever(duration)
 
-  private[scheduling] case class DelayForever(delay: FiniteDuration) extends Infinite:
-    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration = delay
+  private[scheduling] case class FixedForever(duration: FiniteDuration) extends Infinite:
+    override def nextDuration(attempt: Int, lastDuration: Option[FiniteDuration]): FiniteDuration = duration
 
-  /** A schedule that repeats up to a given number of times, with an exponentially increasing delay between subsequent repeats.
+  /** A schedule that represents an increasing duration between invocations (backoff), up to a given number of times.
     *
-    * The delay is exponential with base 2 (i.e. the next delay is twice as long as the previous one), starting at the given initial delay
-    * and capped at the given maximum delay.
+    * The backoff is exponential with base 2 (i.e. the next duration is twice as long as the previous one), starting at the given first
+    * duration and capped at the given maximum duration.
     *
     * @param maxRepeats
     *   The maximum number of repeats.
-    * @param firstDelay
-    *   The delay before the first repeat.
-    * @param maxDelay
-    *   The maximum delay between subsequent repeats.
+    * @param firstDuration
+    *   The duration between the first and the second invocations.
+    * @param maxDuration
+    *   The maximum duration between subsequent invocations.
     * @param jitter
-    *   A random factor used for calculating the delay between subsequent repeats. See [[Jitter]] for more details. Defaults to no jitter,
-    *   i.e. an exponential backoff with no adjustments.
+    *   A random factor used for calculating the duration between subsequent repeats. See [[Jitter]] for more details. Defaults to no
+    *   jitter, i.e. an exponential backoff with no adjustments.
     */
-  case class Exponential(
+  case class Backoff(
       maxRepeats: Int,
-      firstDelay: FiniteDuration,
-      maxDelay: FiniteDuration = 1.minute,
+      firstDuration: FiniteDuration,
+      maxDuration: FiniteDuration = 1.minute,
       jitter: Jitter = Jitter.None
   ) extends Finite:
-    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration =
-      Exponential.nextDelay(attempt, firstDelay, maxDelay, jitter, lastDelay)
+    override def nextDuration(attempt: Int, lastDuration: Option[FiniteDuration]): FiniteDuration =
+      Backoff.nextDuration(attempt, firstDuration, maxDuration, jitter, lastDuration)
 
-  object Exponential:
-    private[scheduling] def delay(attempt: Int, firstDelay: FiniteDuration, maxDelay: FiniteDuration): FiniteDuration =
+  object Backoff:
+    private[scheduling] def calculateDuration(attempt: Int, firstDuration: FiniteDuration, maxDuration: FiniteDuration): FiniteDuration =
       // converting Duration <-> Long back and forth to avoid exceeding maximum duration
-      (firstDelay.toMillis * Math.pow(2, attempt)).toLong.min(maxDelay.toMillis).millis
+      (firstDuration.toMillis * Math.pow(2, attempt)).toLong.min(maxDuration.toMillis).millis
 
-    private[scheduling] def nextDelay(
+    private[scheduling] def nextDuration(
         attempt: Int,
-        firstDelay: FiniteDuration,
-        maxDelay: FiniteDuration,
+        firstDuration: FiniteDuration,
+        maxDuration: FiniteDuration,
         jitter: Jitter,
-        lastDelay: Option[FiniteDuration]
+        lastDuration: Option[FiniteDuration]
     ): FiniteDuration =
-      def exponentialDelay = Exponential.delay(attempt, firstDelay, maxDelay)
+      def exponentialDuration = Backoff.calculateDuration(attempt, firstDuration, maxDuration)
 
       jitter match
-        case Jitter.None => exponentialDelay
-        case Jitter.Full => Random.between(0, exponentialDelay.toMillis).millis
+        case Jitter.None => exponentialDuration
+        case Jitter.Full => Random.between(0, exponentialDuration.toMillis).millis
         case Jitter.Equal =>
-          val backoff = exponentialDelay.toMillis
+          val backoff = exponentialDuration.toMillis
           (backoff / 2 + Random.between(0, backoff / 2)).millis
         case Jitter.Decorrelated =>
-          val last = lastDelay.getOrElse(firstDelay).toMillis
-          Random.between(firstDelay.toMillis, last * 3).millis
+          val last = lastDuration.getOrElse(firstDuration).toMillis
+          Random.between(firstDuration.toMillis, last * 3).millis
 
-    /** A schedule that repeats indefinitely, with an exponentially increasing delay between subsequent repeats.
+    /** A schedule that represents an increasing duration between invocations (backoff) without any invocations limit.
       *
-      * The delay is exponential with base 2 (i.e. the next delay is twice as long as the previous one), starting at the given initial delay
-      * and capped at the given maximum delay.
+      * The backoff is exponential with base 2 (i.e. the next duration is twice as long as the previous one), starting at the given first
+      * duration and capped at the given maximum duration.
       *
-      * @param firstDelay
-      *   The delay before the first repeat.
-      * @param maxDelay
-      *   The maximum delay between subsequent repeats.
+      * @param firstDuration
+      *   The duration between the first and the second invocations.
+      * @param maxDuration
+      *   The maximum duration between subsequent repeats.
       * @param jitter
-      *   A random factor used for calculating the delay between subsequent repeats. See [[Jitter]] for more details. Defaults to no jitter,
-      *   i.e. an exponential backoff with no adjustments.
+      *   A random factor used for calculating the duration between subsequent repeats. See [[Jitter]] for more details. Defaults to no
+      *   jitter, i.e. an exponential backoff with no adjustments.
       */
-    def forever(firstDelay: FiniteDuration, maxDelay: FiniteDuration = 1.minute, jitter: Jitter = Jitter.None): Infinite =
-      ExponentialForever(firstDelay, maxDelay, jitter)
+    def forever(firstDuration: FiniteDuration, maxDuration: FiniteDuration = 1.minute, jitter: Jitter = Jitter.None): Infinite =
+      BackoffForever(firstDuration, maxDuration, jitter)
 
-  case class ExponentialForever private[scheduling] (
-      firstDelay: FiniteDuration,
-      maxDelay: FiniteDuration = 1.minute,
+  private[scheduling] case class BackoffForever(
+      firstDuration: FiniteDuration,
+      maxDuration: FiniteDuration = 1.minute,
       jitter: Jitter = Jitter.None
   ) extends Infinite:
-    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration =
-      Exponential.nextDelay(attempt, firstDelay, maxDelay, jitter, lastDelay)
+    override def nextDuration(attempt: Int, lastDuration: Option[FiniteDuration]): FiniteDuration =
+      Backoff.nextDuration(attempt, firstDuration, maxDuration, jitter, lastDuration)
 
   private[scheduling] sealed trait CombinedSchedules extends Schedule:
     def first: Finite
     def second: Schedule
-    override def nextDelay(attempt: Int, lastDelay: Option[FiniteDuration]): FiniteDuration =
-      if first.maxRepeats > attempt then first.nextDelay(attempt, lastDelay)
-      else second.nextDelay(attempt - first.maxRepeats, lastDelay)
+    override def nextDuration(attempt: Int, lastDuration: Option[FiniteDuration]): FiniteDuration =
+      if first.maxRepeats > attempt then first.nextDuration(attempt, lastDuration)
+      else second.nextDuration(attempt - first.maxRepeats, lastDuration)
 
   /** A schedule that combines two schedules, using [[first]] first [[first.maxRepeats]] number of times, and then using [[second]]
     * [[second.maxRepeats]] number of times.
     */
-  case class FiniteAndFiniteSchedules(first: Finite, second: Finite) extends CombinedSchedules, Finite:
+  private[scheduling] case class FiniteAndFiniteSchedules(first: Finite, second: Finite) extends CombinedSchedules, Finite:
     override def maxRepeats: Int = first.maxRepeats + second.maxRepeats
     override def initialDelay: FiniteDuration = first.initialDelay
 
-  object FiniteAndFiniteSchedules:
+  private[scheduling] object FiniteAndFiniteSchedules:
     /** A schedule that repeats indefinitely, using [[first]] first [[first.maxRepeats]] number of times, and then always using [[second]].
       */
     def forever(first: Finite, second: Infinite): Infinite = FiniteAndInfiniteSchedules(first, second)
 
-  case class FiniteAndInfiniteSchedules private[scheduling] (first: Finite, second: Infinite) extends CombinedSchedules, Infinite
+  private[scheduling] case class FiniteAndInfiniteSchedules(first: Finite, second: Infinite) extends CombinedSchedules, Infinite
