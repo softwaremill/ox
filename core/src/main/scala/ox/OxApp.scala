@@ -25,23 +25,27 @@ trait OxApp:
   protected def settings: AppSettings = AppSettings.Default
 
   final def main(args: Array[String]): Unit =
-    unsupervised {
-      val cancellableMainFork = forkCancellable(supervised(handleRun(args.toVector)))
+    try
+      unsupervised {
+        val cancellableMainFork = forkCancellable(supervised(handleRun(args.toVector)))
 
-      val interruptThread = new Thread(() => {
-        cancellableMainFork.cancel()
-        ()
-      })
+        val interruptThread = new Thread(() => {
+          cancellableMainFork.cancel()
+          ()
+        })
 
-      interruptThread.setName("ox-interrupt-hook")
+        interruptThread.setName("ox-interrupt-hook")
 
-      mountShutdownHook(interruptThread)
+        mountShutdownHook(interruptThread)
 
-      cancellableMainFork.joinEither() match
-        case Left(iex: InterruptedException) => exit(settings.gracefulShutdownExitCode)
-        case Left(fatalErr)                  => throw fatalErr
-        case Right(exitCode)                 => exit(exitCode)
-    }
+        cancellableMainFork.joinEither() match
+          case Left(_: InterruptedException) => exit(settings.gracefulShutdownExitCode)
+          case Left(fatalErr)                => throw fatalErr
+          case Right(exitCode)               => exit(exitCode)
+      }
+    catch
+      // if .joinEither is interrupted, the exception will be rethrown, won't be returned as a Left
+      case ie: InterruptedException => exit(settings.gracefulShutdownExitCode)
 
   /** For testing - trapping System.exit is impossible due to SecurityManager removal so it's just overrideable in tests. */
   private[ox] def exit(exitCode: ExitCode): Unit = System.exit(exitCode.code)
