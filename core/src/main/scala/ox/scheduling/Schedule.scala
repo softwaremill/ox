@@ -6,12 +6,12 @@ import scala.util.Random
 sealed trait Schedule:
   // TODO: consider better name that `attempt`
   def nextDuration(attempt: Int, lastDuration: Option[FiniteDuration]): FiniteDuration
+  def initialDelay: FiniteDuration = Duration.Zero
 
 object Schedule:
 
   private[scheduling] sealed trait Finite extends Schedule:
     def maxRepeats: Int
-    def initialDelay: FiniteDuration = Duration.Zero
     def andThen(nextSchedule: Finite): Finite = FiniteAndFiniteSchedules(this, nextSchedule)
     def andThen(nextSchedule: Infinite): Infinite = FiniteAndFiniteSchedules.forever(this, nextSchedule)
 
@@ -162,4 +162,5 @@ object Schedule:
       */
     def forever(first: Finite, second: Infinite): Infinite = FiniteAndInfiniteSchedules(first, second)
 
-  private[scheduling] case class FiniteAndInfiniteSchedules(first: Finite, second: Infinite) extends CombinedSchedules, Infinite
+  private[scheduling] case class FiniteAndInfiniteSchedules(first: Finite, second: Infinite) extends CombinedSchedules, Infinite:
+    override def initialDelay: FiniteDuration = first.initialDelay

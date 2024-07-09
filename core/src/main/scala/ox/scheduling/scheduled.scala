@@ -120,12 +120,11 @@ def scheduledWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(config: ScheduledCon
           loop(attempt + 1, remainingAttempts.map(_ - 1), Some(delay))
         else v
 
-  val (initialDelay, remainingAttempts) = config.schedule match
-    case finiteSchedule: Schedule.Finite =>
-      (finiteSchedule.initialDelay, Some(finiteSchedule.maxRepeats))
-    case _ =>
-      (Duration.Zero, None)
+  val remainingAttempts = config.schedule match
+    case finiteSchedule: Schedule.Finite => Some(finiteSchedule.maxRepeats)
+    case _                               => None
 
+  val initialDelay = config.schedule.initialDelay
   if initialDelay.toMillis > 0 then sleep(initialDelay)
 
   loop(1, remainingAttempts, None)
