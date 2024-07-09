@@ -6,7 +6,7 @@ import scala.concurrent.duration.DurationInt
 /** A config that defines how to repeat an operation.
   *
   * [[Schedule]] provides the interval between subsequent invocations, which guarantees that the next operation will start no sooner than
-  * the specified interval after the previous operations has finished. If the previous operations takes longer than the interval, the next
+  * the specified duration after the previous operations has finished. If the previous operation takes longer than the interval, the next
   * operation will start immediately after the previous one has finished.
   *
   * @param schedule
@@ -33,7 +33,7 @@ case class RepeatConfig[E, T](
     schedule,
     shouldContinueOnError = shouldContinueOnError,
     shouldContinueOnResult = shouldContinueOnResult,
-    delayPolicy = DelayPolicy.SinceTheStartOfTheLastInvocation
+    sleepMode = SleepMode.Interval
   )
 }
 

@@ -1,6 +1,6 @@
 package ox.resilience
 
-import ox.scheduling.{DelayPolicy, Jitter, Schedule, ScheduledConfig}
+import ox.scheduling.{SleepMode, Jitter, Schedule, ScheduledConfig}
 
 import scala.concurrent.duration.*
 
@@ -32,7 +32,7 @@ case class RetryConfig[E, T](
     onRetry,
     shouldContinueOnError = resultPolicy.isWorthRetrying,
     shouldContinueOnResult = t => !resultPolicy.isSuccess(t),
-    delayPolicy = DelayPolicy.SinceTheEndOfTheLastInvocation
+    sleepMode = SleepMode.Delay
   )
 }
 
