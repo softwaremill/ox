@@ -2,6 +2,7 @@ import com.softwaremill.SbtSoftwareMillCommon.commonSmlBuildSettings
 import com.softwaremill.Publish.{ossPublishSettings, updateDocs}
 import com.softwaremill.UpdateVersionInDocs
 
+// ctrl+c won't kill sbt when you just want to interrupt a deadlock
 Global / cancelable := true
 
 lazy val commonSettings = commonSmlBuildSettings ++ ossPublishSettings ++ Seq(
