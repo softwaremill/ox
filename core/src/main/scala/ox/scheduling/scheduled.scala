@@ -23,7 +23,7 @@ enum SleepMode:
   * @param schedule
   *   The schedule which determines the maximum number of invocations and the duration between subsequent invocations. See [[Schedule]] for
   *   more details.
-  * @param onRepeat
+  * @param onOperationResult
   *   A function that is invoked after each invocation. The callback receives the number of the current invocations number (starting from 1)
   *   and the result of the operation. The result is either a successful value or an error.
   * @param shouldContinueOnError
@@ -42,7 +42,7 @@ enum SleepMode:
   */
 case class ScheduledConfig[E, T](
     schedule: Schedule,
-    onRepeat: (Int, Either[E, T]) => Unit = (_: Int, _: Either[E, T]) => (),
+    onOperationResult: (Int, Either[E, T]) => Unit = (_: Int, _: Either[E, T]) => (),
     shouldContinueOnError: E => Boolean = (_: E) => false,
     shouldContinueOnResult: T => Boolean = (_: T) => true,
     sleepMode: SleepMode = SleepMode.Interval
@@ -105,7 +105,7 @@ def scheduledWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(config: ScheduledCon
     operation match
       case v if em.isError(v) =>
         val error = em.getError(v)
-        config.onRepeat(attempt, Left(error))
+        config.onOperationResult(attempt, Left(error))
 
         if config.shouldContinueOnError(error) && remainingAttempts.forall(_ > 0) then
           val delay = sleepIfNeeded(startTimestamp)
@@ -113,7 +113,7 @@ def scheduledWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(config: ScheduledCon
         else v
       case v =>
         val result = em.getT(v)
-        config.onRepeat(attempt, Right(result))
+        config.onOperationResult(attempt, Right(result))
 
         if config.shouldContinueOnResult(result) && remainingAttempts.forall(_ > 0) then
           val delay = sleepIfNeeded(startTimestamp)

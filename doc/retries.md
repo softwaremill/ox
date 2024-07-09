@@ -1,6 +1,6 @@
 # Retries
 
-The retries mechanism allows to retry a failing operation according to a given policy (e.g. retry 3 times with a 100ms
+The retries mechanism allows to retry a failing operation according to a given configuration (e.g. retry 3 times with a 100ms
 delay between attempts).
 
 ## API
@@ -10,8 +10,10 @@ The basic syntax for retries is:
 ```scala
 import ox.resilience.retry
 
-retry(policy)(operation)
+retry(config)(operation)
 ```
+
+The `retry` API uses `scheduled` underneath with DSL focused on retries. See [scheduled](scheduled.md) for more details.
 
 ## Operation definition
 
@@ -20,9 +22,9 @@ The `operation` can be provided directly using a by-name parameter, i.e. `f: => 
 There's also a `retryEither` variant which accepts a by-name `Either[E, T]`, i.e. `f: => Either[E, T]`, as well as one
 which accepts arbitrary [error modes](basics/error-handling.md), accepting the computation in an `F` context: `f: => F[T]`.
 
-## Policies
+## Configuration
 
-A retry policy consists of three parts:
+A retry config consists of three parts:
 
 - a `Schedule`, which indicates how many times and with what delay should we retry the `operation` after an initial
   failure,
@@ -34,46 +36,7 @@ A retry policy consists of three parts:
   perform any necessary actions or checks after each attempt, regardless of whether the attempt was successful or not.
 
 The available schedules are defined in the `Schedule` object. Each schedule has a finite and an infinite variant.
-
-### Finite schedules
-
-Finite schedules have a common `maxRetries: Int` parameter, which determines how many times the `operation` would be
-retried after an initial failure. This means that the operation could be executed at most `maxRetries + 1` times.
-
-### Infinite schedules
-
-Each finite schedule has an infinite variant, whose settings are similar to those of the respective finite schedule, but
-without the `maxRetries` setting. Using the infinite variant can lead to a possibly infinite number of retries (unless
-the `operation` starts to succeed again at some point). The infinite schedules are created by calling `.forever` on the
-companion object of the respective finite schedule (see examples below).
-
-### Schedule types
-
-The supported schedules (specifically - their finite variants) are:
-
-- `Immediate(maxRetries: Int)` - retries up to `maxRetries` times without any delay between subsequent attempts.
-- `Delay(maxRetries: Int, delay: FiniteDuration)` - retries up to `maxRetries` times , sleeping for `delay` between
-  subsequent attempts.
-- `Backoff(maxRetries: Int, initialDelay: FiniteDuration, maxDelay: FiniteDuration, jitter: Jitter)` - retries up
-  to `maxRetries` times , sleeping for `initialDelay` before the first retry, increasing the sleep between subsequent
-  attempts exponentially (with base `2`) up to an optional `maxDelay` (default: 1 minute).
-
-  Optionally, a random factor (jitter) can be used when calculating the delay before the next attempt. The purpose of
-  jitter is to avoid clustering of subsequent retries, i.e. to reduce the number of clients calling a service exactly at
-  the same time, which can result in subsequent failures, contrary to what you would expect from retrying. By
-  introducing randomness to the delays, the retries become more evenly distributed over time.
-
-  See
-  the [AWS Architecture Blog article on backoff and jitter](https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/)
-  for a more in-depth explanation.
-
-  The following jitter strategies are available (defined in the `Jitter` enum):
-    - `None` - the default one, when no randomness is added, i.e. a pure exponential backoff is used,
-    - `Full` - picks a random value between `0` and the exponential backoff calculated for the current attempt,
-    - `Equal` - similar to `Full`, but prevents very short delays by always using a half of the original backoff and
-      adding a random value between `0` and the other half,
-    - `Decorrelated` - uses the delay from the previous attempt (`lastDelay`) and picks a random value between
-      the `initalAttempt` and `3 * lastDelay`.
+See [scheduled](scheduled.md) for more details.
 
 ### Result policies
 
@@ -108,7 +71,7 @@ Where:
 ### API shorthands
 
 When you don't need to customize the result policy (i.e. use the default one), you can use one of the following
-shorthands to define a retry policy with a given schedule (note that the parameters are the same as when manually
+shorthands to define a retry config with a given schedule (note that the parameters are the same as when manually
 creating the respective `Schedule`):
 
 - `RetryConfig.immediate(maxRetries: Int)`,
@@ -143,7 +106,7 @@ def unionOperation: String | Int = ???
 retry(RetryConfig.immediate(3))(directOperation)
 retryEither(RetryConfig.immediate(3))(eitherOperation)
 
-// various policies with custom schedules and default ResultPolicy
+// various configs with custom schedules and default ResultPolicy
 retry(RetryConfig.delay(3, 100.millis))(directOperation)
 retry(RetryConfig.backoff(3, 100.millis))(directOperation) // defaults: maxDelay = 1.minute, jitter = Jitter.None
 retry(RetryConfig.backoff(3, 100.millis, 5.minutes, Jitter.Equal))(directOperation)
