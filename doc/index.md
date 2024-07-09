@@ -47,6 +47,7 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
    :maxdepth: 2   
    :caption: Resiliency, I/O & utilities
    
+   oxapp
    io
    retries
    resources
