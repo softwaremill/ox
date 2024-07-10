@@ -89,15 +89,15 @@ def scheduledEither[E, T](config: ScheduledConfig[E, T])(operation: => Either[E,
   */
 def scheduledWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(config: ScheduledConfig[E, T])(operation: => F[T]): F[T] =
   @tailrec
-  def loop(attempt: Int, remainingAttempts: Option[Int], lastDelay: Option[FiniteDuration]): F[T] =
+  def loop(iteration: Int, remainingIterations: Option[Int], lastDuration: Option[FiniteDuration]): F[T] =
     def sleepIfNeeded(startTimestamp: Long) =
-      val nextDelay = config.schedule.nextDuration(attempt, lastDelay)
+      val nextDuration = config.schedule.nextDuration(iteration, lastDuration)
       val delay = config.sleepMode match
         case SleepMode.Interval =>
           val elapsed = System.nanoTime() - startTimestamp
-          val remaining = nextDelay.toNanos - elapsed
+          val remaining = nextDuration.toNanos - elapsed
           remaining.nanos
-        case SleepMode.Delay => nextDelay
+        case SleepMode.Delay => nextDuration
       if delay.toMillis > 0 then sleep(delay)
       delay
 
@@ -105,26 +105,26 @@ def scheduledWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(config: ScheduledCon
     operation match
       case v if em.isError(v) =>
         val error = em.getError(v)
-        config.onOperationResult(attempt, Left(error))
+        config.onOperationResult(iteration, Left(error))
 
-        if config.shouldContinueOnError(error) && remainingAttempts.forall(_ > 0) then
+        if config.shouldContinueOnError(error) && remainingIterations.forall(_ > 0) then
           val delay = sleepIfNeeded(startTimestamp)
-          loop(attempt + 1, remainingAttempts.map(_ - 1), Some(delay))
+          loop(iteration + 1, remainingIterations.map(_ - 1), Some(delay))
         else v
       case v =>
         val result = em.getT(v)
-        config.onOperationResult(attempt, Right(result))
+        config.onOperationResult(iteration, Right(result))
 
-        if config.shouldContinueOnResult(result) && remainingAttempts.forall(_ > 0) then
+        if config.shouldContinueOnResult(result) && remainingIterations.forall(_ > 0) then
           val delay = sleepIfNeeded(startTimestamp)
-          loop(attempt + 1, remainingAttempts.map(_ - 1), Some(delay))
+          loop(iteration + 1, remainingIterations.map(_ - 1), Some(delay))
         else v
 
-  val remainingAttempts = config.schedule match
+  val remainingIterations = config.schedule match
     case finiteSchedule: Schedule.Finite => Some(finiteSchedule.maxRepeats)
     case _                               => None
 
   val initialDelay = config.schedule.initialDelay
   if initialDelay.toMillis > 0 then sleep(initialDelay)
 
-  loop(1, remainingAttempts, None)
+  loop(1, remainingIterations, None)
