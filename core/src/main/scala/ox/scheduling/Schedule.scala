@@ -4,8 +4,7 @@ import scala.concurrent.duration.*
 import scala.util.Random
 
 sealed trait Schedule:
-  // TODO: consider better name that `attempt`
-  def nextDuration(attempt: Int, lastDuration: Option[FiniteDuration]): FiniteDuration
+  def nextDuration(iteration: Int, lastDuration: Option[FiniteDuration]): FiniteDuration
   def initialDelay: FiniteDuration = Duration.Zero
 
 object Schedule:
@@ -29,7 +28,7 @@ object Schedule:
     */
   case class InitialDelay private[scheduling] (delay: FiniteDuration) extends Finite:
     override def maxRepeats: Int = 0
-    override def nextDuration(attempt: Int, lastDuration: Option[FiniteDuration]): FiniteDuration =
+    override def nextDuration(iteration: Int, lastDuration: Option[FiniteDuration]): FiniteDuration =
       Duration.Zero
     override def initialDelay: FiniteDuration = delay
 
@@ -39,7 +38,7 @@ object Schedule:
     *   The maximum number of invocations.
     */
   case class Immediate(maxRepeats: Int) extends Finite:
-    override def nextDuration(attempt: Int, lastDuration: Option[FiniteDuration]): FiniteDuration =
+    override def nextDuration(iteration: Int, lastDuration: Option[FiniteDuration]): FiniteDuration =
       Duration.Zero
 
   object Immediate:
@@ -47,7 +46,7 @@ object Schedule:
     def forever: Infinite = ImmediateForever
 
   private case object ImmediateForever extends Infinite:
-    override def nextDuration(attempt: Int, lastDuration: Option[FiniteDuration]): FiniteDuration =
+    override def nextDuration(iteration: Int, lastDuration: Option[FiniteDuration]): FiniteDuration =
       Duration.Zero
 
   /** A schedule that represents a fixed duration between invocations, up to a given number of times.
@@ -58,7 +57,7 @@ object Schedule:
     *   The duration between subsequent invocations.
     */
   case class Fixed(maxRepeats: Int, duration: FiniteDuration) extends Finite:
-    override def nextDuration(attempt: Int, lastDuration: Option[FiniteDuration]): FiniteDuration = duration
+    override def nextDuration(iteration: Int, lastDuration: Option[FiniteDuration]): FiniteDuration = duration
 
   object Fixed:
     /** A schedule that represents a fixed duration between invocations without any invocations limit.
@@ -69,7 +68,7 @@ object Schedule:
     def forever(duration: FiniteDuration): Infinite = FixedForever(duration)
 
   private[scheduling] case class FixedForever(duration: FiniteDuration) extends Infinite:
-    override def nextDuration(attempt: Int, lastDuration: Option[FiniteDuration]): FiniteDuration = duration
+    override def nextDuration(iteration: Int, lastDuration: Option[FiniteDuration]): FiniteDuration = duration
 
   /** A schedule that represents an increasing duration between invocations (backoff), up to a given number of times.
     *
@@ -92,22 +91,22 @@ object Schedule:
       maxDuration: FiniteDuration = 1.minute,
       jitter: Jitter = Jitter.None
   ) extends Finite:
-    override def nextDuration(attempt: Int, lastDuration: Option[FiniteDuration]): FiniteDuration =
-      Backoff.nextDuration(attempt, firstDuration, maxDuration, jitter, lastDuration)
+    override def nextDuration(iteration: Int, lastDuration: Option[FiniteDuration]): FiniteDuration =
+      Backoff.nextDuration(iteration, firstDuration, maxDuration, jitter, lastDuration)
 
   object Backoff:
-    private[scheduling] def calculateDuration(attempt: Int, firstDuration: FiniteDuration, maxDuration: FiniteDuration): FiniteDuration =
+    private[scheduling] def calculateDuration(iteration: Int, firstDuration: FiniteDuration, maxDuration: FiniteDuration): FiniteDuration =
       // converting Duration <-> Long back and forth to avoid exceeding maximum duration
-      (firstDuration.toMillis * Math.pow(2, attempt)).toLong.min(maxDuration.toMillis).millis
+      (firstDuration.toMillis * Math.pow(2, iteration)).toLong.min(maxDuration.toMillis).millis
 
     private[scheduling] def nextDuration(
-        attempt: Int,
+        iteration: Int,
         firstDuration: FiniteDuration,
         maxDuration: FiniteDuration,
         jitter: Jitter,
         lastDuration: Option[FiniteDuration]
     ): FiniteDuration =
-      def exponentialDuration = Backoff.calculateDuration(attempt, firstDuration, maxDuration)
+      def exponentialDuration = Backoff.calculateDuration(iteration, firstDuration, maxDuration)
 
       jitter match
         case Jitter.None => exponentialDuration
@@ -140,15 +139,15 @@ object Schedule:
       maxDuration: FiniteDuration = 1.minute,
       jitter: Jitter = Jitter.None
   ) extends Infinite:
-    override def nextDuration(attempt: Int, lastDuration: Option[FiniteDuration]): FiniteDuration =
-      Backoff.nextDuration(attempt, firstDuration, maxDuration, jitter, lastDuration)
+    override def nextDuration(iteration: Int, lastDuration: Option[FiniteDuration]): FiniteDuration =
+      Backoff.nextDuration(iteration, firstDuration, maxDuration, jitter, lastDuration)
 
   private[scheduling] sealed trait CombinedSchedules extends Schedule:
     def first: Finite
     def second: Schedule
-    override def nextDuration(attempt: Int, lastDuration: Option[FiniteDuration]): FiniteDuration =
-      if first.maxRepeats > attempt then first.nextDuration(attempt, lastDuration)
-      else second.nextDuration(attempt - first.maxRepeats, lastDuration)
+    override def nextDuration(iteration: Int, lastDuration: Option[FiniteDuration]): FiniteDuration =
+      if first.maxRepeats > iteration then first.nextDuration(iteration, lastDuration)
+      else second.nextDuration(iteration - first.maxRepeats, lastDuration)
 
   /** A schedule that combines two schedules, using [[first]] first [[first.maxRepeats]] number of times, and then using [[second]]
     * [[second.maxRepeats]] number of times.
