@@ -9,8 +9,8 @@ import scala.util.Try
 /** The mode that specifies how to interpret the duration provided by the schedule. */
 enum SleepMode:
   /** Interval (since the start of the last operation), i.e. guarantees that the next operation will start no sooner than the specified
-    * duration after the previous operations has finished. If the previous operation takes longer than the interval, the next operation will
-    * start immediately after the previous one has finished.
+    * duration after the previous operation has started. If the previous operation takes longer than the interval, the next operation will
+    * be started immediately after the previous one has finished.
     */
   case Interval
 
