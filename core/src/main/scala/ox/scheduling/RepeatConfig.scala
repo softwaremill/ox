@@ -12,9 +12,6 @@ import scala.concurrent.duration.DurationInt
   * @param schedule
   *   The repeat schedule which determines the maximum number of invocations and the interval between subsequent invocations. See
   *   [[Schedule]] for more details.
-  * @param shouldContinueOnError
-  *   A function that determines whether to continue the loop after an error. The function receives the error that was emitted by the last
-  *   invocation. Defaults to [[_ => false]].
   * @param shouldContinueOnResult
   *   A function that determines whether to continue the loop after a success. The function receives the value that was emitted by the last
   *   invocation. Defaults to [[_ => true]].
@@ -26,12 +23,10 @@ import scala.concurrent.duration.DurationInt
   */
 case class RepeatConfig[E, T](
     schedule: Schedule,
-    shouldContinueOnError: E => Boolean = (_: E) => false,
     shouldContinueOnResult: T => Boolean = (_: T) => true
 ) {
   def toScheduledConfig: ScheduledConfig[E, T] = ScheduledConfig(
     schedule,
-    shouldContinueOnError = shouldContinueOnError,
     shouldContinueOnResult = shouldContinueOnResult,
     sleepMode = SleepMode.Interval
   )

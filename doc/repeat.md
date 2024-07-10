@@ -27,11 +27,11 @@ Similarly to the `retry` API, the `operation` can be defined:
 The `repeat` config requires a `Schedule`, which indicates how many times and with what interval should the `operation` 
 be repeated.
 
-In addition, it is possible to define strategies for handling the results and errors returned by the `operation`:
-- `shouldContinueOnError` - defaults to `_: E => false`, which allows to decide if the operation should be repeated 
-  after an error returned by the previous operation.
-- `shouldContinueOnSuccess` - defaults to `_: T => true`, which allows to decide if the operation should be repeated
-  after a successful result returned by the previous operation.
+In addition, it is possible to define a custom `shouldContinueOnSuccess` strategy for deciding if the operation
+should continue to be repeated after a successful result returned by the previous operation (defaults to `_: T => true`).
+
+If an operation returns an error, the repeat loop will always be stopped. If an error handling within the operation
+is needed, you can use a `retry` inside it or use `scheduled` instead of `repeat`, which allows full customization.
 
 ### API shorthands
 
