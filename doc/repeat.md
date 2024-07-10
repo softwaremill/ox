@@ -49,6 +49,7 @@ You can use one of the following shorthands to define a `RepeatConfig` with a gi
 ```scala mdoc:compile-only
 import ox.UnionMode
 import ox.scheduling.{Jitter, Schedule, repeat, repeatEither, repeatWithErrorMode, RepeatConfig}
+import ox.resilience.{retry, RetryConfig}
 import scala.concurrent.duration.*
 
 def directOperation: Int = ???
