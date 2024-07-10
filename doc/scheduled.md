@@ -1,7 +1,8 @@
 # Scheduled
 
 The `scheduled` functions allow to run an operation according to a given schedule.
-It is used by `retry` and `repeat` APIs internally.
+It is preferred to use `repeat`, `retry`, or combination of both functions for most use cases, as they provide a more convenient DSL.
+In fact `retry` and `repeat` use `scheduled` internally.
 
 ## Operation definition
 
@@ -13,7 +14,8 @@ Similarly to the `retry` and `repeat` APIs, the `operation` can be defined:
 ## Configuration
 
 The `scheduled` config consists of:
-- a `Schedule`, which indicates how many times and with what delay/interval should the `operation`be run.
+- a `Schedule`, which indicates how many times the `operation` should be run, provides a duration based on which
+  a sleep is calculated and provides an initial delay if configured.
 - a `SleepMode`, which determines how the sleep between subsequent operations should be calculated:
   - `Interval` - default for `repeat` operations, where the sleep is calculated as the duration provided by schedule 
     minus the duration of the last operation (can be negative, in which case the next operation occurs immediately).
