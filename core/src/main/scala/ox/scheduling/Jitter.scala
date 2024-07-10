@@ -1,4 +1,4 @@
-package ox.resilience
+package ox.scheduling
 
 /** A random factor used for calculating the delay between subsequent retries when a backoff strategy is used for calculating the delay.
   *

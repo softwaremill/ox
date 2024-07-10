@@ -3,6 +3,7 @@ package ox.resilience
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.ElapsedTime
+import ox.scheduling.Schedule
 
 import scala.concurrent.duration.*
 
@@ -20,10 +21,10 @@ class ScheduleFallingBackRetryTest extends AnyFlatSpec with Matchers with Elapse
       counter += 1
       throw new RuntimeException("boom")
 
-    val schedule = Schedule.Immediate(immediateRetries).fallbackTo(Schedule.Delay(delayedRetries, sleep))
+    val schedule = Schedule.Immediate(immediateRetries).andThen(Schedule.Fixed(delayedRetries, sleep))
 
     // when
-    val (result, elapsedTime) = measure(the[RuntimeException] thrownBy retry(RetryPolicy(schedule))(f))
+    val (result, elapsedTime) = measure(the[RuntimeException] thrownBy retry(RetryConfig(schedule))(f))
 
     // then
     result should have message "boom"
@@ -41,10 +42,10 @@ class ScheduleFallingBackRetryTest extends AnyFlatSpec with Matchers with Elapse
       counter += 1
       if counter <= retriesUntilSuccess then throw new RuntimeException("boom") else successfulResult
 
-    val schedule = Schedule.Immediate(100).fallbackTo(Schedule.Delay.forever(2.millis))
+    val schedule = Schedule.Immediate(100).andThen(Schedule.Fixed.forever(2.millis))
 
     // when
-    val result = retry(RetryPolicy(schedule))(f)
+    val result = retry(RetryConfig(schedule))(f)
 
     // then
     result shouldBe successfulResult
