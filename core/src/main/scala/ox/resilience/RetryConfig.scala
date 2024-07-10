@@ -6,6 +6,8 @@ import scala.concurrent.duration.*
 
 /** A config that defines how to retry a failed operation.
   *
+  * It is a special case of [[ScheduledConfig]] with [[ScheduledConfig.sleepMode]] always set to [[SleepMode.Delay]]
+  *
   * @param schedule
   *   The retry schedule which determines the maximum number of retries and the delay between subsequent attempts to execute the operation.
   *   See [[Schedule]] for more details.
