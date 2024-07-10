@@ -35,9 +35,6 @@ A retry config consists of three parts:
 - a `onRetry`, which is a callback function that is invoked after each attempt to execute the operation. It is used to
   perform any necessary actions or checks after each attempt, regardless of whether the attempt was successful or not.
 
-The available schedules are defined in the `Schedule` object. Each schedule has a finite and an infinite variant.
-See [scheduled](scheduled.md) for more details.
-
 ### Result policies
 
 A result policy allows to customize how the results of the `operation` are treated. It consists of two predicates:
@@ -70,9 +67,8 @@ Where:
 
 ### API shorthands
 
-When you don't need to customize the result policy (i.e. use the default one), you can use one of the following
-shorthands to define a retry config with a given schedule (note that the parameters are the same as when manually
-creating the respective `Schedule`):
+When you don't need to customize the result policy (i.e. use the default one) or use complex schedules,
+you can use one of the following shorthands to define a retry config with a given schedule:
 
 - `RetryConfig.immediate(maxRetries: Int)`,
 - `RetryConfig.immediateForever`,
@@ -80,6 +76,8 @@ creating the respective `Schedule`):
 - `RetryConfig.delayForever(delay: FiniteDuration)`,
 - `RetryConfig.backoff(maxRetries: Int, initialDelay: FiniteDuration, maxDelay: FiniteDuration, jitter: Jitter)`,
 - `RetryConfig.backoffForever(initialDelay: FiniteDuration, maxDelay: FiniteDuration, jitter: Jitter)`.
+
+See [scheduled](scheduled.md) for details on how to create custom schedules.
 
 If you want to customize a part of the result policy, you can use the following shorthands:
 

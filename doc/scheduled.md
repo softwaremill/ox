@@ -71,3 +71,24 @@ The supported schedules (specifically - their finite variants) are:
     adding a random value between `0` and the other half,
   - `Decorrelated` - uses the delay from the previous attempt (`lastDelay`) and picks a random value between
     the `initalAttempt` and `3 * lastDelay`.
+
+## Combining schedules
+
+It is possible to combine schedules using `.andThen` method. The left side schedule must be a `Finite`
+or `InitialDelay` schedule and the right side can be any schedule.
+
+### Examples
+
+```scala mdoc:compile-only
+import ox.scheduling.Schedule
+import scala.concurrent.duration.*
+
+// schedule 3 times immediately and then 3 times with fixed duration
+Schedule.Immediate(3).andThen(Schedule.Fixed(3, 100.millis))
+
+// schedule 3 times immediately and then forever with fixed duration
+Schedule.Immediate(3).andThen(Schedule.Fixed.forever(100.millis))
+
+// schedule with an initial delay and then forever with fixed duration
+Schedule.InitialDelay(100.millis).andThen(Schedule.Fixed.forever(100.millis))
+```

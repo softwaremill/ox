@@ -44,6 +44,8 @@ You can use one of the following shorthands to define a `RepeatConfig` with a gi
 - `RepeatConfig.backoff[E, T](maxInvocations: Int, firstInterval: FiniteDuration, maxInterval: FiniteDuration = 1.minute, jitter: Jitter = Jitter.None, initialDelay: Option[FiniteDuration] = None)`
 - `RepeatConfig.backoffForever[E, T](firstInterval: FiniteDuration, maxInterval: FiniteDuration = 1.minute, jitter: Jitter = Jitter.None, initialDelay: Option[FiniteDuration] = None)`
 
+See [scheduled](scheduled.md) for details on how to create custom schedules.
+
 ## Examples
 
 ```scala mdoc:compile-only

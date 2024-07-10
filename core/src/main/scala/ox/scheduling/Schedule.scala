@@ -12,7 +12,7 @@ object Schedule:
   private[scheduling] sealed trait Finite extends Schedule:
     def maxRepeats: Int
     def andThen(nextSchedule: Finite): Finite = FiniteAndFiniteSchedules(this, nextSchedule)
-    def andThen(nextSchedule: Infinite): Infinite = FiniteAndFiniteSchedules.forever(this, nextSchedule)
+    def andThen(nextSchedule: Infinite): Infinite = FiniteAndInfiniteSchedules(this, nextSchedule)
 
   private[scheduling] sealed trait Infinite extends Schedule
 
@@ -26,7 +26,7 @@ object Schedule:
     *   Schedule.InitialDelay(1.second).andThen(Schedule.Delay.forever(100.millis))
     *   }}}
     */
-  case class InitialDelay private[scheduling] (delay: FiniteDuration) extends Finite:
+  case class InitialDelay(delay: FiniteDuration) extends Finite:
     override def maxRepeats: Int = 0
     override def nextDuration(invocation: Int, lastDuration: Option[FiniteDuration]): FiniteDuration =
       Duration.Zero
@@ -156,10 +156,7 @@ object Schedule:
     override def maxRepeats: Int = first.maxRepeats + second.maxRepeats
     override def initialDelay: FiniteDuration = first.initialDelay
 
-  private[scheduling] object FiniteAndFiniteSchedules:
-    /** A schedule that repeats indefinitely, using [[first]] first [[first.maxRepeats]] number of times, and then always using [[second]].
-      */
-    def forever(first: Finite, second: Infinite): Infinite = FiniteAndInfiniteSchedules(first, second)
-
+  /** A schedule that combines two schedules, using [[first]] first [[first.maxRepeats]] number of times, and then always using [[second]].
+    */
   private[scheduling] case class FiniteAndInfiniteSchedules(first: Finite, second: Infinite) extends CombinedSchedules, Infinite:
     override def initialDelay: FiniteDuration = first.initialDelay
