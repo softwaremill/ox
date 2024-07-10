@@ -31,7 +31,8 @@ In addition, it is possible to define a custom `shouldContinueOnSuccess` strateg
 should continue to be repeated after a successful result returned by the previous operation (defaults to `_: T => true`).
 
 If an operation returns an error, the repeat loop will always be stopped. If an error handling within the operation
-is needed, you can use a `retry` inside it or use `scheduled` instead of `repeat`, which allows full customization.
+is needed, you can use a `retry` inside it (see an example below) or use `scheduled` instead of `repeat`, which allows
+full customization.
 
 ### API shorthands
 
@@ -68,4 +69,9 @@ repeat(RepeatConfig.fixedRateForever(100.millis).copy(shouldContinueOnResult = c
 
 // custom error mode
 repeatWithErrorMode(UnionMode[String])(RepeatConfig.fixedRate(3, 100.millis))(unionOperation)
+
+// repeat with retry inside
+repeat(RepeatConfig.fixedRate(3, 100.millis)) {
+  retry(RetryConfig.backoff(3, 100.millis))(directOperation)
+}
 ```
