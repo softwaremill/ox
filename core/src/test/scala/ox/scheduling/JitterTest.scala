@@ -3,7 +3,6 @@ package ox.scheduling
 import org.scalatest.Inspectors
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import ox.scheduling.{Jitter, Schedule}
 
 import scala.concurrent.duration.*
 

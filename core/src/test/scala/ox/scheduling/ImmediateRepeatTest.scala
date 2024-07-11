@@ -3,7 +3,7 @@ package ox.scheduling
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.{EitherValues, TryValues}
-import ox.{ElapsedTime, sleep}
+import ox.ElapsedTime
 
 import scala.concurrent.duration.*
 

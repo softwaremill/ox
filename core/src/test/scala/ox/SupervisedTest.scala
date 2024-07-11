@@ -127,27 +127,29 @@ class SupervisedTest extends AnyFlatSpec with Matchers {
   it should "handle interruption of multiple forks with `joinEither` correctly" in {
     val e = intercept[Exception] {
       supervised {
-        def computation(withException: Option[String]): Int = {
-          withException match
-            case None => 1
-            case Some(value) =>
-              throw new Exception(value)
-        }
+        // first, starting a fork which will sleep in the background, and which is unsupervised, so that we can .joinEither()
+        val f1 = forkUnsupervised:
+          sleep(1.second)
+          10
 
-        val fork1 = fork:
-          computation(withException = None)
-        val fork2 = fork:
-          computation(withException = Some("Oh no!"))
-        val fork3 = fork:
-          computation(withException = Some("Oh well.."))
+        // forking a supervised fork, which throws an exception and causes the scope to end
+        val f2 = fork:
+          throw new Exception("oh no!")
 
-        fork1.joinEither() // 1
-        fork2.joinEither() // 2
-        fork3.joinEither() // 3
+        // this joinEither() might be interrupted because the scope ends, or it might obtain the interrupted exception,
+        // because `f` is interrupted as well
+        f1.joinEither()
+
+        // either the previous operation should throw an IE, or the thread should become interrupted while joining
+        f2.join()
+
+        // getting here means that we managed to catch the IE for the main body
+        fail("scope body should be interrupted")
       }
     }
 
-    e.getMessage should startWith("Oh")
+    // the exception that caused the scope to end should be re-thrown
+    e.getMessage shouldBe "oh no!"
   }
 
 }
