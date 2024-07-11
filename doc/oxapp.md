@@ -69,7 +69,7 @@ object MyApp extends OxApp.WithEitherErrors[MyAppError]:
 
 ## Additional configuration
 
-All `ox.OxApp` instances can be configured by overriding the `def settings: AppSettings` method. For now `AppSettings`
+All `ox.OxApp` instances can be configured by overriding the `def settings: Settings` method. For now `Settings`
 contains only the `gracefulShutdownExitCode` setting that allows one to decide what exit code should be returned by 
 the application once it gracefully shutdowns after it was interrupted (for example Ctrl+C was pressed by the user).
 
@@ -79,10 +79,9 @@ overridden:
 ```scala mdoc:compile-only
 import ox.*
 import scala.concurrent.duration.*
-import OxApp.AppSettings
 
 object MyApp extends OxApp:
-  override def settings: AppSettings = AppSettings(
+  override def settings: OxApp.Settings = OxApp.Settings(
     gracefulShutdownExitCode = ExitCode.Failure(130)
   )
   
