@@ -7,7 +7,7 @@
 "com.softwaremill.ox" %% "core" % "@VERSION@"
 
 // scala-cli dependency
-//> using dep "com.softwaremill.ox::core:@VERSION@"
+//> using dep com.softwaremill.ox::core:@VERSION@
 ```
 
 ## Scope of the Ox project
