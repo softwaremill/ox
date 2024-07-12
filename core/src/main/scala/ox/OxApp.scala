@@ -16,36 +16,43 @@ enum ExitCode(val code: Int):
   *   - [[OxApp.WithErrorMode]] to report errors (which end the application) using other [[ErrorMode]]s
   *
   * The benefit of using `OxApp` compared to normal `@main` methods is that application interruptions is handled properly. A fork in a scope
-  * is created to run the application's logic. Interrupting the application (e.g. using CTRL+C) will cause the scope to end and all forks to
-  * be interrupted, allowing for a clean shutdown.
+  * is created to run the application's logic. Interrupting the application (by sending SIGINT/SIGTERM, e.g. using CTRL+C) will cause the
+  * scope to end and all forks to be interrupted, allowing for a clean shutdown.
+  *
+  * That way, any resources that have been allocated and attached to scopes, or that are managed using `try-finally` blocks inside forks,
+  * will be released properly. 
+  *
+  * Certain aspects of exception handling can be configured using [[OxApp.Settings]] and overriding the `settings` method.
   */
 trait OxApp:
-  import OxApp.AppSettings
-
-  protected def settings: AppSettings = AppSettings.Default
+  protected def settings: OxApp.Settings = OxApp.Settings.Default
 
   final def main(args: Array[String]): Unit =
     try
       unsupervised {
-        val cancellableMainFork = forkCancellable(supervised(handleRun(args.toVector)))
+        val cancellableMainFork = forkCancellable {
+          try supervised(run(args.toVector))
+          catch
+            case NonFatal(e) =>
+              settings.handleException(e)
+              ExitCode.Failure()
+            case e: InterruptedException =>
+              settings.handleInterruptedException(e)
+              settings.interruptedExitCode
+        }
 
-        val interruptThread = new Thread(() => {
-          cancellableMainFork.cancel()
-          ()
-        })
-
+        // on shutdown, the above fork is cancelled, causing interruption
+        val interruptThread = new Thread(() => cancellableMainFork.cancel().discard)
         interruptThread.setName("ox-interrupt-hook")
-
         mountShutdownHook(interruptThread)
 
         cancellableMainFork.joinEither() match
-          case Left(_: InterruptedException) => exit(settings.gracefulShutdownExitCode)
-          case Left(fatalErr)                => throw fatalErr
-          case Right(exitCode)               => exit(exitCode)
+          case Left(fatal)     => throw fatal // non-fatal and IE are already handled
+          case Right(exitCode) => exit(exitCode)
       }
     catch
       // if .joinEither is interrupted, the exception will be rethrown, won't be returned as a Left
-      case ie: InterruptedException => exit(settings.gracefulShutdownExitCode)
+      case _: InterruptedException => exit(settings.interruptedExitCode)
 
   /** For testing - trapping System.exit is impossible due to SecurityManager removal so it's just overrideable in tests. */
   private[ox] def exit(exitCode: ExitCode): Unit = System.exit(exitCode.code)
@@ -55,31 +62,45 @@ trait OxApp:
     try Runtime.getRuntime.addShutdownHook(thread)
     catch case _: IllegalStateException => ()
 
-  /** For testing - allows to capture the stack trace printed to the console */
-  private[ox] def printStackTrace(t: Throwable): Unit = t.printStackTrace()
-
-  private[OxApp] final def handleRun(args: Vector[String])(using Ox): ExitCode =
-    try run(args)
-    catch
-      case NonFatal(err) =>
-        printStackTrace(err)
-        ExitCode.Failure()
-
   def run(args: Vector[String])(using Ox): ExitCode
 end OxApp
 
 object OxApp:
-  /** @param gracefulShutdownExitCode
-    *   This value is returned to the operating system as the exit code when the app receives SIGINT and shuts itself down gracefully. In
-    *   the [[AppSettings.Default]] settings, the value is `ExitCode.Success` (0). JVM itself returns code `130` when it receives `SIGINT`.
+  /** Settings for an [[OxApp]]. Defaults are defined in [[Settings.Default]].
+    *
+    * @param interruptedExitCode
+    *   This value is returned to the operating system as the exit code when the app receives SIGINT/SIGTERM and shuts itself down
+    *   gracefully. By default, the value is [[ExitCode.Success]]. JVM itself returns code `130` when it receives `SIGINT`.
+    * @param handleInterruptedException
+    *   Callback used for the interrupted exception that might be thrown by the application's body, w.g. when the the application is
+    *   interrupted using SIGINT/SIGTERM. By default, the handler looks for any exceptions that are not instances of
+    *   [[InterruptedException]] (as this is considered part of "normal" shutdown process), and prints their stack trace to stderr (unless a
+    *   default uncaught exception handler is set).
+    * @param handleException
+    *   Callback used for exceptions that are thrown by the application's body, causing the application to terminate with a failed
+    *   [[ExitCode]]. By default the exception's stack trace is printed to stderr (unless a default uncaught exception handler is set).
     */
-  case class AppSettings(gracefulShutdownExitCode: ExitCode)
+  case class Settings(
+      interruptedExitCode: ExitCode,
+      handleInterruptedException: InterruptedException => Unit,
+      handleException: Throwable => Unit
+  )
 
-  object AppSettings:
-    lazy val Default: AppSettings = AppSettings(ExitCode.Success)
+  object Settings:
+    val DefaultLogException: Throwable => Unit = (t: Throwable) =>
+      val defaultHandler = Thread.getDefaultUncaughtExceptionHandler
+      if defaultHandler != null then defaultHandler.uncaughtException(Thread.currentThread(), t) else t.printStackTrace()
 
-  /** Simple variant of OxApp does not pass command line arguments and exits with exit code 0 if no exceptions were thrown.
-    */
+    def defaultHandleInterruptedException(logException: Throwable => Unit): InterruptedException => Unit = (t: InterruptedException) =>
+      // inspecting both the top-level and any suppressed exceptions
+      for (t2 <- t.getSuppressed.toList)
+        t2 match
+          case _: InterruptedException => // skip
+          case _                       => logException(t2)
+
+    val Default: Settings = Settings(ExitCode.Success, defaultHandleInterruptedException(DefaultLogException), DefaultLogException)
+
+  /** Simple variant of OxApp does not pass command line arguments and exits with exit code 0 if no exceptions were thrown. */
   trait Simple extends OxApp:
     override final def run(args: Vector[String])(using Ox): ExitCode =
       run
