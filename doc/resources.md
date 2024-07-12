@@ -16,6 +16,11 @@ useCloseable(new java.io.PrintWriter("test.txt")) { writer =>
 If a concurrency scope is available (e.g. `supervised`), or there are multiple resources to allocate, consider using the
 approach described below, to avoid creating an additional syntactical scope.
 
+```{warning}
+To properly release resources when the entire application is interrupted, make sure to use [`OxApp`](oxapp.md) as the
+application's main entry point.
+```
+
 ## Within a concurrency scope
 
 Resources can be allocated within a concurrency scope. They will be released in reverse acquisition order, after all 
