@@ -16,8 +16,11 @@ enum ExitCode(val code: Int):
   *   - [[OxApp.WithErrorMode]] to report errors (which end the application) using other [[ErrorMode]]s
   *
   * The benefit of using `OxApp` compared to normal `@main` methods is that application interruptions is handled properly. A fork in a scope
-  * is created to run the application's logic. Interrupting the application (e.g. using CTRL+C) will cause the scope to end, resources to be
-  * released and all forks to be interrupted, allowing for a clean shutdown.
+  * is created to run the application's logic. Interrupting the application (by sending SIGINT/SIGTERM, e.g. using CTRL+C) will cause the
+  * scope to end and all forks to be interrupted, allowing for a clean shutdown.
+  *
+  * That way, any resources that have been allocated and attached to scopes, or that are managed using `try-finally` blocks inside forks,
+  * will be released properly. 
   *
   * Certain aspects of exception handling can be configured using [[OxApp.Settings]] and overriding the `settings` method.
   */
