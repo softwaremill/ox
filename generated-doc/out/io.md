@@ -68,13 +68,13 @@ To use the plugin, add the following settings to your sbt configuration:
 
 ```scala
 autoCompilerPlugins := true
-addCompilerPlugin("com.softwaremill.ox" %% "plugin" % "0.3.0")
+addCompilerPlugin("com.softwaremill.ox" %% "plugin" % "0.3.1")
 ```
 
 For scala-cli:
 
 ```scala
-//> using plugin com.softwaremill.ox:::plugin:0.3.0
+//> using plugin com.softwaremill.ox:::plugin:0.3.1
 ```
 
 With the plugin enabled, the following code won't compile:

@@ -1,10 +1,10 @@
 # OxApp
 
-Ox provides a way to define application entry points in the "Ox way" using `OxApp` trait. Starting the app this way comes
-with the benefit of the main `run` function being executed on a virtual thread, with a root `Ox` scope provided, 
-and application interruption handling built-in. The latter is handled using `Runtime.addShutdownHook` and will interrupt 
-the main virtual thread, should the app receive, for example, a SIGINT due to Ctrl+C being issued by the user. 
-Here's an example: 
+To properly handle application interruption and clean shutdown, Ox provides a way to define application entry points
+using `OxApp` trait. The application's main `run` function is then executed on a virtual thread, with a root `Ox` scope 
+provided. 
+
+Here's an example:
 
 ```scala
 import ox.*
@@ -18,6 +18,23 @@ object MyApp extends OxApp:
     }
     println(s"Started app with args: ${args.mkString(", ")}!")
     ExitCode.Success
+```
+
+When the application receives a SIGINT/SIGTERM, e.g. due to a CTRL+C, the root scope (and hence any child scopes and 
+forks) are interrupted. This allows for a clean shutdown: any resources that are attached to scopes, or managed using 
+`try-finally` blocks, are released. Application shutdown is handled by adding a `Runtime.addShutdownHook`.
+
+In the code below, the resource is released when the application is interrupted:
+
+```scala
+import ox.*
+
+object MyApp extends OxApp:
+  def run(args: Vector[String])(using Ox): ExitCode =
+    releaseAfterScope:
+      println("Releasing ...")
+    println("Waiting ...")
+    never
 ```
 
 The `run` function receives command line arguments as a `Vector` of `String`s, a given `Ox` capability and has to 
@@ -63,27 +80,29 @@ object MyApp extends OxApp.WithEitherErrors[MyAppError]:
   }
 
   def run(args: Vector[String])(using Ox, EitherError[MyAppError]): ExitCode = 
-    doWork().ok() // will close the scope with MyAppError as `doWork` returns a Left
+    doWork().ok() // will end the scope with MyAppError as `doWork` returns a Left
     ExitCode.Success
 ```
 
 ## Additional configuration
 
-All `ox.OxApp` instances can be configured by overriding the `def settings: AppSettings` method. For now `AppSettings`
-contains only the `gracefulShutdownExitCode` setting that allows one to decide what exit code should be returned by 
-the application once it gracefully shutdowns after it was interrupted (for example Ctrl+C was pressed by the user).
+All `ox.OxApp` instances can be configured by overriding the `def settings: Settings` method. Settings include:
 
-By default `OxApp` will exit in such scenario with exit code `0` meaning successful graceful shutdown, but it can be 
-overridden: 
+* `interruptedExitCode`: what exit code should be returned by the application once it gracefully shutdowns after it 
+  was interrupted (for example Ctrl+C was pressed by the user). By default `0` (graceful shutdown)
+* `handleException` and `handleInterruptedException`: callbacks for exceptions that occur when evaluating the 
+  application's body, or that are thrown when the application shuts down due to an interruption (SIGINT/SIGTERM).
+  By default, the stack traces are printed to stderr, unless a default uncaught exception handler is defined.
+
+Settings can be overridden:
 
 ```scala
 import ox.*
 import scala.concurrent.duration.*
-import OxApp.AppSettings
 
 object MyApp extends OxApp:
-  override def settings: AppSettings = AppSettings(
-    gracefulShutdownExitCode = ExitCode.Failure(130)
+  override def settings: OxApp.Settings = OxApp.Settings.Default.copy(
+    interruptedExitCode = ExitCode.Failure(130)
   )
   
   def run(args: Vector[String])(using Ox): ExitCode =

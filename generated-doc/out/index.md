@@ -50,6 +50,8 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
    oxapp
    io
    retries
+   repeat
+   scheduled
    resources
    control-flow
    utility
