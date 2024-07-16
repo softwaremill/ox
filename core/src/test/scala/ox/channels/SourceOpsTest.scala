@@ -12,8 +12,8 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
 
   it should "timeout" in {
     supervised {
-      val c = Source.timeout(100.millis)
       val start = System.currentTimeMillis()
+      val c = Source.timeout(100.millis)
       c.receive() shouldBe ()
       (System.currentTimeMillis() - start) shouldBe >=(100L)
       (System.currentTimeMillis() - start) shouldBe <=(150L)
