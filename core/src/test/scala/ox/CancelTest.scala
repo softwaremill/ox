@@ -9,10 +9,6 @@ import java.util.concurrent.Semaphore
 import scala.concurrent.duration.*
 
 class CancelTest extends AnyFlatSpec with Matchers {
-  class CustomException extends RuntimeException
-
-  class CustomException2 extends RuntimeException
-
   "cancel" should "block until the fork completes" in {
     val trail = Trail()
     val r = supervised {
