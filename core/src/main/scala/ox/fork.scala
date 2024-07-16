@@ -99,7 +99,8 @@ def forkUserError[E, F[_], T](using OxError[E, F])(f: => F[T]): Fork[T] =
 /** Starts a fork (logical thread of execution), which is guaranteed to complete before the enclosing [[supervised]], [[supervisedError]] or
   * [[unsupervised]] block completes.
   *
-  * In case an exception is thrown while evaluating `t`, it will be thrown when calling the returned [[Fork]]'s `.join()` method.
+  * In case an exception is thrown while evaluating `t`, it will be thrown when calling the returned [[UnsupervisedFork]]'s `.join()`
+  * method.
   *
   * Success or failure isn't signalled to the enclosing scope, and doesn't influence the scope's lifecycle.
   *
@@ -196,7 +197,7 @@ trait Fork[T]:
   /** Blocks until the fork completes with a result.
     *
     * @throws Throwable
-    *   If the fork completed with an exception, and is unsupervised (started with [[forkUnsupervised]] or [[forkCancellable]].
+    *   If the fork completed with an exception, and is unsupervised (started with [[forkUnsupervised]] or [[forkCancellable]]).
     * @see
     *   If `T` is an `Either`, and there's an enclosing [[either]] block, the result can be unwrapped using [[either.ok]].
     */
