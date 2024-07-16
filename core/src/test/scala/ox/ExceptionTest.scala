@@ -8,7 +8,7 @@ import java.util.concurrent.Semaphore
 
 import scala.concurrent.duration.*
 
-class ExceptionTest extends AnyFlatSpec with Matchers {
+class ExceptionTest extends AnyFlatSpec with Matchers:
   class CustomException extends RuntimeException
   class CustomException2 extends RuntimeException
   class CustomException3(e: Exception) extends RuntimeException(e)
@@ -53,10 +53,7 @@ class ExceptionTest extends AnyFlatSpec with Matchers {
           throw CustomException()
         }
       }
-    catch
-      case e: Exception =>
-        val suppressed = e.getSuppressed.map(_.getClass.getSimpleName)
-        trail.add(s"${e.getClass.getSimpleName}(suppressed=${suppressed.mkString(",")})")
+    catch case e: Exception => addExceptionWithSuppressedTo(trail, e)
 
     trail.get shouldBe Vector("CustomException(suppressed=InterruptedException,InterruptedException)")
   }
@@ -129,4 +126,3 @@ class ExceptionTest extends AnyFlatSpec with Matchers {
     val suppressed = e.getSuppressed.map(_.getClass.getSimpleName)
     t.add(s"${e.getClass.getSimpleName}(suppressed=${suppressed.mkString(",")})")
   }
-}
