@@ -166,8 +166,8 @@ def forkCancellable[T](f: => T)(using OxUnsupervised): CancellableFork[T] =
       try Right(result.get())
       catch
         // we don't want to catch fatal exceptions (excluding IE, which is fatal for the cancelled thread only)
-        case e: ExecutionException if e.getCause.isInstanceOf[InterruptedException] => Left(e.getCause)
-        case e: ExecutionException if NonFatal.unapply(e.getCause).isDefined        => Left(e.getCause)
+        case e: ExecutionException if e.getCause.isInstanceOf[InterruptedException] => Left(causeWithSelfAsSuppressed(e))
+        case e: ExecutionException if NonFatal.unapply(e.getCause).isDefined        => Left(causeWithSelfAsSuppressed(e))
         case e: InterruptedException                                                => Left(e)
         case NonFatal(e)                                                            => Left(e)
 
@@ -185,8 +185,15 @@ private trait ForkUsingResult[T](result: CompletableFuture[T]) extends Fork[T]:
 private[ox] inline def unwrapExecutionException[T](f: => T): T =
   try f
   catch
-    case e: ExecutionException => throw e.getCause
+    case e: ExecutionException => throw causeWithSelfAsSuppressed(e)
     case e: Throwable          => throw e
+
+private inline def causeWithSelfAsSuppressed(e: ExecutionException): Throwable =
+  val cause = e.getCause
+  // adding the original as suppressed, so that no context is lost
+  // we cannot simply throw the EE, as it might wrap e.g. boundary-break, which has to be thrown unchanged
+  cause.addSuppressed(e)
+  cause
 
 //
 
