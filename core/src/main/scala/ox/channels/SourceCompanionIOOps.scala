@@ -84,7 +84,7 @@ trait SourceCompanionIOOps:
             if readBytes > 0 then chunks.send(Chunk.fromArray(if readBytes == chunkSize then buf.array else buf.array.take(readBytes)))
             true
         }
-      } catch case e => chunks.errorOrClosed(e).discard
+      } catch case NonFatal(e) => chunks.errorOrClosed(e).discard
       finally
         try jFileChannel.close()
         catch
