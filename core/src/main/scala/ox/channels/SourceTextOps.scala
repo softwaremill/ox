@@ -29,7 +29,7 @@ trait SourceTextOps[+T]:
             if newlineIdx == -1 then (buf ++ chunk, acc)
             else
               val (chunk1, chunk2) = chunk.splitAt(newlineIdx)
-              splitChunksAtNewLine(Chunk.empty, chunk2.drop(1), acc :+ (if buffer != null then buffer ++ chunk1 else chunk1))
+              splitChunksAtNewLine(Chunk.empty, chunk2.drop(1), acc :+ (buf ++ chunk1))
 
           val (newBuffer, toEmit) =
             if nextChunk.length == 0 then (null, Vector.empty)

@@ -73,6 +73,13 @@ class SourceTextOpsTest extends AnyWordSpec with Matchers {
       val chunk = Chunk.fromArray(inputBytes)
       Source.fromValues(chunk).lines(Charset.forName("ISO-8859-2")).toList shouldBe List("zażółć", "gęślą", "jaźń")
     }
+
+    "decode lines correctly across chunk boundaries" in supervised {
+      val lines = List("aa", "bbbbb", "cccccccc", "ddd", "ee", "fffff")
+      val inputBytes = lines.mkString("\n").getBytes("UTF-8")
+      val chunk = inputBytes.grouped(5).map(Chunk.fromArray)
+      Source.fromIterator(chunk).lines(Charset.forName("UTF-8")).toList should contain theSameElementsInOrderAs lines
+    }
   }
 
   "decodeStringUtf8" should {
