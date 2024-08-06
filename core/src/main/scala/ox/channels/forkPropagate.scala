@@ -1,6 +1,6 @@
 package ox.channels
 
-import ox.{discard, Fork, Ox, fork}
+import ox.*
 
 /** Fork the given computation, propagating any exceptions to the given sink. The propagated exceptions are not rethrown.
   *

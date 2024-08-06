@@ -98,19 +98,12 @@ trait SourceOps[+T] { outer: Source[T] =>
     */
   def map[U](f: T => U)(using Ox, StageCapacity): Source[U] =
     val c2 = StageCapacity.newChannel[U]
-    fork {
+    forkPropagateExceptions(c2) {
       repeatWhile {
         receiveOrClosed() match
           case ChannelClosed.Done     => c2.doneOrClosed(); false
           case ChannelClosed.Error(r) => c2.errorOrClosed(r); false
-          case t: T @unchecked =>
-            try
-              val u = f(t)
-              c2.sendOrClosed(u).isValue
-            catch
-              case t: Throwable =>
-                c2.errorOrClosed(t)
-                false
+          case t: T @unchecked        => c2.send(f(t)); true
       }
     }
     c2
@@ -320,26 +313,19 @@ trait SourceOps[+T] { outer: Source[T] =>
     */
   def takeWhile(f: T => Boolean, includeFirstFailing: Boolean = false)(using Ox, StageCapacity): Source[T] =
     val c = StageCapacity.newChannel[T]
-    fork {
+    forkPropagateExceptions(c) {
       repeatWhile {
         receiveOrClosed() match
-          case ChannelClosed.Done =>
-            c.doneOrClosed().discard
-            false
-          case ChannelClosed.Error(reason) =>
-            c.errorOrClosed(reason).discard
-            false
+          case ChannelClosed.Done          => c.done(); false
+          case ChannelClosed.Error(reason) => c.error(reason); false
           case t: T @unchecked =>
-            try
-              if f(t) then c.sendOrClosed(t).isValue
-              else
-                if includeFirstFailing then c.sendOrClosed(t).discard
-                c.doneOrClosed().discard
-                false
-            catch
-              case t: Throwable =>
-                c.errorOrClosed(t).discard
-                false
+            if f(t) then
+              c.send(t)
+              true
+            else
+              if includeFirstFailing then c.send(t)
+              c.done()
+              false
       }
     }
     c
@@ -615,28 +601,22 @@ trait SourceOps[+T] { outer: Source[T] =>
       initializeState: () => S
   )(f: (S, T) => (S, IterableOnce[U]), onComplete: S => Option[U] = (_: S) => None)(using Ox, StageCapacity): Source[U] =
     val c = StageCapacity.newChannel[U]
-    fork {
+    forkPropagateExceptions(c) {
       var state = initializeState()
       repeatWhile {
         receiveOrClosed() match
           case ChannelClosed.Done =>
-            try
-              onComplete(state).foreach(c.sendOrClosed)
-              c.doneOrClosed()
-            catch case t: Throwable => c.errorOrClosed(t)
+            onComplete(state).foreach(c.send)
+            c.done()
             false
           case ChannelClosed.Error(r) =>
-            c.errorOrClosed(r)
+            c.error(r)
             false
           case t: T @unchecked =>
-            try
-              val (nextState, result) = f(state, t)
-              state = nextState
-              result.iterator.map(c.sendOrClosed).forall(_.isValue)
-            catch
-              case t: Throwable =>
-                c.errorOrClosed(t)
-                false
+            val (nextState, result) = f(state, t)
+            state = nextState
+            result.iterator.foreach(c.send)
+            true
       }
     }
     c
@@ -665,24 +645,19 @@ trait SourceOps[+T] { outer: Source[T] =>
     */
   def mapConcat[U](f: T => IterableOnce[U])(using Ox, StageCapacity): Source[U] =
     val c = StageCapacity.newChannel[U]
-    fork {
+    forkPropagateExceptions(c) {
       repeatWhile {
         receiveOrClosed() match
           case ChannelClosed.Done =>
-            c.doneOrClosed()
+            c.done()
             false
           case ChannelClosed.Error(r) =>
-            c.errorOrClosed(r)
+            c.error(r)
             false
           case t: T @unchecked =>
-            try
-              val results: IterableOnce[U] = f(t)
-              results.iterator.foreach(c.send)
-              true
-            catch
-              case t: Throwable =>
-                c.errorOrClosed(t)
-                false
+            val results: IterableOnce[U] = f(t)
+            results.iterator.foreach(c.send)
+            true
       }
     }
     c
@@ -826,36 +801,29 @@ trait SourceOps[+T] { outer: Source[T] =>
   def groupedWeighted(minWeight: Long)(costFn: T => Long)(using Ox, StageCapacity): Source[Seq[T]] =
     require(minWeight > 0, "minWeight must be > 0")
     val c2 = StageCapacity.newChannel[Seq[T]]
-    fork {
+    forkPropagateExceptions(c2) {
       var buffer = Vector.empty[T]
       var accumulatedCost = 0L
       repeatWhile {
         receiveOrClosed() match
           case ChannelClosed.Done =>
-            if buffer.nonEmpty then c2.sendOrClosed(buffer).discard
-            c2.doneOrClosed()
+            if buffer.nonEmpty then c2.send(buffer)
+            c2.done()
             false
           case ChannelClosed.Error(r) =>
-            c2.errorOrClosed(r)
+            c2.error(r)
             false
           case t: T @unchecked =>
             buffer = buffer :+ t
 
-            val wasCostEvaluationSuccessful =
-              try
-                accumulatedCost += costFn(t)
-                true
-              catch
-                case t: Throwable =>
-                  c2.errorOrClosed(t).discard
-                  false
+            accumulatedCost += costFn(t)
 
-            if wasCostEvaluationSuccessful && accumulatedCost >= minWeight then
-              val isValue = c2.sendOrClosed(buffer).isValue
+            if accumulatedCost >= minWeight then
+              c2.send(buffer)
               buffer = Vector.empty
               accumulatedCost = 0
-              isValue
-            else wasCostEvaluationSuccessful
+
+            true
       }
     }
     c2
@@ -935,7 +903,7 @@ trait SourceOps[+T] { outer: Source[T] =>
     require(duration > 0.seconds, "duration must be > 0")
     val c2 = StageCapacity.newChannel[Seq[T]]
     val timerChannel = StageCapacity.newChannel[GroupingTimeout.type]
-    fork {
+    forkPropagateExceptions(c2) {
       var buffer = Vector.empty[T]
       var accumulatedCost: Long = 0
 
@@ -945,45 +913,38 @@ trait SourceOps[+T] { outer: Source[T] =>
       }
       var timeoutFork: Option[CancellableFork[Unit]] = Some(forkTimeout())
 
-      def sendBufferAndForkNewTimeout(): Boolean =
-        val isValue = c2.sendOrClosed(buffer).isValue
+      def sendBufferAndForkNewTimeout(): Unit =
+        c2.send(buffer)
         buffer = Vector.empty
         accumulatedCost = 0
         timeoutFork.foreach(_.cancelNow())
-        if isValue then timeoutFork = Some(forkTimeout()) // start a new timeout only if channel was not closed
-        isValue
+        timeoutFork = Some(forkTimeout())
 
       repeatWhile {
         selectOrClosed(receiveClause, timerChannel.receiveClause) match
           case ChannelClosed.Done =>
             timeoutFork.foreach(_.cancelNow())
-            if buffer.nonEmpty then c2.sendOrClosed(buffer).discard
-            c2.doneOrClosed()
+            if buffer.nonEmpty then c2.send(buffer)
+            c2.done()
             false
           case ChannelClosed.Error(r) =>
             timeoutFork.foreach(_.cancelNow())
-            c2.errorOrClosed(r)
+            c2.error(r)
             false
           case timerChannel.Received(GroupingTimeout) =>
             timeoutFork = None // enter 'timed out state', may stay in this state if buffer is empty
             if buffer.nonEmpty then sendBufferAndForkNewTimeout()
-            else true
+            true
           case Received(t) =>
             buffer = buffer :+ t
-            val wasCostEvaluationSuccessful =
-              try
-                accumulatedCost += costFn(t)
-                true
-              catch
-                case t: Throwable =>
-                  c2.errorOrClosed(t).discard
-                  timeoutFork.foreach(_.cancelNow())
-                  false
 
-            if wasCostEvaluationSuccessful && (timeoutFork.isEmpty || accumulatedCost >= minWeight) then
+            accumulatedCost += costFn(t).tapException(_ => timeoutFork.foreach(_.cancelNow()))
+
+            if (timeoutFork.isEmpty || accumulatedCost >= minWeight) then
               // timeout passed when buffer was empty or buffer full
               sendBufferAndForkNewTimeout()
-            else wasCostEvaluationSuccessful
+
+            true
       }
     }
     c2
