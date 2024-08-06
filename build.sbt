@@ -39,7 +39,7 @@ val useRequireIOPlugin =
 lazy val rootProject = (project in file("."))
   .settings(commonSettings)
   .settings(publishArtifact := false, name := "ox")
-  .aggregate(core, plugin, pluginTest, examples, kafka)
+  .aggregate(core, plugin, pluginTest, examples, kafka, mdcLogback)
 
 lazy val core: Project = (project in file("core"))
   .settings(commonSettings)
@@ -123,6 +123,17 @@ lazy val kafka: Project = (project in file("kafka"))
   )
   .dependsOn(core)
 
+lazy val mdcLogback: Project = (project in file("mdc-logback"))
+  .settings(commonSettings)
+  .settings(
+    name := "mdc-logback",
+    libraryDependencies ++= Seq(
+      logback,
+      scalaTest
+    )
+  )
+  .dependsOn(core)
+
 lazy val documentation: Project = (project in file("generated-doc")) // important: it must not be doc/
   .enablePlugins(MdocPlugin)
   .settings(commonSettings)
@@ -140,5 +151,6 @@ lazy val documentation: Project = (project in file("generated-doc")) // importan
   )
   .dependsOn(
     core,
-    kafka
+    kafka,
+    mdcLogback
   )
