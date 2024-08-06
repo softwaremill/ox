@@ -9,7 +9,6 @@ import java.nio.channels.FileChannel
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption
-import scala.util.control.NonFatal
 
 trait SourceCompanionIOOps:
 
@@ -25,7 +24,7 @@ trait SourceCompanionIOOps:
     */
   def fromInputStream(is: InputStream, chunkSize: Int = 1024)(using Ox, StageCapacity, IO): Source[Chunk[Byte]] =
     val chunks = StageCapacity.newChannel[Chunk[Byte]]
-    fork {
+    forkPropagateExceptions(chunks) {
       try
         repeatWhile {
           val buf = new Array[Byte](chunkSize)
@@ -37,14 +36,7 @@ trait SourceCompanionIOOps:
             if readBytes > 0 then chunks.send(if readBytes == chunkSize then Chunk.fromArray(buf) else Chunk.fromArray(buf.take(readBytes)))
             true
         }
-      catch
-        case t: Throwable =>
-          chunks.errorOrClosed(t).discard
-      finally
-        try is.close()
-        catch
-          case t: Throwable =>
-            chunks.errorOrClosed(t).discard
+      finally is.close()
     }
     chunks
 
@@ -72,8 +64,8 @@ trait SourceCompanionIOOps:
           // Some file systems don't support file channels
           Files.newByteChannel(path, StandardOpenOption.READ)
 
-    fork {
-      try {
+    forkPropagateExceptions(chunks) {
+      try
         repeatWhile {
           val buf = ByteBuffer.allocate(chunkSize)
           val readBytes = jFileChannel.read(buf)
@@ -84,11 +76,6 @@ trait SourceCompanionIOOps:
             if readBytes > 0 then chunks.send(Chunk.fromArray(if readBytes == chunkSize then buf.array else buf.array.take(readBytes)))
             true
         }
-      } catch case t: Throwable => chunks.errorOrClosed(t).discard
-      finally
-        try jFileChannel.close()
-        catch
-          case NonFatal(closeException) =>
-            chunks.errorOrClosed(closeException).discard
+      finally jFileChannel.close()
     }
     chunks
