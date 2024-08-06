@@ -1,5 +1,11 @@
 # Inheritable MDC using Logback
 
+Dependency:
+
+```scala
+"com.softwaremill.ox" %% "mdc-logback" % "0.3.3"
+```
+
 Ox provides support for setting inheritable MDC (mapped diagnostic context) values, when using the [Logback](https://logback.qos.ch)
 logging library. Normally, value set using `MDC.put` aren't inherited across (virtual) threads, which includes forks
 created in concurrency contexts.
