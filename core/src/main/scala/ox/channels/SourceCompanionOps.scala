@@ -19,7 +19,7 @@ trait SourceCompanionOps:
 
   def fromIterator[T](it: => Iterator[T])(using Ox, StageCapacity): Source[T] =
     val c = StageCapacity.newChannel[T]
-    forkPropagateExceptions(c) {
+    forkPropagate(c) {
       val theIt = it
       while theIt.hasNext do c.sendOrClosed(theIt.next()).discard
       c.doneOrClosed().discard
@@ -28,7 +28,7 @@ trait SourceCompanionOps:
 
   def fromFork[T](f: Fork[T])(using Ox, StageCapacity): Source[T] =
     val c = StageCapacity.newChannel[T]
-    forkPropagateExceptions(c) {
+    forkPropagate(c) {
       c.sendOrClosed(f.join())
       c.doneOrClosed().discard
     }
@@ -36,7 +36,7 @@ trait SourceCompanionOps:
 
   def iterate[T](zero: T)(f: T => T)(using Ox, StageCapacity): Source[T] =
     val c = StageCapacity.newChannel[T]
-    forkPropagateExceptions(c) {
+    forkPropagate(c) {
       var t = zero
       forever {
         c.sendOrClosed(t)
@@ -48,7 +48,7 @@ trait SourceCompanionOps:
   /** A range of number, from `from`, to `to` (inclusive), stepped by `step`. */
   def range(from: Int, to: Int, step: Int)(using Ox, StageCapacity): Source[Int] =
     val c = StageCapacity.newChannel[Int]
-    forkPropagateExceptions(c) {
+    forkPropagate(c) {
       var t = from
       repeatWhile {
         c.sendOrClosed(t)
@@ -61,7 +61,7 @@ trait SourceCompanionOps:
 
   def unfold[S, T](initial: S)(f: S => Option[(T, S)])(using Ox, StageCapacity): Source[T] =
     val c = StageCapacity.newChannel[T]
-    forkPropagateExceptions(c) {
+    forkPropagate(c) {
       var s = initial
       repeatWhile {
         f(s) match
@@ -137,7 +137,7 @@ trait SourceCompanionOps:
     */
   def repeatEval[T](f: => T)(using Ox, StageCapacity): Source[T] =
     val c = StageCapacity.newChannel[T]
-    forkPropagateExceptions(c) {
+    forkPropagate(c) {
       forever {
         c.sendOrClosed(f).discard
       }
@@ -156,7 +156,7 @@ trait SourceCompanionOps:
     */
   def repeatEvalWhileDefined[T](f: => Option[T])(using Ox, StageCapacity): Source[T] =
     val c = StageCapacity.newChannel[T]
-    forkPropagateExceptions(c) {
+    forkPropagate(c) {
       repeatWhile {
         f match
           case Some(value) => c.sendOrClosed(value); true
@@ -176,7 +176,7 @@ trait SourceCompanionOps:
 
   def concat[T](sources: Seq[() => Source[T]])(using Ox, StageCapacity): Source[T] =
     val c = StageCapacity.newChannel[T]
-    forkPropagateExceptions(c) {
+    forkPropagate(c) {
       var currentSource: Option[Source[T]] = None
       val sourcesIterator = sources.iterator
       var continue = true

@@ -98,7 +98,7 @@ trait SourceOps[+T] { outer: Source[T] =>
     */
   def map[U](f: T => U)(using Ox, StageCapacity): Source[U] =
     val c2 = StageCapacity.newChannel[U]
-    forkPropagateExceptions(c2) {
+    forkPropagate(c2) {
       repeatWhile {
         receiveOrClosed() match
           case ChannelClosed.Done     => c2.doneOrClosed(); false
@@ -313,7 +313,7 @@ trait SourceOps[+T] { outer: Source[T] =>
     */
   def takeWhile(f: T => Boolean, includeFirstFailing: Boolean = false)(using Ox, StageCapacity): Source[T] =
     val c = StageCapacity.newChannel[T]
-    forkPropagateExceptions(c) {
+    forkPropagate(c) {
       repeatWhile {
         receiveOrClosed() match
           case ChannelClosed.Done          => c.done(); false
@@ -601,7 +601,7 @@ trait SourceOps[+T] { outer: Source[T] =>
       initializeState: () => S
   )(f: (S, T) => (S, IterableOnce[U]), onComplete: S => Option[U] = (_: S) => None)(using Ox, StageCapacity): Source[U] =
     val c = StageCapacity.newChannel[U]
-    forkPropagateExceptions(c) {
+    forkPropagate(c) {
       var state = initializeState()
       repeatWhile {
         receiveOrClosed() match
@@ -645,7 +645,7 @@ trait SourceOps[+T] { outer: Source[T] =>
     */
   def mapConcat[U](f: T => IterableOnce[U])(using Ox, StageCapacity): Source[U] =
     val c = StageCapacity.newChannel[U]
-    forkPropagateExceptions(c) {
+    forkPropagate(c) {
       repeatWhile {
         receiveOrClosed() match
           case ChannelClosed.Done =>
@@ -801,7 +801,7 @@ trait SourceOps[+T] { outer: Source[T] =>
   def groupedWeighted(minWeight: Long)(costFn: T => Long)(using Ox, StageCapacity): Source[Seq[T]] =
     require(minWeight > 0, "minWeight must be > 0")
     val c2 = StageCapacity.newChannel[Seq[T]]
-    forkPropagateExceptions(c2) {
+    forkPropagate(c2) {
       var buffer = Vector.empty[T]
       var accumulatedCost = 0L
       repeatWhile {
@@ -903,7 +903,7 @@ trait SourceOps[+T] { outer: Source[T] =>
     require(duration > 0.seconds, "duration must be > 0")
     val c2 = StageCapacity.newChannel[Seq[T]]
     val timerChannel = StageCapacity.newChannel[GroupingTimeout.type]
-    forkPropagateExceptions(c2) {
+    forkPropagate(c2) {
       var buffer = Vector.empty[T]
       var accumulatedCost: Long = 0
 

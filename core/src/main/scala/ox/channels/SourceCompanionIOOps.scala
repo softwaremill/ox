@@ -24,7 +24,7 @@ trait SourceCompanionIOOps:
     */
   def fromInputStream(is: InputStream, chunkSize: Int = 1024)(using Ox, StageCapacity, IO): Source[Chunk[Byte]] =
     val chunks = StageCapacity.newChannel[Chunk[Byte]]
-    forkPropagateExceptions(chunks) {
+    forkPropagate(chunks) {
       try
         repeatWhile {
           val buf = new Array[Byte](chunkSize)
@@ -64,7 +64,7 @@ trait SourceCompanionIOOps:
           // Some file systems don't support file channels
           Files.newByteChannel(path, StandardOpenOption.READ)
 
-    forkPropagateExceptions(chunks) {
+    forkPropagate(chunks) {
       try
         repeatWhile {
           val buf = ByteBuffer.allocate(chunkSize)
