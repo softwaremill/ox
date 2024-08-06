@@ -32,7 +32,8 @@ class RequireIOPhase(ioLikeExceptionClasses: List[String]) extends PluginPhase:
   private var io: Symbol = _
 
   override def run(using Context): Unit = {
-    ioLikeExceptions = ("java.io.IOException" :: "java.sql.SQLException" :: ioLikeExceptionClasses).map(requiredClass)
+    ioLikeExceptions =
+      ("java.io.IOException" :: "java.sql.SQLException" :: "javax.mail.MessagingException" :: ioLikeExceptionClasses).map(requiredClass)
     io = requiredClass("ox.IO")
 
     super.run
