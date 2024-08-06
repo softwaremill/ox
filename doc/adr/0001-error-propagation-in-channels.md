@@ -24,7 +24,7 @@ If there are multiple forks running in parallel, there are two possible scenario
 cancelling any forks that are operating in the background. Any unused channels can then be garbage-collected.
 2. If you choose not to re-throw, the forks running in parallel would be allowed to complete normally (unless the containing scope is finished for another reason).
 
-Internally, for the built-in `Source` operators, we took the latter approach, i.e. we chose not to re-throw and let the parrallel forks complete normally. 
+Internally, for the built-in `Source` operators, we took the latter approach, i.e. we chose not to re-throw and let the parallel forks complete normally. 
 However, we keep in mind that they might not be able to send to downstream channel anymore - since the downstream might already be closed by the failing fork.
 
 ### Example
@@ -49,7 +49,7 @@ def mapParUnordered[U](parallelism: Int)(f: T => U)(using Ox, StageCapacity): So
               try
                 c.send(f(t))                              // (4)
                 s.release()
-              catch case t: Throwable => c.error(t)       // (5)
+              catch case e: Exception => c.error(t)       // (5)
             }
             true
       }
