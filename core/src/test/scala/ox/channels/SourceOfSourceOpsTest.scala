@@ -1,5 +1,6 @@
 package ox.channels
 
+import org.scalatest.OptionValues
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.*
@@ -7,7 +8,7 @@ import ox.*
 import java.util.concurrent.CountDownLatch
 import scala.collection.mutable.ListBuffer
 
-class SourceOfSourceOpsTest extends AnyFlatSpec with Matchers {
+class SourceOfSourceOpsTest extends AnyFlatSpec with Matchers with OptionValues {
 
   "flatten" should "pipe all elements of the child sources into the output source" in {
     supervised {
@@ -67,35 +68,32 @@ class SourceOfSourceOpsTest extends AnyFlatSpec with Matchers {
   }
 
   it should "propagate error of any of the child sources and stop piping" in {
-    val error = new Exception("intentional failure")
     supervised {
       val child1 = Channel.rendezvous[Int]
       val lock = CountDownLatch(1)
-      val child1Producer = fork {
+      fork {
         child1.send(10)
         // wait for child2 to emit an error
         lock.await()
         // `flatten` will not receive this, as it will be short-circuited by the error
         child1.sendOrClosed(30)
-
       }
       val child2 = Channel.rendezvous[Int]
       fork {
         child2.send(20)
-        child2.error(error)
+        child2.error(new Exception("intentional failure"))
         lock.countDown()
       }
       val source = Source.fromValues(child1, child2)
 
       val (collectedElems, collectedError) = source.flatten.toPartialList()
-      collectedError shouldBe Some(error)
+      collectedError.value.getMessage shouldBe "intentional failure"
       collectedElems should contain theSameElementsAs List(10, 20)
       child1.receive() shouldBe 30
     }
   }
 
   it should "propagate error of the parent source and stop piping" in {
-    val error = new Exception("intentional failure")
     supervised {
       val child1 = Channel.rendezvous[Int]
       val lock = CountDownLatch(1)
@@ -112,11 +110,11 @@ class SourceOfSourceOpsTest extends AnyFlatSpec with Matchers {
         source.send(child1)
         // make sure the first element of child1 is consumed before emitting error
         lock.await()
-        source.error(error)
+        source.error(new Exception("intentional failure"))
       }
 
       val (collectedElems, collectedError) = source.flatten.toPartialList()
-      collectedError shouldBe Some(error)
+      collectedError.value.getMessage shouldBe "intentional failure"
       collectedElems should contain atLeastOneElementOf List(10, 20)
     }
   }
