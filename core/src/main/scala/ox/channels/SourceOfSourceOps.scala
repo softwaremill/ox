@@ -23,8 +23,8 @@ extension [U](parentSource: Source[Source[U]]) {
               c2.doneOrClosed()
               false
             else true
-          case ChannelClosed.Error(r) =>
-            c2.errorOrClosed(r)
+          case ChannelClosed.Error(e) =>
+            c2.errorOrClosed(e)
             false
           case t: Source[U] @unchecked =>
             pool = t :: pool

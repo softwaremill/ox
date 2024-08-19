@@ -122,7 +122,29 @@ class SourceOfSourceOpsTest extends AnyFlatSpec with Matchers {
   }
 
   it should "stop pulling from the sources when the receiver is closed" in {
-    // TODO: implement this test
+    val child1 = Channel.rendezvous[Int]
+
+    Thread.startVirtualThread(() => {
+      child1.send(10)
+      // at this point `flatten` channel is closed
+      // so although `flatten` thread receives "20" element
+      // it can not push it to its output channel and it will be lost
+      child1.send(20)
+      child1.send(30)
+      child1.done()
+    })
+
+    supervised {
+      val source = Source.fromValues(child1)
+      val flattenSource = {
+        implicit val capacity: StageCapacity = StageCapacity(0)
+        source.flatten
+      }
+      flattenSource.receive() shouldBe 10
+    }
+
+    child1.receiveOrClosed() shouldBe 30
+    child1.receiveOrClosed() shouldBe ChannelClosed.Done
   }
 
   extension [T](source: Source[T]) {
