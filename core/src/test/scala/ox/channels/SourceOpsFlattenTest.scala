@@ -8,7 +8,7 @@ import ox.*
 import java.util.concurrent.CountDownLatch
 import scala.collection.mutable.ListBuffer
 
-class SourceOfSourceOpsTest extends AnyFlatSpec with Matchers with OptionValues {
+class SourceOpsFlattenTest extends AnyFlatSpec with Matchers with OptionValues {
 
   "flatten" should "pipe all elements of the child sources into the output source" in {
     supervised {
