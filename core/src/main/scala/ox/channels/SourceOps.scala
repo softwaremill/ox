@@ -413,7 +413,8 @@ trait SourceOps[+T] { outer: Source[T] =>
           case ChannelClosed.Error(e) =>
             c2.errorOrClosed(e)
             false
-          case t: Source[T] @unchecked =>
+          // TODO: we might go too deep and pull from non immediate children of the parent source
+          case t: Source[U] @unchecked =>
             pool = t :: pool
             true
           case r: U @unchecked =>
