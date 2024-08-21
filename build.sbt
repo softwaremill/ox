@@ -114,7 +114,7 @@ lazy val kafka: Project = (project in file("kafka"))
       "org.apache.kafka" % "kafka-clients" % "3.7.1",
       slf4j,
       logback % Test,
-      "io.github.embeddedkafka" %% "embedded-kafka" % "3.7.1.1" % Test,
+      "io.github.embeddedkafka" %% "embedded-kafka" % "3.8.0" % Test,
       "org.apache.pekko" %% "pekko-connectors-kafka" % "1.0.0" % Test,
       "org.apache.pekko" %% "pekko-stream" % "1.0.3" % Test,
       scalaTest
