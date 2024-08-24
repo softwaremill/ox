@@ -35,6 +35,20 @@ class SourceOpsFlattenTest extends AnyFlatSpec with Matchers with OptionValues {
     }
   }
 
+  it should "not flatten nested sources" in {
+    supervised {
+      val source = Source.fromValues(Source.fromValues(Source.fromValues(10)))
+      source.flatten.toList.map(_.toList) should contain theSameElementsAs List(List(10))
+    }
+  }
+
+  it should "handle subsequent flatten calls" in {
+    supervised {
+      val source = Source.fromValues(Source.fromValues(Source.fromValues(10), Source.fromValues(20)))
+      source.flatten.flatten.toList should contain theSameElementsAs List(10, 20)
+    }
+  }
+
   it should "pipe elements realtime" in {
     supervised {
       val source = Channel.bufferedDefault[Source[Int]]

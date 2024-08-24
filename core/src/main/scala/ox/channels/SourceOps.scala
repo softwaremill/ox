@@ -398,13 +398,15 @@ trait SourceOps[+T] { outer: Source[T] =>
     */
   def flatten[U](using Ox, StageCapacity, T <:< Source[U]): Source[U] = {
     val c2 = StageCapacity.newChannel[U]
+    case class Nested(child: Source[U])
 
     forkPropagate(c2) {
-      var pool = List[Source[T] | Source[U]](this)
+      val childStream = this.mapAsView(Nested(_))
+      var pool = List[Source[Nested] | Source[U]](childStream)
       repeatWhile {
         selectOrClosed(pool) match {
           case ChannelClosed.Done =>
-            // TODO: best to remove the specific channel that signalled to be Done
+            // TODO: optimization idea: find a way to remove the specific channel that signalled to be Done
             pool = pool.filterNot(_.isClosedForReceiveDetail.contains(ChannelClosed.Done))
             if pool.isEmpty then
               c2.doneOrClosed()
@@ -413,8 +415,7 @@ trait SourceOps[+T] { outer: Source[T] =>
           case ChannelClosed.Error(e) =>
             c2.errorOrClosed(e)
             false
-          // TODO: we might go too deep and pull from non immediate children of the parent source
-          case t: Source[U] @unchecked =>
+          case Nested(t) =>
             pool = t :: pool
             true
           case r: U @unchecked =>
