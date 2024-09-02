@@ -87,10 +87,9 @@ class SourceOpsFlattenTest extends AnyFlatSpec with Matchers with OptionValues {
       val lock = CountDownLatch(1)
       fork {
         child1.send(10)
-        // wait for child2 to emit an error
-        lock.await()
-        // `flatten` will not receive this, as it will be short-circuited by the error
-        child1.sendOrClosed(30)
+        lock.await() // wait for child2 to emit an error
+        child1.send(30) // `flatten` will not receive this, as it will be short-circuited by the error
+        child1.doneOrClosed()
       }
       val child2 = Channel.rendezvous[Int]
       fork {
@@ -99,37 +98,45 @@ class SourceOpsFlattenTest extends AnyFlatSpec with Matchers with OptionValues {
         lock.countDown()
       }
       val source = Source.fromValues(child1, child2)
-
-      val (collectedElems, collectedError) = source.flatten.toPartialList()
-      collectedError.value.getMessage shouldBe "intentional failure"
-      collectedElems should contain theSameElementsAs List(10, 20)
+      val flattenSource = {
+        implicit val capacity: StageCapacity = StageCapacity(0)
+        source.flatten
+      }
+      Set(flattenSource.receive(), flattenSource.receive()) shouldBe Set(10, 20)
+      flattenSource.receiveOrClosed() should be(a[ChannelClosed.Error])
       child1.receive() shouldBe 30
+      child1.receiveOrClosed() shouldBe ChannelClosed.Done
     }
   }
 
   it should "propagate error of the parent source and stop piping" in {
     supervised {
       val child1 = Channel.rendezvous[Int]
-      val lock = CountDownLatch(1)
+      val lockA = CountDownLatch(1)
+      val lockB = CountDownLatch(1)
       fork {
         child1.send(10)
-        lock.countDown()
-        // depending on how quick it picks up the error from the parent
-        // `flatten` may or may not receive this
-        child1.send(20)
+        lockA.countDown()
+        lockB.await() // make sure parent source is closed with an error
+        child1.send(20) // `flatten` will not receive this, as it will be short-circuited by the error of parent
         child1.done()
       }
       val source = Channel.rendezvous[Source[Int]]
       fork {
         source.send(child1)
-        // make sure the first element of child1 is consumed before emitting error
-        lock.await()
+        lockA.await() // make sure 10 of child1 is consumed before emitting error
         source.error(new Exception("intentional failure"))
+        lockB.countDown()
       }
 
-      val (collectedElems, collectedError) = source.flatten.toPartialList()
-      collectedError.value.getMessage shouldBe "intentional failure"
-      collectedElems should contain atLeastOneElementOf List(10, 20)
+      val flattenSource = {
+        implicit val capacity: StageCapacity = StageCapacity(0)
+        source.flatten
+      }
+      flattenSource.receive() shouldBe 10
+      flattenSource.receiveOrClosed() should be(a[ChannelClosed.Error])
+      child1.receive() shouldBe 20
+      child1.receiveOrClosed() shouldBe ChannelClosed.Done
     }
   }
 
@@ -157,23 +164,5 @@ class SourceOpsFlattenTest extends AnyFlatSpec with Matchers with OptionValues {
 
     child1.receiveOrClosed() shouldBe 30
     child1.receiveOrClosed() shouldBe ChannelClosed.Done
-  }
-
-  extension [T](source: Source[T]) {
-    def toPartialList(cb: T | Throwable => Unit = (_: Any) => ()): (List[T], Option[Throwable]) = {
-      val elementCapture = ListBuffer[T]()
-      var errorCapture = Option.empty[Throwable]
-      try {
-        for (t <- source) {
-          cb(t)
-          elementCapture += t
-        }
-      } catch {
-        case ChannelClosedException.Error(e) =>
-          cb(e)
-          errorCapture = Some(e)
-      }
-      (elementCapture.toList, errorCapture)
-    }
   }
 }
