@@ -393,6 +393,40 @@ trait SourceOps[+T] { outer: Source[T] =>
     }
     c
 
+  /** Pipes the elements of child sources into the output source. If the parent source or any of the child sources emit an error, the
+    * pulling stops and the output source emits the error.
+    */
+  def flatten[U](using Ox, StageCapacity, T <:< Source[U]): Source[U] = {
+    val c2 = StageCapacity.newChannel[U]
+    case class Nested(child: Source[U])
+
+    forkPropagate(c2) {
+      val childStream = this.mapAsView(Nested(_))
+      var pool = List[Source[Nested] | Source[U]](childStream)
+      repeatWhile {
+        selectOrClosed(pool) match {
+          case ChannelClosed.Done =>
+            // TODO: optimization idea: find a way to remove the specific channel that signalled to be Done
+            pool = pool.filterNot(_.isClosedForReceiveDetail.contains(ChannelClosed.Done))
+            if pool.isEmpty then
+              c2.doneOrClosed()
+              false
+            else true
+          case ChannelClosed.Error(e) =>
+            c2.errorOrClosed(e)
+            false
+          case Nested(t) =>
+            pool = t :: pool
+            true
+          case r: U @unchecked =>
+            c2.sendOrClosed(r).isValue
+        }
+      }
+    }
+
+    c2
+  }
+
   /** Concatenates this source with the `other` source. The resulting source will emit elements from this source first, and then from the
     * `other` source.
     *
