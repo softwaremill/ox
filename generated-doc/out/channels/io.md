@@ -53,7 +53,7 @@ A `Source[Chunk[Byte]]` can be directed to write to an `OutputStream`:
 
 ```scala
 import ox.channels.Source
-import ox.{Chunk, IO, supervised}
+import ox.{IO, supervised}
 import java.io.ByteArrayOutputStream
 
 val outputStream = new ByteArrayOutputStream()
@@ -96,7 +96,7 @@ A `Source[Chunk[Byte]]` can be written to a file under a given path:
 
 ```scala
 import ox.channels.Source
-import ox.{Chunk, IO, supervised}
+import ox.{IO, supervised}
 import java.nio.file.Paths
 
 supervised {
