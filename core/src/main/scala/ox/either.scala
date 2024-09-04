@@ -122,9 +122,18 @@ object either:
     transparent inline def ok(): A = f.join().ok()
 
   extension [E](e: E)
+    /** Fail the computation, short-circuiting to the enclosing [[either]] block. */
     transparent inline def fail(): Nothing =
       summonFrom {
         case given boundary.Label[Either[E, Nothing]] => break(Left(e))
         case given boundary.Label[Either[Nothing, Nothing]] =>
           error("The enclosing `either` call uses a different error type.\nIf it's explicitly typed, is the error type correct?")
       }
+
+  extension [E <: Throwable, T](e: Either[E, T])
+    /** Unwrap the right-value of the `Either`, throwing the contained exception if this is a lef-value. For a variant which allows
+      * unwrapping `Either`s, propagates errors and doesn't throw exceptions, see [[apply]].
+      */
+    def orThrow: T = e match
+      case Right(value)    => value
+      case Left(throwable) => throw throwable
