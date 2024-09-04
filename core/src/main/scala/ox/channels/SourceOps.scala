@@ -57,7 +57,7 @@ trait SourceOps[+T] { outer: Source[T] =>
   }
 
   /** Creates a view of this source, where the results of [[receive]] will be transformed on the consumer's thread using the given function
-    * `f`. If the function is not defined at an element, the element will be skipped.
+    * `f`. If the function is not defined at an element, the element will be skipped. For an eager, asynchronous version, see [[collect]].
     *
     * The same logic applies to receive clauses created using this source, which can be used in [[select]].
     *
@@ -287,6 +287,35 @@ trait SourceOps[+T] { outer: Source[T] =>
       c.doneOrClosed()
     }
     c
+
+  /** Applies the given mapping function `f` to each element received from this source, for which the function is defined, and sends the
+    * results to the returned channel. If `f` is not defined at an element, the element will be skipped.
+    *
+    * Errors from this channel are propagated to the returned channel. Any exceptions that occur when invoking `f` are propagated as errors
+    * to the returned channel as well.
+    *
+    * Must be run within a scope, as a child fork is created, which receives from this source and sends the mapped values to the resulting
+    * one.
+    *
+    * For a lazily-evaluated version, see [[collectAsView]].
+    *
+    * @param f
+    *   The mapping function.
+    * @return
+    *   A source, onto which results of the mapping function will be sent.
+    */
+  def collect[U](f: PartialFunction[T, U])(using Ox, StageCapacity): Source[U] =
+    val c2 = StageCapacity.newChannel[U]
+    forkPropagate(c2) {
+      repeatWhile {
+        receiveOrClosed() match
+          case ChannelClosed.Done                  => c2.doneOrClosed(); false
+          case ChannelClosed.Error(r)              => c2.errorOrClosed(r); false
+          case t: T @unchecked if f.isDefinedAt(t) => c2.send(f(t)); true
+          case _                                   => true // f is not defined at t, skipping
+      }
+    }
+    c2
 
   def take(n: Int)(using Ox, StageCapacity): Source[T] = transform(_.take(n))
 
