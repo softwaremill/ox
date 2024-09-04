@@ -58,14 +58,14 @@ class SourceOpsFlattenTest extends AnyFlatSpec with Matchers with OptionValues {
       source.send {
         val subSource = Channel.bufferedDefault[Int]
         subSource.send(20)
-        forkUnsupervised {
+        fork {
           lockA.await() // 30 won't be added until, lockA is released after 20 consumption
           subSource.send(30)
           subSource.done()
         }
         subSource
       }
-      forkUnsupervised {
+      fork {
         lockB.await() // 40 won't be added until, lockB is released after 30 consumption
         source.send(Source.fromValues(40))
         source.done()
@@ -86,25 +86,25 @@ class SourceOpsFlattenTest extends AnyFlatSpec with Matchers with OptionValues {
       val child1 = Channel.rendezvous[Int]
       val lock = CountDownLatch(1)
       fork {
-        child1.send(10)
-        lock.await() // wait for child2 to emit an error
-        child1.send(30) // `flatten` will not receive this, as it will be short-circuited by the error
+        lock.await() // wait for the error to be discovered
+        child1.send(10) // `flatten` will not receive this, as it will be short-circuited by the error
         child1.doneOrClosed()
       }
       val child2 = Channel.rendezvous[Int]
       fork {
-        child2.send(20)
         child2.error(new Exception("intentional failure"))
-        lock.countDown()
       }
       val source = Source.fromValues(child1, child2)
       val flattenSource = {
         implicit val capacity: StageCapacity = StageCapacity(0)
         source.flatten
       }
-      Set(flattenSource.receive(), flattenSource.receive()) shouldBe Set(10, 20)
+
       flattenSource.receiveOrClosed() should be(a[ChannelClosed.Error])
-      child1.receive() shouldBe 30
+
+      // no values should be piped by the flattening process after the error
+      lock.countDown()
+      child1.receive() shouldBe 10
       child1.receiveOrClosed() shouldBe ChannelClosed.Done
     }
   }
@@ -143,26 +143,26 @@ class SourceOpsFlattenTest extends AnyFlatSpec with Matchers with OptionValues {
   it should "stop pulling from the sources when the receiver is closed" in {
     val child1 = Channel.rendezvous[Int]
 
-    Thread.startVirtualThread(() => {
-      child1.send(10)
-      // at this point `flatten` channel is closed
-      // so although `flatten` thread receives "20" element
-      // it can not push it to its output channel and it will be lost
-      child1.send(20)
-      child1.send(30)
-      child1.done()
-    })
-
     supervised {
+      fork {
+        child1.send(10)
+        // at this point `flatten` channel is closed
+        // so although `flatten` thread receives "20" element
+        // it can not push it to its output channel and it will be lost
+        child1.send(20)
+        child1.send(30)
+        child1.done()
+      }
+
       val source = Source.fromValues(child1)
       val flattenSource = {
         implicit val capacity: StageCapacity = StageCapacity(0)
         source.flatten
       }
       flattenSource.receive() shouldBe 10
-    }
 
-    child1.receiveOrClosed() shouldBe 30
-    child1.receiveOrClosed() shouldBe ChannelClosed.Done
+      child1.receiveOrClosed() shouldBe 30
+      child1.receiveOrClosed() shouldBe ChannelClosed.Done
+    }
   }
 }

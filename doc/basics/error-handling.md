@@ -189,3 +189,18 @@ val outerResult: Either[Exception, Unit] = either:
 ```
 
 After this change refactoring `returnsEither` to return `Either[Exception, Int]` would yield a compile error on `returnsEither.ok()`.
+
+## Other `Either` utilities
+
+For `Either` instances where the left-side is an exception, the right-value of an `Either` can be unwrapped using `.orThrow`.
+The exception on the left side is thrown if it is present:
+
+```scala mdoc:compile-only
+import ox.either.orThrow
+
+val v1: Either[Exception, Int] = Right(10)
+assert(v1.orThrow == 10)
+
+val v2: Either[Exception, Int] = Left(new RuntimeException("boom!"))
+v2.orThrow // throws RuntimeException("boom!")
+```

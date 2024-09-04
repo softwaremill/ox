@@ -50,7 +50,7 @@ See [scheduled](scheduled.md) for details on how to create custom schedules.
 
 ```scala mdoc:compile-only
 import ox.UnionMode
-import ox.scheduling.{Jitter, Schedule, repeat, repeatEither, repeatWithErrorMode, RepeatConfig}
+import ox.scheduling.{Schedule, repeat, repeatEither, repeatWithErrorMode, RepeatConfig}
 import ox.resilience.{retry, RetryConfig}
 import scala.concurrent.duration.*
 

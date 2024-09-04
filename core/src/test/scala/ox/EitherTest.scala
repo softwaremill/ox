@@ -3,7 +3,7 @@ package ox
 import org.scalatest.exceptions.TestFailedException
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import ox.either.{fail, ok}
+import ox.either.{fail, ok, orThrow}
 
 import scala.util.boundary.Label
 
@@ -162,6 +162,16 @@ class EitherTest extends AnyFlatSpec with Matchers:
         ()
       }
       """)
+  }
+
+  "orThrow" should "unwrap the value for a Right-value" in {
+    val v: Either[Exception, Int] = Right(10)
+    v.orThrow shouldBe 10
+  }
+
+  it should "throw exceptions for a Left-value" in {
+    val v: Either[Exception, Int] = Left(new RuntimeException("boom!"))
+    intercept[RuntimeException](v.orThrow).getMessage shouldBe "boom!"
   }
 
   private transparent inline def receivesNoEitherNestingError(inline code: String): Unit =
