@@ -143,26 +143,26 @@ class SourceOpsFlattenTest extends AnyFlatSpec with Matchers with OptionValues {
   it should "stop pulling from the sources when the receiver is closed" in {
     val child1 = Channel.rendezvous[Int]
 
-    supervised {
-      fork {
-        child1.send(10)
-        // at this point `flatten` channel is closed
-        // so although `flatten` thread receives "20" element
-        // it can not push it to its output channel and it will be lost
-        child1.send(20)
-        child1.send(30)
-        child1.done()
-      }
+    Thread.startVirtualThread(() => {
+      child1.send(10)
+      // at this point `flatten` channel is closed
+      // so although `flatten` thread receives "20" element
+      // it can not push it to its output channel and it will be lost
+      child1.send(20)
+      child1.send(30)
+      child1.done()
+    })
 
+    supervised {
       val source = Source.fromValues(child1)
       val flattenSource = {
         implicit val capacity: StageCapacity = StageCapacity(0)
         source.flatten
       }
       flattenSource.receive() shouldBe 10
-
-      child1.receiveOrClosed() shouldBe 30
-      child1.receiveOrClosed() shouldBe ChannelClosed.Done
     }
+
+    child1.receiveOrClosed() shouldBe 30
+    child1.receiveOrClosed() shouldBe ChannelClosed.Done
   }
 }
