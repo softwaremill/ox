@@ -160,9 +160,9 @@ class SourceOpsFlattenTest extends AnyFlatSpec with Matchers with OptionValues {
         source.flatten
       }
       flattenSource.receive() shouldBe 10
-    }
 
-    child1.receiveOrClosed() shouldBe 30
-    child1.receiveOrClosed() shouldBe ChannelClosed.Done
+      child1.receiveOrClosed() shouldBe 30
+      child1.receiveOrClosed() shouldBe ChannelClosed.Done
+    }
   }
 }
