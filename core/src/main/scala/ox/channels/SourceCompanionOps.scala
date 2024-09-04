@@ -19,70 +19,60 @@ trait SourceCompanionOps:
 
   def fromIterator[T](it: => Iterator[T])(using Ox, StageCapacity): Source[T] =
     val c = StageCapacity.newChannel[T]
-    fork {
+    forkPropagate(c) {
       val theIt = it
-      try
-        while theIt.hasNext do c.sendOrClosed(theIt.next()).discard
-        c.doneOrClosed()
-      catch case t: Throwable => c.errorOrClosed(t)
+      while theIt.hasNext do c.sendOrClosed(theIt.next()).discard
+      c.doneOrClosed().discard
     }
     c
 
   def fromFork[T](f: Fork[T])(using Ox, StageCapacity): Source[T] =
     val c = StageCapacity.newChannel[T]
-    fork {
-      try
-        c.sendOrClosed(f.join())
-        c.doneOrClosed()
-      catch case t: Throwable => c.errorOrClosed(t)
+    forkPropagate(c) {
+      c.sendOrClosed(f.join())
+      c.doneOrClosed().discard
     }
     c
 
   def iterate[T](zero: T)(f: T => T)(using Ox, StageCapacity): Source[T] =
     val c = StageCapacity.newChannel[T]
-    fork {
+    forkPropagate(c) {
       var t = zero
-      try
-        forever {
-          c.sendOrClosed(t)
-          t = f(t)
-        }
-      catch case t: Throwable => c.errorOrClosed(t)
+      forever {
+        c.sendOrClosed(t)
+        t = f(t)
+      }
     }
     c
 
   /** A range of number, from `from`, to `to` (inclusive), stepped by `step`. */
   def range(from: Int, to: Int, step: Int)(using Ox, StageCapacity): Source[Int] =
     val c = StageCapacity.newChannel[Int]
-    fork {
+    forkPropagate(c) {
       var t = from
-      try
-        repeatWhile {
-          c.sendOrClosed(t)
-          t = t + step
-          t <= to
-        }
-        c.doneOrClosed()
-      catch case t: Throwable => c.errorOrClosed(t)
+      repeatWhile {
+        c.sendOrClosed(t)
+        t = t + step
+        t <= to
+      }
+      c.doneOrClosed().discard
     }
     c
 
   def unfold[S, T](initial: S)(f: S => Option[(T, S)])(using Ox, StageCapacity): Source[T] =
     val c = StageCapacity.newChannel[T]
-    fork {
+    forkPropagate(c) {
       var s = initial
-      try
-        repeatWhile {
-          f(s) match
-            case Some((value, next)) =>
-              c.sendOrClosed(value)
-              s = next
-              true
-            case None =>
-              c.doneOrClosed()
-              false
-        }
-      catch case t: Throwable => c.errorOrClosed(t)
+      repeatWhile {
+        f(s) match
+          case Some((value, next)) =>
+            c.sendOrClosed(value)
+            s = next
+            true
+          case None =>
+            c.doneOrClosed()
+            false
+      }
     }
     c
 
@@ -147,12 +137,10 @@ trait SourceCompanionOps:
     */
   def repeatEval[T](f: => T)(using Ox, StageCapacity): Source[T] =
     val c = StageCapacity.newChannel[T]
-    fork {
-      try
-        forever {
-          c.sendOrClosed(f).discard
-        }
-      catch case t: Throwable => c.errorOrClosed(t)
+    forkPropagate(c) {
+      forever {
+        c.sendOrClosed(f).discard
+      }
     }
     c
 
@@ -168,14 +156,12 @@ trait SourceCompanionOps:
     */
   def repeatEvalWhileDefined[T](f: => Option[T])(using Ox, StageCapacity): Source[T] =
     val c = StageCapacity.newChannel[T]
-    fork {
-      try
-        repeatWhile {
-          f match
-            case Some(value) => c.sendOrClosed(value); true
-            case None        => c.doneOrClosed(); false
-        }
-      catch case t: Throwable => c.errorOrClosed(t)
+    forkPropagate(c) {
+      repeatWhile {
+        f match
+          case Some(value) => c.sendOrClosed(value); true
+          case None        => c.doneOrClosed(); false
+      }
     }
     c
 
@@ -190,27 +176,25 @@ trait SourceCompanionOps:
 
   def concat[T](sources: Seq[() => Source[T]])(using Ox, StageCapacity): Source[T] =
     val c = StageCapacity.newChannel[T]
-    fork {
+    forkPropagate(c) {
       var currentSource: Option[Source[T]] = None
       val sourcesIterator = sources.iterator
       var continue = true
-      try
-        while continue do
-          currentSource match
-            case None if sourcesIterator.hasNext => currentSource = Some(sourcesIterator.next()())
-            case None =>
-              c.doneOrClosed()
-              continue = false
-            case Some(source) =>
-              source.receiveOrClosed() match
-                case ChannelClosed.Done =>
-                  currentSource = None
-                case ChannelClosed.Error(r) =>
-                  c.errorOrClosed(r)
-                  continue = false
-                case t: T @unchecked =>
-                  c.sendOrClosed(t).discard
-      catch case t: Throwable => c.errorOrClosed(t)
+      while continue do
+        currentSource match
+          case None if sourcesIterator.hasNext => currentSource = Some(sourcesIterator.next()())
+          case None =>
+            c.doneOrClosed()
+            continue = false
+          case Some(source) =>
+            source.receiveOrClosed() match
+              case ChannelClosed.Done =>
+                currentSource = None
+              case ChannelClosed.Error(r) =>
+                c.errorOrClosed(r)
+                continue = false
+              case t: T @unchecked =>
+                c.sendOrClosed(t).discard
     }
     c
 

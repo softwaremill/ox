@@ -15,8 +15,8 @@ lazy val commonSettings = commonSmlBuildSettings ++ ossPublishSettings ++ Seq(
 )
 
 val scalaTest = "org.scalatest" %% "scalatest" % "3.2.19" % Test
-val slf4j = "org.slf4j" % "slf4j-api" % "2.0.13"
-val logback = "ch.qos.logback" % "logback-classic" % "1.5.6"
+val slf4j = "org.slf4j" % "slf4j-api" % "2.0.16"
+val logback = "ch.qos.logback" % "logback-classic" % "1.5.7"
 
 // used during CI to verify that the documentation compiles
 val compileDocumentation: TaskKey[Unit] = taskKey[Unit]("Compiles documentation throwing away its output")
@@ -39,7 +39,7 @@ val useRequireIOPlugin =
 lazy val rootProject = (project in file("."))
   .settings(commonSettings)
   .settings(publishArtifact := false, name := "ox")
-  .aggregate(core, plugin, pluginTest, examples, kafka)
+  .aggregate(core, plugin, pluginTest, examples, kafka, mdcLogback)
 
 lazy val core: Project = (project in file("core"))
   .settings(commonSettings)
@@ -114,12 +114,23 @@ lazy val kafka: Project = (project in file("kafka"))
       "org.apache.kafka" % "kafka-clients" % "3.8.0",
       slf4j,
       logback % Test,
-      "io.github.embeddedkafka" %% "embedded-kafka" % "3.7.0" % Test,
+      "io.github.embeddedkafka" %% "embedded-kafka" % "3.8.0" % Test,
       "org.apache.pekko" %% "pekko-connectors-kafka" % "1.0.0" % Test,
-      "org.apache.pekko" %% "pekko-stream" % "1.0.3" % Test,
+      "org.apache.pekko" %% "pekko-stream" % "1.1.0" % Test,
       scalaTest
     ),
     useRequireIOPlugin
+  )
+  .dependsOn(core)
+
+lazy val mdcLogback: Project = (project in file("mdc-logback"))
+  .settings(commonSettings)
+  .settings(
+    name := "mdc-logback",
+    libraryDependencies ++= Seq(
+      logback,
+      scalaTest
+    )
   )
   .dependsOn(core)
 
@@ -140,5 +151,6 @@ lazy val documentation: Project = (project in file("generated-doc")) // importan
   )
   .dependsOn(
     core,
-    kafka
+    kafka,
+    mdcLogback
   )
