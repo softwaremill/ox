@@ -46,7 +46,7 @@ lazy val core: Project = (project in file("core"))
   .settings(
     name := "core",
     libraryDependencies ++= Seq(
-      "com.softwaremill.jox" % "channels" % "0.3.0",
+      "com.softwaremill.jox" % "channels" % "0.3.1",
       scalaTest
     ),
     // Check IO usage in core
