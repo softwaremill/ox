@@ -86,25 +86,25 @@ class SourceOpsFlattenTest extends AnyFlatSpec with Matchers with OptionValues {
       val child1 = Channel.rendezvous[Int]
       val lock = CountDownLatch(1)
       fork {
-        child1.send(10)
-        lock.await() // wait for child2 to emit an error
-        child1.send(30) // `flatten` will not receive this, as it will be short-circuited by the error
+        lock.await() // wait for the error to be discovered
+        child1.send(10) // `flatten` will not receive this, as it will be short-circuited by the error
         child1.doneOrClosed()
       }
       val child2 = Channel.rendezvous[Int]
       fork {
-        child2.send(20)
         child2.error(new Exception("intentional failure"))
-        lock.countDown()
       }
       val source = Source.fromValues(child1, child2)
       val flattenSource = {
         implicit val capacity: StageCapacity = StageCapacity(0)
         source.flatten
       }
-      Set(flattenSource.receive(), flattenSource.receive()) shouldBe Set(10, 20)
+
       flattenSource.receiveOrClosed() should be(a[ChannelClosed.Error])
-      child1.receive() shouldBe 30
+
+      // no values should be piped by the flattening process after the error
+      lock.countDown()
+      child1.receive() shouldBe 10
       child1.receiveOrClosed() shouldBe ChannelClosed.Done
     }
   }
