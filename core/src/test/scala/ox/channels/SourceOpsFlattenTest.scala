@@ -58,14 +58,14 @@ class SourceOpsFlattenTest extends AnyFlatSpec with Matchers with OptionValues {
       source.send {
         val subSource = Channel.bufferedDefault[Int]
         subSource.send(20)
-        forkUnsupervised {
+        fork {
           lockA.await() // 30 won't be added until, lockA is released after 20 consumption
           subSource.send(30)
           subSource.done()
         }
         subSource
       }
-      forkUnsupervised {
+      fork {
         lockB.await() // 40 won't be added until, lockB is released after 30 consumption
         source.send(Source.fromValues(40))
         source.done()
@@ -143,17 +143,17 @@ class SourceOpsFlattenTest extends AnyFlatSpec with Matchers with OptionValues {
   it should "stop pulling from the sources when the receiver is closed" in {
     val child1 = Channel.rendezvous[Int]
 
-    Thread.startVirtualThread(() => {
-      child1.send(10)
-      // at this point `flatten` channel is closed
-      // so although `flatten` thread receives "20" element
-      // it can not push it to its output channel and it will be lost
-      child1.send(20)
-      child1.send(30)
-      child1.done()
-    })
-
     supervised {
+      fork {
+        child1.send(10)
+        // at this point `flatten` channel is closed
+        // so although `flatten` thread receives "20" element
+        // it can not push it to its output channel and it will be lost
+        child1.send(20)
+        child1.send(30)
+        child1.done()
+      }
+
       val source = Source.fromValues(child1)
       val flattenSource = {
         implicit val capacity: StageCapacity = StageCapacity(0)
