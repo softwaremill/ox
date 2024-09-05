@@ -103,7 +103,7 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
           .map(in => (in.value.toLong * 2, in))
           .map((value, original) => SendPacket(ProducerRecord[String, String](destTopic, value.toString), original))
           .mapPublishAndCommit(producerSettings)
-          .pipeTo(metadatas)
+          .pipeTo(metadatas, propagateDone = false)
       }
 
       val inDest = KafkaSource.subscribe(consumerSettings, destTopic)
