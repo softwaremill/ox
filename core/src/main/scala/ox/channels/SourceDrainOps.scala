@@ -1,7 +1,7 @@
 package ox.channels
 
 import ox.channels.ChannelClosedUnion.{mapUnlessError, orThrow}
-import ox.{repeatWhile, supervised}
+import ox.{discard, repeatWhile, supervised}
 
 import scala.collection.mutable
 
@@ -37,13 +37,14 @@ trait SourceDrainOps[+T] { outer: Source[T] =>
     val b = List.newBuilder[T]
     foreachOrError(b += _).mapUnlessError(_ => b.result())
 
-  /** Passes each received element from this channel to the given sink. Blocks until the channel is done. When the channel is done or
-    * there's an error, propagates the closed status downstream and returns.
+  /** Passes each received element from this channel to the given sink. Blocks until the channel is done.
+    *
+    * Errors are propagated. Successful channel completion is not propagated by default, unless `propagateDone` is set to `true`.
     */
-  def pipeTo(sink: Sink[T]): Unit =
+  def pipeTo(sink: Sink[T], propagateDone: Boolean = false): Unit =
     repeatWhile {
       receiveOrClosed() match
-        case ChannelClosed.Done     => sink.doneOrClosed(); false
+        case ChannelClosed.Done     => if propagateDone then sink.doneOrClosed().discard; false
         case e: ChannelClosed.Error => sink.errorOrClosed(e.reason); false
         case t: T @unchecked        => sink.send(t); true
     }

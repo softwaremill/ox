@@ -50,7 +50,23 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
       val c1 = Source.fromValues(1, 2, 3)
       val c2 = Channel.rendezvous[Int]
 
-      fork { c1.pipeTo(c2) }
+      fork {
+        c1.pipeTo(c2)
+        c2.done()
+      }
+
+      c2.toList shouldBe List(1, 2, 3)
+    }
+  }
+
+  it should "pipe one source to another (with done propagation)" in {
+    supervised {
+      val c1 = Source.fromValues(1, 2, 3)
+      val c2 = Channel.rendezvous[Int]
+
+      fork {
+        c1.pipeTo(c2, propagateDone = true)
+      }
 
       c2.toList shouldBe List(1, 2, 3)
     }
