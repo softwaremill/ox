@@ -347,7 +347,7 @@ trait SourceCompanionOps:
       transportChannel.receiveOrClosed() match
         case ChannelClosed.Done           => c.doneOrClosed()
         case ChannelClosed.Error(r)       => c.errorOrClosed(r)
-        case source: Source[T] @unchecked => source.pipeTo(c)
+        case source: Source[T] @unchecked => source.pipeTo(c, propagateDone = true)
     }
     c
 
