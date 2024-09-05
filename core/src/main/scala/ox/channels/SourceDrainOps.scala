@@ -39,9 +39,9 @@ trait SourceDrainOps[+T] { outer: Source[T] =>
 
   /** Passes each received element from this channel to the given sink. Blocks until the channel is done.
     *
-    * Errors are propagated. Successful channel completion is not propagated by default, unless `propagateDone` is set to `true`.
+    * Errors are always propagated. Successful channel completion is propagated when `propagateDone` is set to `true`.
     */
-  def pipeTo(sink: Sink[T], propagateDone: Boolean = false): Unit =
+  def pipeTo(sink: Sink[T], propagateDone: Boolean): Unit =
     repeatWhile {
       receiveOrClosed() match
         case ChannelClosed.Done     => if propagateDone then sink.doneOrClosed().discard; false

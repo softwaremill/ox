@@ -815,9 +815,9 @@ trait SourceOps[+T] { outer: Source[T] =>
     val c = StageCapacity.newChannel[U]
     fork {
       receiveOrClosed() match
-        case ChannelClosed.Done     => alternative.pipeTo(c)
+        case ChannelClosed.Done     => alternative.pipeTo(c, propagateDone = true)
         case ChannelClosed.Error(r) => c.errorOrClosed(r)
-        case t: T @unchecked        => c.sendOrClosed(t); pipeTo(c)
+        case t: T @unchecked        => c.sendOrClosed(t); pipeTo(c, propagateDone = true)
     }
     c
 

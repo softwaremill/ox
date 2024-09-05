@@ -51,7 +51,7 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
       val c2 = Channel.rendezvous[Int]
 
       fork {
-        c1.pipeTo(c2)
+        c1.pipeTo(c2, propagateDone = false)
         c2.done()
       }
 
