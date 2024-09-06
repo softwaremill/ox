@@ -61,6 +61,20 @@ trait Source[+T] extends SourceOps[T] with SourceDrainOps[T] with SourceIOOps[T]
     */
   def receiveOrClosed(): T | ChannelClosed = ChannelClosed.fromJoxOrT(delegate.receiveOrClosed())
 
+  /** Receive a value from the channel.
+    *
+    * @throws ChannelClosedException
+    *   If the channel is in error.
+    * @see
+    *   [[receive]] and [[receiveOrClosed]].
+    * @return
+    *   Either a value of type `T`, or [[ChannelClosed.Done]], when the channel is done.
+    */
+  def receiveOrDone(): T | ChannelClosed.Done.type = receiveOrClosed() match
+    case e: ChannelClosed.Error => throw e.toThrowable
+    case ChannelClosed.Done     => ChannelClosed.Done
+    case t: T @unchecked        => t
+
   /** Receive a value from the channel. For a variant which doesn't throw exceptions when the channel is closed, use [[receiveOrClosed()]].
     *
     * @throws ChannelClosedException
