@@ -227,6 +227,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
     c.receive() shouldBe 2
     c.receiveOrClosed() shouldBe ChannelClosed.Done
     c.receiveOrClosed() shouldBe ChannelClosed.Done // repeat
+    c.receiveOrDone() shouldBe ChannelClosed.Done // repeat
   }
 
   it should "not receive from a channel in case of an error" in {
