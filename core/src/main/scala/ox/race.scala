@@ -6,18 +6,23 @@ import scala.concurrent.TimeoutException
 import scala.concurrent.duration.FiniteDuration
 import scala.util.{Failure, Success, Try}
 
-/** A `Some` if the computation `t` took less than `duration`, and `None` otherwise. */
+/** A `Some` if the computation `t` took less than `duration`, and `None` otherwise. if the computation `t` throws an exception, it is
+  * propagated.
+  */
 def timeoutOption[T](duration: FiniteDuration)(t: => T): Option[T] =
-  race(Some(t), { sleep(duration); None })
+  raceResult(Some(t), { sleep(duration); None })
 
-/** The result of computation `t`, if it took less than `duration`, and a [[TimeoutException]] otherwise.
+/** The result of computation `t`, if it took less than `duration`, and a [[TimeoutException]] otherwise. if the computation `t` throws an
+  * exception, it is propagated.
   * @throws TimeoutException
   *   If `t` took more than `duration`.
   */
 def timeout[T](duration: FiniteDuration)(t: => T): T =
   timeoutOption(duration)(t).getOrElse(throw new TimeoutException(s"Timed out after $duration"))
 
-/** Result of the computation `t` if it took less than `duration`, and `Left(timeoutValue)` otherwise. */
+/** Result of the computation `t` if it took less than `duration`, and `Left(timeoutValue)` otherwise. if the computation `t` throws an
+  * exception, it is propagated.
+  */
 def timeoutEither[E, T](duration: FiniteDuration, timeoutValue: E)(t: => Either[E, T]): Either[E, T] =
   timeoutOption(duration)(t).getOrElse(Left(timeoutValue))
 
