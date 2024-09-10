@@ -7,6 +7,8 @@ import ox.util.Trail
 
 import scala.concurrent.TimeoutException
 import scala.concurrent.duration.DurationInt
+import scala.util.Failure
+import scala.util.Try
 
 class ControlTest extends AnyFlatSpec with Matchers {
   "timeout" should "short-circuit a long computation" in {
@@ -24,6 +26,14 @@ class ControlTest extends AnyFlatSpec with Matchers {
     }
 
     trail.get shouldBe Vector("timeout", "done")
+  }
+
+  it should "pass through the exception of failed computation" in {
+    val myException = new Throwable("failed computation")
+
+    Try {
+      timeout(1.second)(throw myException)
+    } shouldBe Failure(myException)
   }
 
   it should "not interrupt a short computation" in {
@@ -57,4 +67,21 @@ class ControlTest extends AnyFlatSpec with Matchers {
 
     trail.get shouldBe Vector("done")
   }
+
+  "timeoutOption" should "pass through the exception of failed computation" in {
+    val myException = new Throwable("failed computation")
+
+    Try {
+      timeoutOption(1.second)(throw myException)
+    } shouldBe Failure(myException)
+  }
+
+  "timeoutEither" should "pass through the exception of failed computation" in {
+    val myException = new Throwable("failed computation")
+
+    Try {
+      timeoutEither(1.second, new TimeoutException(s"Timed out after 1 seconds"))(throw myException)
+    } shouldBe Failure(myException)
+  }
+
 }
