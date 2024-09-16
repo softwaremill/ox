@@ -4,6 +4,7 @@ import java.util.concurrent.ArrayBlockingQueue
 import scala.annotation.tailrec
 import scala.concurrent.TimeoutException
 import scala.concurrent.duration.FiniteDuration
+import scala.util.control.{ControlThrowable, NonFatal}
 import scala.util.{Failure, Success, Try}
 
 /** A `Some` if the computation `t` took less than `duration`, and `None` otherwise. if the computation `t` throws an exception, it is
@@ -38,7 +39,13 @@ def race[T](fs: Seq[() => T]): T = race(NoErrorMode)(fs)
 def race[E, F[_], T](em: ErrorMode[E, F])(fs: Seq[() => F[T]]): F[T] =
   unsupervised {
     val result = new ArrayBlockingQueue[Try[F[T]]](fs.size)
-    fs.foreach(f => forkUnsupervised(result.put(Try(f()))))
+    fs.foreach(f => forkUnsupervised {
+      val r = try Success(f())
+      catch 
+        case NonFatal(e) => Failure(e)
+        case e: ControlThrowable => Failure(e)
+      result.put(r)
+    })
 
     @tailrec
     def takeUntilSuccess(failures: Vector[Either[E, Throwable]], left: Int): F[T] =

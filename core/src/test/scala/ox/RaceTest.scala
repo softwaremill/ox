@@ -3,7 +3,7 @@ package ox
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.*
-import ox.util.Trail
+import ox.util.{NastyControlThrowable, Trail}
 
 import scala.concurrent.TimeoutException
 import scala.concurrent.duration.DurationInt
@@ -129,6 +129,24 @@ class RaceTest extends AnyFlatSpec with Matchers {
       case e: Exception =>
         e.getMessage shouldBe "boom1!"
         e.getSuppressed.map(_.getMessage).toSet shouldBe Set("boom2!", "boom3!")
+  }
+
+  it should "handle ControlThrowable exceptions" in {
+    try
+      race(
+        throw new NastyControlThrowable("boom1!"), {
+          sleep(200.millis)
+          throw new NastyControlThrowable("boom2!")
+        }, {
+          sleep(200.millis)
+          throw new NastyControlThrowable("boom3!")
+        }
+      )
+      fail("Race should throw")
+    catch
+      case e: Throwable =>
+        e.getMessage shouldBe "boom1!"
+        // Suppressed exceptions are not available for ControlThrowable
   }
 
   "raceEither" should "return the first successful computation to complete" in {
