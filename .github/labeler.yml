@@ -4,11 +4,13 @@ labels:
     authors: ["softwaremill-ci"]
     files:
       - "build.sbt"
+      - "project/build.properties"
       - "project/Versions.scala"
       - "project/plugins.sbt"
   - label: "dependency"
     authors: ["softwaremill-ci"]
     files:
       - "build.sbt"
+      - "project/build.properties"
       - "project/Versions.scala"
       - "project/plugins.sbt"
