@@ -3,10 +3,12 @@ package ox
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.*
-import ox.util.{NastyControlThrowable, Trail}
+import ox.util.Trail
 
+import java.util.concurrent.atomic.AtomicBoolean
 import scala.concurrent.TimeoutException
 import scala.concurrent.duration.DurationInt
+import scala.util.control.ControlThrowable
 
 class RaceTest extends AnyFlatSpec with Matchers {
   "timeout" should "short-circuit a long computation" in {
@@ -131,7 +133,9 @@ class RaceTest extends AnyFlatSpec with Matchers {
         e.getSuppressed.map(_.getMessage).toSet shouldBe Set("boom2!", "boom3!")
   }
 
-  it should "handle ControlThrowable exceptions" in {
+  class NastyControlThrowable(val message: String) extends ControlThrowable(message) {}
+
+  it should "treat ControlThrowable as a non-fatal exception" in {
     try
       race(
         throw new NastyControlThrowable("boom1!"), {
@@ -146,7 +150,23 @@ class RaceTest extends AnyFlatSpec with Matchers {
     catch
       case e: Throwable =>
         e.getMessage shouldBe "boom1!"
-        // Suppressed exceptions are not available for ControlThrowable
+      // Suppressed exceptions are not available for ControlThrowable
+  }
+
+  it should "immediately rethrow other fatal exceptions" in {
+    val flag = new AtomicBoolean(false)
+    try
+      race(
+        throw new StackOverflowError(), {
+          sleep(1.second)
+          flag.set(true)
+          throw new RuntimeException()
+        }
+      )
+      fail("Race should throw")
+    catch
+      case e: StackOverflowError => // the expected exception
+        flag.get() shouldBe false // because a fatal exception was thrown, the second computation should be interrupted
   }
 
   "raceEither" should "return the first successful computation to complete" in {

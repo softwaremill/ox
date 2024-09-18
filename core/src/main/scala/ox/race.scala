@@ -38,14 +38,22 @@ def race[T](fs: Seq[() => T]): T = race(NoErrorMode)(fs)
   */
 def race[E, F[_], T](em: ErrorMode[E, F])(fs: Seq[() => F[T]]): F[T] =
   unsupervised {
-    val result = new ArrayBlockingQueue[Try[F[T]]](fs.size)
-    fs.foreach(f => forkUnsupervised {
-      val r = try Success(f())
-      catch 
-        case NonFatal(e) => Failure(e)
-        case e: ControlThrowable => Failure(e)
-      result.put(r)
-    })
+    val result = new ArrayBlockingQueue[RaceBranchResult[F[T]]](fs.size)
+    fs.foreach(f =>
+      forkUnsupervised {
+        val r =
+          try RaceBranchResult.Success(f())
+          catch
+            case NonFatal(e) => RaceBranchResult.NonFatalException(e)
+            // #213: we treat ControlThrowables as non-fatal, as in the context of `race` they should count as a
+            // "failed branch", but not cause immediate interruption
+            case e: ControlThrowable => RaceBranchResult.NonFatalException(e)
+            // #213: any other fatal exceptions must cause `race` to be interrupted immediately; this is needed as we
+            // are in an unsupervised scope, so by default exceptions aren't propagated
+            case e => RaceBranchResult.FatalException(e)
+        result.put(r)
+      }
+    )
 
     @tailrec
     def takeUntilSuccess(failures: Vector[Either[E, Throwable]], left: Int): F[T] =
@@ -64,10 +72,11 @@ def race[E, F[_], T](em: ErrorMode[E, F])(fs: Seq[() => F[T]]): F[T] =
             throw e
       else
         result.take() match
-          case Success(v) =>
+          case RaceBranchResult.Success(v) =>
             if em.isError(v) then takeUntilSuccess(failures :+ Left(em.getError(v)), left - 1)
             else v
-          case Failure(e) => takeUntilSuccess(failures :+ Right(e), left - 1)
+          case RaceBranchResult.NonFatalException(e) => takeUntilSuccess(failures :+ Right(e), left - 1)
+          case RaceBranchResult.FatalException(e)    => throw e
 
     takeUntilSuccess(Vector.empty, fs.size)
   }
@@ -130,3 +139,8 @@ def raceResult[T](f1: => T, f2: => T, f3: => T): T = raceResult(List(() => f1, (
 
 /** Returns the result of the first computation to complete (either successfully or with an exception). */
 def raceResult[T](f1: => T, f2: => T, f3: => T, f4: => T): T = raceResult(List(() => f1, () => f2, () => f3, () => f4))
+
+private enum RaceBranchResult[+T]:
+  case Success(value: T)
+  case NonFatalException(throwable: Throwable)
+  case FatalException(throwable: Throwable)
