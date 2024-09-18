@@ -133,8 +133,6 @@ class RaceTest extends AnyFlatSpec with Matchers {
         e.getSuppressed.map(_.getMessage).toSet shouldBe Set("boom2!", "boom3!")
   }
 
-  class NastyControlThrowable(val message: String) extends ControlThrowable(message) {}
-
   it should "treat ControlThrowable as a non-fatal exception" in {
     try
       race(
@@ -193,4 +191,48 @@ class RaceTest extends AnyFlatSpec with Matchers {
     trail.get shouldBe Vector("error", "slow")
     end - start should be < 1000L
   }
+
+  "raceResult" should "immediately return when a normal exception occurs" in {
+    val flag = new AtomicBoolean(false)
+    try
+      raceResult(
+        throw new RuntimeException("boom!"), {
+          sleep(1.second)
+          flag.set(true)
+        }
+      )
+      fail("raceResult should throw")
+    catch
+      case e: Throwable =>
+        e.getMessage shouldBe "boom!"
+        flag.get() shouldBe false
+  }
+
+  it should "immediately return when a control exception occurs" in {
+    val flag = new AtomicBoolean(false)
+    try
+      raceResult(
+        throw new NastyControlThrowable("boom!"), {
+          sleep(1.second)
+          flag.set(true)
+        }
+      )
+      fail("raceResult should throw")
+    catch case e: NastyControlThrowable => flag.get() shouldBe false
+  }
+
+  it should "immediately return when a fatal exception occurs" in {
+    val flag = new AtomicBoolean(false)
+    try
+      raceResult(
+        throw new StackOverflowError(), {
+          sleep(1.second)
+          flag.set(true)
+        }
+      )
+      fail("raceResult should throw")
+    catch case e: StackOverflowError => flag.get() shouldBe false
+  }
+
+  class NastyControlThrowable(val message: String) extends ControlThrowable(message) {}
 }

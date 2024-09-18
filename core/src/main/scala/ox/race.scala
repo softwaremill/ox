@@ -129,7 +129,15 @@ def raceEither[E, T](f1: => Either[E, T], f2: => Either[E, T], f3: => Either[E, 
 //
 
 /** Returns the result of the first computation to complete (either successfully or with an exception). */
-def raceResult[T](fs: Seq[() => T]): T = race(fs.map(f => () => Try(f()))).get // TODO optimize
+def raceResult[T](fs: Seq[() => T]): T = race(
+  fs.map(f =>
+    () =>
+      // #213: the Try() constructor doesn't catch fatal exceptions; in this context, we want to propagate *all*
+      // exceptions as fast as possible
+      try Success(f())
+      catch case e: Throwable => Failure(e)
+  )
+).get // TODO optimize
 
 /** Returns the result of the first computation to complete (either successfully or with an exception). */
 def raceResult[T](f1: => T, f2: => T): T = raceResult(List(() => f1, () => f2))
