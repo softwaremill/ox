@@ -24,10 +24,8 @@ enum ExitCode(val code: Int):
   *
   * Certain aspects of exception handling can be configured using [[OxApp.Settings]] and overriding the `settings` method.
   *
-  * The application's code is specified in a `run` method, which has two capabilities granted:
-  *
-  *   - [[Ox]], to fork asynchronously computations, and register clean up of resources
-  *   - [[IO]], to perform I/O operations
+  * The application's code is specified in a `run` method, which has the [[Ox]] capability granted: to fork asynchronously computations, and
+  * register clean up of resources
   */
 trait OxApp:
   protected def settings: OxApp.Settings = OxApp.Settings.Default
@@ -36,7 +34,7 @@ trait OxApp:
     try
       unsupervised {
         val cancellableMainFork = forkCancellable {
-          try supervised(IO.unsafe(run(args.toVector)))
+          try supervised(run(args.toVector))
           catch
             case NonFatal(e) =>
               settings.handleException(e)
@@ -67,7 +65,7 @@ trait OxApp:
     try Runtime.getRuntime.addShutdownHook(thread)
     catch case _: IllegalStateException => ()
 
-  def run(args: Vector[String])(using Ox, IO): ExitCode
+  def run(args: Vector[String])(using Ox): ExitCode
 end OxApp
 
 object OxApp:
@@ -107,11 +105,11 @@ object OxApp:
 
   /** Simple variant of OxApp does not pass command line arguments and exits with exit code 0 if no exceptions were thrown. */
   trait Simple extends OxApp:
-    override final def run(args: Vector[String])(using Ox, IO): ExitCode =
+    override final def run(args: Vector[String])(using Ox): ExitCode =
       run
       ExitCode.Success
 
-    def run(using Ox, IO): Unit
+    def run(using Ox): Unit
 
   /** WithErrorMode variant of OxApp allows to specify what kind of error handling for the main function should be used. Base trait for
     * integrations.
@@ -122,7 +120,7 @@ object OxApp:
     *   wrapper type for given ErrorMode
     */
   trait WithErrorMode[E, F[_]](em: ErrorMode[E, F]) extends OxApp:
-    override final def run(args: Vector[String])(using Ox, IO): ExitCode =
+    override final def run(args: Vector[String])(using Ox): ExitCode =
       val result = runWithErrors(args)
       if em.isError(result) then handleError(em.getError(result))
       else ExitCode.Success
@@ -133,7 +131,7 @@ object OxApp:
     /** This template method is to be implemented by abstract classes that add integration for particular error handling data structure of
       * type F[_].
       */
-    def runWithErrors(args: Vector[String])(using Ox, IO): F[ExitCode]
+    def runWithErrors(args: Vector[String])(using Ox): F[ExitCode]
   end WithErrorMode
 
   /** WithEitherErrors variant of OxApp integrates OxApp with an `either` block and allows for usage of `.ok()` combinators in the body of
@@ -145,8 +143,8 @@ object OxApp:
   abstract class WithEitherErrors[E] extends WithErrorMode(EitherMode[E]()):
     type EitherError[Err] = Label[Either[Err, ExitCode]]
 
-    override final def runWithErrors(args: Vector[String])(using Ox, IO): Either[E, ExitCode] =
+    override final def runWithErrors(args: Vector[String])(using Ox): Either[E, ExitCode] =
       either[E, ExitCode](run(args))
 
-    def run(args: Vector[String])(using Ox, EitherError[E], IO): ExitCode
+    def run(args: Vector[String])(using Ox, EitherError[E]): ExitCode
 end OxApp

@@ -24,22 +24,10 @@ compileDocumentation := {
   (documentation / mdoc).toTask(" --out target/ox-doc").value
 }
 
-val useRequireIOPlugin =
-  // Based on:
-  // https://stackoverflow.com/questions/54660122/how-to-include-a-scala-compiler-plugin-from-a-local-path
-  Compile / scalacOptions ++= {
-    val jar = (plugin / Compile / Keys.`package`).value
-    System.setProperty("sbt.paths.plugin.jar", jar.getAbsolutePath)
-
-    val addPlugin = "-Xplugin:" + jar.getAbsolutePath
-    val dummy = "-Jdummy=" + jar.lastModified
-    Seq(addPlugin, dummy)
-  }
-
 lazy val rootProject = (project in file("."))
   .settings(commonSettings)
   .settings(publishArtifact := false, name := "ox")
-  .aggregate(core, plugin, pluginTest, examples, kafka, mdcLogback)
+  .aggregate(core, examples, kafka, mdcLogback)
 
 lazy val core: Project = (project in file("core"))
   .settings(commonSettings)
@@ -49,48 +37,6 @@ lazy val core: Project = (project in file("core"))
       "com.softwaremill.jox" % "channels" % "0.3.1",
       scalaTest
     ),
-    // Check IO usage in core
-    useRequireIOPlugin,
-    Test / fork := true
-  )
-
-lazy val plugin: Project = (project in file("plugin"))
-  .settings(commonSettings)
-  .settings(
-    name := "plugin",
-    libraryDependencies ++= Seq("org.scala-lang" %% "scala3-compiler" % scalaVersion.value, scalaTest)
-  )
-
-lazy val pluginTest: Project = (project in file("plugin-test"))
-  .settings(commonSettings)
-  .settings(
-    name := "plugin-test",
-    libraryDependencies ++= Seq(
-      "org.scala-lang" %% "scala3-compiler" % scalaVersion.value,
-      scalaTest
-    ),
-    publishArtifact := false,
-    // Playground testing
-    useRequireIOPlugin,
-    // Unit testing, based on:
-    // https://github.com/xebia-functional/munit-compiler-toolkit/
-    Test / javaOptions += {
-      val dependencyJars = (Compile / dependencyClasspath).value.files
-      val thisJar = (Compile / Keys.`package`).value
-      val `scala-compiler-classpath` =
-        (dependencyJars :+ thisJar)
-          .map(_.toPath.toAbsolutePath.toString())
-          .mkString(":")
-      s"-Dscala-compiler-classpath=${`scala-compiler-classpath`}"
-    },
-    Test / javaOptions += Def.taskDyn {
-      Def.task {
-        val _ = (plugin / Compile / Keys.`package`).value
-        val `scala-compiler-options` =
-          s"${(plugin / Compile / packageBin).value}"
-        s"""-Dscala-compiler-plugin=${`scala-compiler-options`}"""
-      }
-    }.value,
     Test / fork := true
   )
 
@@ -118,8 +64,7 @@ lazy val kafka: Project = (project in file("kafka"))
       "org.apache.pekko" %% "pekko-connectors-kafka" % "1.0.0" % Test,
       "org.apache.pekko" %% "pekko-stream" % "1.1.1" % Test,
       scalaTest
-    ),
-    useRequireIOPlugin
+    )
   )
   .dependsOn(core)
 

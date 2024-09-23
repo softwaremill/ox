@@ -13,8 +13,6 @@ import ox.*
 import scala.concurrent.duration.*
 
 class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with BeforeAndAfterAll {
-  import ox.IO.globalForTesting.given
-
   private var bootstrapServer: String = _
 
   override def beforeAll(): Unit =

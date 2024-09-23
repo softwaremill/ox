@@ -1,8 +1,8 @@
 # OxApp
 
 To properly handle application interruption and clean shutdown, Ox provides a way to define application entry points
-using `OxApp` trait. The application's main `run` function is then executed on a virtual thread, with a root `Ox` and 
-`IO` capabilities provided. 
+using `OxApp` trait. The application's main `run` function is then executed on a virtual thread, with a root `Ox`
+capability provided. 
 
 Here's an example:
 
@@ -11,7 +11,7 @@ import ox.*
 import scala.concurrent.duration.*
 
 object MyApp extends OxApp:
-  def run(args: Vector[String])(using Ox, IO): ExitCode =
+  def run(args: Vector[String])(using Ox): ExitCode =
     forkUser {
       sleep(500.millis)
       println("Fork finished!")
@@ -30,14 +30,14 @@ In the code below, the resource is released when the application is interrupted:
 import ox.*
 
 object MyApp extends OxApp:
-  def run(args: Vector[String])(using Ox, IO): ExitCode =
+  def run(args: Vector[String])(using Ox): ExitCode =
     releaseAfterScope:
       println("Releasing ...")
     println("Waiting ...")
     never
 ```
 
-The `run` function receives command line arguments as a `Vector` of `String`s, a given `Ox` and `IO` capabilities and 
+The `run` function receives command line arguments as a `Vector` of `String`s, a given `Ox` capability and 
 has to return an `ox.ExitCode` value which translates to the exit code returned from the program. `ox.ExitCode` is 
 defined as:
 
@@ -48,14 +48,14 @@ enum ExitCode(val code: Int):
 ```
 
 There's also a simplified variant of `OxApp` for situations where you don't care about command line arguments. 
-The `run` function doesn't take any arguments beyond the root `Ox` and `IO` capabilities, expects no `ExitCode` and will 
+The `run` function doesn't take any arguments beyond the root `Ox` capability, expects no `ExitCode` and will 
 handle any exceptions thrown by printing a stack trace and returning an exit code of `1`:
 
 ```scala mdoc:compile-only
 import ox.*
 
 object MyApp extends OxApp.Simple:
-  def run(using Ox, IO): Unit = println("All done!")
+  def run(using Ox): Unit = println("All done!")
 ```
 
 `OxApp` has also a variant that integrates with [either](basics/error-handling.md#boundary-break-for-eithers) 
@@ -80,7 +80,7 @@ object MyApp extends OxApp.WithEitherErrors[MyAppError]:
     case ComputationError(_) => ExitCode.Failure(23)
   }
 
-  def run(args: Vector[String])(using Ox, EitherError[MyAppError], IO): ExitCode = 
+  def run(args: Vector[String])(using Ox, EitherError[MyAppError]): ExitCode = 
     doWork().ok() // will end the scope with MyAppError as `doWork` returns a Left
     ExitCode.Success
 ```
@@ -106,7 +106,7 @@ object MyApp extends OxApp:
     interruptedExitCode = ExitCode.Failure(130)
   )
   
-  def run(args: Vector[String])(using Ox, IO): ExitCode =
+  def run(args: Vector[String])(using Ox): ExitCode =
     sleep(60.seconds)
     ExitCode.Success
 ```
