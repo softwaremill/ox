@@ -3,7 +3,7 @@
 Dependency:
 
 ```scala
-"com.softwaremill.ox" %% "kafka" % "0.3.9"
+"com.softwaremill.ox" %% "kafka" % "0.4.0"
 ```
 
 `Source`s which read from a Kafka topic, mapping stages and drains which publish to Kafka topics are available through
@@ -11,24 +11,21 @@ the `KafkaSource`, `KafkaStage` and `KafkaDrain` objects. In all cases either a 
 `KafkaProducer` / `KafkaConsumer` is needed, or `ProducerSettings` / `ConsumerSetttings` need to be provided with the
 bootstrap servers, consumer group id, key / value serializers, etc.
 
-All Kafka I/O operations require the [IO capability](io.md).
-
 To read from a Kafka topic, use:
 
 ```scala
 import ox.channels.ChannelClosed
 import ox.kafka.{ConsumerSettings, KafkaSource, ReceivedMessage}
 import ox.kafka.ConsumerSettings.AutoOffsetReset
-import ox.{IO, supervised}
+import ox.supervised
 
 supervised {
   val settings = ConsumerSettings.default("my_group").bootstrapServers("localhost:9092").autoOffsetReset(AutoOffsetReset.Earliest)
   val topic = "my_topic"
   
-  IO.unsafe:
-    val source = KafkaSource.subscribe(settings, topic)
-  
-    source.receive(): ReceivedMessage[String, String] | ChannelClosed
+  val source = KafkaSource.subscribe(settings, topic)
+
+  source.receive(): ReceivedMessage[String, String] | ChannelClosed
 }
 ```
 
@@ -37,16 +34,15 @@ To publish data to a Kafka topic:
 ```scala
 import ox.channels.Source
 import ox.kafka.{ProducerSettings, KafkaDrain}
-import ox.{IO, pipe, supervised}
+import ox.{pipe, supervised}
 import org.apache.kafka.clients.producer.ProducerRecord
 
 supervised {
   val settings = ProducerSettings.default.bootstrapServers("localhost:9092")
-  IO.unsafe:
-    Source
-      .fromIterable(List("a", "b", "c"))
-      .mapAsView(msg => ProducerRecord[String, String]("my_topic", msg))
-      .pipe(KafkaDrain.publish(settings))
+  Source
+    .fromIterable(List("a", "b", "c"))
+    .mapAsView(msg => ProducerRecord[String, String]("my_topic", msg))
+    .pipe(KafkaDrain.publish(settings))
 }
 ```
 
@@ -71,7 +67,7 @@ computed. For example:
 ```scala
 import ox.kafka.{ConsumerSettings, KafkaDrain, KafkaSource, ProducerSettings, SendPacket}
 import ox.kafka.ConsumerSettings.AutoOffsetReset
-import ox.{IO, pipe, supervised}
+import ox.{pipe, supervised}
 import org.apache.kafka.clients.producer.ProducerRecord
 
 supervised {
@@ -80,12 +76,11 @@ supervised {
   val sourceTopic = "source_topic"
   val destTopic = "dest_topic"
 
-  IO.unsafe:
-    KafkaSource
-      .subscribe(consumerSettings, sourceTopic)
-      .map(in => (in.value.toLong * 2, in))
-      .map((value, original) => SendPacket(ProducerRecord[String, String](destTopic, value.toString), original))
-      .pipe(KafkaDrain.publishAndCommit(producerSettings))
+  KafkaSource
+    .subscribe(consumerSettings, sourceTopic)
+    .map(in => (in.value.toLong * 2, in))
+    .map((value, original) => SendPacket(ProducerRecord[String, String](destTopic, value.toString), original))
+    .pipe(KafkaDrain.publishAndCommit(producerSettings))
 }
 ```
 
@@ -97,17 +92,16 @@ To publish data as a mapping stage:
 import ox.channels.Source
 import ox.kafka.ProducerSettings
 import ox.kafka.KafkaStage.*
-import ox.{IO, supervised}
+import ox.supervised
 import org.apache.kafka.clients.producer.{ProducerRecord, RecordMetadata}
 
 supervised {
   val settings = ProducerSettings.default.bootstrapServers("localhost:9092")
-  IO.unsafe:
-    val metadatas: Source[RecordMetadata] = Source
-      .fromIterable(List("a", "b", "c"))
-      .mapAsView(msg => ProducerRecord[String, String]("my_topic", msg))
-      .mapPublish(settings)
-  
-    // process the metadatas source further
+  val metadatas: Source[RecordMetadata] = Source
+    .fromIterable(List("a", "b", "c"))
+    .mapAsView(msg => ProducerRecord[String, String]("my_topic", msg))
+    .mapPublish(settings)
+
+  // process the metadatas source further
 }
 ```
