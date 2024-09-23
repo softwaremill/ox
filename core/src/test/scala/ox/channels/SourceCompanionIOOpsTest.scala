@@ -14,8 +14,6 @@ import java.nio.file.Paths
 import java.io.IOException
 
 class SourceCompanionIOOpsTest extends AnyWordSpec with Matchers:
-  import ox.IO.globalForTesting.given
-
   def emptyInputStream: TestInputStream = new TestInputStream("")
   def inputStream(text: String, failing: Boolean = false): TestInputStream = new TestInputStream(text, failing)
 
@@ -82,7 +80,7 @@ class SourceCompanionIOOpsTest extends AnyWordSpec with Matchers:
   private def toStrings(source: Source[Chunk[Byte]]): List[String] =
     source.toList.map(_.asStringUtf8)
 
-class TestInputStream(text: String, throwOnRead: Boolean = false)(using IO) extends ByteArrayInputStream(text.getBytes):
+class TestInputStream(text: String, throwOnRead: Boolean = false) extends ByteArrayInputStream(text.getBytes):
   val closed: AtomicBoolean = new AtomicBoolean(false)
 
   override def close(): Unit =

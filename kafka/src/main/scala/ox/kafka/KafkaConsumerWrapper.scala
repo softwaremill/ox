@@ -9,30 +9,30 @@ import ox.channels.*
 import scala.jdk.CollectionConverters.*
 
 trait KafkaConsumerWrapper[K, V]:
-  def subscribe(topics: Seq[String])(using IO): Unit
-  def poll()(using IO): ConsumerRecords[K, V]
-  def commit(offsets: Map[TopicPartition, Long])(using IO): Unit
+  def subscribe(topics: Seq[String]): Unit
+  def poll(): ConsumerRecords[K, V]
+  def commit(offsets: Map[TopicPartition, Long]): Unit
 
 object KafkaConsumerWrapper:
   private val logger = LoggerFactory.getLogger(classOf[KafkaConsumerWrapper.type])
 
   def apply[K, V](consumer: KafkaConsumer[K, V], closeWhenComplete: Boolean)(using Ox): ActorRef[KafkaConsumerWrapper[K, V]] =
     val logic = new KafkaConsumerWrapper[K, V]:
-      override def subscribe(topics: Seq[String])(using IO): Unit =
+      override def subscribe(topics: Seq[String]): Unit =
         try consumer.subscribe(topics.asJava)
         catch
           case t: Throwable =>
             logger.error(s"Exception when subscribing to $topics", t)
             throw t
 
-      override def poll()(using IO): ConsumerRecords[K, V] =
+      override def poll(): ConsumerRecords[K, V] =
         try consumer.poll(java.time.Duration.ofMillis(100))
         catch
           case t: Throwable =>
             logger.error("Exception when polling for records in Kafka", t)
             throw t
 
-      override def commit(offsets: Map[TopicPartition, Long])(using IO): Unit =
+      override def commit(offsets: Map[TopicPartition, Long]): Unit =
         try consumer.commitSync(offsets.view.mapValues(o => new OffsetAndMetadata(o + 1)).toMap.asJava)
         catch
           case t: Throwable =>

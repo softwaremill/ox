@@ -22,7 +22,7 @@ trait SourceCompanionIOOps:
     * @return
     *   a `Source` of chunks of bytes.
     */
-  def fromInputStream(is: InputStream, chunkSize: Int = 1024)(using Ox, StageCapacity, IO): Source[Chunk[Byte]] =
+  def fromInputStream(is: InputStream, chunkSize: Int = 1024)(using Ox, StageCapacity): Source[Chunk[Byte]] =
     val chunks = StageCapacity.newChannel[Chunk[Byte]]
     forkPropagate(chunks) {
       try
@@ -54,7 +54,7 @@ trait SourceCompanionIOOps:
       * @throws SecurityException
       *   If SecurityManager error occurs when opening the file.
       */
-  def fromFile(path: Path, chunkSize: Int = 1024)(using Ox, StageCapacity, IO): Source[Chunk[Byte]] =
+  def fromFile(path: Path, chunkSize: Int = 1024)(using Ox, StageCapacity): Source[Chunk[Byte]] =
     if Files.isDirectory(path) then throw new IOException(s"Path $path is a directory")
     val chunks = StageCapacity.newChannel[Chunk[Byte]]
     val jFileChannel =

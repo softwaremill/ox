@@ -3,7 +3,7 @@ package ox.scheduling
 import ox.{EitherMode, ErrorMode, sleep}
 
 import scala.annotation.tailrec
-import scala.concurrent.duration.{Duration, FiniteDuration, DurationLong}
+import scala.concurrent.duration.{FiniteDuration, DurationLong}
 import scala.util.Try
 
 /** The mode that specifies how to interpret the duration provided by the schedule. */

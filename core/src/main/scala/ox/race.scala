@@ -5,7 +5,7 @@ import scala.annotation.tailrec
 import scala.concurrent.TimeoutException
 import scala.concurrent.duration.FiniteDuration
 import scala.util.control.{ControlThrowable, NonFatal}
-import scala.util.{Failure, Success, Try}
+import scala.util.{Failure, Success}
 
 /** A `Some` if the computation `t` took less than `duration`, and `None` otherwise. if the computation `t` throws an exception, it is
   * propagated.

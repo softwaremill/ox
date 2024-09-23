@@ -10,10 +10,10 @@ import scala.jdk.CollectionConverters.*
 object KafkaDrain:
   private val logger = LoggerFactory.getLogger(classOf[KafkaDrain.type])
 
-  def publish[K, V](settings: ProducerSettings[K, V])(using IO): Source[ProducerRecord[K, V]] => Unit = source =>
+  def publish[K, V](settings: ProducerSettings[K, V]): Source[ProducerRecord[K, V]] => Unit = source =>
     publish(settings.toProducer, closeWhenComplete = true)(source)
 
-  def publish[K, V](producer: KafkaProducer[K, V], closeWhenComplete: Boolean)(using IO): Source[ProducerRecord[K, V]] => Unit = source =>
+  def publish[K, V](producer: KafkaProducer[K, V], closeWhenComplete: Boolean): Source[ProducerRecord[K, V]] => Unit = source =>
     // if sending multiple records ends in an exception, we'll receive at most one anyway; we don't want to block the
     // producers, hence creating an unbounded channel
     val producerExceptions = Channel.unlimited[Throwable]
@@ -42,7 +42,7 @@ object KafkaDrain:
     *   A drain, which consumes all packets from the provided `Source`.. For each packet, first all `send` messages (producer records) are
     *   sent. Then, all `commit` messages (consumer records) up to their offsets are committed.
     */
-  def publishAndCommit[K, V](producerSettings: ProducerSettings[K, V]): Source[SendPacket[K, V]] => IO ?=> Unit =
+  def publishAndCommit[K, V](producerSettings: ProducerSettings[K, V]): Source[SendPacket[K, V]] => Unit =
     source => publishAndCommit(producerSettings.toProducer, closeWhenComplete = true)(source)
 
   /** @param producer
@@ -51,7 +51,7 @@ object KafkaDrain:
     *   A drain, which consumes all packets from the provided `Source`.. For each packet, first all `send` messages (producer records) are
     *   sent. Then, all `commit` messages (consumer records) up to their offsets are committed.
     */
-  def publishAndCommit[K, V](producer: KafkaProducer[K, V], closeWhenComplete: Boolean): Source[SendPacket[K, V]] => IO ?=> Unit = source =>
+  def publishAndCommit[K, V](producer: KafkaProducer[K, V], closeWhenComplete: Boolean): Source[SendPacket[K, V]] => Unit = source =>
     supervised {
       import KafkaStage.*
       source.mapPublishAndCommit(producer, closeWhenComplete).drain()
