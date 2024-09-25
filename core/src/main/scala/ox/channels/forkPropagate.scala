@@ -10,7 +10,6 @@ import ox.*
   *   ADR#1, ADR#3, implementation note in [[SourceOps]].
   */
 def forkPropagate[T](propagateExceptionsTo: Sink[_])(f: => Unit)(using Ox): Fork[Unit] =
-  fork {
+  fork:
     try f
     catch case t: Throwable => propagateExceptionsTo.errorOrClosed(t).discard
-  }
