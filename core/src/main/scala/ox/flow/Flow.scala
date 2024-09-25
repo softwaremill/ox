@@ -9,86 +9,45 @@ import ox.discard
 import ox.repeatWhile
 
 import ox.channels.forkPropagate
-import ox.supervised
 
-class Flow[T](last: FlowStage[T]):
-  def map[U](f: T => U): Flow[U] = addTransformSinkStage(next => FlowSink.propagateClose(next)(t => next.onNext(f(t))))
-  def filter(f: T => Boolean): Flow[T] = addTransformSinkStage(next => FlowSink.propagateClose(next)(t => if f(t) then next.onNext(t)))
-
+/** Describes an asynchronous transformation pipeline emitting elements of type `T`. */
+class Flow[+T](protected val last: FlowStage[T]) extends FlowOps[T] with FlowRunOps[T]:
   def async()(using StageCapacity): Flow[T] =
     Flow(
       new FlowStage:
-        override def run(next: FlowSink[T])(using Ox): Unit =
+        override def run(sink: FlowSink[T])(using Ox): Unit =
           val ch = StageCapacity.newChannel[T]
           runLastToChannelAsync(ch)
-          FlowStage.FromChannel(ch).run(next)
+          FlowStage.fromSource(ch).run(sink)
     )
 
   //
 
-  def foreach(sink: T => Unit): Unit = supervised:
-    last.run(new FlowSink[T]:
-      override def onNext(t: T): Unit = sink(t)
-      override def onDone(): Unit = () // ignore
-      override def onError(e: Throwable): Unit = throw e
-    )
-
-  def run()(using Ox, StageCapacity): Source[T] =
-    val ch = StageCapacity.newChannel[T]
-    runLastToChannelAsync(ch)
-    ch
-
-  //
-
-  private def runLastToChannelAsync(ch: Sink[T])(using Ox): Unit =
+  protected def runLastToChannelAsync(ch: Sink[T])(using Ox): Unit =
     forkPropagate(ch)(last.run(FlowSink.ToChannel(ch))).discard
+end Flow
 
-  private inline def addTransformSinkStage[U](inline doTransform: FlowSink[U] => FlowSink[T]): Flow[U] =
-    Flow(
-      new FlowStage:
-        override def run(next: FlowSink[U])(using Ox): Unit =
-          last.run(doTransform(next))
-    )
-
-object Flow:
-  def fromSource[T](source: Source[T]): Flow[T] =
-    Flow(FlowStage.FromChannel(source))
-
-  def fromSender[T](withSender: FlowSender[T] => Unit): Flow[T] =
-    Flow(FlowStage.FromSender(withSender))
+object Flow extends FlowCompanionOps
 
 //
 
-// a simplified sink used in .fromSender
-trait FlowSender[T]:
-  def apply(t: T): Unit
-
-//
-
-trait FlowStage[T]:
-  def run(next: FlowSink[T])(using Ox): Unit
+trait FlowStage[+T]:
+  def run(sink: FlowSink[T])(using Ox): Unit
 
 object FlowStage:
-  class FromChannel[T](ch: Source[T]) extends FlowStage[T]:
-    def run(next: FlowSink[T])(using Ox): Unit =
-      repeatWhile:
-        val t = ch.receiveOrClosed()
-        t match
-          case ChannelClosed.Done     => next.onDone(); false
-          case ChannelClosed.Error(r) => next.onError(r); false
-          case t: T @unchecked        => next.onNext(t); true
-
-  class FromSender[T](withSender: FlowSender[T] => Unit) extends FlowStage[T]:
-    def run(next: FlowSink[T])(using Ox): Unit =
-      withSender(
-        new FlowSender[T]:
-          def apply(t: T): Unit = next.onNext(t)
-      )
-      next.onDone()
+  def fromSource[T](source: Source[T]): FlowStage[T] =
+    new FlowStage[T]:
+      def run(next: FlowSink[T])(using Ox): Unit =
+        repeatWhile:
+          val t = source.receiveOrClosed()
+          t match
+            case ChannelClosed.Done     => next.onDone(); false
+            case ChannelClosed.Error(r) => next.onError(r); false
+            case t: T @unchecked        => next.onNext(t); true
 
 //
 
-trait FlowSink[T]:
+trait FlowSink[-T]:
   def onNext(t: T): Unit
   def onDone(): Unit
   def onError(e: Throwable): Unit

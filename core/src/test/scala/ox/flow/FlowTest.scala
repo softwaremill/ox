@@ -12,7 +12,7 @@ import ox.supervised
   }
 
 //   val ch2 = Flow.fromSource(ch).map(inc("A")).map(inc("B")).map(inc("C")).run() // .filter(_ % 3 == 0).run()
-  val ch2 = Flow.fromSource(ch).map(inc("A")).map(inc("B")).async().map(inc("C")).run() // .filter(_ % 3 == 0).run()
+  val ch2 = Flow.fromSource(ch).map(inc("A")).map(inc("B")).async().map(inc("C")).runToChannel() // .filter(_ % 3 == 0).run()
   // val ch2 = Flow.fromSource(ch).map(inc("A")).map(x => throw new RuntimeException("b!")).async().map(inc("C")).run() // .filter(_ % 3 == 0).run()
 
   // Thread.sleep(2000)
@@ -30,4 +30,4 @@ import ox.supervised
       send(5)
     }
     .map(_ + 1)
-    .foreach(println)
+    .runForeach(println)
