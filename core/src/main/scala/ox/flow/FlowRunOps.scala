@@ -8,7 +8,8 @@ import ox.channels.Sink
 import ox.discard
 import scala.collection.mutable.ListBuffer
 
-trait FlowRunOps[+T] { this: Flow[T] =>
+trait FlowRunOps[+T]:
+  this: Flow[T] =>
 
   /** Invokes the given function for each emitted element. Blocks until the flow completes. */
   def runForeach(sink: T => Unit): Unit = supervised:
@@ -26,7 +27,7 @@ trait FlowRunOps[+T] { this: Flow[T] =>
     ch
 
   /** Accumulates all elements emitted by this flow into a list. Blocks until the flow completes. */
-  def runToList: List[T] =
+  def runToList(): List[T] =
     val b = List.newBuilder[T]
     runForeach(b += _)
     b.result()
@@ -55,6 +56,7 @@ trait FlowRunOps[+T] { this: Flow[T] =>
         override def onError(e: Throwable): Unit = throw e
       )
     value
+  end runLastOption
 
   /** Returns the last element emitted by this flow, or throws [[NoSuchElementException]] when the flow emits no elements (is empty).
     *
@@ -86,6 +88,7 @@ trait FlowRunOps[+T] { this: Flow[T] =>
       )
 
     current
+  end runFold
 
   /** Applies function `f` on the first and the following (if available) elements emitted by this flow. The returned value is used as the
     * next current value and `f` is applied again with the next value emitted by this source. The operation is repeated until this flow
@@ -112,6 +115,7 @@ trait FlowRunOps[+T] { this: Flow[T] =>
       )
 
     current.getOrElse(throw new NoSuchElementException("cannot reduce an empty flow"))
+  end runReduce
 
   /** Returns the list of up to `n` last elements emitted by this flow. Less than `n` elements is returned when this flow emits less
     * elements than requested. [[List.empty]] is returned when `takeLast` is called on an empty flow.
@@ -141,4 +145,6 @@ trait FlowRunOps[+T] { this: Flow[T] =>
         )
 
         buffer.result()
-}
+    end if
+  end runTakeLast
+end FlowRunOps
