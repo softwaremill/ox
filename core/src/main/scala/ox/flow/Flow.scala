@@ -44,6 +44,7 @@ object FlowStage:
             case ChannelClosed.Done     => next.onDone(); false
             case ChannelClosed.Error(r) => next.onError(r); false
             case t: T @unchecked        => next.onNext(t); true
+end FlowStage
 
 //
 
@@ -61,8 +62,9 @@ object FlowSink:
 
   /** Creates a new sink which runs the provided callback when a new element is received. Closure events are propagated to the given sink.
     */
-  inline def propagateClose[T](inline next: FlowSink[_])(inline runOnNext: T => Unit): FlowSink[T] =
+  inline def propagateClose[T](inline next: FlowSink[?])(inline runOnNext: T => Unit): FlowSink[T] =
     new FlowSink[T]:
       override def onNext(t: T): Unit = runOnNext(t)
       override def onDone(): Unit = next.onDone()
       override def onError(e: Throwable): Unit = next.onError(e)
+end FlowSink

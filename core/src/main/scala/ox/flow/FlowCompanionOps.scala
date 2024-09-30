@@ -11,7 +11,8 @@ import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 import ox.repeatWhile
 
-trait FlowCompanionOps { this: Flow.type =>
+trait FlowCompanionOps:
+  this: Flow.type =>
   def fromSource[T](source: Source[T]): Flow[T] = Flow(FlowStage.fromSource(source))
 
   def fromSender[T](withSender: FlowSender[T] => Unit): Flow[T] = Flow(
@@ -78,6 +79,7 @@ trait FlowCompanionOps { this: Flow.type =>
             case None =>
               sink.onDone()
               false
+      end run
   )
 
   /** Creates a flow which emits the given `value` repeatedly, at least [[interval]] apart between each two elements. The first value is
@@ -169,6 +171,7 @@ trait FlowCompanionOps { this: Flow.type =>
               override def onError(e: Throwable): Unit = sink.onError(e)
           )
         sink.onDone()
+      end run
   )
 
   def empty[T]: Flow[T] = Flow(
@@ -199,7 +202,7 @@ trait FlowCompanionOps { this: Flow.type =>
       override def run(sink: FlowSink[T])(using Ox): Unit =
         sink.onError(t)
   )
-}
+end FlowCompanionOps
 
 // a simplified sink used in .fromSender
 trait FlowSender[T]:

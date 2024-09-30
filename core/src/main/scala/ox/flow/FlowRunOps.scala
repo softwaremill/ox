@@ -127,10 +127,10 @@ trait FlowRunOps[+T]:
     */
   def runTakeLast(n: Int): List[T] =
     require(n >= 0, "n must be >= 0")
-    if (n == 0)
+    if n == 0 then
       runDrain()
       List.empty
-    else if (n == 1) runLastOption().toList
+    else if n == 1 then runLastOption().toList
     else
       supervised:
         val buffer: ListBuffer[T] = ListBuffer()

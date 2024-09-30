@@ -14,7 +14,7 @@ import ox.channels.ChannelClosed
 class FlowOpsMapParTest extends AnyFlatSpec with Matchers with Eventually:
   behavior of "mapPar"
 
-  for (parallelism <- 1 to 10) do
+  for parallelism <- 1 to 10 do
     it should s"map over a flow with parallelism limit $parallelism" in supervised:
       // given
       val flow = Flow.fromIterable(1 to 10)
@@ -47,7 +47,7 @@ class FlowOpsMapParTest extends AnyFlatSpec with Matchers with Eventually:
   end for
 
   it should s"map over a flow with parallelism limit 10 (stress test)" in:
-    for (i <- 1 to 100) do
+    for i <- 1 to 100 do
       info(s"iteration $i")
 
       // given
