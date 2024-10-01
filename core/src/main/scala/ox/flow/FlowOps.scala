@@ -190,6 +190,32 @@ class FlowOps[+T]:
       end run
   )
 
+  /** Transform the flow so that it emits elements as long as predicate `f` is satisfied (returns `true`). If `includeFirstFailing` is
+    * `true`, the flow will additionally emit the first element that failed the predicate. After that, the flow will complete as done.
+    *
+    * @param f
+    *   A predicate function called on incoming elements.
+    * @param includeFirstFailing
+    *   Whether the flow should also emit the first element that failed the predicate (`false` by default).
+    */
+  def takeWhile(f: T => Boolean, includeFirstFailing: Boolean = false): Flow[T] = Flow(
+    new FlowStage:
+      override def run(sink: FlowSink[T]): Unit =
+        try
+          last.run(new FlowSink[T]:
+            override def onNext(t: T): Unit =
+              if f(t) then sink.onNext(t)
+              else
+                if includeFirstFailing then sink.onNext(t)
+                throw abortTake
+            override def onDone(): Unit = sink.onDone()
+            override def onError(e: Throwable): Unit = sink.onError(e)
+          )
+        catch case `abortTake` => sink.onDone()
+        end try
+      end run
+  )
+
   //
 
   private inline def addTransformSinkStage[U](inline doTransform: FlowSink[U] => FlowSink[T]): Flow[U] =
