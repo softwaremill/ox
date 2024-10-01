@@ -321,6 +321,70 @@ class FlowOps[+T]:
     */
   def prepend[U >: T](other: Flow[U]): Flow[U] = Flow.concat(List(other, this))
 
+  /** Combines elements from this and the other flow into tuples. Completion of either flow completes the returned flow as well. The flows
+    * are run concurrently.
+    * @see
+    *   zipAll
+    */
+  def zip[U](other: Flow[U]): Flow[(T, U)] = Flow(
+    new FlowStage:
+      override def run(sink: FlowSink[(T, U)]): Unit =
+        unsupervised:
+          val s1 = outer.runToChannel()
+          val s2 = other.runToChannel()
+
+          repeatWhile:
+            s1.receiveOrClosed() match
+              case ChannelClosed.Done     => sink.onDone(); false
+              case ChannelClosed.Error(r) => sink.onError(r); false
+              case t: T @unchecked =>
+                s2.receiveOrClosed() match
+                  case ChannelClosed.Done     => sink.onDone(); false
+                  case ChannelClosed.Error(r) => sink.onError(r); false
+                  case u: U @unchecked        => sink.onNext((t, u)); true
+      end run
+  )
+
+  /** Combines elements from this and the other flow into tuples, handling early completion of either flow with defaults. The flows are run
+    * concurrently.
+    *
+    * @param other
+    *   A flow of elements to be combined with.
+    * @param thisDefault
+    *   A default element to be used in the result tuple when the other flow is longer.
+    * @param otherDefault
+    *   A default element to be used in the result tuple when the current flow is longer.
+    */
+  def zipAll[U >: T, V](other: Flow[V], thisDefault: U, otherDefault: V): Flow[(U, V)] = Flow(
+    new FlowStage:
+      override def run(sink: FlowSink[(U, V)]): Unit =
+        unsupervised:
+          val s1 = outer.runToChannel()
+          val s2 = other.runToChannel()
+
+          def receiveFromOther(thisElement: U, otherDoneHandler: () => Boolean): Boolean =
+            s2.receiveOrClosed() match
+              case ChannelClosed.Done     => otherDoneHandler()
+              case ChannelClosed.Error(r) => sink.onError(r); false
+              case v: V @unchecked        => sink.onNext((thisElement, v)); true
+
+          repeatWhile:
+            s1.receiveOrClosed() match
+              case ChannelClosed.Done =>
+                receiveFromOther(
+                  thisDefault,
+                  () =>
+                    sink.onDone(); false
+                )
+              case ChannelClosed.Error(r) => sink.onError(r); false
+              case t: T @unchecked =>
+                receiveFromOther(
+                  t,
+                  () =>
+                    sink.onNext((t, otherDefault)); true
+                )
+  )
+
   //
 
   private inline def addTransformSinkStage[U](inline doTransform: FlowSink[U] => FlowSink[T]): Flow[U] =
