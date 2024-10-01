@@ -170,6 +170,7 @@ class FlowOps[+T]:
   )
 
   private val abortTake = new Exception("abort take")
+
   def take(n: Int): Flow[T] = Flow(
     new FlowStage:
       override def run(sink: FlowSink[T]): Unit =
@@ -213,6 +214,25 @@ class FlowOps[+T]:
           )
         catch case `abortTake` => sink.onDone()
         end try
+      end run
+  )
+
+  /** Drops `n` elements from this flow and emits subsequent elements.
+    *
+    * @param n
+    *   Number of elements to be dropped.
+    */
+  def drop(n: Int): Flow[T] = Flow(
+    new FlowStage:
+      override def run(sink: FlowSink[T]): Unit =
+        var dropped = 0
+        last.run(new FlowSink[T]:
+          override def onNext(t: T): Unit =
+            if dropped < n then dropped += 1
+            else sink.onNext(t)
+          override def onDone(): Unit = sink.onDone()
+          override def onError(e: Throwable): Unit = sink.onError(e)
+        )
       end run
   )
 
