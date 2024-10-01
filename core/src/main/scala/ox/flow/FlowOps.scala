@@ -100,10 +100,10 @@ class FlowOps[+T]:
   )
 
   // using a separate function so that we don't accidentaly use the `mainScope` instance when creating forks
-  private def mapParScope[U](parallelism: Int, f: T => U, sink: FlowSink[U]) =
+  private def mapParScope[U](parallelism: Int, f: T => U, sink: FlowSink[U])(using StageCapacity) =
     val s = new Semaphore(parallelism)
     val inProgress = Channel.withCapacity[Fork[Option[U]]](parallelism)
-    val results = Channel.withCapacity[U](parallelism)
+    val results = StageCapacity.newChannel[U]
 
     def forkMapping(t: T)(using OxUnsupervised): Fork[Option[U]] =
       forkUnsupervised {
@@ -156,10 +156,10 @@ class FlowOps[+T]:
           case u: U @unchecked        => sink.onNext(u); true
   end mapParScope
 
-  def mapParUnordered[U](parallelism: Int)(f: T => U): Flow[U] = Flow(
+  def mapParUnordered[U](parallelism: Int)(f: T => U)(using StageCapacity): Flow[U] = Flow(
     new FlowStage:
       override def run(sink: FlowSink[U]): Unit =
-        val results = Channel.buffered[U](parallelism)
+        val results = StageCapacity.newChannel[U]
         val s = new Semaphore(parallelism)
         unsupervised: // the outer scope, used for the fork which runs the `last` pipeline
           forkPropagate(results):
@@ -305,6 +305,21 @@ class FlowOps[+T]:
               case r: U @unchecked => sink.onNext(r); true
       end run
   )
+
+  /** Concatenates this flow with the `other` flow. The resulting flow will emit elements from this flow first, and then from the `other`
+    * flow.
+    *
+    * @param other
+    *   The flow to be appended to this flow.
+    */
+  def concat[U >: T](other: Flow[U]): Flow[U] = Flow.concat(List(this, other))
+
+  /** Prepends `other` flow to this source. The resulting flow will emit elements from `other` flow first, and then from the this flow.
+    *
+    * @param other
+    *   The flow to be prepended to this flow.
+    */
+  def prepend[U >: T](other: Flow[U]): Flow[U] = Flow.concat(List(other, this))
 
   //
 

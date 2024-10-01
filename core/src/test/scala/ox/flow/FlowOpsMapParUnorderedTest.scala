@@ -10,6 +10,7 @@ import scala.concurrent.duration.*
 
 import java.util.concurrent.atomic.AtomicInteger
 import ox.channels.ChannelClosed
+import ox.channels.StageCapacity
 
 class FlowOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventually:
 
@@ -113,30 +114,26 @@ class FlowOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventual
     // the fork that processes 4 should be interrupted, before adding its trail
     trail.get shouldBe Vector("done", "done", "exception")
 
-  // TODO waiting for concat
-  // it should "complete running forks and not start new ones when the upstream fails" in supervised {
-  //   // given
-  //   given StageCapacity = StageCapacity(0)
-  //   val trail = Trail()
-  //   val flow = Flow.fromValues(1, 2, 3).concat(Flow.failed(new RuntimeException("boom")))
+  it should "complete running forks and not start new ones when the upstream fails" in supervised:
+    // given
+    val trail = Trail()
+    val flow = Flow.fromValues(1, 2, 3).concat(Flow.failed(new IllegalStateException()))
 
-  //   // when
-  //   val s2 = flow.mapParUnordered(2) { i =>
-  //     sleep(100.millis)
-  //     trail.add(i.toString)
-  //     i * 2
-  //   }
+    // when
+    val flow2 = flow
+      .mapParUnordered(2) { i =>
+        sleep(100.millis)
+        trail.add(i.toString)
+        i * 2
+      }
 
-  //   // then
-  //   List(s2.receive(), s2.receive()) should contain only (2, 4)
-  //   s2.receiveOrClosed() should matchPattern { case ChannelClosed.Error(reason) if reason.getMessage == "boom" => }
-  //   s2.isClosedForReceive shouldBe true
+    // then
+    an[IllegalStateException] should be thrownBy flow2.runToList()
 
-  //   // checking if the forks aren't left running
-  //   sleep(200.millis)
+    // checking if the forks aren't left running
+    sleep(200.millis)
 
-  //   trail.get should contain only ("1", "2", "3")
-  // }
+    trail.get should (contain only ("1", "2", "3") or contain only ("1", "2"))
 
   it should "cancel running forks when the surrounding scope closes due to an error" in supervised:
     // given
