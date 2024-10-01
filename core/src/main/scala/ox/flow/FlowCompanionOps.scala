@@ -13,75 +13,60 @@ import ox.repeatWhile
 trait FlowCompanionOps:
   this: Flow.type =>
 
+  private[flow] inline def fromSink[T](inline runWithSink: FlowSink[T] => Unit): Flow[T] = Flow(
+    new FlowStage:
+      override def run(sink: FlowSink[T]): Unit = runWithSink(sink)
+  )
+
   // TODO: by-name?
   def fromSource[T](source: Source[T]): Flow[T] = Flow(FlowStage.fromSource(source))
 
-  def fromSender[T](withSender: FlowSender[T] => Unit): Flow[T] = Flow(
-    new FlowStage[T]:
-      def run(sink: FlowSink[T]): Unit =
-        withSender(
-          new FlowSender[T]:
-            def apply(t: T): Unit = sink.onNext(t)
-        )
-        sink.onDone()
-  )
+  def fromSender[T](withSender: FlowSender[T] => Unit): Flow[T] = fromSink: sink =>
+    withSender(
+      new FlowSender[T]:
+        def apply(t: T): Unit = sink.onNext(t)
+    )
+    sink.onDone()
 
   def fromIterable[T](it: Iterable[T]): Flow[T] = fromIterator(it.iterator)
 
   def fromValues[T](ts: T*): Flow[T] = fromIterator(ts.iterator)
 
-  def fromIterator[T](it: => Iterator[T]): Flow[T] =
-    Flow(
-      new FlowStage:
-        override def run(sink: FlowSink[T]): Unit =
-          val theIt = it
-          while theIt.hasNext do sink.onNext(theIt.next())
-          sink.onDone()
-    )
+  def fromIterator[T](it: => Iterator[T]): Flow[T] = fromSink: sink =>
+    val theIt = it
+    while theIt.hasNext do sink.onNext(theIt.next())
+    sink.onDone()
 
-  def fromFork[T](f: Fork[T]): Flow[T] = Flow(
-    new FlowStage:
-      override def run(sink: FlowSink[T]): Unit =
-        sink.onNext(f.join())
-        sink.onDone()
-  )
+  def fromFork[T](f: Fork[T]): Flow[T] = fromSink: sink =>
+    sink.onNext(f.join())
+    sink.onDone()
 
-  def iterate[T](zero: T)(f: T => T): Flow[T] = Flow(
-    new FlowStage:
-      override def run(sink: FlowSink[T]): Unit =
-        var t = zero
-        forever:
-          sink.onNext(t)
-          t = f(t)
-  )
+  def iterate[T](zero: T)(f: T => T): Flow[T] = fromSink: sink =>
+    var t = zero
+    forever:
+      sink.onNext(t)
+      t = f(t)
 
   /** A range of numbers, from `from`, to `to` (inclusive), stepped by `step`. */
-  def range(from: Int, to: Int, step: Int): Flow[Int] = Flow(
-    new FlowStage:
-      override def run(sink: FlowSink[Int]): Unit =
-        var t = from
-        repeatWhile:
-          sink.onNext(t)
-          t = t + step
-          t <= to
-        sink.onDone()
-  )
+  def range(from: Int, to: Int, step: Int): Flow[Int] = fromSink: sink =>
+    var t = from
+    repeatWhile:
+      sink.onNext(t)
+      t = t + step
+      t <= to
+    sink.onDone()
 
-  def unfold[S, T](initial: S)(f: S => Option[(T, S)]): Flow[T] = Flow(
-    new FlowStage:
-      override def run(sink: FlowSink[T]): Unit =
-        var s = initial
-        repeatWhile:
-          f(s) match
-            case Some((value, next)) =>
-              sink.onNext(value)
-              s = next
-              true
-            case None =>
-              sink.onDone()
-              false
-      end run
-  )
+  def unfold[S, T](initial: S)(f: S => Option[(T, S)]): Flow[T] = fromSink: sink =>
+    var s = initial
+    repeatWhile:
+      f(s) match
+        case Some((value, next)) =>
+          sink.onNext(value)
+          s = next
+          true
+        case None =>
+          sink.onDone()
+          false
 
   /** Creates a flow which emits the given `value` repeatedly, at least [[interval]] apart between each two elements. The first value is
     * emitted immediately.
@@ -96,16 +81,13 @@ trait FlowCompanionOps:
     * @param value
     *   The element to emitted on every tick.
     */
-  def tick[T](interval: FiniteDuration, value: T = ()): Flow[T] = Flow(
-    new FlowStage:
-      override def run(sink: FlowSink[T]): Unit =
-        forever:
-          val start = System.nanoTime()
-          sink.onNext(value)
-          val end = System.nanoTime()
-          val sleep = interval.toNanos - (end - start)
-          if sleep > 0 then Thread.sleep(sleep / 1_000_000, (sleep % 1_000_000).toInt)
-  )
+  def tick[T](interval: FiniteDuration, value: T = ()): Flow[T] = fromSink: sink =>
+    forever:
+      val start = System.nanoTime()
+      sink.onNext(value)
+      val end = System.nanoTime()
+      val sleep = interval.toNanos - (end - start)
+      if sleep > 0 then Thread.sleep(sleep / 1_000_000, (sleep % 1_000_000).toInt)
 
   /** Creates a flow, which emits the given `element` repeatedly. */
   def repeat[T](element: T = ()): Flow[T] = repeatEval(element)
@@ -116,12 +98,9 @@ trait FlowCompanionOps:
     * @param f
     *   The code block, computing the element to emit.
     */
-  def repeatEval[T](f: => T): Flow[T] = Flow(
-    new FlowStage:
-      override def run(sink: FlowSink[T]): Unit =
-        forever:
-          sink.onNext(f)
-  )
+  def repeatEval[T](f: => T): Flow[T] = fromSink: sink =>
+    forever:
+      sink.onNext(f)
 
   /** Creates a flow, which emits the value contained in the result of evaluating `f` repeatedly. When the evaluation of `f` returns a
     * `None`, the flow is completed as "done", and no more values are evaluated or emitted.
@@ -131,50 +110,34 @@ trait FlowCompanionOps:
     * @param f
     *   The code block, computing the optional element to emit.
     */
-  def repeatEvalWhileDefined[T](f: => Option[T]): Flow[T] = Flow(
-    new FlowStage:
-      override def run(sink: FlowSink[T]): Unit =
-        repeatWhile:
-          f match
-            case Some(value) => sink.onNext(value); true
-            case None        => sink.onDone(); false
-  )
+  def repeatEvalWhileDefined[T](f: => Option[T]): Flow[T] = fromSink: sink =>
+    repeatWhile:
+      f match
+        case Some(value) => sink.onNext(value); true
+        case None        => sink.onDone(); false
 
   /** A flow which sleeps for the given `timeout` and then completes as done. */
-  def timeout[T](timeout: FiniteDuration): Flow[T] = Flow(
-    new FlowStage:
-      override def run(sink: FlowSink[T]): Unit =
-        sleep(timeout)
-        sink.onDone()
-  )
+  def timeout[T](timeout: FiniteDuration): Flow[T] = fromSink: sink =>
+    sleep(timeout)
+    sink.onDone()
 
-  def concat[T](flows: Seq[Flow[T]]): Flow[T] = Flow(
-    new FlowStage:
-      override def run(sink: FlowSink[T]): Unit =
-        flows.iterator.foreach: currentFlow =>
-          currentFlow.runWithFlowSink(
-            new FlowSink[T]:
-              override def onNext(t: T): Unit = sink.onNext(t)
-              override def onDone(): Unit = ()
-              override def onError(e: Throwable): Unit = sink.onError(e)
-          )
-        sink.onDone()
-      end run
-  )
+  def concat[T](flows: Seq[Flow[T]]): Flow[T] = fromSink: sink =>
+    flows.iterator.foreach: currentFlow =>
+      currentFlow.runWithFlowSink(
+        new FlowSink[T]:
+          override def onNext(t: T): Unit = sink.onNext(t)
+          override def onDone(): Unit = ()
+          override def onError(e: Throwable): Unit = sink.onError(e)
+      )
+    sink.onDone()
 
-  def empty[T]: Flow[T] = Flow(
-    new FlowStage:
-      override def run(sink: FlowSink[T]): Unit =
-        sink.onDone()
-  )
+  def empty[T]: Flow[T] = fromSink: sink =>
+    sink.onDone()
 
   /** Creates a flow that emits a single element when `from` completes. */
-  def fromFuture[T](from: Future[T]): Flow[T] = Flow(
-    new FlowStage:
-      override def run(sink: FlowSink[T]): Unit =
-        sink.onNext(Await.result(from, Duration.Inf))
-        sink.onDone()
-  )
+  def fromFuture[T](from: Future[T]): Flow[T] = fromSink: sink =>
+    sink.onNext(Await.result(from, Duration.Inf))
+    sink.onDone()
 
   /** Creates a flow that emits all elements from the given future source when `from` completes. */
   def fromFutureSource[T](from: Future[Source[T]]): Flow[T] =
@@ -185,11 +148,8 @@ trait FlowCompanionOps:
     * @param t
     *   The [[java.lang.Throwable]] to fail with
     */
-  def failed[T](t: Throwable): Flow[T] = Flow(
-    new FlowStage:
-      override def run(sink: FlowSink[T]): Unit =
-        sink.onError(t)
-  )
+  def failed[T](t: Throwable): Flow[T] = fromSink: sink =>
+    sink.onError(t)
 end FlowCompanionOps
 
 // a simplified sink used in .fromSender

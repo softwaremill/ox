@@ -1,35 +1,33 @@
 package ox.flow
 
-import ox.Ox
-import java.util.concurrent.Semaphore
-import ox.channels.Channel
 import ox.Fork
-import ox.forkUnsupervised
-import ox.channels.ChannelClosed
-import ox.repeatWhile
-import ox.unsupervised
-import ox.discard
+import ox.Ox
 import ox.OxUnsupervised
-import ox.channels.forkPropagate
-import ox.supervised
-import ox.channels.forkUserPropagate
+import ox.channels.Channel
+import ox.channels.ChannelClosed
 import ox.channels.Sink
-import ox.channels.StageCapacity
-import ox.channels.selectOrClosed
 import ox.channels.Source
+import ox.channels.StageCapacity
+import ox.channels.forkPropagate
+import ox.channels.forkUserPropagate
+import ox.channels.selectOrClosed
+import ox.discard
+import ox.flow.Flow.fromSink
+import ox.forkUnsupervised
+import ox.repeatWhile
+import ox.supervised
+import ox.unsupervised
+
+import java.util.concurrent.Semaphore
 
 class FlowOps[+T]:
   outer: Flow[T] =>
 
-  def async()(using StageCapacity): Flow[T] =
-    Flow(
-      new FlowStage:
-        override def run(sink: FlowSink[T]): Unit =
-          val ch = StageCapacity.newChannel[T]
-          unsupervised:
-            runLastToChannelAsync(ch)
-            FlowStage.fromSource(ch).run(sink)
-    )
+  def async()(using StageCapacity): Flow[T] = fromSink: sink =>
+    val ch = StageCapacity.newChannel[T]
+    unsupervised:
+      runLastToChannelAsync(ch)
+      FlowStage.fromSource(ch).run(sink)
 
   //
 
@@ -64,25 +62,21 @@ class FlowOps[+T]:
     */
   def intersperse[U >: T](start: U, inject: U, end: U): Flow[U] = intersperse(Some(start), inject, Some(end))
 
-  private def intersperse[U >: T](start: Option[U], inject: U, end: Option[U]): Flow[U] = Flow(
-    new FlowStage:
-      override def run(sink: FlowSink[U]): Unit =
-        start.foreach(sink.onNext)
-        last.run(
-          new FlowSink[U]:
-            private var firstEmitted = false
-            override def onNext(t: U): Unit =
-              if firstEmitted then sink.onNext(inject)
-              sink.onNext(t)
-              firstEmitted = true
-            override def onDone(): Unit =
-              end.foreach(sink.onNext)
-              sink.onDone()
-            override def onError(e: Throwable): Unit =
-              sink.onError(e)
-        )
-      end run
-  )
+  private def intersperse[U >: T](start: Option[U], inject: U, end: Option[U]): Flow[U] = fromSink: sink =>
+    start.foreach(sink.onNext)
+    last.run(
+      new FlowSink[U]:
+        private var firstEmitted = false
+        override def onNext(t: U): Unit =
+          if firstEmitted then sink.onNext(inject)
+          sink.onNext(t)
+          firstEmitted = true
+        override def onDone(): Unit =
+          end.foreach(sink.onNext)
+          sink.onDone()
+        override def onError(e: Throwable): Unit =
+          sink.onError(e)
+    )
 
   /** Applies the given mapping function `f` to each element emitted by this flow. At most `parallelism` invocations of `f` are run in
     * parallel.
@@ -94,13 +88,7 @@ class FlowOps[+T]:
     * @param f
     *   The mapping function.
     */
-  def mapPar[U](parallelism: Int)(f: T => U): Flow[U] = Flow(
-    new FlowStage:
-      override def run(sink: FlowSink[U]): Unit = mapParScope(parallelism, f, sink)
-  )
-
-  // using a separate function so that we don't accidentaly use the `mainScope` instance when creating forks
-  private def mapParScope[U](parallelism: Int, f: T => U, sink: FlowSink[U])(using StageCapacity) =
+  def mapPar[U](parallelism: Int)(f: T => U)(using StageCapacity): Flow[U] = fromSink: sink =>
     val s = new Semaphore(parallelism)
     val inProgress = Channel.withCapacity[Fork[Option[U]]](parallelism)
     val results = StageCapacity.newChannel[U]
@@ -154,59 +142,50 @@ class FlowOps[+T]:
           case ChannelClosed.Done     => sink.onDone(); false
           case ChannelClosed.Error(e) => sink.onError(e); false
           case u: U @unchecked        => sink.onNext(u); true
-  end mapParScope
+  end mapPar
 
-  def mapParUnordered[U](parallelism: Int)(f: T => U)(using StageCapacity): Flow[U] = Flow(
-    new FlowStage:
-      override def run(sink: FlowSink[U]): Unit =
-        val results = StageCapacity.newChannel[U]
-        val s = new Semaphore(parallelism)
-        unsupervised: // the outer scope, used for the fork which runs the `last` pipeline
-          forkPropagate(results):
-            supervised: // the inner scope, in which user forks are created, and which is used to wait for all to complete when done
-              last.run(new FlowSink[T]:
-                override def onNext(t: T): Unit =
-                  s.acquire()
-                  forkUserPropagate(results):
-                    results.sendOrClosed(f(t))
-                    s.release()
-                  .discard
-                end onNext
-                override def onDone(): Unit = () // only completing `results` once all forks finish
-                override def onError(e: Throwable): Unit = results.errorOrClosed(e).discard
-              )
-            results.doneOrClosed().discard
+  def mapParUnordered[U](parallelism: Int)(f: T => U)(using StageCapacity): Flow[U] = fromSink: sink =>
+    val results = StageCapacity.newChannel[U]
+    val s = new Semaphore(parallelism)
+    unsupervised: // the outer scope, used for the fork which runs the `last` pipeline
+      forkPropagate(results):
+        supervised: // the inner scope, in which user forks are created, and which is used to wait for all to complete when done
+          last.run(new FlowSink[T]:
+            override def onNext(t: T): Unit =
+              s.acquire()
+              forkUserPropagate(results):
+                results.sendOrClosed(f(t))
+                s.release()
+              .discard
+            end onNext
+            override def onDone(): Unit = () // only completing `results` once all forks finish
+            override def onError(e: Throwable): Unit = results.errorOrClosed(e).discard
+          )
+        results.doneOrClosed().discard
 
-          repeatWhile:
-            results.receiveOrClosed() match
-              case ChannelClosed.Done     => sink.onDone(); false
-              case ChannelClosed.Error(e) => sink.onError(e); false
-              case u: U @unchecked        => sink.onNext(u); true
-      end run
-  )
+      repeatWhile:
+        results.receiveOrClosed() match
+          case ChannelClosed.Done     => sink.onDone(); false
+          case ChannelClosed.Error(e) => sink.onError(e); false
+          case u: U @unchecked        => sink.onNext(u); true
 
   private val abortTake = new Exception("abort take")
 
-  def take(n: Int): Flow[T] = Flow(
-    new FlowStage:
-      override def run(sink: FlowSink[T]): Unit =
-        var taken = 0
-        try
-          last.run(new FlowSink[T]:
-            override def onNext(t: T): Unit =
-              if taken < n then
-                sink.onNext(t)
-                taken += 1
+  def take(n: Int): Flow[T] = fromSink: sink =>
+    var taken = 0
+    try
+      last.run(new FlowSink[T]:
+        override def onNext(t: T): Unit =
+          if taken < n then
+            sink.onNext(t)
+            taken += 1
 
-              if taken == n then throw abortTake
-            override def onDone(): Unit = sink.onDone()
-            override def onError(e: Throwable): Unit = sink.onError(e)
-          )
-        catch case `abortTake` => sink.onDone()
-        end try
-      end run
-  )
-
+          if taken == n then throw abortTake
+        override def onDone(): Unit = sink.onDone()
+        override def onError(e: Throwable): Unit = sink.onError(e)
+      )
+    catch case `abortTake` => sink.onDone()
+    end try
   /** Transform the flow so that it emits elements as long as predicate `f` is satisfied (returns `true`). If `includeFirstFailing` is
     * `true`, the flow will additionally emit the first element that failed the predicate. After that, the flow will complete as done.
     *
@@ -215,96 +194,80 @@ class FlowOps[+T]:
     * @param includeFirstFailing
     *   Whether the flow should also emit the first element that failed the predicate (`false` by default).
     */
-  def takeWhile(f: T => Boolean, includeFirstFailing: Boolean = false): Flow[T] = Flow(
-    new FlowStage:
-      override def run(sink: FlowSink[T]): Unit =
-        try
-          last.run(new FlowSink[T]:
-            override def onNext(t: T): Unit =
-              if f(t) then sink.onNext(t)
-              else
-                if includeFirstFailing then sink.onNext(t)
-                throw abortTake
-            override def onDone(): Unit = sink.onDone()
-            override def onError(e: Throwable): Unit = sink.onError(e)
-          )
-        catch case `abortTake` => sink.onDone()
-        end try
-      end run
-  )
+  def takeWhile(f: T => Boolean, includeFirstFailing: Boolean = false): Flow[T] = fromSink: sink =>
+    try
+      last.run(new FlowSink[T]:
+        override def onNext(t: T): Unit =
+          if f(t) then sink.onNext(t)
+          else
+            if includeFirstFailing then sink.onNext(t)
+            throw abortTake
+        override def onDone(): Unit = sink.onDone()
+        override def onError(e: Throwable): Unit = sink.onError(e)
+      )
+    catch case `abortTake` => sink.onDone()
 
   /** Drops `n` elements from this flow and emits subsequent elements.
     *
     * @param n
     *   Number of elements to be dropped.
     */
-  def drop(n: Int): Flow[T] = Flow(
-    new FlowStage:
-      override def run(sink: FlowSink[T]): Unit =
-        var dropped = 0
-        last.run(new FlowSink[T]:
-          override def onNext(t: T): Unit =
-            if dropped < n then dropped += 1
-            else sink.onNext(t)
-          override def onDone(): Unit = sink.onDone()
-          override def onError(e: Throwable): Unit = sink.onError(e)
-        )
-      end run
-  )
+  def drop(n: Int): Flow[T] = fromSink: sink =>
+    var dropped = 0
+    last.run(new FlowSink[T]:
+      override def onNext(t: T): Unit =
+        if dropped < n then dropped += 1
+        else sink.onNext(t)
+      override def onDone(): Unit = sink.onDone()
+      override def onError(e: Throwable): Unit = sink.onError(e)
+    )
 
-  def merge[U >: T](other: Flow[U])(using StageCapacity): Flow[U] = Flow(
-    new FlowStage:
-      override def run(sink: FlowSink[U]): Unit =
-        unsupervised:
-          def drainFrom(toDrain: Source[U]): Unit =
-            repeatWhile:
-              toDrain.receiveOrClosed() match
-                case ChannelClosed.Done     => sink.onDone(); false
-                case ChannelClosed.Error(r) => sink.onError(r); false
-                case t: U @unchecked        => sink.onNext(t); true
+  def merge[U >: T](other: Flow[U])(using StageCapacity): Flow[U] = fromSink: sink =>
+    unsupervised:
+      def drainFrom(toDrain: Source[U]): Unit =
+        repeatWhile:
+          toDrain.receiveOrClosed() match
+            case ChannelClosed.Done     => sink.onDone(); false
+            case ChannelClosed.Error(r) => sink.onError(r); false
+            case t: U @unchecked        => sink.onNext(t); true
 
-          val c1 = outer.runToChannel()
-          val c2 = other.runToChannel()
+      val c1 = outer.runToChannel()
+      val c2 = other.runToChannel()
 
-          repeatWhile:
-            selectOrClosed(c1, c2) match
-              case ChannelClosed.Done =>
-                if c1.isClosedForReceive then drainFrom(c2) else drainFrom(c1)
-                false
-              case ChannelClosed.Error(r) => sink.onError(r); false
-              case r: U @unchecked        => sink.onNext(r); true
-  )
+      repeatWhile:
+        selectOrClosed(c1, c2) match
+          case ChannelClosed.Done =>
+            if c1.isClosedForReceive then drainFrom(c2) else drainFrom(c1)
+            false
+          case ChannelClosed.Error(r) => sink.onError(r); false
+          case r: U @unchecked        => sink.onNext(r); true
 
   /** Pipes the elements of child flows into the output source. If the parent source or any of the child sources emit an error, the pulling
     * stops and the output source emits the error.
     */
-  def flatten[U](using T <:< Flow[U])(using StageCapacity): Flow[U] = Flow(
-    new FlowStage:
-      override def run(sink: FlowSink[U]): Unit =
-        case class Nested(child: Flow[U])
+  def flatten[U](using T <:< Flow[U])(using StageCapacity): Flow[U] = fromSink: sink =>
+    case class Nested(child: Flow[U])
 
-        unsupervised:
-          val childStream = outer.map(Nested(_)).runToChannel()
-          var pool = List[Source[Nested] | Source[U]](childStream)
+    unsupervised:
+      val childStream = outer.map(Nested(_)).runToChannel()
+      var pool = List[Source[Nested] | Source[U]](childStream)
 
-          repeatWhile:
-            selectOrClosed(pool) match
-              case ChannelClosed.Done =>
-                // TODO: optimization idea: find a way to remove the specific channel that signalled to be Done
-                pool = pool.filterNot(_.isClosedForReceiveDetail.contains(ChannelClosed.Done))
-                if pool.isEmpty then
-                  sink.onDone()
-                  false
-                else true
-              case ChannelClosed.Error(e) =>
-                sink.onError(e)
-                false
-              case Nested(t) =>
-                pool = t.runToChannel() :: pool
-                true
-              case r: U @unchecked => sink.onNext(r); true
-      end run
-  )
+      repeatWhile:
+        selectOrClosed(pool) match
+          case ChannelClosed.Done =>
+            // TODO: optimization idea: find a way to remove the specific channel that signalled to be Done
+            pool = pool.filterNot(_.isClosedForReceiveDetail.contains(ChannelClosed.Done))
+            if pool.isEmpty then
+              sink.onDone()
+              false
+            else true
+          case ChannelClosed.Error(e) =>
+            sink.onError(e)
+            false
+          case Nested(t) =>
+            pool = t.runToChannel() :: pool
+            true
+          case r: U @unchecked => sink.onNext(r); true
 
   /** Concatenates this flow with the `other` flow. The resulting flow will emit elements from this flow first, and then from the `other`
     * flow.
@@ -326,24 +289,20 @@ class FlowOps[+T]:
     * @see
     *   zipAll
     */
-  def zip[U](other: Flow[U]): Flow[(T, U)] = Flow(
-    new FlowStage:
-      override def run(sink: FlowSink[(T, U)]): Unit =
-        unsupervised:
-          val s1 = outer.runToChannel()
-          val s2 = other.runToChannel()
+  def zip[U](other: Flow[U]): Flow[(T, U)] = fromSink: sink =>
+    unsupervised:
+      val s1 = outer.runToChannel()
+      val s2 = other.runToChannel()
 
-          repeatWhile:
-            s1.receiveOrClosed() match
+      repeatWhile:
+        s1.receiveOrClosed() match
+          case ChannelClosed.Done     => sink.onDone(); false
+          case ChannelClosed.Error(r) => sink.onError(r); false
+          case t: T @unchecked =>
+            s2.receiveOrClosed() match
               case ChannelClosed.Done     => sink.onDone(); false
               case ChannelClosed.Error(r) => sink.onError(r); false
-              case t: T @unchecked =>
-                s2.receiveOrClosed() match
-                  case ChannelClosed.Done     => sink.onDone(); false
-                  case ChannelClosed.Error(r) => sink.onError(r); false
-                  case u: U @unchecked        => sink.onNext((t, u)); true
-      end run
-  )
+              case u: U @unchecked        => sink.onNext((t, u)); true
 
   /** Combines elements from this and the other flow into tuples, handling early completion of either flow with defaults. The flows are run
     * concurrently.
@@ -355,35 +314,32 @@ class FlowOps[+T]:
     * @param otherDefault
     *   A default element to be used in the result tuple when the current flow is longer.
     */
-  def zipAll[U >: T, V](other: Flow[V], thisDefault: U, otherDefault: V): Flow[(U, V)] = Flow(
-    new FlowStage:
-      override def run(sink: FlowSink[(U, V)]): Unit =
-        unsupervised:
-          val s1 = outer.runToChannel()
-          val s2 = other.runToChannel()
+  def zipAll[U >: T, V](other: Flow[V], thisDefault: U, otherDefault: V): Flow[(U, V)] = fromSink: sink =>
+    unsupervised:
+      val s1 = outer.runToChannel()
+      val s2 = other.runToChannel()
 
-          def receiveFromOther(thisElement: U, otherDoneHandler: () => Boolean): Boolean =
-            s2.receiveOrClosed() match
-              case ChannelClosed.Done     => otherDoneHandler()
-              case ChannelClosed.Error(r) => sink.onError(r); false
-              case v: V @unchecked        => sink.onNext((thisElement, v)); true
+      def receiveFromOther(thisElement: U, otherDoneHandler: () => Boolean): Boolean =
+        s2.receiveOrClosed() match
+          case ChannelClosed.Done     => otherDoneHandler()
+          case ChannelClosed.Error(r) => sink.onError(r); false
+          case v: V @unchecked        => sink.onNext((thisElement, v)); true
 
-          repeatWhile:
-            s1.receiveOrClosed() match
-              case ChannelClosed.Done =>
-                receiveFromOther(
-                  thisDefault,
-                  () =>
-                    sink.onDone(); false
-                )
-              case ChannelClosed.Error(r) => sink.onError(r); false
-              case t: T @unchecked =>
-                receiveFromOther(
-                  t,
-                  () =>
-                    sink.onNext((t, otherDefault)); true
-                )
-  )
+      repeatWhile:
+        s1.receiveOrClosed() match
+          case ChannelClosed.Done =>
+            receiveFromOther(
+              thisDefault,
+              () =>
+                sink.onDone(); false
+            )
+          case ChannelClosed.Error(r) => sink.onError(r); false
+          case t: T @unchecked =>
+            receiveFromOther(
+              t,
+              () =>
+                sink.onNext((t, otherDefault)); true
+            )
 
   //
 
