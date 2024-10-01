@@ -8,7 +8,7 @@ import ox.*
 import java.util.concurrent.atomic.AtomicInteger
 import scala.concurrent.duration.DurationInt
 
-class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
+class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually:
 
   it should "timeout" in {
     supervised {
@@ -31,17 +31,6 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
       s.receive() shouldBe (2, 5)
       s.receive() shouldBe (3, 6)
       s.receiveOrClosed() shouldBe ChannelClosed.Done
-    }
-  }
-
-  it should "merge two sources" in {
-    supervised {
-      val c1 = Source.fromValues(1, 2, 3)
-      val c2 = Source.fromValues(4, 5, 6)
-
-      val s = c1.merge(c2)
-
-      s.toList.sorted shouldBe List(1, 2, 3, 4, 5, 6)
     }
   }
 
@@ -91,4 +80,4 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually {
       sum.get() shouldBe 6
     }
   }
-}
+end SourceOpsTest

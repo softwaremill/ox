@@ -1,7 +1,6 @@
 package ox.flow
 
 import ox.channels.Source
-import ox.Ox
 import ox.Fork
 import ox.forever
 import scala.concurrent.duration.FiniteDuration
@@ -95,7 +94,7 @@ trait FlowCompanionOps:
     * @param value
     *   The element to emitted on every tick.
     */
-  def tick[T](interval: FiniteDuration, value: T = ())(using Ox): Flow[T] = Flow(
+  def tick[T](interval: FiniteDuration, value: T = ()): Flow[T] = Flow(
     new FlowStage:
       override def run(sink: FlowSink[T]): Unit =
         forever:
@@ -139,11 +138,11 @@ trait FlowCompanionOps:
             case None        => sink.onDone(); false
   )
 
-  def timeout[T](timeout: FiniteDuration, element: T = ()): Flow[T] = Flow(
+  /** A flow which sleeps for the given `timeout` and then completes as done. */
+  def timeout[T](timeout: FiniteDuration): Flow[T] = Flow(
     new FlowStage:
       override def run(sink: FlowSink[T]): Unit =
         sleep(timeout)
-        sink.onNext(element)
         sink.onDone()
   )
 

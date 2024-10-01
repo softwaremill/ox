@@ -1,11 +1,11 @@
 package ox.flow
 
-import ox.Ox
 import ox.channels.StageCapacity
 import ox.channels.Source
 import ox.channels.Sink
 import ox.discard
 import scala.collection.mutable.ListBuffer
+import ox.OxUnsupervised
 
 trait FlowRunOps[+T]:
   this: Flow[T] =>
@@ -20,7 +20,7 @@ trait FlowRunOps[+T]:
 
   def runWithFlowSink(sink: FlowSink[T]): Unit = last.run(sink)
 
-  def runToChannel()(using Ox, StageCapacity): Source[T] =
+  def runToChannel()(using OxUnsupervised, StageCapacity): Source[T] =
     val ch = StageCapacity.newChannel[T]
     runLastToChannelAsync(ch)
     ch

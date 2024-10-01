@@ -13,9 +13,25 @@ import ox.OxUnsupervised
 import ox.channels.forkPropagate
 import ox.supervised
 import ox.channels.forkUserPropagate
+import ox.channels.Sink
+import ox.channels.StageCapacity
+import ox.channels.selectOrClosed
+import ox.channels.Source
 
 class FlowOps[+T]:
   outer: Flow[T] =>
+
+  def async()(using StageCapacity): Flow[T] =
+    Flow(
+      new FlowStage:
+        override def run(sink: FlowSink[T]): Unit =
+          val ch = StageCapacity.newChannel[T]
+          unsupervised:
+            runLastToChannelAsync(ch)
+            FlowStage.fromSource(ch).run(sink)
+    )
+
+  //
 
   def map[U](f: T => U): Flow[U] = addTransformSinkStage(next => FlowSink.propagateClose(next)(t => next.onNext(f(t))))
 
@@ -236,6 +252,29 @@ class FlowOps[+T]:
       end run
   )
 
+  def merge[U >: T](other: Flow[U]): Flow[U] = Flow(
+    new FlowStage:
+      override def run(sink: FlowSink[U]): Unit =
+        unsupervised:
+          def drainFrom(toDrain: Source[U]): Unit =
+            repeatWhile:
+              toDrain.receiveOrClosed() match
+                case ChannelClosed.Done     => sink.onDone(); false
+                case ChannelClosed.Error(r) => sink.onError(r); false
+                case t: U @unchecked        => sink.onNext(t); true
+
+          val c1 = outer.runToChannel()
+          val c2 = other.runToChannel()
+
+          repeatWhile:
+            selectOrClosed(c1, c2) match
+              case ChannelClosed.Done =>
+                if c1.isClosedForReceive then drainFrom(c2) else drainFrom(c1)
+                false
+              case ChannelClosed.Error(r) => sink.onError(r); false
+              case r: U @unchecked        => sink.onNext(r); true
+  )
+
   //
 
   private inline def addTransformSinkStage[U](inline doTransform: FlowSink[U] => FlowSink[T]): Flow[U] =
@@ -244,4 +283,7 @@ class FlowOps[+T]:
         override def run(next: FlowSink[U]): Unit =
           last.run(doTransform(next))
     )
+
+  protected def runLastToChannelAsync(ch: Sink[T])(using OxUnsupervised): Unit =
+    forkPropagate(ch)(last.run(FlowSink.ToChannel(ch))).discard
 end FlowOps
