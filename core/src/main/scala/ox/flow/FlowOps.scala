@@ -10,6 +10,9 @@ import ox.repeatWhile
 import ox.unsupervised
 import ox.discard
 import ox.OxUnsupervised
+import ox.channels.forkPropagate
+import ox.supervised
+import ox.channels.forkUserPropagate
 
 class FlowOps[+T]:
   outer: Flow[T] =>
@@ -95,49 +98,69 @@ class FlowOps[+T]:
     // creating a nested scope, so that in case of errors, we can clean up any mapping forks in a "local" fashion,
     // that is without closing the main scope; any error management must be done in the forks, as the scope is
     // unsupervised
-    unsupervised {
+    unsupervised:
       // a fork which runs the `last` pipeline, and for each emitted element creates a fork
-      forkUnsupervised:
-        try
-          last.run(new FlowSink[T]:
-            override def onNext(t: T): Unit =
-              s.acquire()
-              inProgress.sendOrClosed(forkMapping(t)).discard
+      forkPropagate(results):
+        last.run(new FlowSink[T]:
+          override def onNext(t: T): Unit =
+            s.acquire()
+            inProgress.sendOrClosed(forkMapping(t)).discard
 
-            override def onDone(): Unit = inProgress.done()
+          override def onDone(): Unit = inProgress.doneOrClosed().discard
 
-            override def onError(e: Throwable): Unit =
-              // notifying only the `results` channels, as it will cause the scope to end, and any other forks to be
-              // interrupted, including the inProgress-fork, which might be waiting on a join()
-              results.error(e)
-          )(using mainScope) // using the main scope to run the pipeline - any unhandled errors there will close it
-        catch
-          case e: Throwable =>
-            results.errorOrClosed(e)
+          override def onError(e: Throwable): Unit =
+            // notifying only the `results` channels, as it will cause the scope to end, and any other forks to be
+            // interrupted, including the inProgress-fork, which might be waiting on a join()
+            results.errorOrClosed(e).discard
+        )(using mainScope) // using the main scope to run the pipeline - any unhandled errors there will close it
 
       // a fork in which we wait for the created forks to finish (in sequence), and forward the mapped values to `results`
       // this extra step is needed so that if there's an error in any of the mapping forks, it's discovered as quickly as
       // possible in the main body
-      forkUnsupervised {
-        repeatWhile {
+      forkUnsupervised:
+        repeatWhile:
           inProgress.receiveOrClosed() match
             // in the fork's result is a `None`, the error is already propagated to the `results` channel
             case f: Fork[Option[U]] @unchecked => f.join().map(results.sendOrClosed).isDefined
             case ChannelClosed.Done            => results.done(); false
             case ChannelClosed.Error(e)        => throw new IllegalStateException("inProgress should never be closed with an error", e)
-        }
-      }
 
       // in the main body, we call the `sink` methods using the (sequentially received) results; when an error occurs,
       // the scope ends, interrupting any forks that are still running
-      repeatWhile {
+      repeatWhile:
         results.receiveOrClosed() match
           case ChannelClosed.Done     => sink.onDone(); false
           case ChannelClosed.Error(e) => sink.onError(e); false
           case u: U @unchecked        => sink.onNext(u); true
-      }
-    }
   end mapParScope
+
+  def mapParUnordered[U](parallelism: Int)(f: T => U): Flow[U] = Flow(
+    new FlowStage:
+      override def run(sink: FlowSink[U])(using Ox): Unit =
+        val results = Channel.buffered[U](parallelism)
+        val s = new Semaphore(parallelism)
+        forkPropagate(results):
+          supervised:
+            last.run(new FlowSink[T]:
+              override def onNext(t: T): Unit =
+                s.acquire()
+                forkUserPropagate(results):
+                  results.sendOrClosed(f(t))
+                  s.release()
+                .discard
+              end onNext
+              override def onDone(): Unit = () // only completing `results` once all forks finish
+              override def onError(e: Throwable): Unit = results.errorOrClosed(e).discard
+            )
+          results.doneOrClosed().discard
+
+        repeatWhile:
+          results.receiveOrClosed() match
+            case ChannelClosed.Done     => sink.onDone(); false
+            case ChannelClosed.Error(e) => sink.onError(e); false
+            case u: U @unchecked        => sink.onNext(u); true
+      end run
+  )
 
   //
 

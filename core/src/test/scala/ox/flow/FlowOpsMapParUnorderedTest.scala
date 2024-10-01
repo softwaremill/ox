@@ -1,4 +1,4 @@
-package ox.channels
+package ox.flow
 
 import org.scalatest.concurrent.Eventually
 import org.scalatest.flatspec.AnyFlatSpec
@@ -9,15 +9,16 @@ import ox.util.Trail
 import scala.concurrent.duration.*
 
 import java.util.concurrent.atomic.AtomicInteger
+import ox.channels.ChannelClosed
 
-class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventually {
+class FlowOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventually:
 
-  behavior of "Source.mapParUnordered"
+  behavior of "mapParUnordered"
 
-  for (parallelism <- 1 to 10) {
+  for parallelism <- 1 to 10 do
     it should s"map over a source with parallelism limit $parallelism" in supervised {
       // given
-      val s = Source.fromIterable(1 to 10)
+      val flow = Flow.fromIterable(1 to 10)
       val running = new AtomicInteger(0)
       val maxRunning = new AtomicInteger(0)
 
@@ -39,40 +40,39 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
       }
 
       // when
-      val result = s.mapParUnordered(parallelism)(f).toList
+      val result = flow.mapParUnordered(parallelism)(f).runToList()
 
       // then
       result should contain theSameElementsAs List(2, 4, 6, 8, 10, 12, 14, 16, 18, 20)
       maxRunning.get() shouldBe parallelism
     }
-  }
+  end for
 
-  it should s"map over a source with parallelism limit 10 (stress test)" in supervised {
-    for (i <- 1 to 100) {
+  it should s"map over a source with parallelism limit 10 (stress test)" in {
+    for i <- 1 to 100 do
       info(s"iteration $i")
 
       // given
-      val s = Source.fromIterable(1 to 10)
+      val flow = Flow.fromIterable(1 to 10)
 
       def f(i: Int) =
         sleep(50.millis)
         i * 2
 
       // when
-      val result = s.mapParUnordered(10)(f).toList
+      val result = flow.mapParUnordered(10)(f).runToList()
 
       // then
       result should contain theSameElementsAs List(2, 4, 6, 8, 10, 12, 14, 16, 18, 20)
-    }
   }
 
   it should "propagate errors" in supervised {
     // given
-    val s = Source.fromIterable(1 to 10)
+    val flow = Flow.fromIterable(1 to 10)
     val started = new AtomicInteger()
 
     // when
-    val s2 = s.mapParUnordered(3) { i =>
+    val flow2 = flow.mapParUnordered(3) { i =>
       started.incrementAndGet()
       if i > 4 then throw new Exception("boom")
       i * 2
@@ -80,10 +80,10 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
 
     // then
     try
-      s2.toList
+      flow2.runToList()
       fail("should have thrown")
     catch
-      case ChannelClosedException.Error(reason) if reason.getMessage == "boom" =>
+      case e if e.getMessage == "boom" =>
         started.get() should be >= 2 // 1 needs to start & finish; 2 other need to start; and then the failing one has to start & proceed
         started.get() should be <= 7 // 4 successful + at most 3 taking up all the permits
   }
@@ -91,10 +91,10 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
   it should "complete running forks and not start new ones when the mapping function fails" in supervised {
     // given
     val trail = Trail()
-    val s = Source.fromIterable(1 to 10)
+    val flow = Flow.fromIterable(1 to 10)
 
     // when
-    val s2 = s.mapParUnordered(2) { i =>
+    val flow2 = flow.mapParUnordered(2) { i =>
       if i == 4 then
         sleep(100.millis)
         trail.add("exception")
@@ -104,6 +104,8 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
         trail.add(s"done")
         i * 2
     }
+
+    val s2 = flow2.runToChannel()
 
     // then
     List(s2.receive(), s2.receive()) should contain only (2, 4)
@@ -118,37 +120,38 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
     trail.get shouldBe Vector("done", "done", "exception", "done")
   }
 
-  it should "complete running forks and not start new ones when the upstream fails" in supervised {
-    // given
-    given StageCapacity = StageCapacity(0)
-    val trail = Trail()
-    val s = Source.fromValues(1, 2, 3).concat(Source.failed(new RuntimeException("boom")))
+  // TODO waiting for concat
+  // it should "complete running forks and not start new ones when the upstream fails" in supervised {
+  //   // given
+  //   given StageCapacity = StageCapacity(0)
+  //   val trail = Trail()
+  //   val flow = Flow.fromValues(1, 2, 3).concat(Flow.failed(new RuntimeException("boom")))
 
-    // when
-    val s2 = s.mapParUnordered(2) { i =>
-      sleep(100.millis)
-      trail.add(i.toString)
-      i * 2
-    }
+  //   // when
+  //   val s2 = flow.mapParUnordered(2) { i =>
+  //     sleep(100.millis)
+  //     trail.add(i.toString)
+  //     i * 2
+  //   }
 
-    // then
-    List(s2.receive(), s2.receive()) should contain only (2, 4)
-    s2.receiveOrClosed() should matchPattern { case ChannelClosed.Error(reason) if reason.getMessage == "boom" => }
-    s2.isClosedForReceive shouldBe true
+  //   // then
+  //   List(s2.receive(), s2.receive()) should contain only (2, 4)
+  //   s2.receiveOrClosed() should matchPattern { case ChannelClosed.Error(reason) if reason.getMessage == "boom" => }
+  //   s2.isClosedForReceive shouldBe true
 
-    // checking if the forks aren't left running
-    sleep(200.millis)
+  //   // checking if the forks aren't left running
+  //   sleep(200.millis)
 
-    trail.get should contain only ("1", "2", "3")
-  }
+  //   trail.get should contain only ("1", "2", "3")
+  // }
 
   it should "cancel running forks when the surrounding scope closes due to an error" in supervised {
     // given
     val trail = Trail()
-    val s = Source.fromIterable(1 to 10)
+    val flow = Flow.fromIterable(1 to 10)
 
     // when
-    val s2 = s.mapParUnordered(2) { i =>
+    val flow2 = flow.mapParUnordered(2) { i =>
       if i == 4 then
         sleep(100.millis)
         trail.add("exception")
@@ -158,6 +161,8 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
         trail.add(s"done")
         i * 2
     }
+
+    val s2 = flow2.runToChannel()
 
     List(s2.receive(), s2.receive()) should contain only (2, 4)
     s2.receiveOrClosed() should matchPattern { case ChannelClosed.Error(reason) if reason.getMessage == "boom" => }
@@ -169,7 +174,7 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
 
   it should "emit downstream as soon as a value is ready, regardless of the incoming order" in supervised {
     // given
-    val s = Source.fromIterable(1 to 5)
+    val flow = Flow.fromIterable(1 to 5)
     val delays = Map(
       1 -> 100.millis,
       2 -> 10.millis,
@@ -180,12 +185,12 @@ class SourceOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventu
     val expectedElements = delays.toList.sortBy(_._2).map(_._1)
 
     // when
-    val s2 = s.mapParUnordered(5) { i =>
+    val flow2 = flow.mapParUnordered(5) { i =>
       sleep(delays(i))
       i
     }
 
     // then
-    s2.toList should contain theSameElementsInOrderAs expectedElements
+    flow2.runToList() should contain theSameElementsInOrderAs expectedElements
   }
-}
+end FlowOpsMapParUnorderedTest
