@@ -17,7 +17,7 @@ trait FlowCompanionOps:
 
   def fromSender[T](withSender: FlowSender[T] => Unit): Flow[T] = Flow(
     new FlowStage[T]:
-      def run(sink: FlowSink[T])(using Ox): Unit =
+      def run(sink: FlowSink[T]): Unit =
         withSender(
           new FlowSender[T]:
             def apply(t: T): Unit = sink.onNext(t)
@@ -32,7 +32,7 @@ trait FlowCompanionOps:
   def fromIterator[T](it: => Iterator[T]): Flow[T] =
     Flow(
       new FlowStage:
-        override def run(sink: FlowSink[T])(using Ox): Unit =
+        override def run(sink: FlowSink[T]): Unit =
           val theIt = it
           while theIt.hasNext do sink.onNext(theIt.next())
           sink.onDone()
@@ -40,14 +40,14 @@ trait FlowCompanionOps:
 
   def fromFork[T](f: Fork[T]): Flow[T] = Flow(
     new FlowStage:
-      override def run(sink: FlowSink[T])(using Ox): Unit =
+      override def run(sink: FlowSink[T]): Unit =
         sink.onNext(f.join())
         sink.onDone()
   )
 
   def iterate[T](zero: T)(f: T => T): Flow[T] = Flow(
     new FlowStage:
-      override def run(sink: FlowSink[T])(using Ox): Unit =
+      override def run(sink: FlowSink[T]): Unit =
         var t = zero
         forever:
           sink.onNext(t)
@@ -57,7 +57,7 @@ trait FlowCompanionOps:
   /** A range of numbers, from `from`, to `to` (inclusive), stepped by `step`. */
   def range(from: Int, to: Int, step: Int): Flow[Int] = Flow(
     new FlowStage:
-      override def run(sink: FlowSink[Int])(using Ox): Unit =
+      override def run(sink: FlowSink[Int]): Unit =
         var t = from
         repeatWhile:
           sink.onNext(t)
@@ -68,7 +68,7 @@ trait FlowCompanionOps:
 
   def unfold[S, T](initial: S)(f: S => Option[(T, S)]): Flow[T] = Flow(
     new FlowStage:
-      override def run(sink: FlowSink[T])(using Ox): Unit =
+      override def run(sink: FlowSink[T]): Unit =
         var s = initial
         repeatWhile:
           f(s) match
@@ -94,23 +94,10 @@ trait FlowCompanionOps:
     *   The temporal spacing between subsequent ticks.
     * @param value
     *   The element to emitted on every tick.
-    * @example
-    *   {{{
-    *   scala>
-    *   import ox.*
-    *   import ox.flow.Flow
-    *   import scala.concurrent.duration.DurationInt
-    *
-    *   supervised {
-    *     val s = Flow.tick(100.millis).runToChannel()
-    *     s.receive()
-    *     s.receive() // this will complete at least 100 milliseconds later
-    *   }
-    *   }}}
     */
   def tick[T](interval: FiniteDuration, value: T = ())(using Ox): Flow[T] = Flow(
     new FlowStage:
-      override def run(sink: FlowSink[T])(using Ox): Unit =
+      override def run(sink: FlowSink[T]): Unit =
         forever:
           val start = System.nanoTime()
           sink.onNext(value)
@@ -130,7 +117,7 @@ trait FlowCompanionOps:
     */
   def repeatEval[T](f: => T): Flow[T] = Flow(
     new FlowStage:
-      override def run(sink: FlowSink[T])(using Ox): Unit =
+      override def run(sink: FlowSink[T]): Unit =
         forever:
           sink.onNext(f)
   )
@@ -145,7 +132,7 @@ trait FlowCompanionOps:
     */
   def repeatEvalWhileDefined[T](f: => Option[T]): Flow[T] = Flow(
     new FlowStage:
-      override def run(sink: FlowSink[T])(using Ox): Unit =
+      override def run(sink: FlowSink[T]): Unit =
         repeatWhile:
           f match
             case Some(value) => sink.onNext(value); true
@@ -154,7 +141,7 @@ trait FlowCompanionOps:
 
   def timeout[T](timeout: FiniteDuration, element: T = ()): Flow[T] = Flow(
     new FlowStage:
-      override def run(sink: FlowSink[T])(using Ox): Unit =
+      override def run(sink: FlowSink[T]): Unit =
         sleep(timeout)
         sink.onNext(element)
         sink.onDone()
@@ -162,7 +149,7 @@ trait FlowCompanionOps:
 
   def concat[T](flows: Seq[Flow[T]]): Flow[T] = Flow(
     new FlowStage:
-      override def run(sink: FlowSink[T])(using Ox): Unit =
+      override def run(sink: FlowSink[T]): Unit =
         flows.iterator.foreach: currentFlow =>
           currentFlow.runWithFlowSink(
             new FlowSink[T]:
@@ -176,14 +163,14 @@ trait FlowCompanionOps:
 
   def empty[T]: Flow[T] = Flow(
     new FlowStage:
-      override def run(sink: FlowSink[T])(using Ox): Unit =
+      override def run(sink: FlowSink[T]): Unit =
         sink.onDone()
   )
 
   /** Creates a flow that emits a single element when `from` completes. */
   def fromFuture[T](from: Future[T]): Flow[T] = Flow(
     new FlowStage:
-      override def run(sink: FlowSink[T])(using Ox): Unit =
+      override def run(sink: FlowSink[T]): Unit =
         sink.onNext(Await.result(from, Duration.Inf))
         sink.onDone()
   )
@@ -199,7 +186,7 @@ trait FlowCompanionOps:
     */
   def failed[T](t: Throwable): Flow[T] = Flow(
     new FlowStage:
-      override def run(sink: FlowSink[T])(using Ox): Unit =
+      override def run(sink: FlowSink[T]): Unit =
         sink.onError(t)
   )
 end FlowCompanionOps

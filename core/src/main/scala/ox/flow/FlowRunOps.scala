@@ -1,6 +1,5 @@
 package ox.flow
 
-import ox.supervised
 import ox.Ox
 import ox.channels.StageCapacity
 import ox.channels.Source
@@ -12,14 +11,14 @@ trait FlowRunOps[+T]:
   this: Flow[T] =>
 
   /** Invokes the given function for each emitted element. Blocks until the flow completes. */
-  def runForeach(sink: T => Unit): Unit = supervised:
+  def runForeach(sink: T => Unit): Unit =
     last.run(new FlowSink[T]:
       override def onNext(t: T): Unit = sink(t)
       override def onDone(): Unit = () // ignore
       override def onError(e: Throwable): Unit = throw e
     )
 
-  def runWithFlowSink(sink: FlowSink[T])(using Ox): Unit = last.run(sink)
+  def runWithFlowSink(sink: FlowSink[T]): Unit = last.run(sink)
 
   def runToChannel()(using Ox, StageCapacity): Source[T] =
     val ch = StageCapacity.newChannel[T]
@@ -36,7 +35,7 @@ trait FlowRunOps[+T]:
     *
     * Errors are always propagated. Successful flow completion is propagated when `propagateDone` is set to `true`.
     */
-  def runPipeToSink(sink: Sink[T], propagateDone: Boolean): Unit = supervised:
+  def runPipeToSink(sink: Sink[T], propagateDone: Boolean): Unit =
     last.run(new FlowSink[T]:
       override def onNext(t: T): Unit = sink.send(t)
       override def onDone(): Unit = if propagateDone then sink.doneOrClosed().discard
@@ -49,12 +48,11 @@ trait FlowRunOps[+T]:
   /** Returns the last element emitted by this flow, wrapped in [[Some]], or [[None]] when this source is empty. */
   def runLastOption(): Option[T] =
     var value: Option[T] = None
-    supervised:
-      last.run(new FlowSink[T]:
-        override def onNext(t: T): Unit = value = Some(t)
-        override def onDone(): Unit = () // ignore
-        override def onError(e: Throwable): Unit = throw e
-      )
+    last.run(new FlowSink[T]:
+      override def onNext(t: T): Unit = value = Some(t)
+      override def onDone(): Unit = () // ignore
+      override def onError(e: Throwable): Unit = throw e
+    )
     value
   end runLastOption
 
@@ -79,14 +77,11 @@ trait FlowRunOps[+T]:
     */
   def runFold[U](zero: U)(f: (U, T) => U): U =
     var current = zero
-
-    supervised:
-      last.run(new FlowSink[T]:
-        override def onNext(t: T): Unit = current = f(current, t)
-        override def onDone(): Unit = () // ignore
-        override def onError(e: Throwable): Unit = throw e
-      )
-
+    last.run(new FlowSink[T]:
+      override def onNext(t: T): Unit = current = f(current, t)
+      override def onDone(): Unit = () // ignore
+      override def onError(e: Throwable): Unit = throw e
+    )
     current
   end runFold
 
@@ -104,15 +99,13 @@ trait FlowRunOps[+T]:
     */
   def runReduce[U >: T](f: (U, U) => U): U =
     var current: Option[U] = None
-
-    supervised:
-      last.run(new FlowSink[T]:
-        override def onNext(t: T): Unit = current match
-          case None    => current = Some(t)
-          case Some(c) => current = Some(f(c, t))
-        override def onDone(): Unit = () // ignore
-        override def onError(e: Throwable): Unit = throw e
-      )
+    last.run(new FlowSink[T]:
+      override def onNext(t: T): Unit = current match
+        case None    => current = Some(t)
+        case Some(c) => current = Some(f(c, t))
+      override def onDone(): Unit = () // ignore
+      override def onError(e: Throwable): Unit = throw e
+    )
 
     current.getOrElse(throw new NoSuchElementException("cannot reduce an empty flow"))
   end runReduce
@@ -132,19 +125,18 @@ trait FlowRunOps[+T]:
       List.empty
     else if n == 1 then runLastOption().toList
     else
-      supervised:
-        val buffer: ListBuffer[T] = ListBuffer()
-        buffer.sizeHint(n)
+      val buffer: ListBuffer[T] = ListBuffer()
+      buffer.sizeHint(n)
 
-        last.run(new FlowSink[T]:
-          override def onNext(t: T): Unit =
-            if buffer.size == n then buffer.dropInPlace(1)
-            buffer.append(t)
-          override def onDone(): Unit = () // ignore
-          override def onError(e: Throwable): Unit = throw e
-        )
+      last.run(new FlowSink[T]:
+        override def onNext(t: T): Unit =
+          if buffer.size == n then buffer.dropInPlace(1)
+          buffer.append(t)
+        override def onDone(): Unit = () // ignore
+        override def onError(e: Throwable): Unit = throw e
+      )
 
-        buffer.result()
+      buffer.result()
     end if
   end runTakeLast
 end FlowRunOps

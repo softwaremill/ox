@@ -50,7 +50,7 @@ class FlowOps[+T]:
 
   private def intersperse[U >: T](start: Option[U], inject: U, end: Option[U]): Flow[U] = Flow(
     new FlowStage:
-      override def run(sink: FlowSink[U])(using Ox): Unit =
+      override def run(sink: FlowSink[U]): Unit =
         start.foreach(sink.onNext)
         last.run(
           new FlowSink[U]:
@@ -80,11 +80,11 @@ class FlowOps[+T]:
     */
   def mapPar[U](parallelism: Int)(f: T => U): Flow[U] = Flow(
     new FlowStage:
-      override def run(sink: FlowSink[U])(using Ox): Unit = mapParScope(parallelism, f, sink, summon[Ox])
+      override def run(sink: FlowSink[U]): Unit = mapParScope(parallelism, f, sink)
   )
 
   // using a separate function so that we don't accidentaly use the `mainScope` instance when creating forks
-  private def mapParScope[U](parallelism: Int, f: T => U, sink: FlowSink[U], mainScope: Ox) =
+  private def mapParScope[U](parallelism: Int, f: T => U, sink: FlowSink[U]) =
     val s = new Semaphore(parallelism)
     val inProgress = Channel.withCapacity[Fork[Option[U]]](parallelism)
     val results = Channel.withCapacity[U](parallelism)
@@ -118,7 +118,7 @@ class FlowOps[+T]:
             // notifying only the `results` channels, as it will cause the scope to end, and any other forks to be
             // interrupted, including the inProgress-fork, which might be waiting on a join()
             results.errorOrClosed(e).discard
-        )(using mainScope) // using the main scope to run the pipeline - any unhandled errors there will close it
+        )
 
       // a fork in which we wait for the created forks to finish (in sequence), and forward the mapped values to `results`
       // this extra step is needed so that if there's an error in any of the mapping forks, it's discovered as quickly as
@@ -142,29 +142,30 @@ class FlowOps[+T]:
 
   def mapParUnordered[U](parallelism: Int)(f: T => U): Flow[U] = Flow(
     new FlowStage:
-      override def run(sink: FlowSink[U])(using Ox): Unit =
+      override def run(sink: FlowSink[U]): Unit =
         val results = Channel.buffered[U](parallelism)
         val s = new Semaphore(parallelism)
-        forkPropagate(results):
-          supervised:
-            last.run(new FlowSink[T]:
-              override def onNext(t: T): Unit =
-                s.acquire()
-                forkUserPropagate(results):
-                  results.sendOrClosed(f(t))
-                  s.release()
-                .discard
-              end onNext
-              override def onDone(): Unit = () // only completing `results` once all forks finish
-              override def onError(e: Throwable): Unit = results.errorOrClosed(e).discard
-            )
-          results.doneOrClosed().discard
+        unsupervised: // the outer scope, used for the fork which runs the `last` pipeline
+          forkPropagate(results):
+            supervised: // the inner scope, in which user forks are created, and which is used to wait for all to complete when done
+              last.run(new FlowSink[T]:
+                override def onNext(t: T): Unit =
+                  s.acquire()
+                  forkUserPropagate(results):
+                    results.sendOrClosed(f(t))
+                    s.release()
+                  .discard
+                end onNext
+                override def onDone(): Unit = () // only completing `results` once all forks finish
+                override def onError(e: Throwable): Unit = results.errorOrClosed(e).discard
+              )
+            results.doneOrClosed().discard
 
-        repeatWhile:
-          results.receiveOrClosed() match
-            case ChannelClosed.Done     => sink.onDone(); false
-            case ChannelClosed.Error(e) => sink.onError(e); false
-            case u: U @unchecked        => sink.onNext(u); true
+          repeatWhile:
+            results.receiveOrClosed() match
+              case ChannelClosed.Done     => sink.onDone(); false
+              case ChannelClosed.Error(e) => sink.onError(e); false
+              case u: U @unchecked        => sink.onNext(u); true
       end run
   )
 
@@ -173,7 +174,7 @@ class FlowOps[+T]:
   private inline def addTransformSinkStage[U](inline doTransform: FlowSink[U] => FlowSink[T]): Flow[U] =
     Flow(
       new FlowStage:
-        override def run(next: FlowSink[U])(using Ox): Unit =
+        override def run(next: FlowSink[U]): Unit =
           last.run(doTransform(next))
     )
 end FlowOps

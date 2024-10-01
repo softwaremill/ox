@@ -110,9 +110,8 @@ class FlowOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventual
     // checking if the forks aren't left running
     sleep(200.millis)
 
-    // the fork that processes 4 would complete, thus adding "done" to the trail,
-    // but it won't emit its result, since the channel would already be closed after the fork processing 3 failed
-    trail.get shouldBe Vector("done", "done", "exception", "done")
+    // the fork that processes 4 should be interrupted, before adding its trail
+    trail.get shouldBe Vector("done", "done", "exception")
 
   // TODO waiting for concat
   // it should "complete running forks and not start new ones when the upstream fails" in supervised {

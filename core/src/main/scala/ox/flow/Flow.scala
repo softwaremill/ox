@@ -1,6 +1,5 @@
 package ox.flow
 
-import ox.Ox
 import ox.channels.ChannelClosed
 import ox.channels.Sink
 import ox.channels.Source
@@ -9,21 +8,24 @@ import ox.discard
 import ox.repeatWhile
 
 import ox.channels.forkPropagate
+import ox.OxUnsupervised
+import ox.unsupervised
 
 /** Describes an asynchronous transformation pipeline emitting elements of type `T`. */
 class Flow[+T](protected val last: FlowStage[T]) extends FlowOps[T] with FlowRunOps[T]:
   def async()(using StageCapacity): Flow[T] =
     Flow(
       new FlowStage:
-        override def run(sink: FlowSink[T])(using Ox): Unit =
+        override def run(sink: FlowSink[T]): Unit =
           val ch = StageCapacity.newChannel[T]
-          runLastToChannelAsync(ch)
-          FlowStage.fromSource(ch).run(sink)
+          unsupervised:
+            runLastToChannelAsync(ch)
+            FlowStage.fromSource(ch).run(sink)
     )
 
   //
 
-  protected def runLastToChannelAsync(ch: Sink[T])(using Ox): Unit =
+  protected def runLastToChannelAsync(ch: Sink[T])(using OxUnsupervised): Unit =
     forkPropagate(ch)(last.run(FlowSink.ToChannel(ch))).discard
 end Flow
 
@@ -32,12 +34,12 @@ object Flow extends FlowCompanionOps
 //
 
 trait FlowStage[+T]:
-  def run(sink: FlowSink[T])(using Ox): Unit
+  def run(sink: FlowSink[T]): Unit
 
 object FlowStage:
   def fromSource[T](source: Source[T]): FlowStage[T] =
     new FlowStage[T]:
-      def run(next: FlowSink[T])(using Ox): Unit =
+      def run(next: FlowSink[T]): Unit =
         repeatWhile:
           val t = source.receiveOrClosed()
           t match
