@@ -169,6 +169,27 @@ class FlowOps[+T]:
       end run
   )
 
+  private val abortTake = new Exception("abort take")
+  def take(n: Int): Flow[T] = Flow(
+    new FlowStage:
+      override def run(sink: FlowSink[T]): Unit =
+        var taken = 0
+        try
+          last.run(new FlowSink[T]:
+            override def onNext(t: T): Unit =
+              if taken < n then
+                sink.onNext(t)
+                taken += 1
+
+              if taken == n then throw abortTake
+            override def onDone(): Unit = sink.onDone()
+            override def onError(e: Throwable): Unit = sink.onError(e)
+          )
+        catch case `abortTake` => sink.onDone()
+        end try
+      end run
+  )
+
   //
 
   private inline def addTransformSinkStage[U](inline doTransform: FlowSink[U] => FlowSink[T]): Flow[U] =
