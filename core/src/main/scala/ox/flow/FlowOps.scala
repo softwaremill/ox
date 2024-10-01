@@ -21,6 +21,12 @@ class FlowOps[+T]:
 
   def filter(f: T => Boolean): Flow[T] = addTransformSinkStage(next => FlowSink.propagateClose(next)(t => if f(t) then next.onNext(t)))
 
+  /** Applies the given mapping function `f` to each element emitted by this flow, for which the function is defined, and emits the result.
+    * If `f` is not defined at an element, the element will be skipped.
+    *
+    * @param f
+    *   The mapping function.
+    */
   def collect[U](f: PartialFunction[T, U]): Flow[U] =
     addTransformSinkStage(next => FlowSink.propagateClose(next)(t => if f.isDefinedAt(t) then next.onNext(f(t))))
 
