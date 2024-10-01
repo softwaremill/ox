@@ -252,7 +252,7 @@ class FlowOps[+T]:
       end run
   )
 
-  def merge[U >: T](other: Flow[U]): Flow[U] = Flow(
+  def merge[U >: T](other: Flow[U])(using StageCapacity): Flow[U] = Flow(
     new FlowStage:
       override def run(sink: FlowSink[U]): Unit =
         unsupervised:
@@ -273,6 +273,37 @@ class FlowOps[+T]:
                 false
               case ChannelClosed.Error(r) => sink.onError(r); false
               case r: U @unchecked        => sink.onNext(r); true
+  )
+
+  /** Pipes the elements of child flows into the output source. If the parent source or any of the child sources emit an error, the pulling
+    * stops and the output source emits the error.
+    */
+  def flatten[U](using T <:< Flow[U])(using StageCapacity): Flow[U] = Flow(
+    new FlowStage:
+      override def run(sink: FlowSink[U]): Unit =
+        case class Nested(child: Flow[U])
+
+        unsupervised:
+          val childStream = outer.map(Nested(_)).runToChannel()
+          var pool = List[Source[Nested] | Source[U]](childStream)
+
+          repeatWhile:
+            selectOrClosed(pool) match
+              case ChannelClosed.Done =>
+                // TODO: optimization idea: find a way to remove the specific channel that signalled to be Done
+                pool = pool.filterNot(_.isClosedForReceiveDetail.contains(ChannelClosed.Done))
+                if pool.isEmpty then
+                  sink.onDone()
+                  false
+                else true
+              case ChannelClosed.Error(e) =>
+                sink.onError(e)
+                false
+              case Nested(t) =>
+                pool = t.runToChannel() :: pool
+                true
+              case r: U @unchecked => sink.onNext(r); true
+      end run
   )
 
   //

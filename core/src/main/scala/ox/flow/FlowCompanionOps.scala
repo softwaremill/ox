@@ -12,6 +12,8 @@ import ox.repeatWhile
 
 trait FlowCompanionOps:
   this: Flow.type =>
+
+  // TODO: by-name?
   def fromSource[T](source: Source[T]): Flow[T] = Flow(FlowStage.fromSource(source))
 
   def fromSender[T](withSender: FlowSender[T] => Unit): Flow[T] = Flow(
