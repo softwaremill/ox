@@ -25,6 +25,7 @@ import scala.concurrent.duration.FiniteDuration
 import ox.forkCancellable
 import ox.CancellableFork
 import ox.tapException
+import ox.channels.Default
 
 class FlowOps[+T]:
   outer: Flow[T] =>
@@ -618,6 +619,59 @@ class FlowOps[+T]:
         override def onError(e: Throwable): Unit = sink.onError(e)
       )
   end sliding
+
+  /** Attaches the given [[ox.channels.Sink]] to this flow, meaning elements that pass through will also be sent to the sink. If emitting an
+    * alement, or sending to the `other` sink blocks, no elements will be processed until both are done. The elements are first emitted by
+    * the flow and then, only if that was successful, to the `other` sink.
+    *
+    * If this flow fails, then failure is passed to the `other` sink as well. If the `other` sink is failed or complete, this becomes a
+    * failure of the returned flow (contrary to [[alsoToTap]] where it's ignored).
+    *
+    * @param other
+    *   The sink to which elements from this flow will be sent.
+    * @see
+    *   [[alsoToTap]] for a version that drops elements when the `other` sink is not available for receive.
+    */
+  def alsoTo[U >: T](other: Sink[U]): Flow[U] = fromSink: sink =>
+    last.run(new FlowSink[T]:
+      override def onNext(t: T): Unit =
+        sink.onNext(t).tapException(e => other.errorOrClosed(e).discard)
+        other.send(t)
+      override def onDone(): Unit =
+        sink.onDone()
+        other.done()
+      override def onError(e: Throwable): Unit =
+        try sink.onError(e)
+        finally other.error(e)
+    )
+  end alsoTo
+
+  private case object NotSent
+
+  /** Attaches the given [[ox.channels.Sink]] to this flow, meaning elements that pass through will also be sent to the sink. If the `other`
+    * sink is not available for receive, the elements are still emitted by the returned flow, but not sent to the `other` sink.
+    *
+    * If this flow fails, then failure is passed to the `other` sink as well. If the `other` sink fails or closes, then failure or closure
+    * is ignored and it doesn't affect the resulting flow (contrary to [[alsoTo]] where it's propagated).
+    *
+    * @param other
+    *   The sink to which elements from this source will be sent.
+    * @see
+    *   [[alsoTo]] for a version that ensures that elements are emitted both by the returned flow and sent to the `other` sink.
+    */
+  def alsoToTap[U >: T](other: Sink[U]): Flow[U] = fromSink: sink =>
+    last.run(new FlowSink[T]:
+      override def onNext(t: T): Unit =
+        sink.onNext(t).tapException(e => other.errorOrClosed(e).discard)
+        selectOrClosed(other.sendClause(t), Default(NotSent)).discard
+      override def onDone(): Unit =
+        sink.onDone()
+        other.doneOrClosed().discard
+      override def onError(e: Throwable): Unit =
+        try sink.onError(e)
+        finally other.errorOrClosed(e).discard
+    )
+  end alsoToTap
 
   //
 
