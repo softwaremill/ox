@@ -395,20 +395,29 @@ class FlowOps[+T]:
     */
   def mapStatefulConcat[S, U](
       initializeState: () => S
-  )(f: (S, T) => (S, IterableOnce[U]), onComplete: S => Option[U] = (_: S) => None): Flow[U] =
-    fromSink: sink =>
-      var state = initializeState()
-      last.run(new FlowSink[T]:
-        override def onNext(t: T): Unit =
-          val (nextState, result) = f(state, t)
-          state = nextState
-          result.iterator.foreach(sink.onNext)
-        override def onDone(): Unit =
-          onComplete(state).foreach(sink.onNext)
-          sink.onDone()
-        override def onError(e: Throwable): Unit = sink.onError(e)
-      )
+  )(f: (S, T) => (S, IterableOnce[U]), onComplete: S => Option[U] = (_: S) => None): Flow[U] = fromSink: sink =>
+    var state = initializeState()
+    last.run(new FlowSink[T]:
+      override def onNext(t: T): Unit =
+        val (nextState, result) = f(state, t)
+        state = nextState
+        result.iterator.foreach(sink.onNext)
+      override def onDone(): Unit =
+        onComplete(state).foreach(sink.onNext)
+        sink.onDone()
+      override def onError(e: Throwable): Unit = sink.onError(e)
+    )
   end mapStatefulConcat
+
+  /** Applies the given mapping function `f`, to each element emitted by this source, transforming it into an [[IterableOnce]] of results,
+    * then the returned flow emits the results one by one. Can be used to unfold incoming sequences of elements into single elements.
+    *
+    * @param f
+    *   A function that transforms the element from this flow into an [[IterableOnce]] of results which are emitted one by one by the
+    *   returned flow. If the result of `f` is empty, nothing is emitted by the returned channel.
+    */
+  def mapConcat[U](f: T => IterableOnce[U]): Flow[U] =
+    addTransformSinkStage(next => FlowSink.propagateClose(next)(t => f(t).iterator.foreach(next.onNext)))
 
   //
 
