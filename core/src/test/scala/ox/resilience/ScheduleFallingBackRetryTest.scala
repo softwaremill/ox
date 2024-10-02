@@ -2,7 +2,7 @@ package ox.resilience
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import ox.ElapsedTime
+import ox.util.ElapsedTime
 import ox.scheduling.Schedule
 
 import scala.concurrent.duration.*
@@ -51,3 +51,4 @@ class ScheduleFallingBackRetryTest extends AnyFlatSpec with Matchers with Elapse
     result shouldBe successfulResult
     counter shouldBe retriesUntilSuccess + 1
   }
+end ScheduleFallingBackRetryTest

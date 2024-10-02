@@ -3,7 +3,7 @@ package ox.resilience
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.{EitherValues, TryValues}
-import ox.ElapsedTime
+import ox.util.ElapsedTime
 import ox.resilience.*
 
 import scala.concurrent.duration.*
@@ -68,3 +68,4 @@ class DelayedRetryTest extends AnyFlatSpec with Matchers with EitherValues with 
     elapsedTime.toMillis should be >= maxRetries * sleep.toMillis
     counter shouldBe 4
   }
+end DelayedRetryTest

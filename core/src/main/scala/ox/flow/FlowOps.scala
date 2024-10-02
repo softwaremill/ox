@@ -15,10 +15,13 @@ import ox.discard
 import ox.flow.Flow.fromSink
 import ox.forkUnsupervised
 import ox.repeatWhile
+import ox.sleep
 import ox.supervised
 import ox.unsupervised
 
 import java.util.concurrent.Semaphore
+import scala.concurrent.duration.DurationLong
+import scala.concurrent.duration.FiniteDuration
 
 class FlowOps[+T]:
   outer: Flow[T] =>
@@ -418,6 +421,25 @@ class FlowOps[+T]:
     */
   def mapConcat[U](f: T => IterableOnce[U]): Flow[U] =
     addTransformSinkStage(next => FlowSink.propagateClose(next)(t => f(t).iterator.foreach(next.onNext)))
+
+  /** Emits elements limiting the throughput to specific number of elements (evenly spaced) per time unit. Note that the element's
+    * emission-time time is included in the resulting throughput. For instance having `throttle(1, 1.second)` and emission of the next
+    * element taking `Xms` means that resulting flow will emit elements every `1s + Xms` time. Throttling is not applied to the empty
+    * source.
+    *
+    * @param elements
+    *   Number of elements to be emitted. Must be greater than 0.
+    * @param per
+    *   Per time unit. Must be greater or equal to 1 ms.
+    * @return
+    *   A flow that emits at most `elements` `per` time unit.
+    */
+  def throttle(elements: Int, per: FiniteDuration): Flow[T] =
+    require(elements > 0, "elements must be > 0")
+    require(per.toMillis > 0, "per time must be >= 1 ms")
+    val emitEveryMillis = (per.toMillis / elements).millis
+    tap(t => sleep(emitEveryMillis))
+  end throttle
 
   //
 

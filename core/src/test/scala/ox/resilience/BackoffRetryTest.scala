@@ -3,7 +3,7 @@ package ox.resilience
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.{EitherValues, TryValues}
-import ox.ElapsedTime
+import ox.util.ElapsedTime
 import ox.resilience.*
 import ox.scheduling.Jitter
 
@@ -110,3 +110,4 @@ class BackoffRetryTest extends AnyFlatSpec with Matchers with EitherValues with 
     elapsedTime.toMillis should be >= (initialDelay.toMillis + 2 * initialDelay.toMillis + 4 * initialDelay.toMillis)
     counter shouldBe 4
   }
+end BackoffRetryTest
