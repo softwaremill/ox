@@ -99,6 +99,7 @@ trait Source[+T] extends SourceOps[T] with SourceDrainOps[T] with SourceIOOps[T]
     *   for receive, sending values is also not possible, [[isClosedForSend]] will return `true`.
     */
   def isClosedForReceiveDetail: Option[ChannelClosed] = Option(ChannelClosed.fromJoxOrT(delegate.closedForReceive()))
+end Source
 
 /** Various operations which allow creating [[Source]] instances.
   *
@@ -220,6 +221,7 @@ trait Sink[-T]:
     *   using [[isClosedForReceive]].
     */
   def isClosedForSendDetail: Option[ChannelClosed] = Option(ChannelClosed.fromJoxOrT(delegate.closedForSend()))
+end Sink
 
 //
 
@@ -274,10 +276,11 @@ object Channel:
   /** Creates a rendezvous channel (without a buffer, senders & receivers must meet to exchange values). */
   def rendezvous[T]: Channel[T] = new Channel(0)
 
-  /** Creates an unlimited channel (which can buffer an arbitrary number of elements). */
+  /** Creates an unlimited channel (which can buffer an arbitrary number of values). */
   def unlimited[T]: Channel[T] = new Channel(-1)
 
   /** Creates a channel with the given capacity; -1 creates an [[unlimited]] channel, 0 creates a [[rendezvous]], positive values create a
     * [[buffered]] channel.
     */
   def withCapacity[T](capacity: Int): Channel[T] = new Channel(capacity)
+end Channel
