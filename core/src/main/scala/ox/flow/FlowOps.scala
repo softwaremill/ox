@@ -441,6 +441,26 @@ class FlowOps[+T]:
     tap(t => sleep(emitEveryMillis))
   end throttle
 
+  /** If this flow has no elements then elements from an `alternative` flow are emitted by the returned flow. If this flow is failed then
+    * the returned flow is failed as well.
+    *
+    * @param alternative
+    *   An alternative flow to be used when this flow is empty.
+    */
+  def orElse[U >: T](alternative: Flow[U]): Flow[U] =
+    addTransformSinkStage(next =>
+      new FlowSink[U]:
+        private var receivedAtLeastOneElement = false
+        override def onNext(t: U): Unit =
+          next.onNext(t)
+          receivedAtLeastOneElement = true
+        override def onDone(): Unit =
+          if !receivedAtLeastOneElement then alternative.runWithFlowSink(next)
+          else next.onDone()
+        override def onError(e: Throwable): Unit = next.onError(e)
+    )
+  end orElse
+
   //
 
   private inline def addTransformSinkStage[U](inline doTransform: FlowSink[U] => FlowSink[T]): Flow[U] =
