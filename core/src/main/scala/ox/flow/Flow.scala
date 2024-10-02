@@ -6,7 +6,7 @@ import ox.channels.Source
 import ox.repeatWhile
 
 /** Describes an asynchronous transformation pipeline emitting elements of type `T`. */
-class Flow[+T](protected val last: FlowStage[T]) extends FlowOps[T] with FlowRunOps[T] with FlowIOOps[T]
+class Flow[+T](protected val last: FlowStage[T]) extends FlowOps[T] with FlowRunOps[T] with FlowIOOps[T] with FlowTextOps[T]
 
 object Flow extends FlowCompanionOps with FlowCompanionIOOps
 
