@@ -128,6 +128,8 @@ trait FlowCompanionOps:
     sleep(timeout)
     sink.onDone()
 
+  // TODO: concat failed + values -> will it continue?
+
   def concat[T](flows: Seq[Flow[T]]): Flow[T] = fromSink: sink =>
     flows.iterator.foreach: currentFlow =>
       currentFlow.runWithFlowSink(
