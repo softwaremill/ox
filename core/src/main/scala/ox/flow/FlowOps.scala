@@ -582,6 +582,43 @@ class FlowOps[+T]:
         FlowSink.channelToSink(c2, sink)
   end groupedWeightedWithin
 
+  /** Creates sliding windows of elements from this flow. The window slides by `step` elements. The last window may be smaller due to flow
+    * being completed.
+    *
+    * @param n
+    *   The number of elements in a window.
+    * @param step
+    *   The number of elements the window slides by.
+    */
+  def sliding(n: Int, step: Int = 1): Flow[Seq[T]] =
+    require(n > 0, "n must be > 0")
+    require(step > 0, "step must be > 0")
+
+    fromSink: sink =>
+      var buffer = Vector.empty[T]
+      last.run(new FlowSink[T]:
+        override def onNext(t: T): Unit =
+          buffer = buffer :+ t
+          if buffer.size < n then () // do nothing
+          else if buffer.size == n then sink.onNext(buffer)
+          else if step <= n then
+            // if step is <= n we simply drop `step` elements and continue appending until buffer size is n
+            buffer = buffer.drop(step)
+            // in special case when step == 1, we have to send the buffer immediately
+            if buffer.size == n then sink.onNext(buffer)
+          else
+          // step > n -  we drop `step` elements and continue appending until buffer size is n
+          if buffer.size == step then buffer = buffer.drop(step)
+          end if
+        end onNext
+        override def onDone(): Unit =
+          // send the remaining elements, only if these elements were not yet sent
+          if buffer.nonEmpty && buffer.size < n then sink.onNext(buffer)
+          sink.onDone()
+        override def onError(e: Throwable): Unit = sink.onError(e)
+      )
+  end sliding
+
   //
 
   // TODO: unify with fromSink
