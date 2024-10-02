@@ -7,7 +7,6 @@ import ox.{timeout as _, *}
 
 import java.io.ByteArrayInputStream
 import java.util.concurrent.atomic.AtomicBoolean
-import scala.concurrent.duration.*
 import java.nio.file.Files
 import java.nio.file.NoSuchFileException
 import java.nio.file.Paths
