@@ -163,11 +163,7 @@ class FlowOps[+T]:
           )
         results.doneOrClosed().discard
 
-      repeatWhile:
-        results.receiveOrClosed() match
-          case ChannelClosed.Done     => sink.onDone(); false
-          case ChannelClosed.Error(e) => sink.onError(e); false
-          case u: U @unchecked        => sink.onNext(u); true
+      FlowSink.channelToSink(results, sink)
 
   private val abortTake = new Exception("abort take")
 
@@ -224,20 +220,13 @@ class FlowOps[+T]:
 
   def merge[U >: T](other: Flow[U])(using StageCapacity): Flow[U] = fromSink: sink =>
     unsupervised:
-      def drainFrom(toDrain: Source[U]): Unit =
-        repeatWhile:
-          toDrain.receiveOrClosed() match
-            case ChannelClosed.Done     => sink.onDone(); false
-            case ChannelClosed.Error(r) => sink.onError(r); false
-            case t: U @unchecked        => sink.onNext(t); true
-
       val c1 = outer.runToChannel()
       val c2 = other.runToChannel()
 
       repeatWhile:
         selectOrClosed(c1, c2) match
           case ChannelClosed.Done =>
-            if c1.isClosedForReceive then drainFrom(c2) else drainFrom(c1)
+            if c1.isClosedForReceive then FlowSink.channelToSink(c2, sink) else FlowSink.channelToSink(c1, sink)
             false
           case ChannelClosed.Error(r) => sink.onError(r); false
           case r: U @unchecked        => sink.onNext(r); true
@@ -340,6 +329,25 @@ class FlowOps[+T]:
               () =>
                 sink.onNext((t, otherDefault)); true
             )
+
+  /** Emits a given number of elements (determined byc `segmentSize`) from this flow to the returned flow, then tmis the same number of
+    * elements from the `other` flow and repeats. The order of elements in both flows is preserved.
+    *
+    * If one of the flows is done before the other, the behavior depends on the `eagerCancel` flag. When set to `true`, the returned flow is
+    * completed immediately, otherwise the remaining elements from the other flow are emitted by the returned flow.
+    *
+    * Both flows are run concurrently and asynchronously.
+    *
+    * @param other
+    *   The flow whose elements will be interleaved with the elements of this flow.
+    * @param segmentSize
+    *   The number of elements sent from each flow before switching to the other one. Default is 1.
+    * @param eagerComplete
+    *   If `true`, the returned flow is completed as soon as either of the flow completes. If `false`, the remaining elements of the
+    *   non-completed flow are sent downstream.
+    */
+  def interleave[U >: T](other: Flow[U], segmentSize: Int = 1, eagerComplete: Boolean = false)(using StageCapacity): Flow[U] =
+    Flow.interleaveAll(List(this, other), segmentSize, eagerComplete)
 
   //
 

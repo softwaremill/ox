@@ -18,13 +18,7 @@ trait FlowStage[+T]:
 object FlowStage:
   def fromSource[T](source: Source[T]): FlowStage[T] =
     new FlowStage[T]:
-      def run(next: FlowSink[T]): Unit =
-        repeatWhile:
-          val t = source.receiveOrClosed()
-          t match
-            case ChannelClosed.Done     => next.onDone(); false
-            case ChannelClosed.Error(r) => next.onError(r); false
-            case t: T @unchecked        => next.onNext(t); true
+      def run(next: FlowSink[T]): Unit = FlowSink.channelToSink(source, next)
 end FlowStage
 
 //
@@ -48,4 +42,13 @@ object FlowSink:
       override def onNext(t: T): Unit = runOnNext(t)
       override def onDone(): Unit = next.onDone()
       override def onError(e: Throwable): Unit = next.onError(e)
+
+  /** Propagates all elements and closure events to the given sink. */
+  def channelToSink[T](source: Source[T], sink: FlowSink[T]): Unit =
+    repeatWhile:
+      val t = source.receiveOrClosed()
+      t match
+        case ChannelClosed.Done     => sink.onDone(); false
+        case ChannelClosed.Error(r) => sink.onError(r); false
+        case t: T @unchecked        => sink.onNext(t); true
 end FlowSink

@@ -8,7 +8,13 @@ import ox.sleep
 import scala.concurrent.Future
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
+import scala.collection.mutable
 import ox.repeatWhile
+import ox.channels.StageCapacity
+import ox.unsupervised
+import ox.channels.ChannelClosed
+import ox.forkUnsupervised
+import ox.channels.ChannelClosedUnion.isValue
 
 trait FlowCompanionOps:
   this: Flow.type =>
@@ -19,6 +25,7 @@ trait FlowCompanionOps:
   )
 
   // TODO: by-name?
+  // TODO optimizing fromSource + toChannel ?
   def fromSource[T](source: Source[T]): Flow[T] = Flow(FlowStage.fromSource(source))
 
   def fromSender[T](withSender: FlowSender[T] => Unit): Flow[T] = fromSink: sink =>
@@ -150,6 +157,66 @@ trait FlowCompanionOps:
     */
   def failed[T](t: Throwable): Flow[T] = fromSink: sink =>
     sink.onError(t)
+
+  /** Sends a given number of elements (determined byc `segmentSize`) from each flow in `flows` to the returned flow and repeats. The order
+    * of elements in all flows is preserved.
+    *
+    * If any of the flows is done before the others, the behavior depends on the `eagerCancel` flag. When set to `true`, the returned flow
+    * is completed immediately, otherwise the interleaving continues with the remaining non-completed flows. Once all but one flows are
+    * complete, the elements of the remaining non-complete flow are emitted by the returned flow.
+    *
+    * The provided flows are run concurrently and asynchronously.
+    *
+    * @param flows
+    *   The flows whose elements will be interleaved.
+    * @param segmentSize
+    *   The number of elements sent from each flow before switching to the next one. Default is 1.
+    * @param eagerComplete
+    *   If `true`, the returned flow is completed as soon as any of the flows completes. If `false`, the interleaving continues with the
+    *   remaining non-completed flows.
+    */
+  def interleaveAll[T](flows: Seq[Flow[T]], segmentSize: Int = 1, eagerComplete: Boolean = false)(using StageCapacity): Flow[T] =
+    flows match
+      case Nil           => Flow.empty
+      case single :: Nil => single
+      case _ =>
+        fromSink: sink =>
+          val results = StageCapacity.newChannel[T]
+          unsupervised:
+            forkUnsupervised:
+              val availableSources = mutable.ArrayBuffer.from(flows.map(_.runToChannel()))
+              var currentSourceIndex = 0
+              var elementsRead = 0
+
+              def completeCurrentSource(): Unit =
+                availableSources.remove(currentSourceIndex)
+                currentSourceIndex = if currentSourceIndex == 0 then availableSources.size - 1 else currentSourceIndex - 1
+
+              def switchToNextSource(): Unit =
+                currentSourceIndex = (currentSourceIndex + 1) % availableSources.size
+                elementsRead = 0
+
+              repeatWhile:
+                availableSources(currentSourceIndex).receiveOrClosed() match
+                  case ChannelClosed.Done =>
+                    completeCurrentSource()
+
+                    if eagerComplete || availableSources.isEmpty then
+                      results.doneOrClosed()
+                      false
+                    else
+                      switchToNextSource()
+                      true
+                  case ChannelClosed.Error(r) =>
+                    results.errorOrClosed(r)
+                    false
+                  case value: T @unchecked =>
+                    elementsRead += 1
+                    // after reaching segmentSize, only switch to next source if there's any other available
+                    if elementsRead == segmentSize && availableSources.size > 1 then switchToNextSource()
+                    results.sendOrClosed(value).isValue
+            FlowSink.channelToSink(results, sink)
+
 end FlowCompanionOps
 
 // a simplified sink used in .fromSender
