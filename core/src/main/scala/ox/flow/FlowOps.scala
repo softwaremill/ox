@@ -349,6 +349,67 @@ class FlowOps[+T]:
   def interleave[U >: T](other: Flow[U], segmentSize: Int = 1, eagerComplete: Boolean = false)(using StageCapacity): Flow[U] =
     Flow.interleaveAll(List(this, other), segmentSize, eagerComplete)
 
+  /** Applies the given mapping function `f`, using additional state, to each element emitted by this flow. The results are emitted by the
+    * returned flow. Optionally the returned flow emits an additional element, possibly based on the final state, once this flow is done.
+    *
+    * The `initializeState` function is called once when `statefulMap` is called.
+    *
+    * The `onComplete` function is called once when this flow is done. If it returns a non-empty value, the value will be emitted by the
+    * flow, while an empty value will be ignored.
+    *
+    * @param initializeState
+    *   A function that initializes the state.
+    * @param f
+    *   A function that transforms the element from this flow and the state into a pair of the next state and the result which is emitted by
+    *   the returned flow.
+    * @param onComplete
+    *   A function that transforms the final state into an optional element emitted by the returned flow. By default the final state is
+    *   ignored.
+    */
+  def mapStateful[S, U](initializeState: () => S)(f: (S, T) => (S, U), onComplete: S => Option[U] = (_: S) => None): Flow[U] =
+    def resultToSome(s: S, t: T) =
+      val (newState, result) = f(s, t)
+      (newState, Some(result))
+
+    mapStatefulConcat(initializeState)(resultToSome, onComplete)
+  end mapStateful
+
+  /** Applies the given mapping function `f`, using additional state, to each element emitted by this flow. The returned flow emits the
+    * results one by one. Optionally the returned flow emits an additional element, possibly based on the final state, once this flow is
+    * done.
+    *
+    * The `initializeState` function is called once when `statefulMap` is called.
+    *
+    * The `onComplete` function is called once when this flow is done. If it returns a non-empty value, the value will be emitted by the
+    * returned flow, while an empty value will be ignored.
+    *
+    * @param initializeState
+    *   A function that initializes the state.
+    * @param f
+    *   A function that transforms the element from this flow and the state into a pair of the next state and a
+    *   [[scala.collection.IterableOnce]] of results which are emitted one by one by the returned flow. If the result of `f` is empty,
+    *   nothing is emitted by the returned flow.
+    * @param onComplete
+    *   A function that transforms the final state into an optional element emitted by the returned flow. By default the final state is
+    *   ignored.
+    */
+  def mapStatefulConcat[S, U](
+      initializeState: () => S
+  )(f: (S, T) => (S, IterableOnce[U]), onComplete: S => Option[U] = (_: S) => None): Flow[U] =
+    fromSink: sink =>
+      var state = initializeState()
+      last.run(new FlowSink[T]:
+        override def onNext(t: T): Unit =
+          val (nextState, result) = f(state, t)
+          state = nextState
+          result.iterator.foreach(sink.onNext)
+        override def onDone(): Unit =
+          onComplete(state).foreach(sink.onNext)
+          sink.onDone()
+        override def onError(e: Throwable): Unit = sink.onError(e)
+      )
+  end mapStatefulConcat
+
   //
 
   private inline def addTransformSinkStage[U](inline doTransform: FlowSink[U] => FlowSink[T]): Flow[U] =
