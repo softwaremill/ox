@@ -22,6 +22,9 @@ import ox.unsupervised
 import java.util.concurrent.Semaphore
 import scala.concurrent.duration.DurationLong
 import scala.concurrent.duration.FiniteDuration
+import ox.forkCancellable
+import ox.CancellableFork
+import ox.tapException
 
 class FlowOps[+T]:
   outer: Flow[T] =>
@@ -461,8 +464,127 @@ class FlowOps[+T]:
     )
   end orElse
 
+  /** Chunks up the elements into groups of the specified size. The last group may be smaller due to the flow being complete.
+    *
+    * @param n
+    *   The number of elements in a group.
+    */
+  def grouped(n: Int): Flow[Seq[T]] = groupedWeighted(n)(_ => 1)
+
+  /** Chunks up the elements into groups that have a cumulative weight greater or equal to the `minWeight`. The last group may be smaller
+    * due to the flow being complete.
+    *
+    * @param minWeight
+    *   The minimum cumulative weight of elements in a group.
+    * @param costFn
+    *   The function that calculates the weight of an element.
+    */
+  def groupedWeighted(minWeight: Long)(costFn: T => Long): Flow[Seq[T]] =
+    require(minWeight > 0, "minWeight must be > 0")
+
+    fromSink: sink =>
+      var buffer = Vector.empty[T]
+      var accumulatedCost = 0L
+      last.run(new FlowSink[T]:
+        override def onNext(t: T): Unit =
+          buffer = buffer :+ t
+
+          accumulatedCost += costFn(t)
+
+          if accumulatedCost >= minWeight then
+            sink.onNext(buffer)
+            buffer = Vector.empty
+            accumulatedCost = 0
+        end onNext
+        override def onDone(): Unit =
+          if buffer.nonEmpty then sink.onNext(buffer)
+          sink.onDone()
+        override def onError(e: Throwable): Unit = sink.onError(e)
+      )
+  end groupedWeighted
+
+  /** Chunks up the emitted elements into groups, within a time window, or limited by the specified number of elements, whatever happens
+    * first. The timeout is reset after a group is emitted. If timeout expires and the buffer is empty, nothing is emitted. As soon as a new
+    * element is emitted, the flow will emit it as a single-element group and reset the timer.
+    *
+    * @param n
+    *   The maximum number of elements in a group.
+    * @param duration
+    *   The time window in which the elements are grouped.
+    */
+  def groupedWithin(n: Int, duration: FiniteDuration): Flow[Seq[T]] = groupedWeightedWithin(n, duration)(_ => 1)
+
+  private case object GroupingTimeout
+
+  /** Chunks up the emitted elements into groups, within a time window, or limited by the cumulative weight being greater or equal to the
+    * `minWeight`, whatever happens first. The timeout is reset after a group is emitted. If timeout expires and the buffer is empty,
+    * nothing is emitted. As soon as a new element is received, the flow will emit it as a single-element group and reset the timer.
+    *
+    * @param minWeight
+    *   The minimum cumulative weight of elements in a group if no timeout happens.
+    * @param duration
+    *   The time window in which the elements are grouped.
+    * @param costFn
+    *   The function that calculates the weight of an element.
+    */
+  def groupedWeightedWithin(minWeight: Long, duration: FiniteDuration)(costFn: T => Long): Flow[Seq[T]] =
+    require(minWeight > 0, "minWeight must be > 0")
+    require(duration > 0.seconds, "duration must be > 0")
+
+    fromSink: sink =>
+      unsupervised:
+        val c = outer.runToChannel()
+        val c2 = StageCapacity.newChannel[Seq[T]]
+        val timerChannel = StageCapacity.newChannel[GroupingTimeout.type]
+        forkPropagate(c2):
+          var buffer = Vector.empty[T]
+          var accumulatedCost: Long = 0
+
+          def forkTimeout() = forkCancellable:
+            sleep(duration)
+            timerChannel.sendOrClosed(GroupingTimeout).discard
+
+          var timeoutFork: Option[CancellableFork[Unit]] = Some(forkTimeout())
+
+          def sendBufferAndForkNewTimeout(): Unit =
+            c2.send(buffer)
+            buffer = Vector.empty
+            accumulatedCost = 0
+            timeoutFork.foreach(_.cancelNow())
+            timeoutFork = Some(forkTimeout())
+
+          repeatWhile:
+            selectOrClosed(c.receiveClause, timerChannel.receiveClause) match
+              case ChannelClosed.Done =>
+                timeoutFork.foreach(_.cancelNow())
+                if buffer.nonEmpty then c2.send(buffer)
+                c2.done()
+                false
+              case ChannelClosed.Error(r) =>
+                timeoutFork.foreach(_.cancelNow())
+                c2.error(r)
+                false
+              case timerChannel.Received(GroupingTimeout) =>
+                timeoutFork = None // enter 'timed out state', may stay in this state if buffer is empty
+                if buffer.nonEmpty then sendBufferAndForkNewTimeout()
+                true
+              case c.Received(t) =>
+                buffer = buffer :+ t
+
+                accumulatedCost += costFn(t).tapException(_ => timeoutFork.foreach(_.cancelNow()))
+
+                if timeoutFork.isEmpty || accumulatedCost >= minWeight then
+                  // timeout passed when buffer was empty or buffer full
+                  sendBufferAndForkNewTimeout()
+
+                true
+
+        FlowSink.channelToSink(c2, sink)
+  end groupedWeightedWithin
+
   //
 
+  // TODO: unify with fromSink
   private inline def addTransformSinkStage[U](inline doTransform: FlowSink[U] => FlowSink[T]): Flow[U] =
     Flow(
       new FlowStage:
