@@ -19,9 +19,9 @@ import ox.channels.ChannelClosedUnion.isValue
 trait FlowCompanionOps:
   this: Flow.type =>
 
-  private[flow] inline def usingSinkInline[T](inline runWithSink: FlowSink[T] => Unit): Flow[T] = Flow(
+  private[flow] inline def usingSinkInline[T](inline withSink: FlowSink[T] => Unit): Flow[T] = Flow(
     new FlowStage:
-      override def run(sink: FlowSink[T]): Unit = runWithSink(sink)
+      override def run(sink: FlowSink[T]): Unit = withSink(sink)
   )
 
   def usingSink[T](withSink: FlowSink[T] => Unit): Flow[T] = Flow(
@@ -124,10 +124,7 @@ trait FlowCompanionOps:
 
   def concat[T](flows: Seq[Flow[T]]): Flow[T] = usingSinkInline: sink =>
     flows.iterator.foreach: currentFlow =>
-      currentFlow.runToSink(
-        new FlowSink[T]:
-          override def apply(t: T): Unit = sink(t)
-      )
+      currentFlow.runToSink(FlowSink.fromInline(sink.apply))
 
   def empty[T]: Flow[T] = Flow(
     new FlowStage:

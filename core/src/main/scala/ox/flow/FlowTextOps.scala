@@ -165,14 +165,13 @@ trait FlowTextOps[+T]:
       var buffer: Chunk[Byte] = null
 
       last.run(
-        new FlowSink[T]:
-          override def apply(t: T): Unit =
-            val (newBuffer, newState) = state match
-              case State.ProcessBOM => processByteOrderMark(t, buffer, sink)
-              case State.Pull       => doPull(t, buffer, sink)
+        FlowSink.fromInline: t =>
+          val (newBuffer, newState) = state match
+            case State.ProcessBOM => processByteOrderMark(t, buffer, sink)
+            case State.Pull       => doPull(t, buffer, sink)
 
-            buffer = newBuffer
-            state = newState
+          buffer = newBuffer
+          state = newState
       )
       // end of channel before getting enough bytes to resolve BOM, assuming no BOM
       if buffer != null && buffer.nonEmpty then

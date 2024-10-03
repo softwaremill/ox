@@ -30,7 +30,7 @@ import ox.channels.Default
 class FlowOps[+T]:
   outer: Flow[T] =>
 
-  def async()(using StageCapacity): Flow[T] = usingSinkInline: sink =>
+  def async()(using StageCapacity): Flow[T] = Flow.usingSinkInline: sink =>
     val ch = StageCapacity.newChannel[T]
     unsupervised:
       runLastToChannelAsync(ch)
@@ -38,17 +38,13 @@ class FlowOps[+T]:
 
   //
 
-  def map[U](f: T => U): Flow[U] = usingSinkInline: sink =>
-    last.run(
-      new FlowSink[T]:
-        override def apply(t: T): Unit = sink.apply(f(t))
-    )
+  def map[U](f: T => U): Flow[U] = Flow.usingSinkInline: sink =>
+    last.run(FlowSink.fromInline(t => sink(f(t))))
+
+  // TODO: .mapUsingSink
 
   def filter(f: T => Boolean): Flow[T] = usingSinkInline: sink =>
-    last.run(
-      new FlowSink[T]:
-        override def apply(t: T): Unit = if f(t) then sink.apply(t)
-    )
+    last.run(FlowSink.fromInline(t => if f(t) then sink.apply(t)))
 
   /** Applies the given mapping function `f` to each element emitted by this flow, for which the function is defined, and emits the result.
     * If `f` is not defined at an element, the element will be skipped.
@@ -57,10 +53,7 @@ class FlowOps[+T]:
     *   The mapping function.
     */
   def collect[U](f: PartialFunction[T, U]): Flow[U] = usingSinkInline: sink =>
-    last.run(
-      new FlowSink[T]:
-        override def apply(t: T): Unit = if f.isDefinedAt(t) then sink.apply(f(t))
-    )
+    last.run(FlowSink.fromInline(t => if f.isDefinedAt(t) then sink.apply(f(t))))
 
   def tap(f: T => Unit): Flow[T] = map(t =>
     f(t); t
@@ -82,13 +75,12 @@ class FlowOps[+T]:
 
   private def intersperse[U >: T](start: Option[U], inject: U, end: Option[U]): Flow[U] = usingSinkInline: sink =>
     start.foreach(sink.apply)
+    var firstEmitted = false
     last.run(
-      new FlowSink[U]:
-        private var firstEmitted = false
-        override def apply(t: U): Unit =
-          if firstEmitted then sink(inject)
-          sink(t)
-          firstEmitted = true
+      FlowSink.fromInline: u =>
+        if firstEmitted then sink(inject)
+        sink(u)
+        firstEmitted = true
     )
     end.foreach(sink.apply)
 
@@ -108,7 +100,7 @@ class FlowOps[+T]:
     val results = StageCapacity.newChannel[U]
 
     def forkMapping(t: T)(using OxUnsupervised): Fork[Option[U]] =
-      forkUnsupervised {
+      forkUnsupervised:
         try
           val u = f(t)
           s.release() // not in finally, as in case of an exception, no point in starting subsequent forks
@@ -117,7 +109,6 @@ class FlowOps[+T]:
           case t: Throwable => // same as in `forkPropagate`, catching all exceptions
             results.errorOrClosed(t)
             None
-      }
 
     // creating a nested scope, so that in case of errors, we can clean up any mapping forks in a "local" fashion,
     // that is without closing the main scope; any error management must be done in the forks, as the scope is
@@ -128,10 +119,9 @@ class FlowOps[+T]:
       // interrupted, including the inProgress-fork, which might be waiting on a join()
       forkPropagate(results):
         last.run(
-          new FlowSink[T]:
-            override def apply(t: T): Unit =
-              s.acquire()
-              inProgress.sendOrClosed(forkMapping(t)).discard
+          FlowSink.fromInline: t =>
+            s.acquire()
+            inProgress.sendOrClosed(forkMapping(t)).discard
         )
         inProgress.doneOrClosed().discard
 
@@ -159,13 +149,12 @@ class FlowOps[+T]:
         supervised: // the inner scope, in which user forks are created, and which is used to wait for all to complete when done
           last
             .run(
-              new FlowSink[T]:
-                override def apply(t: T): Unit =
-                  s.acquire()
-                  forkUserPropagate(results):
-                    results.sendOrClosed(f(t))
-                    s.release()
-                  .discard
+              FlowSink.fromInline: t =>
+                s.acquire()
+                forkUserPropagate(results):
+                  results.sendOrClosed(f(t))
+                  s.release()
+                .discard
             )
             // if run() throws, we want this to become the "main" error, instead of an InterruptedException
             .tapException(results.errorOrClosed(_).discard)
@@ -179,13 +168,12 @@ class FlowOps[+T]:
     var taken = 0
     try
       last.run(
-        new FlowSink[T]:
-          override def apply(t: T): Unit =
-            if taken < n then
-              sink(t)
-              taken += 1
+        FlowSink.fromInline: t =>
+          if taken < n then
+            sink(t)
+            taken += 1
 
-            if taken == n then throw abortTake
+          if taken == n then throw abortTake
       )
     catch case `abortTake` => () // done
 
@@ -200,12 +188,11 @@ class FlowOps[+T]:
   def takeWhile(f: T => Boolean, includeFirstFailing: Boolean = false): Flow[T] = usingSinkInline: sink =>
     try
       last.run(
-        new FlowSink[T]:
-          override def apply(t: T): Unit =
-            if f(t) then sink(t)
-            else
-              if includeFirstFailing then sink.apply(t)
-              throw abortTake
+        FlowSink.fromInline: t =>
+          if f(t) then sink(t)
+          else
+            if includeFirstFailing then sink.apply(t)
+            throw abortTake
       )
     catch case `abortTake` => () // done
 
@@ -217,10 +204,9 @@ class FlowOps[+T]:
   def drop(n: Int): Flow[T] = usingSinkInline: sink =>
     var dropped = 0
     last.run(
-      new FlowSink[T]:
-        override def apply(t: T): Unit =
-          if dropped < n then dropped += 1
-          else sink(t)
+      FlowSink.fromInline: t =>
+        if dropped < n then dropped += 1
+        else sink(t)
     )
 
   def merge[U >: T](other: Flow[U])(using StageCapacity): Flow[U] = usingSinkInline: sink =>
@@ -398,11 +384,10 @@ class FlowOps[+T]:
   )(f: (S, T) => (S, IterableOnce[U]), onComplete: S => Option[U] = (_: S) => None): Flow[U] = usingSinkInline: sink =>
     var state = initializeState()
     last.run(
-      new FlowSink[T]:
-        override def apply(t: T): Unit =
-          val (nextState, result) = f(state, t)
-          state = nextState
-          result.iterator.foreach(sink.apply)
+      FlowSink.fromInline: t =>
+        val (nextState, result) = f(state, t)
+        state = nextState
+        result.iterator.foreach(sink.apply)
     )
     onComplete(state).foreach(sink.apply)
   end mapStatefulConcat
@@ -416,9 +401,8 @@ class FlowOps[+T]:
     */
   def mapConcat[U](f: T => IterableOnce[U]): Flow[U] = usingSinkInline: sink =>
     last.run(
-      new FlowSink[T]:
-        override def apply(t: T): Unit =
-          f(t).iterator.foreach(sink.apply)
+      FlowSink.fromInline: t =>
+        f(t).iterator.foreach(sink.apply)
     )
 
   /** Emits elements limiting the throughput to specific number of elements (evenly spaced) per time unit. Note that the element's
@@ -449,10 +433,9 @@ class FlowOps[+T]:
   def orElse[U >: T](alternative: Flow[U]): Flow[U] = usingSinkInline: sink =>
     var receivedAtLeastOneElement = false
     last.run(
-      new FlowSink[U]:
-        override def apply(t: U): Unit =
-          sink(t)
-          receivedAtLeastOneElement = true
+      FlowSink.fromInline: t =>
+        sink(t)
+        receivedAtLeastOneElement = true
     )
     if !receivedAtLeastOneElement then alternative.runToSink(sink)
   end orElse
@@ -479,17 +462,15 @@ class FlowOps[+T]:
       var buffer = Vector.empty[T]
       var accumulatedCost = 0L
       last.run(
-        new FlowSink[T]:
-          override def apply(t: T): Unit =
-            buffer = buffer :+ t
+        FlowSink.fromInline: t =>
+          buffer = buffer :+ t
 
-            accumulatedCost += costFn(t)
+          accumulatedCost += costFn(t)
 
-            if accumulatedCost >= minWeight then
-              sink.apply(buffer)
-              buffer = Vector.empty
-              accumulatedCost = 0
-          end apply
+          if accumulatedCost >= minWeight then
+            sink.apply(buffer)
+            buffer = Vector.empty
+            accumulatedCost = 0
       )
       if buffer.nonEmpty then sink.apply(buffer)
   end groupedWeighted
@@ -588,21 +569,19 @@ class FlowOps[+T]:
     usingSinkInline: sink =>
       var buffer = Vector.empty[T]
       last.run(
-        new FlowSink[T]:
-          override def apply(t: T): Unit =
-            buffer = buffer :+ t
-            if buffer.size < n then () // do nothing
-            else if buffer.size == n then sink(buffer)
-            else if step <= n then
-              // if step is <= n we simply drop `step` elements and continue appending until buffer size is n
-              buffer = buffer.drop(step)
-              // in special case when step == 1, we have to send the buffer immediately
-              if buffer.size == n then sink(buffer)
-            else
-            // step > n -  we drop `step` elements and continue appending until buffer size is n
-            if buffer.size == step then buffer = buffer.drop(step)
-            end if
-          end apply
+        FlowSink.fromInline: t =>
+          buffer = buffer :+ t
+          if buffer.size < n then () // do nothing
+          else if buffer.size == n then sink(buffer)
+          else if step <= n then
+            // if step is <= n we simply drop `step` elements and continue appending until buffer size is n
+            buffer = buffer.drop(step)
+            // in special case when step == 1, we have to send the buffer immediately
+            if buffer.size == n then sink(buffer)
+          else
+          // step > n -  we drop `step` elements and continue appending until buffer size is n
+          if buffer.size == step then buffer = buffer.drop(step)
+          end if
       )
       // send the remaining elements, only if these elements were not yet sent
       if buffer.nonEmpty && buffer.size < n then sink(buffer)
@@ -623,10 +602,9 @@ class FlowOps[+T]:
   def alsoTo[U >: T](other: Sink[U]): Flow[U] = usingSinkInline: sink =>
     {
       last.run(
-        new FlowSink[T]:
-          override def apply(t: T): Unit =
-            sink(t).tapException(e => other.errorOrClosed(e).discard)
-            other.send(t)
+        FlowSink.fromInline: t =>
+          sink(t).tapException(e => other.errorOrClosed(e).discard)
+          other.send(t)
       )
       other.done()
     }.tapException(other.error)
@@ -648,10 +626,9 @@ class FlowOps[+T]:
   def alsoToTap[U >: T](other: Sink[U]): Flow[U] = usingSinkInline: sink =>
     {
       last.run(
-        new FlowSink[T]:
-          override def apply(t: T): Unit =
-            sink(t).tapException(e => other.errorOrClosed(e).discard)
-            selectOrClosed(other.sendClause(t), Default(NotSent)).discard
+        FlowSink.fromInline: t =>
+          sink(t).tapException(e => other.errorOrClosed(e).discard)
+          selectOrClosed(other.sendClause(t), Default(NotSent)).discard
       )
       other.doneOrClosed().discard
     }.tapException(other.errorOrClosed(_).discard)
@@ -661,10 +638,7 @@ class FlowOps[+T]:
 
   protected def runLastToChannelAsync(ch: Sink[T])(using OxUnsupervised): Unit =
     forkPropagate(ch) {
-      last.run(
-        new FlowSink[T]:
-          override def apply(t: T): Unit = ch.send(t)
-      )
+      last.run(FlowSink.fromInline(t => ch.send(t)))
       ch.done()
     }.discard
 end FlowOps

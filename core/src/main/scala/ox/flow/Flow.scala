@@ -26,6 +26,10 @@ trait FlowSink[-T]:
   def apply(t: T): Unit
 
 object FlowSink:
+  private[flow] inline def fromInline[T](inline f: T => Unit): FlowSink[T] =
+    new FlowSink[T]:
+      def apply(t: T): Unit = f(t)
+
   /** Propagates all elements and closure events to the given sink. */
   def channelToSink[T](source: Source[T], sink: FlowSink[T]): Unit =
     repeatWhile:
