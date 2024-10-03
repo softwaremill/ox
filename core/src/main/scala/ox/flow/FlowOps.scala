@@ -29,6 +29,13 @@ import ox.forkUser
 class FlowOps[+T]:
   outer: Flow[T] =>
 
+  /** When run, the current pipeline is run asynchornously in the background, emitting elements to a buffer. The elements of the buffer are
+    * then emitted by the returned flow.
+    *
+    * The size of the buffer is determined by the [[BufferCapacity]] that is in scope.
+    *
+    * Any exceptions are propagated by the returned flow.
+    */
   def async()(using BufferCapacity): Flow[T] = Flow.usingSinkInline: sink =>
     val ch = BufferCapacity.newChannel[T]
     unsupervised:

@@ -4,7 +4,17 @@ import ox.channels.ChannelClosed
 import ox.channels.Source
 import ox.repeatWhile
 
-/** Describes an asynchronous transformation pipeline emitting elements of type `T`. */
+/** Describes an asynchronous transformation pipeline. When run, emits elements of type `T`.
+  *
+  * A flow is lazy - evaluation happens only when it's run.
+  *
+  * Flows can be created using the [[Flow.usingSink]], [[Flow.fromValues]] and other `Flow.from*` methods, [[Flow.tick]] etc.
+  *
+  * Transformation stages can be added using the available combinators, such as [[Flow.map]], [[Flow.async]], [[Flow.grouped]], etc. Each
+  * such method returns a new immutable `Flow` instance.
+  *
+  * Running a flow is possible using one of the `run*` methods, such as [[Flow.runToList]], [[Flow.runToChannel]] or [[Flow.runFold]].
+  */
 class Flow[+T](protected val last: FlowStage[T]) extends FlowOps[T] with FlowRunOps[T] with FlowIOOps[T] with FlowTextOps[T]
 
 object Flow extends FlowCompanionOps with FlowCompanionIOOps
