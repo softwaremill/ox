@@ -11,7 +11,6 @@ import ox.channels.Sink
 import ox.channels.Source
 import ox.channels.BufferCapacity
 import ox.channels.forkPropagate
-import ox.channels.forkUserPropagate
 import ox.channels.selectOrClosed
 import ox.discard
 import ox.forkCancellable
@@ -25,6 +24,7 @@ import ox.unsupervised
 import java.util.concurrent.Semaphore
 import scala.concurrent.duration.DurationLong
 import scala.concurrent.duration.FiniteDuration
+import ox.forkUser
 
 class FlowOps[+T]:
   outer: Flow[T] =>
@@ -167,9 +167,11 @@ class FlowOps[+T]:
             .run(
               FlowSink.fromInline: t =>
                 s.acquire()
-                forkUserPropagate(results):
-                  results.sendOrClosed(f(t))
-                  s.release()
+                forkUser:
+                  try
+                    results.sendOrClosed(f(t))
+                    s.release()
+                  catch case t: Throwable => results.errorOrClosed(t).discard
                 .discard
             )
             // if run() throws, we want this to become the "main" error, instead of an InterruptedException

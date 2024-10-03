@@ -51,7 +51,7 @@ trait SourceOps[+T]:
     override val delegate: JSource[Any] = outer.delegate.filterAsView(t => f(t.asInstanceOf[T]))
 
   /** Creates a view of this source, where the results of [[receive]] will be transformed on the consumer's thread using the given function
-    * `f`. If the function is not defined at an element, the element will be skipped. For an eager, asynchronous version, see [[collect]].
+    * `f`. If the function is not defined at a value, the value will be skipped. For an eager, asynchronous version, see [[collect]].
     *
     * The same logic applies to receive clauses created using this source, which can be used in [[select]].
     *
@@ -74,7 +74,7 @@ trait SourceOps[+T]:
   in a supervised scope, there's no other possibility to interrupt the fork).
    */
 
-  /** Applies the given mapping function `f` to each element received from this source, and sends the results to the returned channel.
+  /** Applies the given mapping function `f` to each value received from this source, and sends the results to the returned channel.
     *
     * Errors from this channel are propagated to the returned channel. Any exceptions that occur when invoking `f` are propagated as errors
     * to the returned channel as well.
@@ -102,7 +102,7 @@ trait SourceOps[+T]:
     c2
   end map
 
-  /** Applies the given consumer function `f` to each element received from this source.
+  /** Applies the given consumer function `f` to each value received from this source.
     *
     * Errors from this channel are propagated to the returned channel. Any exceptions that occur when invoking `f` are propagated as errors
     * to the returned channel as well.
@@ -115,14 +115,14 @@ trait SourceOps[+T]:
     * @param f
     *   The consumer function.
     * @return
-    *   A source, which the elements from the input source are passed to.
+    *   A source, which the values from the input source are passed to.
     */
   def tap(f: T => Unit)(using Ox, BufferCapacity): Source[T] = map(t =>
     f(t); t
   )
 
-  /** Applies the given mapping function `f` to each element received from this source, for which the function is defined, and sends the
-    * results to the returned channel. If `f` is not defined at an element, the element will be skipped.
+  /** Applies the given mapping function `f` to each value received from this source, for which the function is defined, and sends the
+    * results to the returned channel. If `f` is not defined at a value, the value will be skipped.
     *
     * Errors from this channel are propagated to the returned channel. Any exceptions that occur when invoking `f` are propagated as errors
     * to the returned channel as well.

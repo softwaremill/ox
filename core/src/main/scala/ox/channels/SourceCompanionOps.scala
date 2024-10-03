@@ -66,9 +66,9 @@ trait SourceCompanionOps:
     receiveAndSendFromFuture(from, c)
     c
 
-  /** Creates a source that emits elements from future source when `from` completes or fails otherwise. The `from` completion is performed
-    * on the provided [[scala.concurrent.ExecutionContext]] whereas elements are emitted through Ox. Note that when `from` fails with
-    * [[scala.concurrent.ExecutionException]] then its cause is returned as source failure.
+  /** Creates a source to which the future's value is sent, once `from` completes or fails otherwise. The `from` completion is performed on
+    * the provided [[scala.concurrent.ExecutionContext]]. Note that when `from` fails with [[scala.concurrent.ExecutionException]] then its
+    * cause is returned as source failure.
     *
     * @param from
     *   A [[scala.concurrent.Future]] that returns source upon completion.

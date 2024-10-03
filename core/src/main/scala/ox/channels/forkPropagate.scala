@@ -13,9 +13,3 @@ def forkPropagate[T](propagateExceptionsTo: Sink[?])(f: => Unit)(using OxUnsuper
   forkUnsupervised:
     try f
     catch case t: Throwable => propagateExceptionsTo.errorOrClosed(t).discard
-
-/** A variant of [[forkPropagate]] which uses [[forkUser]]. */
-def forkUserPropagate[T](propagateExceptionsTo: Sink[?])(f: => Unit)(using Ox): Fork[Unit] =
-  forkUser:
-    try f
-    catch case t: Throwable => propagateExceptionsTo.errorOrClosed(t).discard

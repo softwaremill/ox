@@ -37,3 +37,9 @@ Errors:
 Other:
 * **computation combinator**: a method which takes user-provided functions and manages their execution, e.g. using 
   concurrency, interruption, and appropriately handling errors; examples include `par`, `race`, `retry`, `timeout`
+
+Channels:
+* **values** can be **sent** to a channel, or **received** from a channel
+
+Flows:
+* when **run**, a flow **emits** **elements**

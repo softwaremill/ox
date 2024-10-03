@@ -8,7 +8,7 @@ import ox.repeatWhile
 trait SourceDrainOps[+T]:
   outer: Source[T] =>
 
-  /** Invokes the given function for each received element. Blocks until the channel is done.
+  /** Invokes the given function for each received value. Blocks until the channel is done.
     *
     * @throws ChannelClosedException.Error
     *   When there is an upstream error.
@@ -27,7 +27,7 @@ trait SourceDrainOps[+T]:
     result
   end foreachOrError
 
-  /** Accumulates all elements received from the channel into a list. Blocks until the channel is done.
+  /** Accumulates all values received from the channel into a list. Blocks until the channel is done.
     *
     * @throws ChannelClosedException.Error
     *   When there is an upstream error.
@@ -39,7 +39,7 @@ trait SourceDrainOps[+T]:
     val b = List.newBuilder[T]
     foreachOrError(b += _).mapUnlessError(_ => b.result())
 
-  /** Passes each received element from this channel to the given sink. Blocks until the channel is done.
+  /** Passes each received values from this channel to the given sink. Blocks until the channel is done.
     *
     * Errors are always propagated. Successful channel completion is propagated when `propagateDone` is set to `true`.
     */
@@ -51,7 +51,7 @@ trait SourceDrainOps[+T]:
         case t: T @unchecked        => sink.send(t); true
     }
 
-  /** Receives all elements from the channel. Blocks until the channel is done.
+  /** Receives all values from the channel. Blocks until the channel is done.
     *
     * @throws ChannelClosedException.Error
     *   when there is an upstream error.
