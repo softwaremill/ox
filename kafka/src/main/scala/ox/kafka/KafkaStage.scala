@@ -10,7 +10,7 @@ import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.jdk.CollectionConverters.*
 import ox.flow.Flow
-import ox.flow.FlowSink
+import ox.flow.FlowEmit
 
 object KafkaStage:
   private val logger = LoggerFactory.getLogger(classOf[KafkaStage.type])
@@ -61,7 +61,7 @@ object KafkaStage:
     private def mapPublishAndCommit(producer: KafkaProducer[K, V], closeWhenComplete: Boolean, commitOffsets: Boolean)(using
         BufferCapacity
     ): Flow[RecordMetadata] =
-      Flow.usingSink { sink =>
+      Flow.usingEmit { emit =>
         // a helper channel to signal any exceptions that occur while publishing or committing offsets
         // the exceptions & metadata channels are unlimited so as to only block the Kafka callback thread in the smallest
         // possible way
@@ -72,7 +72,7 @@ object KafkaStage:
         val toCommit = BufferCapacity.newChannel[SendPacket[_, _]]
 
         // used to reorder values received from `metadata` using the assigned sequence numbers
-        val sendInSequence = SendInSequence(sink)
+        val sendInSequence = SendInSequence(emit)
 
         try
           // starting a nested scope, so that the committer is interrupted when the main process ends (when there's an exception)
@@ -144,8 +144,8 @@ object KafkaStage:
   end sendPacket
 end KafkaStage
 
-/** Sends `T` elements to the given `sink`, when elements with subsequent sequence numbers are available. Thread-unsafe. */
-private class SendInSequence[T](sink: FlowSink[T]):
+/** Sends `T` elements to the given `emit`, when elements with subsequent sequence numbers are available. Thread-unsafe. */
+private class SendInSequence[T](emit: FlowEmit[T]):
   private var sequenceNoNext = 0L
   private var sequenceNoToSendNext = 0L
   private val toSend = mutable.SortedSet[(Long, T)]()(Ordering.by(_._1))
@@ -165,7 +165,7 @@ private class SendInSequence[T](sink: FlowSink[T]):
   private def trySend(): Unit = toSend.headOption match
     case Some((s, m)) if s == sequenceNoToSendNext =>
       toSend.remove((s, m))
-      sink(m)
+      emit(m)
       sequenceNoToSendNext += 1
       trySend()
     case _ => ()

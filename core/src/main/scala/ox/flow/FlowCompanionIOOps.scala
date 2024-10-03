@@ -20,14 +20,14 @@ trait FlowCompanionIOOps:
     * @param chunkSize
     *   maximum number of bytes to read from the underlying `InputStream` before emitting a new chunk.
     */
-  def fromInputStream(is: InputStream, chunkSize: Int = 1024): Flow[Chunk[Byte]] = usingSinkInline: sink =>
+  def fromInputStream(is: InputStream, chunkSize: Int = 1024): Flow[Chunk[Byte]] = usingEmitInline: emit =>
     try
       repeatWhile:
         val buf = new Array[Byte](chunkSize)
         val readBytes = is.read(buf)
         if readBytes == -1 then false
         else
-          if readBytes > 0 then sink.apply(if readBytes == chunkSize then Chunk.fromArray(buf) else Chunk.fromArray(buf.take(readBytes)))
+          if readBytes > 0 then emit.apply(if readBytes == chunkSize then Chunk.fromArray(buf) else Chunk.fromArray(buf.take(readBytes)))
           true
     finally is.close()
   end fromInputStream
@@ -40,7 +40,7 @@ trait FlowCompanionIOOps:
     *   maximum number of bytes to read from the file before emitting a new chunk.
     */
 
-  def fromFile(path: Path, chunkSize: Int = 1024): Flow[Chunk[Byte]] = usingSinkInline: sink =>
+  def fromFile(path: Path, chunkSize: Int = 1024): Flow[Chunk[Byte]] = usingEmitInline: emit =>
     if Files.isDirectory(path) then throw new IOException(s"Path $path is a directory")
     val jFileChannel =
       try FileChannel.open(path, StandardOpenOption.READ)
@@ -55,7 +55,7 @@ trait FlowCompanionIOOps:
         val readBytes = jFileChannel.read(buf)
         if readBytes < 0 then false
         else
-          if readBytes > 0 then sink.apply(Chunk.fromArray(if readBytes == chunkSize then buf.array else buf.array.take(readBytes)))
+          if readBytes > 0 then emit.apply(Chunk.fromArray(if readBytes == chunkSize then buf.array else buf.array.take(readBytes)))
           true
     finally jFileChannel.close()
     end try

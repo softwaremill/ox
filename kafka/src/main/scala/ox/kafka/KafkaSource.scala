@@ -17,13 +17,13 @@ object KafkaSource:
       topic: String,
       otherTopics: String*
   ): Flow[ReceivedMessage[K, V]] =
-    Flow.usingSink: sink =>
+    Flow.usingEmit: emit =>
       supervised:
         val kafkaConsumerActor = KafkaConsumerWrapper(kafkaConsumer, closeWhenComplete)
         kafkaConsumerActor.tell(_.subscribe(topic :: otherTopics.toList))
         forever {
           val records = kafkaConsumerActor.ask(_.poll())
-          records.forEach(r => sink(ReceivedMessage(kafkaConsumerActor, r)))
+          records.forEach(r => emit(ReceivedMessage(kafkaConsumerActor, r)))
         }.tapException(logger.error("Exception when polling for records", _))
 
 end KafkaSource

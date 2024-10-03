@@ -1,7 +1,7 @@
 package ox.flow
 
 import ox.*
-import ox.flow.Flow.usingSinkInline
+import ox.flow.Flow.usingEmitInline
 
 import java.nio.charset.Charset
 import java.nio.charset.StandardCharsets
@@ -141,12 +141,12 @@ trait FlowTextOps[+T]:
     enum State:
       case ProcessBOM, Pull
 
-    def doPull(bytes: T, buffer: Chunk[Byte], output: FlowSink[String]): (Chunk[Byte], State) =
+    def doPull(bytes: T, buffer: Chunk[Byte], output: FlowEmit[String]): (Chunk[Byte], State) =
       val (str, newBuf) = processSingleChunk(buffer, bytes)
       if str != null then output.apply(str)
       (newBuf, State.Pull)
 
-    def processByteOrderMark(bytes: T, buffer: Chunk[Byte], output: FlowSink[String]): (Chunk[Byte], State) =
+    def processByteOrderMark(bytes: T, buffer: Chunk[Byte], output: FlowEmit[String]): (Chunk[Byte], State) =
       // A common case, worth checking in advance
       if buffer == null && bytes.length >= bomSize && !bytes.startsWith(bomUtf8) then (bytes, State.Pull)
       else
@@ -160,15 +160,15 @@ trait FlowTextOps[+T]:
         else // We've accumulated less than BOM size but we already know that these bytes aren't BOM
           (newBuffer, State.Pull)
 
-    usingSinkInline: sink =>
+    usingEmitInline: emit =>
       var state: State = State.ProcessBOM
       var buffer: Chunk[Byte] = null
 
       last.run(
-        FlowSink.fromInline: t =>
+        FlowEmit.fromInline: t =>
           val (newBuffer, newState) = state match
-            case State.ProcessBOM => processByteOrderMark(t, buffer, sink)
-            case State.Pull       => doPull(t, buffer, sink)
+            case State.ProcessBOM => processByteOrderMark(t, buffer, emit)
+            case State.Pull       => doPull(t, buffer, emit)
 
           buffer = newBuffer
           state = newState
@@ -176,6 +176,6 @@ trait FlowTextOps[+T]:
       // end of channel before getting enough bytes to resolve BOM, assuming no BOM
       if buffer != null && buffer.nonEmpty then
         // There's a buffer accumulated (not BOM), decode it directly
-        sink.apply(buffer.asStringUtf8)
+        emit.apply(buffer.asStringUtf8)
   end decodeStringUtf8
 end FlowTextOps

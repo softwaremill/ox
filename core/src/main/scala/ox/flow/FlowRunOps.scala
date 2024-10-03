@@ -12,9 +12,9 @@ trait FlowRunOps[+T]:
   this: Flow[T] =>
 
   /** Invokes the given function for each emitted element. Blocks until the flow completes. */
-  def runForeach(sink: T => Unit): Unit = last.run(FlowSink.fromInline(t => sink(t)))
+  def runForeach(sink: T => Unit): Unit = last.run(FlowEmit.fromInline(t => sink(t)))
 
-  def runToSink(sink: FlowSink[T]): Unit = last.run(sink)
+  def runToSink(emit: FlowEmit[T]): Unit = last.run(emit)
 
   def runToChannel()(using OxUnsupervised, BufferCapacity): Source[T] =
     // if the previous stage is a source, there's no point in creating a new channel & fork, just to copy data
@@ -38,7 +38,7 @@ trait FlowRunOps[+T]:
     * Errors are always propagated. Successful flow completion is propagated when `propagateDone` is set to `true`.
     */
   def runPipeToSink(sink: Sink[T], propagateDone: Boolean): Unit =
-    last.run(FlowSink.fromInline(t => sink.send(t)))
+    last.run(FlowEmit.fromInline(t => sink.send(t)))
     if propagateDone then sink.doneOrClosed().discard
 
   /** Ignores all elements emitted by the flow. Blocks until the flow completes. */
@@ -47,7 +47,7 @@ trait FlowRunOps[+T]:
   /** Returns the last element emitted by this flow, wrapped in [[Some]], or [[None]] when this source is empty. */
   def runLastOption(): Option[T] =
     var value: Option[T] = None
-    last.run(FlowSink.fromInline: t =>
+    last.run(FlowEmit.fromInline: t =>
       value = Some(t))
     value
   end runLastOption
@@ -73,7 +73,7 @@ trait FlowRunOps[+T]:
     */
   def runFold[U](zero: U)(f: (U, T) => U): U =
     var current = zero
-    last.run(FlowSink.fromInline: t =>
+    last.run(FlowEmit.fromInline: t =>
       current = f(current, t))
     current
   end runFold
@@ -92,7 +92,7 @@ trait FlowRunOps[+T]:
     */
   def runReduce[U >: T](f: (U, U) => U): U =
     var current: Option[U] = None
-    last.run(FlowSink.fromInline: t =>
+    last.run(FlowEmit.fromInline: t =>
       current match
         case None    => current = Some(t)
         case Some(c) => current = Some(f(c, t))
@@ -120,7 +120,7 @@ trait FlowRunOps[+T]:
       buffer.sizeHint(n)
 
       last.run(
-        FlowSink.fromInline: t =>
+        FlowEmit.fromInline: t =>
           if buffer.size == n then buffer.dropInPlace(1)
           buffer.append(t)
       )

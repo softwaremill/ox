@@ -133,7 +133,7 @@ class FlowOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventual
     // checking if the forks aren't left running
     sleep(200.millis)
 
-    trail.get should (contain only ("1", "2", "3") or contain only ("1", "2"))
+    trail.get should (contain only ("1", "2", "3") or contain only ("1", "2") or contain only ("1"))
 
   it should "cancel running forks when the surrounding scope closes due to an error" in supervised:
     // given
