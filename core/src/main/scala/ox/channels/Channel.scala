@@ -39,7 +39,7 @@ case class Default[T](value: T) extends SelectClause[T]:
 //
 
 /** A channel source, which can be used to receive values from the channel. See [[Channel]] for more details. */
-trait Source[+T] extends SourceOps[T] with SourceDrainOps[T] with SourceIOOps[T] with SourceTextOps[T]:
+trait Source[+T] extends SourceOps[T] with SourceDrainOps[T]:
   protected def delegate: JSource[Any] // we need to use `Any` as the java types are invariant (they use use-site variance)
 
   // Skipping variance checks here is fine, as the only way a `Received` instance is created is by this Source (Channel),
@@ -105,7 +105,7 @@ end Source
   *
   * Some need to be run within a concurrency scope, such as [[supervised]].
   */
-object Source extends SourceCompanionOps with SourceCompanionIOOps
+object Source extends SourceCompanionOps
 
 //
 
