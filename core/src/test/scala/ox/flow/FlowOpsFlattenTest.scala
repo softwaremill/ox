@@ -108,8 +108,8 @@ class FlowOpsFlattenTest extends AnyFlatSpec with Matchers with OptionValues:
         child1.send(20)
         child1.done()
 
-      val flow = Flow.fromSender[Flow[Int]]: sender =>
-        sender(Flow.fromSource(child1))
+      val flow = Flow.usingSink[Flow[Int]]: sink =>
+        sink(Flow.fromSource(child1))
         lockB.await()
         throw new IllegalStateException()
 

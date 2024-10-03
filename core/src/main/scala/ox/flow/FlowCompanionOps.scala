@@ -19,52 +19,51 @@ import ox.channels.ChannelClosedUnion.isValue
 trait FlowCompanionOps:
   this: Flow.type =>
 
-  private[flow] inline def fromSink[T](inline runWithSink: FlowSink[T] => Unit): Flow[T] = Flow(
+  private[flow] inline def usingSinkInline[T](inline runWithSink: FlowSink[T] => Unit): Flow[T] = Flow(
     new FlowStage:
       override def run(sink: FlowSink[T]): Unit = runWithSink(sink)
+  )
+
+  def usingSink[T](withSink: FlowSink[T] => Unit): Flow[T] = Flow(
+    new FlowStage:
+      override def run(sink: FlowSink[T]): Unit = withSink(sink)
   )
 
   // TODO: by-name?
   // TODO optimizing fromSource + toChannel ?
   def fromSource[T](source: Source[T]): Flow[T] = Flow(FlowStage.fromSource(source))
 
-  def fromSender[T](withSender: FlowSender[T] => Unit): Flow[T] = fromSink: sink =>
-    withSender(
-      new FlowSender[T]:
-        def apply(t: T): Unit = sink.onNext(t)
-    )
-
   def fromIterable[T](it: Iterable[T]): Flow[T] = fromIterator(it.iterator)
 
   def fromValues[T](ts: T*): Flow[T] = fromIterator(ts.iterator)
 
-  def fromIterator[T](it: => Iterator[T]): Flow[T] = fromSink: sink =>
+  def fromIterator[T](it: => Iterator[T]): Flow[T] = usingSinkInline: sink =>
     val theIt = it
-    while theIt.hasNext do sink.onNext(theIt.next())
+    while theIt.hasNext do sink(theIt.next())
 
-  def fromFork[T](f: Fork[T]): Flow[T] = fromSink: sink =>
-    sink.onNext(f.join())
+  def fromFork[T](f: Fork[T]): Flow[T] = usingSinkInline: sink =>
+    sink(f.join())
 
-  def iterate[T](zero: T)(f: T => T): Flow[T] = fromSink: sink =>
+  def iterate[T](zero: T)(f: T => T): Flow[T] = usingSinkInline: sink =>
     var t = zero
     forever:
-      sink.onNext(t)
+      sink(t)
       t = f(t)
 
   /** A range of numbers, from `from`, to `to` (inclusive), stepped by `step`. */
-  def range(from: Int, to: Int, step: Int): Flow[Int] = fromSink: sink =>
+  def range(from: Int, to: Int, step: Int): Flow[Int] = usingSinkInline: sink =>
     var t = from
     repeatWhile:
-      sink.onNext(t)
+      sink(t)
       t = t + step
       t <= to
 
-  def unfold[S, T](initial: S)(f: S => Option[(T, S)]): Flow[T] = fromSink: sink =>
+  def unfold[S, T](initial: S)(f: S => Option[(T, S)]): Flow[T] = usingSinkInline: sink =>
     var s = initial
     repeatWhile:
       f(s) match
         case Some((value, next)) =>
-          sink.onNext(value)
+          sink(value)
           s = next
           true
         case None => false
@@ -82,10 +81,10 @@ trait FlowCompanionOps:
     * @param value
     *   The element to emitted on every tick.
     */
-  def tick[T](interval: FiniteDuration, value: T = ()): Flow[T] = fromSink: sink =>
+  def tick[T](interval: FiniteDuration, value: T = ()): Flow[T] = usingSinkInline: sink =>
     forever:
       val start = System.nanoTime()
-      sink.onNext(value)
+      sink(value)
       val end = System.nanoTime()
       val sleep = interval.toNanos - (end - start)
       if sleep > 0 then Thread.sleep(sleep / 1_000_000, (sleep % 1_000_000).toInt)
@@ -99,9 +98,9 @@ trait FlowCompanionOps:
     * @param f
     *   The code block, computing the element to emit.
     */
-  def repeatEval[T](f: => T): Flow[T] = fromSink: sink =>
+  def repeatEval[T](f: => T): Flow[T] = usingSinkInline: sink =>
     forever:
-      sink.onNext(f)
+      sink(f)
 
   /** Creates a flow, which emits the value contained in the result of evaluating `f` repeatedly. When the evaluation of `f` returns a
     * `None`, the flow is completed as "done", and no more values are evaluated or emitted.
@@ -111,23 +110,23 @@ trait FlowCompanionOps:
     * @param f
     *   The code block, computing the optional element to emit.
     */
-  def repeatEvalWhileDefined[T](f: => Option[T]): Flow[T] = fromSink: sink =>
+  def repeatEvalWhileDefined[T](f: => Option[T]): Flow[T] = usingSinkInline: sink =>
     repeatWhile:
       f match
-        case Some(value) => sink.onNext(value); true
+        case Some(value) => sink.apply(value); true
         case None        => false
 
   /** A flow which sleeps for the given `timeout` and then completes as done. */
-  def timeout[T](timeout: FiniteDuration): Flow[T] = fromSink: sink =>
+  def timeout[T](timeout: FiniteDuration): Flow[T] = usingSinkInline: sink =>
     sleep(timeout)
 
   // TODO: concat failed + values -> will it continue?
 
-  def concat[T](flows: Seq[Flow[T]]): Flow[T] = fromSink: sink =>
+  def concat[T](flows: Seq[Flow[T]]): Flow[T] = usingSinkInline: sink =>
     flows.iterator.foreach: currentFlow =>
-      currentFlow.runWithFlowSink(
+      currentFlow.runToSink(
         new FlowSink[T]:
-          override def onNext(t: T): Unit = sink.onNext(t)
+          override def apply(t: T): Unit = sink(t)
       )
 
   def empty[T]: Flow[T] = Flow(
@@ -136,8 +135,8 @@ trait FlowCompanionOps:
   )
 
   /** Creates a flow that emits a single element when `from` completes. */
-  def fromFuture[T](from: Future[T]): Flow[T] = fromSink: sink =>
-    sink.onNext(Await.result(from, Duration.Inf))
+  def fromFuture[T](from: Future[T]): Flow[T] = usingSinkInline: sink =>
+    sink(Await.result(from, Duration.Inf))
 
   /** Creates a flow that emits all elements from the given future source when `from` completes. */
   def fromFutureSource[T](from: Future[Source[T]]): Flow[T] =
@@ -175,7 +174,7 @@ trait FlowCompanionOps:
       case Nil           => Flow.empty
       case single :: Nil => single
       case _ =>
-        fromSink: sink =>
+        usingSinkInline: sink =>
           val results = StageCapacity.newChannel[T]
           unsupervised:
             forkUnsupervised:
@@ -213,7 +212,3 @@ trait FlowCompanionOps:
             FlowSink.channelToSink(results, sink)
 
 end FlowCompanionOps
-
-// a simplified sink used in .fromSender
-trait FlowSender[T]:
-  def apply(t: T): Unit

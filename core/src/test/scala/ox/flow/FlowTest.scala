@@ -20,13 +20,13 @@ import ox.supervised
 
 @main def test2(): Unit =
   Flow
-    .fromSender[Int] { send =>
-      send(1)
-      send(2)
-      send(3)
+    .usingSink[Int] { sink =>
+      sink(1)
+      sink(2)
+      sink(3)
       println("X")
-      send(4)
-      send(5)
+      sink(4)
+      sink(5)
     }
     .map(_ + 1)
     .runForeach(println)

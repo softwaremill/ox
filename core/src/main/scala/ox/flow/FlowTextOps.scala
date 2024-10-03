@@ -1,7 +1,7 @@
 package ox.flow
 
 import ox.*
-import ox.flow.Flow.fromSink
+import ox.flow.Flow.usingSinkInline
 
 import java.nio.charset.Charset
 import java.nio.charset.StandardCharsets
@@ -143,7 +143,7 @@ trait FlowTextOps[+T]:
 
     def doPull(bytes: T, buffer: Chunk[Byte], output: FlowSink[String]): (Chunk[Byte], State) =
       val (str, newBuf) = processSingleChunk(buffer, bytes)
-      if str != null then output.onNext(str)
+      if str != null then output.apply(str)
       (newBuf, State.Pull)
 
     def processByteOrderMark(bytes: T, buffer: Chunk[Byte], output: FlowSink[String]): (Chunk[Byte], State) =
@@ -160,23 +160,23 @@ trait FlowTextOps[+T]:
         else // We've accumulated less than BOM size but we already know that these bytes aren't BOM
           (newBuffer, State.Pull)
 
-    fromSink: sink =>
+    usingSinkInline: sink =>
       var state: State = State.ProcessBOM
       var buffer: Chunk[Byte] = null
 
-      last.run(new FlowSink[T]:
-        override def onNext(t: T): Unit =
-          val (newBuffer, newState) = state match
-            case State.ProcessBOM => processByteOrderMark(t, buffer, sink)
-            case State.Pull       => doPull(t, buffer, sink)
+      last.run(
+        new FlowSink[T]:
+          override def apply(t: T): Unit =
+            val (newBuffer, newState) = state match
+              case State.ProcessBOM => processByteOrderMark(t, buffer, sink)
+              case State.Pull       => doPull(t, buffer, sink)
 
-          buffer = newBuffer
-          state = newState
-        end onNext
+            buffer = newBuffer
+            state = newState
       )
       // end of channel before getting enough bytes to resolve BOM, assuming no BOM
       if buffer != null && buffer.nonEmpty then
         // There's a buffer accumulated (not BOM), decode it directly
-        sink.onNext(buffer.asStringUtf8)
+        sink.apply(buffer.asStringUtf8)
   end decodeStringUtf8
 end FlowTextOps

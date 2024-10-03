@@ -17,13 +17,13 @@ trait FlowStage[+T]:
 object FlowStage:
   def fromSource[T](source: Source[T]): FlowStage[T] =
     new FlowStage[T]:
-      def run(next: FlowSink[T]): Unit = FlowSink.channelToSink(source, next)
+      def run(sink: FlowSink[T]): Unit = FlowSink.channelToSink(source, sink)
 end FlowStage
 
 //
 
 trait FlowSink[-T]:
-  def onNext(t: T): Unit
+  def apply(t: T): Unit
 
 object FlowSink:
   /** Propagates all elements and closure events to the given sink. */
@@ -33,5 +33,5 @@ object FlowSink:
       t match
         case ChannelClosed.Done     => false
         case ChannelClosed.Error(r) => throw r
-        case t: T @unchecked        => sink.onNext(t); true
+        case t: T @unchecked        => sink(t); true
 end FlowSink

@@ -14,10 +14,10 @@ trait FlowRunOps[+T]:
   def runForeach(sink: T => Unit): Unit =
     last.run(
       new FlowSink[T]:
-        override def onNext(t: T): Unit = sink(t)
+        override def apply(t: T): Unit = sink(t)
     )
 
-  def runWithFlowSink(sink: FlowSink[T]): Unit = last.run(sink)
+  def runToSink(sink: FlowSink[T]): Unit = last.run(sink)
 
   def runToChannel()(using OxUnsupervised, StageCapacity): Source[T] =
     val ch = StageCapacity.newChannel[T]
@@ -37,7 +37,7 @@ trait FlowRunOps[+T]:
   def runPipeToSink(sink: Sink[T], propagateDone: Boolean): Unit =
     last.run(
       new FlowSink[T]:
-        override def onNext(t: T): Unit = sink.send(t)
+        override def apply(t: T): Unit = sink.send(t)
     )
     if propagateDone then sink.doneOrClosed().discard
 
@@ -49,7 +49,7 @@ trait FlowRunOps[+T]:
     var value: Option[T] = None
     last.run(
       new FlowSink[T]:
-        override def onNext(t: T): Unit = value = Some(t)
+        override def apply(t: T): Unit = value = Some(t)
     )
     value
   end runLastOption
@@ -77,7 +77,7 @@ trait FlowRunOps[+T]:
     var current = zero
     last.run(
       new FlowSink[T]:
-        override def onNext(t: T): Unit = current = f(current, t)
+        override def apply(t: T): Unit = current = f(current, t)
     )
     current
   end runFold
@@ -98,7 +98,7 @@ trait FlowRunOps[+T]:
     var current: Option[U] = None
     last.run(
       new FlowSink[T]:
-        override def onNext(t: T): Unit = current match
+        override def apply(t: T): Unit = current match
           case None    => current = Some(t)
           case Some(c) => current = Some(f(c, t))
     )
@@ -126,7 +126,7 @@ trait FlowRunOps[+T]:
 
       last.run(
         new FlowSink[T]:
-          override def onNext(t: T): Unit =
+          override def apply(t: T): Unit =
             if buffer.size == n then buffer.dropInPlace(1)
             buffer.append(t)
       )
