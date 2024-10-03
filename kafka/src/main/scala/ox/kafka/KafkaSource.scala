@@ -17,7 +17,7 @@ object KafkaSource:
       topic: String,
       otherTopics: String*
   ): Flow[ReceivedMessage[K, V]] =
-    Flow.fromUsingSink: sink =>
+    Flow.usingSink: sink =>
       supervised:
         val kafkaConsumerActor = KafkaConsumerWrapper(kafkaConsumer, closeWhenComplete)
         kafkaConsumerActor.tell(_.subscribe(topic :: otherTopics.toList))

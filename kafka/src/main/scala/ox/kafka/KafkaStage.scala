@@ -61,7 +61,7 @@ object KafkaStage:
     private def mapPublishAndCommit(producer: KafkaProducer[K, V], closeWhenComplete: Boolean, commitOffsets: Boolean)(using
         StageCapacity
     ): Flow[RecordMetadata] =
-      Flow.fromUsingSink { sink =>
+      Flow.usingSink { sink =>
         // a helper channel to signal any exceptions that occur while publishing or committing offsets
         // the exceptions & metadata channels are unlimited so as to only block the Kafka callback thread in the smallest
         // possible way

@@ -20,7 +20,7 @@ class FlowOpsConcatTest extends AnyFlatSpec with Matchers with Eventually:
     val evaluated = new AtomicBoolean(false)
     val f = Flow
       .failed(new IllegalStateException)
-      .concat(Flow.fromUsingSink(sink =>
+      .concat(Flow.usingSink(sink =>
         evaluated.set(true)
         sink(1)
       ))

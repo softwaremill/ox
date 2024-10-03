@@ -2,7 +2,6 @@ package ox.channels
 
 import com.softwaremill.jox.Source as JSource
 import ox.*
-import ox.channels.ChannelClosedUnion.isValue
 
 import java.util
 

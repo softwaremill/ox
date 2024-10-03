@@ -9,7 +9,7 @@ class FlowOpsUsingSinkTest extends AnyFlatSpec with Matchers:
 
   it should "send the passed elements" in:
     Flow
-      .fromUsingSink(sink =>
+      .usingSink(sink =>
         sink(1)
         sink(2)
         sink(3)

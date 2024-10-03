@@ -25,7 +25,7 @@ trait FlowCompanionOps:
       override def run(sink: FlowSink[T]): Unit = withSink(sink)
   )
 
-  def fromUsingSink[T](withSink: FlowSink[T] => Unit): Flow[T] = usingSinkInline(withSink)
+  def usingSink[T](withSink: FlowSink[T] => Unit): Flow[T] = usingSinkInline(withSink)
 
   def fromSource[T](source: Source[T]): Flow[T] = Flow(FlowStage.FromSource(source))
 
