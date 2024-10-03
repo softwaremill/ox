@@ -3,7 +3,7 @@ package ox.flow
 import ox.OxUnsupervised
 import ox.channels.Sink
 import ox.channels.Source
-import ox.channels.StageCapacity
+import ox.channels.BufferCapacity
 import ox.discard
 
 import scala.collection.mutable.ListBuffer
@@ -16,14 +16,14 @@ trait FlowRunOps[+T]:
 
   def runToSink(sink: FlowSink[T]): Unit = last.run(sink)
 
-  def runToChannel()(using OxUnsupervised, StageCapacity): Source[T] =
+  def runToChannel()(using OxUnsupervised, BufferCapacity): Source[T] =
     // if the previous stage is a source, there's no point in creating a new channel & fork, just to copy data
     // from one channel to another - then, returning the source directly. Otherwise, running the previous stage
     // in a fork
     last match
       case FlowStage.FromSource(source) => source
       case _ =>
-        val ch = StageCapacity.newChannel[T]
+        val ch = BufferCapacity.newChannel[T]
         runLastToChannelAsync(ch)
         ch
 

@@ -3,7 +3,7 @@ package ox.flow
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.*
-import ox.channels.StageCapacity
+import ox.channels.BufferCapacity
 import ox.channels.ChannelClosed
 
 class FlowOpsMapStatefulConcatTest extends AnyFlatSpec with Matchers:
@@ -55,7 +55,7 @@ class FlowOpsMapStatefulConcatTest extends AnyFlatSpec with Matchers:
 
     // then
     supervised:
-      given StageCapacity = StageCapacity(0) // so that the error isn't created too early
+      given BufferCapacity = BufferCapacity(0) // so that the error isn't created too early
       val c = flow2.runToChannel()
       c.receive() shouldBe "a"
       c.receive() shouldBe "b"
@@ -71,7 +71,7 @@ class FlowOpsMapStatefulConcatTest extends AnyFlatSpec with Matchers:
 
     // then
     supervised:
-      given StageCapacity = StageCapacity(0)
+      given BufferCapacity = BufferCapacity(0)
       val c = flow2.runToChannel()
       c.receive() shouldBe "a"
       c.receive() shouldBe "b"

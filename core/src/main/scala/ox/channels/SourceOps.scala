@@ -89,8 +89,8 @@ trait SourceOps[+T]:
     * @return
     *   A source, onto which results of the mapping function will be sent.
     */
-  def map[U](f: T => U)(using Ox, StageCapacity): Source[U] =
-    val c2 = StageCapacity.newChannel[U]
+  def map[U](f: T => U)(using Ox, BufferCapacity): Source[U] =
+    val c2 = BufferCapacity.newChannel[U]
     forkPropagate(c2) {
       repeatWhile {
         receiveOrClosed() match
@@ -117,7 +117,7 @@ trait SourceOps[+T]:
     * @return
     *   A source, which the elements from the input source are passed to.
     */
-  def tap(f: T => Unit)(using Ox, StageCapacity): Source[T] = map(t =>
+  def tap(f: T => Unit)(using Ox, BufferCapacity): Source[T] = map(t =>
     f(t); t
   )
 
@@ -137,8 +137,8 @@ trait SourceOps[+T]:
     * @return
     *   A source, onto which results of the mapping function will be sent.
     */
-  def collect[U](f: PartialFunction[T, U])(using Ox, StageCapacity): Source[U] =
-    val c2 = StageCapacity.newChannel[U]
+  def collect[U](f: PartialFunction[T, U])(using Ox, BufferCapacity): Source[U] =
+    val c2 = BufferCapacity.newChannel[U]
     forkPropagate(c2) {
       repeatWhile {
         receiveOrClosed() match
@@ -151,9 +151,9 @@ trait SourceOps[+T]:
     c2
   end collect
 
-  def filter(f: T => Boolean)(using Ox, StageCapacity): Source[T] = transform(_.filter(f))
+  def filter(f: T => Boolean)(using Ox, BufferCapacity): Source[T] = transform(_.filter(f))
 
-  def transform[U](f: Iterator[T] => Iterator[U])(using Ox, StageCapacity): Source[U] =
+  def transform[U](f: Iterator[T] => Iterator[U])(using Ox, BufferCapacity): Source[U] =
     val it = new Iterator[T]:
       private var v: Option[T | ChannelClosed] = None
       private def forceNext(): T | ChannelClosed = v match

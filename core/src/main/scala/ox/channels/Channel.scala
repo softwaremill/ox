@@ -239,7 +239,7 @@ end Sink
   *
   * Channels can be created using the channel's companion object. A rendezvous channel is created using [[Channel.rendezvous]]. A buffered
   * channel can be created either with a given capacity - by providing a positive integer to the [[Channel.buffered]] method - or with the
-  * default capacity ([[StageCapacity.default]]) using [[Channel.bufferedDefault]] . A rendezvous channel behaves like a buffered channel
+  * default capacity ([[BufferCapacity.default]]) using [[Channel.bufferedDefault]] . A rendezvous channel behaves like a buffered channel
   * with buffer size 0. An unlimited channel can be created using [[Channel.unlimited]].
   *
   * In a rendezvous channel, senders and receivers block, until a matching party arrives (unless one is already waiting). Similarly,
@@ -268,7 +268,7 @@ class Channel[T] private (capacity: Int) extends Source[T] with Sink[T]:
 
 object Channel:
   /** Creates a buffered channel with the default capacity (16). */
-  def bufferedDefault[T]: Channel[T] = StageCapacity.newChannel[T]
+  def bufferedDefault[T]: Channel[T] = BufferCapacity.newChannel[T]
 
   /** Creates a buffered channel with the given capacity. */
   def buffered[T](capacity: Int): Channel[T] = new Channel(capacity)

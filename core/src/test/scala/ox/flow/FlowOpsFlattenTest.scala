@@ -8,7 +8,7 @@ import ox.*
 import java.util.concurrent.CountDownLatch
 import scala.collection.mutable.ListBuffer
 import ox.channels.Channel
-import ox.channels.StageCapacity
+import ox.channels.BufferCapacity
 import ox.channels.ChannelClosed
 
 class FlowOpsFlattenTest extends AnyFlatSpec with Matchers with OptionValues:
@@ -85,7 +85,7 @@ class FlowOpsFlattenTest extends AnyFlatSpec with Matchers with OptionValues:
       val flow = Flow.fromValues(Flow.fromSource(child1), Flow.fromSource(child2))
 
       val flattenedFlow =
-        implicit val capacity: StageCapacity = StageCapacity(0)
+        implicit val capacity: BufferCapacity = BufferCapacity(0)
         flow.flatten
 
       an[IllegalStateException] should be thrownBy (flattenedFlow.runToList())
@@ -114,7 +114,7 @@ class FlowOpsFlattenTest extends AnyFlatSpec with Matchers with OptionValues:
         throw new IllegalStateException()
 
       val flattenedSource =
-        implicit val capacity: StageCapacity = StageCapacity(0)
+        implicit val capacity: BufferCapacity = BufferCapacity(0)
         flow.flatten.runToChannel()
 
       end flattenedSource

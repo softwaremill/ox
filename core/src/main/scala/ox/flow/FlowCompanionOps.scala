@@ -4,7 +4,7 @@ import ox.Fork
 import ox.channels.ChannelClosed
 import ox.channels.ChannelClosedUnion.isValue
 import ox.channels.Source
-import ox.channels.StageCapacity
+import ox.channels.BufferCapacity
 import ox.forever
 import ox.forkUnsupervised
 import ox.repeatWhile
@@ -160,13 +160,13 @@ trait FlowCompanionOps:
     *   If `true`, the returned flow is completed as soon as any of the flows completes. If `false`, the interleaving continues with the
     *   remaining non-completed flows.
     */
-  def interleaveAll[T](flows: Seq[Flow[T]], segmentSize: Int = 1, eagerComplete: Boolean = false)(using StageCapacity): Flow[T] =
+  def interleaveAll[T](flows: Seq[Flow[T]], segmentSize: Int = 1, eagerComplete: Boolean = false)(using BufferCapacity): Flow[T] =
     flows match
       case Nil           => Flow.empty
       case single :: Nil => single
       case _ =>
         usingSinkInline: sink =>
-          val results = StageCapacity.newChannel[T]
+          val results = BufferCapacity.newChannel[T]
           unsupervised:
             forkUnsupervised:
               val availableSources = mutable.ArrayBuffer.from(flows.map(_.runToChannel()))

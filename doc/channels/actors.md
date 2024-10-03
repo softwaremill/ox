@@ -18,7 +18,7 @@ project.
 ```
 
 An actor can be created given any value (representing the actor's state) using `Actor.create`. This creates a fork in 
-the current concurrency scope, and a channel (using the `StageCapacity` in scope) for scheduling invocations on the 
+the current concurrency scope, and a channel (using the `BufferCapacity` in scope) for scheduling invocations on the 
 actor's logic.
 
 The result is an `ActorRef`, using which invocations can be scheduled using either the `ask` or `tell` methods.

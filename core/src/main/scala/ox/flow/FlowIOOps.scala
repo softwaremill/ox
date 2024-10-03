@@ -2,7 +2,7 @@ package ox.flow
 
 import ox.*
 import ox.channels.ChannelClosed
-import ox.channels.StageCapacity
+import ox.channels.BufferCapacity
 
 import java.io.Closeable
 import java.io.IOException
@@ -19,7 +19,7 @@ trait FlowIOOps[+T]:
   outer: Flow[T] =>
 
   /** Creates a [[java.io.InputStream]] out of this flow. The InputStream can read bytes from the underlying channel. */
-  def runToInputStream()(using T <:< Chunk[Byte])(using Ox, StageCapacity): InputStream =
+  def runToInputStream()(using T <:< Chunk[Byte])(using Ox, BufferCapacity): InputStream =
     val ch = this.runToChannel()
     new InputStream:
       private var currentChunk: Iterator[Byte] = Iterator.empty

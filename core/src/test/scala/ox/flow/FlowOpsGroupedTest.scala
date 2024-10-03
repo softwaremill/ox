@@ -8,7 +8,7 @@ import ox.*
 
 import scala.util.{Success, Try}
 import ox.channels.ChannelClosed
-import ox.channels.StageCapacity
+import ox.channels.BufferCapacity
 
 class FlowOpsGroupedTest extends AnyFlatSpec with Matchers:
   behavior of "grouped"
@@ -46,7 +46,7 @@ class FlowOpsGroupedTest extends AnyFlatSpec with Matchers:
   behavior of "groupedWithin"
 
   it should "group first batch of elements due to limit and second batch due to timeout" in supervised:
-    val c = StageCapacity.newChannel[Int]
+    val c = BufferCapacity.newChannel[Int]
     val start = System.nanoTime()
     fork:
       c.send(1)
@@ -67,7 +67,7 @@ class FlowOpsGroupedTest extends AnyFlatSpec with Matchers:
     elementsWithEmittedTimeOffset(1)._2 should be >= 100.millis
 
   it should "group first batch of elements due to timeout and second batch due to limit" in supervised:
-    val c = StageCapacity.newChannel[Int]
+    val c = BufferCapacity.newChannel[Int]
     val start = System.nanoTime()
     fork:
       c.send(1)
@@ -91,7 +91,7 @@ class FlowOpsGroupedTest extends AnyFlatSpec with Matchers:
     elementsWithEmittedTimeOffset(1)._2 should be >= 150.millis
 
   it should "wake up on new element and send it immediately after first batch is sent and channel goes to time-out mode" in supervised:
-    val c = StageCapacity.newChannel[Int]
+    val c = BufferCapacity.newChannel[Int]
     val start = System.nanoTime()
     fork:
       c.send(1)
@@ -115,7 +115,7 @@ class FlowOpsGroupedTest extends AnyFlatSpec with Matchers:
     elementsWithEmittedTimeOffset(1)._2 should (be >= 200.millis and be < 250.millis)
 
   it should "send the group only once when the channel is closed" in supervised:
-    val c = StageCapacity.newChannel[Int]
+    val c = BufferCapacity.newChannel[Int]
     fork:
       c.send(1)
       c.send(2)
@@ -130,7 +130,7 @@ class FlowOpsGroupedTest extends AnyFlatSpec with Matchers:
   behavior of "groupedWeightedWithin"
 
   it should "group elements on timeout in the first batch and consider max weight in the remaining batches" in supervised:
-    val c = StageCapacity.newChannel[Int]
+    val c = BufferCapacity.newChannel[Int]
     fork:
       c.send(1)
       c.send(2)

@@ -44,10 +44,10 @@ supervised {
 ## Capacity of transformation stages
 
 Most source transformation methods create new channels, on which the transformed values are produced. The capacity of
-these channels by default is 16 (buffered). This can be overridden by providing `StageCapacity` given, e.g.:
+these channels by default is 16 (buffered). This can be overridden by providing `BufferCapacity` given, e.g.:
 
 ```scala
-(v: Source[Int]).map(_ + 1)(using StageCapacity(10))
+(v: Source[Int]).map(_ + 1)(using BufferCapacity(10))
 ```
 
 ## Transforming lazily

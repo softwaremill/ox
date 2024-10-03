@@ -21,7 +21,7 @@ object KafkaStage:
       * @return
       *   A stream of published records metadata, in the order in which the [[ProducerRecord]]s are received.
       */
-    def mapPublish(settings: ProducerSettings[K, V])(using StageCapacity): Flow[RecordMetadata] =
+    def mapPublish(settings: ProducerSettings[K, V])(using BufferCapacity): Flow[RecordMetadata] =
       mapPublish(settings.toProducer, closeWhenComplete = true)
 
     /** Publish the messages using the given `producer`. The producer is closed depending on the `closeWhenComplete` flag, after all
@@ -30,7 +30,7 @@ object KafkaStage:
       * @return
       *   A stream of published records metadata, in the order in which the [[ProducerRecord]]s are received.
       */
-    def mapPublish(producer: KafkaProducer[K, V], closeWhenComplete: Boolean)(using StageCapacity): Flow[RecordMetadata] =
+    def mapPublish(producer: KafkaProducer[K, V], closeWhenComplete: Boolean)(using BufferCapacity): Flow[RecordMetadata] =
       flow.map(r => SendPacket(List(r), Nil)).mapPublishAndCommit(producer, closeWhenComplete, commitOffsets = false)
   end extension
 
@@ -42,7 +42,7 @@ object KafkaStage:
       * @return
       *   A stream of published records metadata, in the order in which the [[SendPacket]]s are received.
       */
-    def mapPublishAndCommit(producerSettings: ProducerSettings[K, V])(using StageCapacity): Flow[RecordMetadata] =
+    def mapPublishAndCommit(producerSettings: ProducerSettings[K, V])(using BufferCapacity): Flow[RecordMetadata] =
       mapPublishAndCommit(producerSettings.toProducer, closeWhenComplete = true)
 
     /** For each packet, first all messages (producer records) are sent, using the given `producer`. Then, all messages from
@@ -55,11 +55,11 @@ object KafkaStage:
       * @return
       *   A stream of published records metadata, in the order in which the [[SendPacket]]s are received.
       */
-    def mapPublishAndCommit(producer: KafkaProducer[K, V], closeWhenComplete: Boolean)(using StageCapacity): Flow[RecordMetadata] =
+    def mapPublishAndCommit(producer: KafkaProducer[K, V], closeWhenComplete: Boolean)(using BufferCapacity): Flow[RecordMetadata] =
       mapPublishAndCommit(producer, closeWhenComplete, commitOffsets = true)
 
     private def mapPublishAndCommit(producer: KafkaProducer[K, V], closeWhenComplete: Boolean, commitOffsets: Boolean)(using
-        StageCapacity
+        BufferCapacity
     ): Flow[RecordMetadata] =
       Flow.usingSink { sink =>
         // a helper channel to signal any exceptions that occur while publishing or committing offsets
@@ -69,7 +69,7 @@ object KafkaStage:
         // possible out-of-order metadata of the records published from `packet.send`
         val metadata = Channel.unlimited[(Long, RecordMetadata)]
         // packets which are fully sent, and should be committed
-        val toCommit = StageCapacity.newChannel[SendPacket[_, _]]
+        val toCommit = BufferCapacity.newChannel[SendPacket[_, _]]
 
         // used to reorder values received from `metadata` using the assigned sequence numbers
         val sendInSequence = SendInSequence(sink)

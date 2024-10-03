@@ -29,13 +29,13 @@ trait SourceCompanionOps:
     c.errorOrClosed(t)
     c
 
-  def fromIterable[T](it: Iterable[T])(using Ox, StageCapacity): Source[T] = fromIterator(it.iterator)
+  def fromIterable[T](it: Iterable[T])(using Ox, BufferCapacity): Source[T] = fromIterator(it.iterator)
 
-  def fromValues[T](ts: T*)(using Ox, StageCapacity): Source[T] = fromIterator(ts.iterator)
+  def fromValues[T](ts: T*)(using Ox, BufferCapacity): Source[T] = fromIterator(ts.iterator)
 
-  def fromIterator[T](it: => Iterator[T])(using Ox, StageCapacity): Source[T] = Flow.fromIterator(it).runToChannel()
+  def fromIterator[T](it: => Iterator[T])(using Ox, BufferCapacity): Source[T] = Flow.fromIterator(it).runToChannel()
 
-  def fromFork[T](f: Fork[T])(using Ox, StageCapacity): Source[T] = Flow.fromFork(f).runToChannel()
+  def fromFork[T](f: Fork[T])(using Ox, BufferCapacity): Source[T] = Flow.fromFork(f).runToChannel()
 
   /** Creates a source that emits a single value when `from` completes or fails otherwise. The `from` completion is performed on the
     * provided [[scala.concurrent.ExecutionContext]]. Note that when `from` fails with [[scala.concurrent.ExecutionException]] then its
@@ -61,8 +61,8 @@ trait SourceCompanionOps:
     *   }
     *   }}}
     */
-  def fromFuture[T](from: Future[T])(using StageCapacity, ExecutionContext): Source[T] =
-    val c = StageCapacity.newChannel[T]
+  def fromFuture[T](from: Future[T])(using BufferCapacity, ExecutionContext): Source[T] =
+    val c = BufferCapacity.newChannel[T]
     receiveAndSendFromFuture(from, c)
     c
 
@@ -90,9 +90,9 @@ trait SourceCompanionOps:
     *   }
     *   }}}
     */
-  def fromFutureSource[T](from: Future[Source[T]])(using Ox, StageCapacity, ExecutionContext): Source[T] =
-    val c = StageCapacity.newChannel[T]
-    val transportChannel = StageCapacity.newChannel[Source[T]](using StageCapacity(1))
+  def fromFutureSource[T](from: Future[Source[T]])(using Ox, BufferCapacity, ExecutionContext): Source[T] =
+    val c = BufferCapacity.newChannel[T]
+    val transportChannel = BufferCapacity.newChannel[Source[T]](using BufferCapacity(1))
 
     receiveAndSendFromFuture(from, transportChannel)
 

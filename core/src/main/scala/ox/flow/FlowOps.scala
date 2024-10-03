@@ -9,7 +9,7 @@ import ox.channels.ChannelClosed
 import ox.channels.Default
 import ox.channels.Sink
 import ox.channels.Source
-import ox.channels.StageCapacity
+import ox.channels.BufferCapacity
 import ox.channels.forkPropagate
 import ox.channels.forkUserPropagate
 import ox.channels.selectOrClosed
@@ -29,8 +29,8 @@ import scala.concurrent.duration.FiniteDuration
 class FlowOps[+T]:
   outer: Flow[T] =>
 
-  def async()(using StageCapacity): Flow[T] = Flow.usingSinkInline: sink =>
-    val ch = StageCapacity.newChannel[T]
+  def async()(using BufferCapacity): Flow[T] = Flow.usingSinkInline: sink =>
+    val ch = BufferCapacity.newChannel[T]
     unsupervised:
       runLastToChannelAsync(ch)
       FlowSink.channelToSink(ch, sink)
@@ -110,10 +110,10 @@ class FlowOps[+T]:
     * @param f
     *   The mapping function.
     */
-  def mapPar[U](parallelism: Int)(f: T => U)(using StageCapacity): Flow[U] = Flow.usingSinkInline: sink =>
+  def mapPar[U](parallelism: Int)(f: T => U)(using BufferCapacity): Flow[U] = Flow.usingSinkInline: sink =>
     val s = new Semaphore(parallelism)
     val inProgress = Channel.withCapacity[Fork[Option[U]]](parallelism)
-    val results = StageCapacity.newChannel[U]
+    val results = BufferCapacity.newChannel[U]
 
     def forkMapping(t: T)(using OxUnsupervised): Fork[Option[U]] =
       forkUnsupervised:
@@ -157,8 +157,8 @@ class FlowOps[+T]:
       FlowSink.channelToSink(results, sink)
   end mapPar
 
-  def mapParUnordered[U](parallelism: Int)(f: T => U)(using StageCapacity): Flow[U] = Flow.usingSinkInline: sink =>
-    val results = StageCapacity.newChannel[U]
+  def mapParUnordered[U](parallelism: Int)(f: T => U)(using BufferCapacity): Flow[U] = Flow.usingSinkInline: sink =>
+    val results = BufferCapacity.newChannel[U]
     val s = new Semaphore(parallelism)
     unsupervised: // the outer scope, used for the fork which runs the `last` pipeline
       forkPropagate(results):
@@ -225,7 +225,7 @@ class FlowOps[+T]:
         else sink(t)
     )
 
-  def merge[U >: T](other: Flow[U])(using StageCapacity): Flow[U] = Flow.usingSinkInline: sink =>
+  def merge[U >: T](other: Flow[U])(using BufferCapacity): Flow[U] = Flow.usingSinkInline: sink =>
     unsupervised:
       val c1 = outer.runToChannel()
       val c2 = other.runToChannel()
@@ -241,7 +241,7 @@ class FlowOps[+T]:
   /** Pipes the elements of child flows into the output source. If the parent source or any of the child sources emit an error, the pulling
     * stops and the output source emits the error.
     */
-  def flatten[U](using T <:< Flow[U])(using StageCapacity): Flow[U] = Flow.usingSinkInline: sink =>
+  def flatten[U](using T <:< Flow[U])(using BufferCapacity): Flow[U] = Flow.usingSinkInline: sink =>
     case class Nested(child: Flow[U])
 
     unsupervised:
@@ -348,7 +348,7 @@ class FlowOps[+T]:
     *   If `true`, the returned flow is completed as soon as either of the flow completes. If `false`, the remaining elements of the
     *   non-completed flow are sent downstream.
     */
-  def interleave[U >: T](other: Flow[U], segmentSize: Int = 1, eagerComplete: Boolean = false)(using StageCapacity): Flow[U] =
+  def interleave[U >: T](other: Flow[U], segmentSize: Int = 1, eagerComplete: Boolean = false)(using BufferCapacity): Flow[U] =
     Flow.interleaveAll(List(this, other), segmentSize, eagerComplete)
 
   /** Applies the given mapping function `f`, using additional state, to each element emitted by this flow. The results are emitted by the
@@ -522,8 +522,8 @@ class FlowOps[+T]:
     Flow.usingSinkInline: sink =>
       unsupervised:
         val c = outer.runToChannel()
-        val c2 = StageCapacity.newChannel[Seq[T]]
-        val timerChannel = StageCapacity.newChannel[GroupingTimeout.type]
+        val c2 = BufferCapacity.newChannel[Seq[T]]
+        val timerChannel = BufferCapacity.newChannel[GroupingTimeout.type]
         forkPropagate(c2):
           var buffer = Vector.empty[T]
           var accumulatedCost: Long = 0

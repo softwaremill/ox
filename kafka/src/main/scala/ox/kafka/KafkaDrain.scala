@@ -11,10 +11,12 @@ import ox.flow.Flow
 object KafkaDrain:
   private val logger = LoggerFactory.getLogger(classOf[KafkaDrain.type])
 
-  def runPublish[K, V](settings: ProducerSettings[K, V])(using StageCapacity): Flow[ProducerRecord[K, V]] => Unit = flow =>
+  def runPublish[K, V](settings: ProducerSettings[K, V])(using BufferCapacity): Flow[ProducerRecord[K, V]] => Unit = flow =>
     runPublish(settings.toProducer, closeWhenComplete = true)(flow)
 
-  def runPublish[K, V](producer: KafkaProducer[K, V], closeWhenComplete: Boolean)(using StageCapacity): Flow[ProducerRecord[K, V]] => Unit =
+  def runPublish[K, V](producer: KafkaProducer[K, V], closeWhenComplete: Boolean)(using
+      BufferCapacity
+  ): Flow[ProducerRecord[K, V]] => Unit =
     flow =>
       // if sending multiple records ends in an exception, we'll receive at most one anyway; we don't want to block the
       // producers, hence creating an unbounded channel
@@ -45,7 +47,7 @@ object KafkaDrain:
     *   A drain, which consumes all packets from the provided `Source`.. For each packet, first all `send` messages (producer records) are
     *   sent. Then, all `commit` messages (consumer records) up to their offsets are committed.
     */
-  def runPublishAndCommit[K, V](producerSettings: ProducerSettings[K, V])(using StageCapacity): Flow[SendPacket[K, V]] => Unit =
+  def runPublishAndCommit[K, V](producerSettings: ProducerSettings[K, V])(using BufferCapacity): Flow[SendPacket[K, V]] => Unit =
     flow => runPublishAndCommit(producerSettings.toProducer, closeWhenComplete = true)(flow)
 
   /** @param producer
@@ -55,7 +57,7 @@ object KafkaDrain:
     *   sent. Then, all `commit` messages (consumer records) up to their offsets are committed.
     */
   def runPublishAndCommit[K, V](producer: KafkaProducer[K, V], closeWhenComplete: Boolean)(using
-      StageCapacity
+      BufferCapacity
   ): Flow[SendPacket[K, V]] => Unit = flow =>
     import KafkaStage.*
     flow.mapPublishAndCommit(producer, closeWhenComplete).runDrain()

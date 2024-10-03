@@ -10,7 +10,7 @@ import scala.concurrent.duration.*
 
 import java.util.concurrent.atomic.AtomicInteger
 import ox.channels.ChannelClosed
-import ox.channels.StageCapacity
+import ox.channels.BufferCapacity
 
 class FlowOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventually:
 

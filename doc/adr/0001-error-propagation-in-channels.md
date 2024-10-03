@@ -32,8 +32,8 @@ However, we keep in mind that they might not be able to send to downstream chann
 Let's have a look at the error handling in `Source.mapParUnordered` to demonstrate our approach. This operator applies a mapping function to a given number of elements in parallel, and is implemented as follows:
 
 ```scala
-def mapParUnordered[U](parallelism: Int)(f: T => U)(using Ox, StageCapacity): Source[U] =
-  val c = StageCapacity.newChannel[U]
+def mapParUnordered[U](parallelism: Int)(f: T => U)(using Ox, BufferCapacity): Source[U] =
+  val c = BufferCapacity.newChannel[U]
   val s = new Semaphore(parallelism)
   forkDaemon {
     supervised {                                          // (1)
