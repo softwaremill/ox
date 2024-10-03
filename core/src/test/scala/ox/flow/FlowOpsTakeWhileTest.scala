@@ -20,7 +20,7 @@ class FlowOpsTakeWhileTest extends AnyFlatSpec with Matchers:
     Flow.fromValues(1, 2, 3).takeWhile(_ < 5).runToList() shouldBe List(1, 2, 3)
 
   it should "fail the sourcewith the same exception as the initial source" in:
-    val f = Flow.usingSink: sink =>
+    val f = Flow.fromUsingSink: sink =>
       sink(1)
       throw new IllegalArgumentException()
 

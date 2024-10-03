@@ -25,7 +25,7 @@ trait FlowCompanionOps:
       override def run(sink: FlowSink[T]): Unit = withSink(sink)
   )
 
-  def usingSink[T](withSink: FlowSink[T] => Unit): Flow[T] = usingSinkInline(withSink)
+  def fromUsingSink[T](withSink: FlowSink[T] => Unit): Flow[T] = usingSinkInline(withSink)
 
   def fromSource[T](source: Source[T]): Flow[T] = Flow(FlowStage.FromSource(source))
 
@@ -115,8 +115,6 @@ trait FlowCompanionOps:
   /** A flow which sleeps for the given `timeout` and then completes as done. */
   def timeout[T](timeout: FiniteDuration): Flow[T] = usingSinkInline: sink =>
     sleep(timeout)
-
-  // TODO: concat failed + values -> will it continue?
 
   def concat[T](flows: Seq[Flow[T]]): Flow[T] = usingSinkInline: sink =>
     flows.iterator.foreach: currentFlow =>
