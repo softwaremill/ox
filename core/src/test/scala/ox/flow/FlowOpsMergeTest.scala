@@ -31,4 +31,24 @@ class FlowOpsMergeTest extends AnyFlatSpec with Matchers:
     val r = c1.merge(c2).runToList()
     r should contain inOrder (0, 1, 2, 3)
     r.takeRight(2) shouldBe List(0, 0)
+
+  it should "propagate error from the left" in:
+    val c1 = Flow.fromValues(1, 2, 3).concat(Flow.failed(new IllegalStateException))
+    val c2 = Flow.fromValues(4, 5, 6)
+
+    val s = c1.merge(c2)
+
+    intercept[IllegalStateException] {
+      s.runToList()
+    }
+
+  it should "propagate error from the right" in:
+    val c1 = Flow.fromValues(1, 2, 3)
+    val c2 = Flow.fromValues(4, 5, 6).concat(Flow.failed(new IllegalStateException))
+
+    val s = c1.merge(c2)
+
+    intercept[IllegalStateException] {
+      s.runToList()
+    }
 end FlowOpsMergeTest

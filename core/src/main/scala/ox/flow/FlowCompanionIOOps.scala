@@ -25,9 +25,7 @@ trait FlowCompanionIOOps:
       repeatWhile:
         val buf = new Array[Byte](chunkSize)
         val readBytes = is.read(buf)
-        if readBytes == -1 then
-          sink.onDone()
-          false
+        if readBytes == -1 then false
         else
           if readBytes > 0 then sink.onNext(if readBytes == chunkSize then Chunk.fromArray(buf) else Chunk.fromArray(buf.take(readBytes)))
           true
@@ -55,9 +53,7 @@ trait FlowCompanionIOOps:
       repeatWhile:
         val buf = ByteBuffer.allocate(chunkSize)
         val readBytes = jFileChannel.read(buf)
-        if readBytes < 0 then
-          sink.onDone()
-          false
+        if readBytes < 0 then false
         else
           if readBytes > 0 then sink.onNext(Chunk.fromArray(if readBytes == chunkSize then buf.array else buf.array.take(readBytes)))
           true

@@ -38,9 +38,17 @@ class FlowOps[+T]:
 
   //
 
-  def map[U](f: T => U): Flow[U] = addTransformSinkStage(next => FlowSink.propagateClose(next)(t => next.onNext(f(t))))
+  def map[U](f: T => U): Flow[U] = fromSink: sink =>
+    last.run(
+      new FlowSink[T]:
+        override def onNext(t: T): Unit = sink.onNext(f(t))
+    )
 
-  def filter(f: T => Boolean): Flow[T] = addTransformSinkStage(next => FlowSink.propagateClose(next)(t => if f(t) then next.onNext(t)))
+  def filter(f: T => Boolean): Flow[T] = fromSink: sink =>
+    last.run(
+      new FlowSink[T]:
+        override def onNext(t: T): Unit = if f(t) then sink.onNext(t)
+    )
 
   /** Applies the given mapping function `f` to each element emitted by this flow, for which the function is defined, and emits the result.
     * If `f` is not defined at an element, the element will be skipped.
@@ -48,8 +56,11 @@ class FlowOps[+T]:
     * @param f
     *   The mapping function.
     */
-  def collect[U](f: PartialFunction[T, U]): Flow[U] =
-    addTransformSinkStage(next => FlowSink.propagateClose(next)(t => if f.isDefinedAt(t) then next.onNext(f(t))))
+  def collect[U](f: PartialFunction[T, U]): Flow[U] = fromSink: sink =>
+    last.run(
+      new FlowSink[T]:
+        override def onNext(t: T): Unit = if f.isDefinedAt(t) then sink.onNext(f(t))
+    )
 
   def tap(f: T => Unit): Flow[T] = map(t =>
     f(t); t
@@ -78,12 +89,8 @@ class FlowOps[+T]:
           if firstEmitted then sink.onNext(inject)
           sink.onNext(t)
           firstEmitted = true
-        override def onDone(): Unit =
-          end.foreach(sink.onNext)
-          sink.onDone()
-        override def onError(e: Throwable): Unit =
-          sink.onError(e)
     )
+    end.foreach(sink.onNext)
 
   /** Applies the given mapping function `f` to each element emitted by this flow. At most `parallelism` invocations of `f` are run in
     * parallel.
@@ -117,19 +124,16 @@ class FlowOps[+T]:
     // unsupervised
     unsupervised:
       // a fork which runs the `last` pipeline, and for each emitted element creates a fork
+      // notifying only the `results` channels, as it will cause the scope to end, and any other forks to be
+      // interrupted, including the inProgress-fork, which might be waiting on a join()
       forkPropagate(results):
-        last.run(new FlowSink[T]:
-          override def onNext(t: T): Unit =
-            s.acquire()
-            inProgress.sendOrClosed(forkMapping(t)).discard
-
-          override def onDone(): Unit = inProgress.doneOrClosed().discard
-
-          override def onError(e: Throwable): Unit =
-            // notifying only the `results` channels, as it will cause the scope to end, and any other forks to be
-            // interrupted, including the inProgress-fork, which might be waiting on a join()
-            results.errorOrClosed(e).discard
+        last.run(
+          new FlowSink[T]:
+            override def onNext(t: T): Unit =
+              s.acquire()
+              inProgress.sendOrClosed(forkMapping(t)).discard
         )
+        inProgress.doneOrClosed().discard
 
       // a fork in which we wait for the created forks to finish (in sequence), and forward the mapped values to `results`
       // this extra step is needed so that if there's an error in any of the mapping forks, it's discovered as quickly as
@@ -144,11 +148,7 @@ class FlowOps[+T]:
 
       // in the main body, we call the `sink` methods using the (sequentially received) results; when an error occurs,
       // the scope ends, interrupting any forks that are still running
-      repeatWhile:
-        results.receiveOrClosed() match
-          case ChannelClosed.Done     => sink.onDone(); false
-          case ChannelClosed.Error(e) => sink.onError(e); false
-          case u: U @unchecked        => sink.onNext(u); true
+      FlowSink.channelToSink(results, sink)
   end mapPar
 
   def mapParUnordered[U](parallelism: Int)(f: T => U)(using StageCapacity): Flow[U] = fromSink: sink =>
@@ -157,17 +157,18 @@ class FlowOps[+T]:
     unsupervised: // the outer scope, used for the fork which runs the `last` pipeline
       forkPropagate(results):
         supervised: // the inner scope, in which user forks are created, and which is used to wait for all to complete when done
-          last.run(new FlowSink[T]:
-            override def onNext(t: T): Unit =
-              s.acquire()
-              forkUserPropagate(results):
-                results.sendOrClosed(f(t))
-                s.release()
-              .discard
-            end onNext
-            override def onDone(): Unit = () // only completing `results` once all forks finish
-            override def onError(e: Throwable): Unit = results.errorOrClosed(e).discard
-          )
+          last
+            .run(new FlowSink[T]:
+              override def onNext(t: T): Unit =
+                s.acquire()
+                forkUserPropagate(results):
+                  results.sendOrClosed(f(t))
+                  s.release()
+                .discard
+              end onNext
+            )
+            // if run() throws, we want this to become the "main" error, instead of an InterruptedException
+            .tapException(results.errorOrClosed(_).discard)
         results.doneOrClosed().discard
 
       FlowSink.channelToSink(results, sink)
@@ -177,18 +178,17 @@ class FlowOps[+T]:
   def take(n: Int): Flow[T] = fromSink: sink =>
     var taken = 0
     try
-      last.run(new FlowSink[T]:
-        override def onNext(t: T): Unit =
-          if taken < n then
-            sink.onNext(t)
-            taken += 1
+      last.run(
+        new FlowSink[T]:
+          override def onNext(t: T): Unit =
+            if taken < n then
+              sink.onNext(t)
+              taken += 1
 
-          if taken == n then throw abortTake
-        override def onDone(): Unit = sink.onDone()
-        override def onError(e: Throwable): Unit = sink.onError(e)
+            if taken == n then throw abortTake
       )
-    catch case `abortTake` => sink.onDone()
-    end try
+    catch case `abortTake` => () // done
+
   /** Transform the flow so that it emits elements as long as predicate `f` is satisfied (returns `true`). If `includeFirstFailing` is
     * `true`, the flow will additionally emit the first element that failed the predicate. After that, the flow will complete as done.
     *
@@ -199,16 +199,15 @@ class FlowOps[+T]:
     */
   def takeWhile(f: T => Boolean, includeFirstFailing: Boolean = false): Flow[T] = fromSink: sink =>
     try
-      last.run(new FlowSink[T]:
-        override def onNext(t: T): Unit =
-          if f(t) then sink.onNext(t)
-          else
-            if includeFirstFailing then sink.onNext(t)
-            throw abortTake
-        override def onDone(): Unit = sink.onDone()
-        override def onError(e: Throwable): Unit = sink.onError(e)
+      last.run(
+        new FlowSink[T]:
+          override def onNext(t: T): Unit =
+            if f(t) then sink.onNext(t)
+            else
+              if includeFirstFailing then sink.onNext(t)
+              throw abortTake
       )
-    catch case `abortTake` => sink.onDone()
+    catch case `abortTake` => () // done
 
   /** Drops `n` elements from this flow and emits subsequent elements.
     *
@@ -217,12 +216,11 @@ class FlowOps[+T]:
     */
   def drop(n: Int): Flow[T] = fromSink: sink =>
     var dropped = 0
-    last.run(new FlowSink[T]:
-      override def onNext(t: T): Unit =
-        if dropped < n then dropped += 1
-        else sink.onNext(t)
-      override def onDone(): Unit = sink.onDone()
-      override def onError(e: Throwable): Unit = sink.onError(e)
+    last.run(
+      new FlowSink[T]:
+        override def onNext(t: T): Unit =
+          if dropped < n then dropped += 1
+          else sink.onNext(t)
     )
 
   def merge[U >: T](other: Flow[U])(using StageCapacity): Flow[U] = fromSink: sink =>
@@ -235,7 +233,7 @@ class FlowOps[+T]:
           case ChannelClosed.Done =>
             if c1.isClosedForReceive then FlowSink.channelToSink(c2, sink) else FlowSink.channelToSink(c1, sink)
             false
-          case ChannelClosed.Error(r) => sink.onError(r); false
+          case ChannelClosed.Error(r) => throw r
           case r: U @unchecked        => sink.onNext(r); true
 
   /** Pipes the elements of child flows into the output source. If the parent source or any of the child sources emit an error, the pulling
@@ -253,13 +251,9 @@ class FlowOps[+T]:
           case ChannelClosed.Done =>
             // TODO: optimization idea: find a way to remove the specific channel that signalled to be Done
             pool = pool.filterNot(_.isClosedForReceiveDetail.contains(ChannelClosed.Done))
-            if pool.isEmpty then
-              sink.onDone()
-              false
+            if pool.isEmpty then false
             else true
-          case ChannelClosed.Error(e) =>
-            sink.onError(e)
-            false
+          case ChannelClosed.Error(e) => throw e
           case Nested(t) =>
             pool = t.runToChannel() :: pool
             true
@@ -292,12 +286,12 @@ class FlowOps[+T]:
 
       repeatWhile:
         s1.receiveOrClosed() match
-          case ChannelClosed.Done     => sink.onDone(); false
-          case ChannelClosed.Error(r) => sink.onError(r); false
+          case ChannelClosed.Done     => false
+          case ChannelClosed.Error(r) => throw r
           case t: T @unchecked =>
             s2.receiveOrClosed() match
-              case ChannelClosed.Done     => sink.onDone(); false
-              case ChannelClosed.Error(r) => sink.onError(r); false
+              case ChannelClosed.Done     => false
+              case ChannelClosed.Error(r) => throw r
               case u: U @unchecked        => sink.onNext((t, u)); true
 
   /** Combines elements from this and the other flow into tuples, handling early completion of either flow with defaults. The flows are run
@@ -318,7 +312,7 @@ class FlowOps[+T]:
       def receiveFromOther(thisElement: U, otherDoneHandler: () => Boolean): Boolean =
         s2.receiveOrClosed() match
           case ChannelClosed.Done     => otherDoneHandler()
-          case ChannelClosed.Error(r) => sink.onError(r); false
+          case ChannelClosed.Error(r) => throw r
           case v: V @unchecked        => sink.onNext((thisElement, v)); true
 
       repeatWhile:
@@ -326,10 +320,9 @@ class FlowOps[+T]:
           case ChannelClosed.Done =>
             receiveFromOther(
               thisDefault,
-              () =>
-                sink.onDone(); false
+              () => false
             )
-          case ChannelClosed.Error(r) => sink.onError(r); false
+          case ChannelClosed.Error(r) => throw r
           case t: T @unchecked =>
             receiveFromOther(
               t,
@@ -404,16 +397,14 @@ class FlowOps[+T]:
       initializeState: () => S
   )(f: (S, T) => (S, IterableOnce[U]), onComplete: S => Option[U] = (_: S) => None): Flow[U] = fromSink: sink =>
     var state = initializeState()
-    last.run(new FlowSink[T]:
-      override def onNext(t: T): Unit =
-        val (nextState, result) = f(state, t)
-        state = nextState
-        result.iterator.foreach(sink.onNext)
-      override def onDone(): Unit =
-        onComplete(state).foreach(sink.onNext)
-        sink.onDone()
-      override def onError(e: Throwable): Unit = sink.onError(e)
+    last.run(
+      new FlowSink[T]:
+        override def onNext(t: T): Unit =
+          val (nextState, result) = f(state, t)
+          state = nextState
+          result.iterator.foreach(sink.onNext)
     )
+    onComplete(state).foreach(sink.onNext)
   end mapStatefulConcat
 
   /** Applies the given mapping function `f`, to each element emitted by this source, transforming it into an [[IterableOnce]] of results,
@@ -423,8 +414,12 @@ class FlowOps[+T]:
     *   A function that transforms the element from this flow into an [[IterableOnce]] of results which are emitted one by one by the
     *   returned flow. If the result of `f` is empty, nothing is emitted by the returned channel.
     */
-  def mapConcat[U](f: T => IterableOnce[U]): Flow[U] =
-    addTransformSinkStage(next => FlowSink.propagateClose(next)(t => f(t).iterator.foreach(next.onNext)))
+  def mapConcat[U](f: T => IterableOnce[U]): Flow[U] = fromSink: sink =>
+    last.run(
+      new FlowSink[T]:
+        override def onNext(t: T): Unit =
+          f(t).iterator.foreach(sink.onNext)
+    )
 
   /** Emits elements limiting the throughput to specific number of elements (evenly spaced) per time unit. Note that the element's
     * emission-time time is included in the resulting throughput. For instance having `throttle(1, 1.second)` and emission of the next
@@ -451,18 +446,15 @@ class FlowOps[+T]:
     * @param alternative
     *   An alternative flow to be used when this flow is empty.
     */
-  def orElse[U >: T](alternative: Flow[U]): Flow[U] =
-    addTransformSinkStage(next =>
+  def orElse[U >: T](alternative: Flow[U]): Flow[U] = fromSink: sink =>
+    var receivedAtLeastOneElement = false
+    last.run(
       new FlowSink[U]:
-        private var receivedAtLeastOneElement = false
         override def onNext(t: U): Unit =
-          next.onNext(t)
+          sink.onNext(t)
           receivedAtLeastOneElement = true
-        override def onDone(): Unit =
-          if !receivedAtLeastOneElement then alternative.runWithFlowSink(next)
-          else next.onDone()
-        override def onError(e: Throwable): Unit = next.onError(e)
     )
+    if !receivedAtLeastOneElement then alternative.runWithFlowSink(sink)
   end orElse
 
   /** Chunks up the elements into groups of the specified size. The last group may be smaller due to the flow being complete.
@@ -497,11 +489,8 @@ class FlowOps[+T]:
             buffer = Vector.empty
             accumulatedCost = 0
         end onNext
-        override def onDone(): Unit =
-          if buffer.nonEmpty then sink.onNext(buffer)
-          sink.onDone()
-        override def onError(e: Throwable): Unit = sink.onError(e)
       )
+      if buffer.nonEmpty then sink.onNext(buffer)
   end groupedWeighted
 
   /** Chunks up the emitted elements into groups, within a time window, or limited by the specified number of elements, whatever happens
@@ -612,12 +601,9 @@ class FlowOps[+T]:
           if buffer.size == step then buffer = buffer.drop(step)
           end if
         end onNext
-        override def onDone(): Unit =
-          // send the remaining elements, only if these elements were not yet sent
-          if buffer.nonEmpty && buffer.size < n then sink.onNext(buffer)
-          sink.onDone()
-        override def onError(e: Throwable): Unit = sink.onError(e)
       )
+      // send the remaining elements, only if these elements were not yet sent
+      if buffer.nonEmpty && buffer.size < n then sink.onNext(buffer)
   end sliding
 
   /** Attaches the given [[ox.channels.Sink]] to this flow, meaning elements that pass through will also be sent to the sink. If emitting an
@@ -633,17 +619,15 @@ class FlowOps[+T]:
     *   [[alsoToTap]] for a version that drops elements when the `other` sink is not available for receive.
     */
   def alsoTo[U >: T](other: Sink[U]): Flow[U] = fromSink: sink =>
-    last.run(new FlowSink[T]:
-      override def onNext(t: T): Unit =
-        sink.onNext(t).tapException(e => other.errorOrClosed(e).discard)
-        other.send(t)
-      override def onDone(): Unit =
-        sink.onDone()
-        other.done()
-      override def onError(e: Throwable): Unit =
-        try sink.onError(e)
-        finally other.error(e)
-    )
+    {
+      last.run(
+        new FlowSink[T]:
+          override def onNext(t: T): Unit =
+            sink.onNext(t).tapException(e => other.errorOrClosed(e).discard)
+            other.send(t)
+      )
+      other.done()
+    }.tapException(other.error)
   end alsoTo
 
   private case object NotSent
@@ -660,29 +644,25 @@ class FlowOps[+T]:
     *   [[alsoTo]] for a version that ensures that elements are emitted both by the returned flow and sent to the `other` sink.
     */
   def alsoToTap[U >: T](other: Sink[U]): Flow[U] = fromSink: sink =>
-    last.run(new FlowSink[T]:
-      override def onNext(t: T): Unit =
-        sink.onNext(t).tapException(e => other.errorOrClosed(e).discard)
-        selectOrClosed(other.sendClause(t), Default(NotSent)).discard
-      override def onDone(): Unit =
-        sink.onDone()
-        other.doneOrClosed().discard
-      override def onError(e: Throwable): Unit =
-        try sink.onError(e)
-        finally other.errorOrClosed(e).discard
-    )
+    {
+      last.run(
+        new FlowSink[T]:
+          override def onNext(t: T): Unit =
+            sink.onNext(t).tapException(e => other.errorOrClosed(e).discard)
+            selectOrClosed(other.sendClause(t), Default(NotSent)).discard
+      )
+      other.doneOrClosed().discard
+    }.tapException(other.errorOrClosed(_).discard)
   end alsoToTap
 
   //
 
-  // TODO: unify with fromSink
-  private inline def addTransformSinkStage[U](inline doTransform: FlowSink[U] => FlowSink[T]): Flow[U] =
-    Flow(
-      new FlowStage:
-        override def run(next: FlowSink[U]): Unit =
-          last.run(doTransform(next))
-    )
-
   protected def runLastToChannelAsync(ch: Sink[T])(using OxUnsupervised): Unit =
-    forkPropagate(ch)(last.run(FlowSink.ToChannel(ch))).discard
+    forkPropagate(ch) {
+      last.run(
+        new FlowSink[T]:
+          override def onNext(t: T): Unit = ch.send(t)
+      )
+      ch.done()
+    }.discard
 end FlowOps

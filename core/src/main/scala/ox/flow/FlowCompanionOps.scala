@@ -33,7 +33,6 @@ trait FlowCompanionOps:
       new FlowSender[T]:
         def apply(t: T): Unit = sink.onNext(t)
     )
-    sink.onDone()
 
   def fromIterable[T](it: Iterable[T]): Flow[T] = fromIterator(it.iterator)
 
@@ -42,11 +41,9 @@ trait FlowCompanionOps:
   def fromIterator[T](it: => Iterator[T]): Flow[T] = fromSink: sink =>
     val theIt = it
     while theIt.hasNext do sink.onNext(theIt.next())
-    sink.onDone()
 
   def fromFork[T](f: Fork[T]): Flow[T] = fromSink: sink =>
     sink.onNext(f.join())
-    sink.onDone()
 
   def iterate[T](zero: T)(f: T => T): Flow[T] = fromSink: sink =>
     var t = zero
@@ -61,7 +58,6 @@ trait FlowCompanionOps:
       sink.onNext(t)
       t = t + step
       t <= to
-    sink.onDone()
 
   def unfold[S, T](initial: S)(f: S => Option[(T, S)]): Flow[T] = fromSink: sink =>
     var s = initial
@@ -71,9 +67,7 @@ trait FlowCompanionOps:
           sink.onNext(value)
           s = next
           true
-        case None =>
-          sink.onDone()
-          false
+        case None => false
 
   /** Creates a flow which emits the given `value` repeatedly, at least [[interval]] apart between each two elements. The first value is
     * emitted immediately.
@@ -121,12 +115,11 @@ trait FlowCompanionOps:
     repeatWhile:
       f match
         case Some(value) => sink.onNext(value); true
-        case None        => sink.onDone(); false
+        case None        => false
 
   /** A flow which sleeps for the given `timeout` and then completes as done. */
   def timeout[T](timeout: FiniteDuration): Flow[T] = fromSink: sink =>
     sleep(timeout)
-    sink.onDone()
 
   // TODO: concat failed + values -> will it continue?
 
@@ -135,18 +128,16 @@ trait FlowCompanionOps:
       currentFlow.runWithFlowSink(
         new FlowSink[T]:
           override def onNext(t: T): Unit = sink.onNext(t)
-          override def onDone(): Unit = ()
-          override def onError(e: Throwable): Unit = sink.onError(e)
       )
-    sink.onDone()
 
-  def empty[T]: Flow[T] = fromSink: sink =>
-    sink.onDone()
+  def empty[T]: Flow[T] = Flow(
+    new FlowStage:
+      override def run(sink: FlowSink[T]): Unit = () // done
+  )
 
   /** Creates a flow that emits a single element when `from` completes. */
   def fromFuture[T](from: Future[T]): Flow[T] = fromSink: sink =>
     sink.onNext(Await.result(from, Duration.Inf))
-    sink.onDone()
 
   /** Creates a flow that emits all elements from the given future source when `from` completes. */
   def fromFutureSource[T](from: Future[Source[T]]): Flow[T] =
@@ -157,8 +148,10 @@ trait FlowCompanionOps:
     * @param t
     *   The [[java.lang.Throwable]] to fail with
     */
-  def failed[T](t: Throwable): Flow[T] = fromSink: sink =>
-    sink.onError(t)
+  def failed[T](t: Throwable): Flow[T] = Flow(
+    new FlowStage:
+      override def run(sink: FlowSink[T]): Unit = throw t
+  )
 
   /** Sends a given number of elements (determined byc `segmentSize`) from each flow in `flows` to the returned flow and repeats. The order
     * of elements in all flows is preserved.

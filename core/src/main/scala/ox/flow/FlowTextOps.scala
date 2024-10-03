@@ -173,15 +173,10 @@ trait FlowTextOps[+T]:
           buffer = newBuffer
           state = newState
         end onNext
-
-        override def onDone(): Unit =
-          // end of channel before getting enough bytes to resolve BOM, assuming no BOM
-          if buffer != null && buffer.nonEmpty then
-            // There's a buffer accumulated (not BOM), decode it directly
-            sink.onNext(buffer.asStringUtf8)
-
-        override def onError(e: Throwable): Unit =
-          sink.onError(e)
       )
+      // end of channel before getting enough bytes to resolve BOM, assuming no BOM
+      if buffer != null && buffer.nonEmpty then
+        // There's a buffer accumulated (not BOM), decode it directly
+        sink.onNext(buffer.asStringUtf8)
   end decodeStringUtf8
 end FlowTextOps
