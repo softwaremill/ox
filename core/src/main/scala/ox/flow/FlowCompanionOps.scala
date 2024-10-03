@@ -1,20 +1,21 @@
 package ox.flow
 
-import ox.channels.Source
 import ox.Fork
-import ox.forever
-import scala.concurrent.duration.FiniteDuration
-import ox.sleep
-import scala.concurrent.Future
-import scala.concurrent.Await
-import scala.concurrent.duration.Duration
-import scala.collection.mutable
-import ox.repeatWhile
-import ox.channels.StageCapacity
-import ox.unsupervised
 import ox.channels.ChannelClosed
-import ox.forkUnsupervised
 import ox.channels.ChannelClosedUnion.isValue
+import ox.channels.Source
+import ox.channels.StageCapacity
+import ox.forever
+import ox.forkUnsupervised
+import ox.repeatWhile
+import ox.sleep
+import ox.unsupervised
+
+import scala.collection.mutable
+import scala.concurrent.Await
+import scala.concurrent.Future
+import scala.concurrent.duration.Duration
+import scala.concurrent.duration.FiniteDuration
 
 trait FlowCompanionOps:
   this: Flow.type =>

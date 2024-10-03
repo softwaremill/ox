@@ -1,6 +1,8 @@
 package ox.flow
 
 import ox.*
+import ox.channels.ChannelClosed
+import ox.channels.StageCapacity
 
 import java.io.Closeable
 import java.io.IOException
@@ -12,8 +14,6 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption
 import scala.util.control.NonFatal
-import ox.channels.StageCapacity
-import ox.channels.ChannelClosed
 
 trait FlowIOOps[+T]:
   outer: Flow[T] =>

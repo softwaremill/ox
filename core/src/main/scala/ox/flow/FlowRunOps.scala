@@ -1,11 +1,12 @@
 package ox.flow
 
-import ox.channels.StageCapacity
-import ox.channels.Source
-import ox.channels.Sink
-import ox.discard
-import scala.collection.mutable.ListBuffer
 import ox.OxUnsupervised
+import ox.channels.Sink
+import ox.channels.Source
+import ox.channels.StageCapacity
+import ox.discard
+
+import scala.collection.mutable.ListBuffer
 
 trait FlowRunOps[+T]:
   this: Flow[T] =>

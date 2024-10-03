@@ -1,10 +1,12 @@
 package ox.flow
 
+import ox.CancellableFork
 import ox.Fork
 import ox.Ox
 import ox.OxUnsupervised
 import ox.channels.Channel
 import ox.channels.ChannelClosed
+import ox.channels.Default
 import ox.channels.Sink
 import ox.channels.Source
 import ox.channels.StageCapacity
@@ -13,19 +15,17 @@ import ox.channels.forkUserPropagate
 import ox.channels.selectOrClosed
 import ox.discard
 import ox.flow.Flow.usingSinkInline
+import ox.forkCancellable
 import ox.forkUnsupervised
 import ox.repeatWhile
 import ox.sleep
 import ox.supervised
+import ox.tapException
 import ox.unsupervised
 
 import java.util.concurrent.Semaphore
 import scala.concurrent.duration.DurationLong
 import scala.concurrent.duration.FiniteDuration
-import ox.forkCancellable
-import ox.CancellableFork
-import ox.tapException
-import ox.channels.Default
 
 class FlowOps[+T]:
   outer: Flow[T] =>
