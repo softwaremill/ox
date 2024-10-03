@@ -32,7 +32,8 @@ trait FlowCompanionOps:
 
   // TODO: by-name?
   // TODO optimizing fromSource + toChannel ?
-  def fromSource[T](source: Source[T]): Flow[T] = Flow(FlowStage.fromSource(source))
+  def fromSource[T](source: Source[T]): Flow[T] = Flow.usingSinkInline: sink =>
+    FlowSink.channelToSink(source, sink)
 
   def fromIterable[T](it: Iterable[T]): Flow[T] = fromIterator(it.iterator)
 

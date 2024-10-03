@@ -34,7 +34,7 @@ class FlowOps[+T]:
     val ch = StageCapacity.newChannel[T]
     unsupervised:
       runLastToChannelAsync(ch)
-      FlowStage.fromSource(ch).run(sink)
+      FlowSink.channelToSink(ch, sink)
 
   //
 
