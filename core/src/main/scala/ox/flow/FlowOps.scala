@@ -14,7 +14,6 @@ import ox.channels.forkPropagate
 import ox.channels.forkUserPropagate
 import ox.channels.selectOrClosed
 import ox.discard
-import ox.flow.Flow.usingSinkInline
 import ox.forkCancellable
 import ox.forkUnsupervised
 import ox.repeatWhile
@@ -43,7 +42,7 @@ class FlowOps[+T]:
 
   // TODO: .mapUsingSink
 
-  def filter(f: T => Boolean): Flow[T] = usingSinkInline: sink =>
+  def filter(f: T => Boolean): Flow[T] = Flow.usingSinkInline: sink =>
     last.run(FlowSink.fromInline(t => if f(t) then sink.apply(t)))
 
   /** Applies the given mapping function `f` to each element emitted by this flow, for which the function is defined, and emits the result.
@@ -52,7 +51,7 @@ class FlowOps[+T]:
     * @param f
     *   The mapping function.
     */
-  def collect[U](f: PartialFunction[T, U]): Flow[U] = usingSinkInline: sink =>
+  def collect[U](f: PartialFunction[T, U]): Flow[U] = Flow.usingSinkInline: sink =>
     last.run(FlowSink.fromInline(t => if f.isDefinedAt(t) then sink.apply(f(t))))
 
   def tap(f: T => Unit): Flow[T] = map(t =>
@@ -73,7 +72,7 @@ class FlowOps[+T]:
     */
   def intersperse[U >: T](start: U, inject: U, end: U): Flow[U] = intersperse(Some(start), inject, Some(end))
 
-  private def intersperse[U >: T](start: Option[U], inject: U, end: Option[U]): Flow[U] = usingSinkInline: sink =>
+  private def intersperse[U >: T](start: Option[U], inject: U, end: Option[U]): Flow[U] = Flow.usingSinkInline: sink =>
     start.foreach(sink.apply)
     var firstEmitted = false
     last.run(
@@ -94,7 +93,7 @@ class FlowOps[+T]:
     * @param f
     *   The mapping function.
     */
-  def mapPar[U](parallelism: Int)(f: T => U)(using StageCapacity): Flow[U] = usingSinkInline: sink =>
+  def mapPar[U](parallelism: Int)(f: T => U)(using StageCapacity): Flow[U] = Flow.usingSinkInline: sink =>
     val s = new Semaphore(parallelism)
     val inProgress = Channel.withCapacity[Fork[Option[U]]](parallelism)
     val results = StageCapacity.newChannel[U]
@@ -141,7 +140,7 @@ class FlowOps[+T]:
       FlowSink.channelToSink(results, sink)
   end mapPar
 
-  def mapParUnordered[U](parallelism: Int)(f: T => U)(using StageCapacity): Flow[U] = usingSinkInline: sink =>
+  def mapParUnordered[U](parallelism: Int)(f: T => U)(using StageCapacity): Flow[U] = Flow.usingSinkInline: sink =>
     val results = StageCapacity.newChannel[U]
     val s = new Semaphore(parallelism)
     unsupervised: // the outer scope, used for the fork which runs the `last` pipeline
@@ -164,7 +163,7 @@ class FlowOps[+T]:
 
   private val abortTake = new Exception("abort take")
 
-  def take(n: Int): Flow[T] = usingSinkInline: sink =>
+  def take(n: Int): Flow[T] = Flow.usingSinkInline: sink =>
     var taken = 0
     try
       last.run(
@@ -185,7 +184,7 @@ class FlowOps[+T]:
     * @param includeFirstFailing
     *   Whether the flow should also emit the first element that failed the predicate (`false` by default).
     */
-  def takeWhile(f: T => Boolean, includeFirstFailing: Boolean = false): Flow[T] = usingSinkInline: sink =>
+  def takeWhile(f: T => Boolean, includeFirstFailing: Boolean = false): Flow[T] = Flow.usingSinkInline: sink =>
     try
       last.run(
         FlowSink.fromInline: t =>
@@ -201,7 +200,7 @@ class FlowOps[+T]:
     * @param n
     *   Number of elements to be dropped.
     */
-  def drop(n: Int): Flow[T] = usingSinkInline: sink =>
+  def drop(n: Int): Flow[T] = Flow.usingSinkInline: sink =>
     var dropped = 0
     last.run(
       FlowSink.fromInline: t =>
@@ -209,7 +208,7 @@ class FlowOps[+T]:
         else sink(t)
     )
 
-  def merge[U >: T](other: Flow[U])(using StageCapacity): Flow[U] = usingSinkInline: sink =>
+  def merge[U >: T](other: Flow[U])(using StageCapacity): Flow[U] = Flow.usingSinkInline: sink =>
     unsupervised:
       val c1 = outer.runToChannel()
       val c2 = other.runToChannel()
@@ -225,7 +224,7 @@ class FlowOps[+T]:
   /** Pipes the elements of child flows into the output source. If the parent source or any of the child sources emit an error, the pulling
     * stops and the output source emits the error.
     */
-  def flatten[U](using T <:< Flow[U])(using StageCapacity): Flow[U] = usingSinkInline: sink =>
+  def flatten[U](using T <:< Flow[U])(using StageCapacity): Flow[U] = Flow.usingSinkInline: sink =>
     case class Nested(child: Flow[U])
 
     unsupervised:
@@ -265,7 +264,7 @@ class FlowOps[+T]:
     * @see
     *   zipAll
     */
-  def zip[U](other: Flow[U]): Flow[(T, U)] = usingSinkInline: sink =>
+  def zip[U](other: Flow[U]): Flow[(T, U)] = Flow.usingSinkInline: sink =>
     unsupervised:
       val s1 = outer.runToChannel()
       val s2 = other.runToChannel()
@@ -290,7 +289,7 @@ class FlowOps[+T]:
     * @param otherDefault
     *   A default element to be used in the result tuple when the current flow is longer.
     */
-  def zipAll[U >: T, V](other: Flow[V], thisDefault: U, otherDefault: V): Flow[(U, V)] = usingSinkInline: sink =>
+  def zipAll[U >: T, V](other: Flow[V], thisDefault: U, otherDefault: V): Flow[(U, V)] = Flow.usingSinkInline: sink =>
     unsupervised:
       val s1 = outer.runToChannel()
       val s2 = other.runToChannel()
@@ -381,7 +380,7 @@ class FlowOps[+T]:
     */
   def mapStatefulConcat[S, U](
       initializeState: () => S
-  )(f: (S, T) => (S, IterableOnce[U]), onComplete: S => Option[U] = (_: S) => None): Flow[U] = usingSinkInline: sink =>
+  )(f: (S, T) => (S, IterableOnce[U]), onComplete: S => Option[U] = (_: S) => None): Flow[U] = Flow.usingSinkInline: sink =>
     var state = initializeState()
     last.run(
       FlowSink.fromInline: t =>
@@ -399,7 +398,7 @@ class FlowOps[+T]:
     *   A function that transforms the element from this flow into an [[IterableOnce]] of results which are emitted one by one by the
     *   returned flow. If the result of `f` is empty, nothing is emitted by the returned channel.
     */
-  def mapConcat[U](f: T => IterableOnce[U]): Flow[U] = usingSinkInline: sink =>
+  def mapConcat[U](f: T => IterableOnce[U]): Flow[U] = Flow.usingSinkInline: sink =>
     last.run(
       FlowSink.fromInline: t =>
         f(t).iterator.foreach(sink.apply)
@@ -430,7 +429,7 @@ class FlowOps[+T]:
     * @param alternative
     *   An alternative flow to be used when this flow is empty.
     */
-  def orElse[U >: T](alternative: Flow[U]): Flow[U] = usingSinkInline: sink =>
+  def orElse[U >: T](alternative: Flow[U]): Flow[U] = Flow.usingSinkInline: sink =>
     var receivedAtLeastOneElement = false
     last.run(
       FlowSink.fromInline: t =>
@@ -458,7 +457,7 @@ class FlowOps[+T]:
   def groupedWeighted(minWeight: Long)(costFn: T => Long): Flow[Seq[T]] =
     require(minWeight > 0, "minWeight must be > 0")
 
-    usingSinkInline: sink =>
+    Flow.usingSinkInline: sink =>
       var buffer = Vector.empty[T]
       var accumulatedCost = 0L
       last.run(
@@ -503,7 +502,7 @@ class FlowOps[+T]:
     require(minWeight > 0, "minWeight must be > 0")
     require(duration > 0.seconds, "duration must be > 0")
 
-    usingSinkInline: sink =>
+    Flow.usingSinkInline: sink =>
       unsupervised:
         val c = outer.runToChannel()
         val c2 = StageCapacity.newChannel[Seq[T]]
@@ -566,7 +565,7 @@ class FlowOps[+T]:
     require(n > 0, "n must be > 0")
     require(step > 0, "step must be > 0")
 
-    usingSinkInline: sink =>
+    Flow.usingSinkInline: sink =>
       var buffer = Vector.empty[T]
       last.run(
         FlowSink.fromInline: t =>
@@ -599,7 +598,7 @@ class FlowOps[+T]:
     * @see
     *   [[alsoToTap]] for a version that drops elements when the `other` sink is not available for receive.
     */
-  def alsoTo[U >: T](other: Sink[U]): Flow[U] = usingSinkInline: sink =>
+  def alsoTo[U >: T](other: Sink[U]): Flow[U] = Flow.usingSinkInline: sink =>
     {
       last.run(
         FlowSink.fromInline: t =>
@@ -623,7 +622,7 @@ class FlowOps[+T]:
     * @see
     *   [[alsoTo]] for a version that ensures that elements are emitted both by the returned flow and sent to the `other` sink.
     */
-  def alsoToTap[U >: T](other: Sink[U]): Flow[U] = usingSinkInline: sink =>
+  def alsoToTap[U >: T](other: Sink[U]): Flow[U] = Flow.usingSinkInline: sink =>
     {
       last.run(
         FlowSink.fromInline: t =>
