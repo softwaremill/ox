@@ -14,6 +14,12 @@ object Flow extends FlowCompanionOps with FlowCompanionIOOps
 trait FlowStage[+T]:
   def run(sink: FlowSink[T]): Unit
 
+object FlowStage:
+  // The from-source stage is reified as a named class because of the optimiziation in .toChannel, which avoids
+  // creating a pass-through fork, copying elements from one channel to another
+  case class FromSource[T](source: Source[T]) extends FlowStage[T]:
+    override def run(sink: FlowSink[T]): Unit = FlowSink.channelToSink(source, sink)
+
 //
 
 trait FlowSink[-T]:
