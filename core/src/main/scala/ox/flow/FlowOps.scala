@@ -37,11 +37,28 @@ class FlowOps[+T]:
 
   //
 
+  /** Applies the given mapping function `f` to each element emitted by this flow, and emits the result.
+    *
+    * @param f
+    *   The mapping function.
+    */
   def map[U](f: T => U): Flow[U] = Flow.usingSinkInline: sink =>
     last.run(FlowSink.fromInline(t => sink(f(t))))
 
-  // TODO: .mapUsingSink
+  /** Applies the given mapping function `f` to each element emitted by this flow, in sequence. The given [[FlowSink]] can be used to emit
+    * an arbirary number of elements.
+    *
+    * @param f
+    *   The mapping function.
+    */
+  def mapUsingSink[U](f: T => FlowSink[U] => Unit): Flow[U] = Flow.usingSinkInline: sink =>
+    last.run(FlowSink.fromInline(t => f(t)(sink)))
 
+  /** Emits only those elements emitted by this flow, for which `f` returns `true`.
+    *
+    * @param f
+    *   The filtering function.
+    */
   def filter(f: T => Boolean): Flow[T] = Flow.usingSinkInline: sink =>
     last.run(FlowSink.fromInline(t => if f(t) then sink.apply(t)))
 

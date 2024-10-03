@@ -14,12 +14,6 @@ object Flow extends FlowCompanionOps with FlowCompanionIOOps
 trait FlowStage[+T]:
   def run(sink: FlowSink[T]): Unit
 
-object FlowStage:
-  def fromSource[T](source: Source[T]): FlowStage[T] =
-    new FlowStage[T]:
-      def run(sink: FlowSink[T]): Unit = FlowSink.channelToSink(source, sink)
-end FlowStage
-
 //
 
 trait FlowSink[-T]:
