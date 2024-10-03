@@ -12,18 +12,17 @@ import ox.kafka.ConsumerSettings.AutoOffsetReset
   val group = "group1"
 
   timed("transfer") {
-    supervised {
-      import KafkaStage.*
+    import KafkaStage.*
 
-      val bootstrapServer = "localhost:29092"
-      val consumerSettings = ConsumerSettings.default(group).bootstrapServers(bootstrapServer).autoOffsetReset(AutoOffsetReset.Earliest)
-      val producerSettings = ProducerSettings.default.bootstrapServers(bootstrapServer)
-      KafkaSource
-        .subscribe(consumerSettings, sourceTopic)
-        .take(10_000_000)
-        .map(in => (in.value.reverse, in))
-        .map((value, original) => SendPacket(ProducerRecord[String, String](destTopic, value), original))
-        .mapPublishAndCommit(producerSettings)
-        .drain()
-    }
+    val bootstrapServer = "localhost:29092"
+    val consumerSettings = ConsumerSettings.default(group).bootstrapServers(bootstrapServer).autoOffsetReset(AutoOffsetReset.Earliest)
+    val producerSettings = ProducerSettings.default.bootstrapServers(bootstrapServer)
+    KafkaSource
+      .subscribe(consumerSettings, sourceTopic)
+      .take(10_000_000)
+      .map(in => (in.value.reverse, in))
+      .map((value, original) => SendPacket(ProducerRecord[String, String](destTopic, value), original))
+      .mapPublishAndCommit(producerSettings)
+      .runDrain()
   }
+end transfer
