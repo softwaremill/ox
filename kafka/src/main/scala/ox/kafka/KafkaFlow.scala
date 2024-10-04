@@ -5,8 +5,8 @@ import org.slf4j.LoggerFactory
 import ox.*
 import ox.flow.Flow
 
-object KafkaSource:
-  private val logger = LoggerFactory.getLogger(classOf[KafkaSource.type])
+object KafkaFlow:
+  private val logger = LoggerFactory.getLogger(classOf[KafkaFlow.type])
 
   def subscribe[K, V](settings: ConsumerSettings[K, V], topic: String, otherTopics: String*): Flow[ReceivedMessage[K, V]] =
     subscribe(settings.toConsumer, closeWhenComplete = true, topic, otherTopics*)
@@ -26,4 +26,4 @@ object KafkaSource:
           records.forEach(r => emit(ReceivedMessage(kafkaConsumerActor, r)))
         }.tapException(logger.error("Exception when polling for records", _))
 
-end KafkaSource
+end KafkaFlow

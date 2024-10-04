@@ -509,7 +509,7 @@ class FlowOps[+T]:
     * @param duration
     *   The time window in which the elements are grouped.
     */
-  def groupedWithin(n: Int, duration: FiniteDuration): Flow[Seq[T]] = groupedWeightedWithin(n, duration)(_ => 1)
+  def groupedWithin(n: Int, duration: FiniteDuration)(using BufferCapacity): Flow[Seq[T]] = groupedWeightedWithin(n, duration)(_ => 1)
 
   private case object GroupingTimeout
 
@@ -524,7 +524,7 @@ class FlowOps[+T]:
     * @param costFn
     *   The function that calculates the weight of an element.
     */
-  def groupedWeightedWithin(minWeight: Long, duration: FiniteDuration)(costFn: T => Long): Flow[Seq[T]] =
+  def groupedWeightedWithin(minWeight: Long, duration: FiniteDuration)(costFn: T => Long)(using BufferCapacity): Flow[Seq[T]] =
     require(minWeight > 0, "minWeight must be > 0")
     require(duration > 0.seconds, "duration must be > 0")
 

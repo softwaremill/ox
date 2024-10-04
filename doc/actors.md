@@ -4,8 +4,8 @@ Actors in Ox enable invoking methods on an object serially, keeping the behavior
 invocation. That is, even though invocations may happen from multiple threads, they are guaranteed to happen one after 
 the other, not concurrently.
 
-Actor invocations are fully type-safe, with minimal overhead. They use [channels](index.md) and 
-[scopes](../structured-concurrency/fork-join.md) behind the scenes.
+Actor invocations are fully type-safe, with minimal overhead. They use [channels](streaming/channels.md) and 
+[scopes](structured-concurrency/fork-join.md) behind the scenes.
 
 One of the use-cases is integrating with external APIs, which are represented by an object containing mutable state.
 Such integrations must be protected and cannot be accessed by multiple threads concurrently.
@@ -37,12 +37,11 @@ class Stateful:
     counter += delta
     counter
 
-supervised {
+supervised:
   val ref = Actor.create(new Stateful)
 
   ref.ask(_.increment(5)) // blocks until the invocation completes
   ref.ask(_.increment(4)) // returns 9
-}
 ```
 
 If a non-fatal exception is thrown by the invocation, it's propagated to the caller, and the actor continues processing
@@ -75,7 +74,7 @@ class Stateful:
   def work(howHard: Int): Unit = throw new RuntimeException("boom!")
   def close(): Unit = println("Closing")  
 
-supervised {
+supervised:
   val ref = Actor.create(new Stateful, Some(_.close()))
 
   // fire-and-forget, exception causes the scope to close
@@ -83,5 +82,4 @@ supervised {
   
   // preventing the scope from closing
   never
-}
 ```

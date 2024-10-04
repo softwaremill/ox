@@ -35,7 +35,7 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
     supervised {
       // then
       val settings = ConsumerSettings.default(group).bootstrapServers(bootstrapServer).autoOffsetReset(Earliest)
-      val source = KafkaSource.subscribe(settings, topic).runToChannel()
+      val source = KafkaFlow.subscribe(settings, topic).runToChannel()
 
       source.receive().value shouldBe "msg1"
       source.receive().value shouldBe "msg2"
@@ -97,7 +97,7 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
       fork {
         import KafkaStage.*
 
-        KafkaSource
+        KafkaFlow
           .subscribe(consumerSettings, sourceTopic)
           .map(in => (in.value.toLong * 2, in))
           .map((value, original) => SendPacket(ProducerRecord[String, String](destTopic, value.toString), original))
@@ -105,7 +105,7 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
           .runPipeToSink(metadatas, propagateDone = false)
       }
 
-      val inDest = KafkaSource.subscribe(consumerSettings, destTopic).runToChannel()
+      val inDest = KafkaFlow.subscribe(consumerSettings, destTopic).runToChannel()
       inDest.receive().value shouldBe "20"
       inDest.receive().value shouldBe "50"
       inDest.receive().value shouldBe "184"
@@ -126,11 +126,11 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
 
     supervised {
       // reading from source, using the same consumer group as before, should start from the last committed offset
-      val inSource = KafkaSource.subscribe(consumerSettings, sourceTopic).runToChannel()
+      val inSource = KafkaFlow.subscribe(consumerSettings, sourceTopic).runToChannel()
       inSource.receive().value shouldBe "4"
 
       // while reading using another group, should start from the earliest offset
-      val inSource2 = KafkaSource.subscribe(consumerSettings.groupId(group2), sourceTopic).runToChannel()
+      val inSource2 = KafkaFlow.subscribe(consumerSettings.groupId(group2), sourceTopic).runToChannel()
       inSource2.receive().value shouldBe "10"
     }
   }
@@ -171,14 +171,14 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
     supervised {
       // then
       fork {
-        KafkaSource
+        KafkaFlow
           .subscribe(consumerSettings, sourceTopic)
           .map(in => (in.value.toLong * 2, in))
           .map((value, original) => SendPacket(ProducerRecord[String, String](destTopic, value.toString), original))
           .pipe(KafkaDrain.runPublishAndCommit(producerSettings))
       }
 
-      val inDest = KafkaSource.subscribe(consumerSettings, destTopic).runToChannel()
+      val inDest = KafkaFlow.subscribe(consumerSettings, destTopic).runToChannel()
       inDest.receive().value shouldBe "20"
       inDest.receive().value shouldBe "50"
       inDest.receive().value shouldBe "184"
@@ -194,11 +194,11 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
 
     supervised {
       // reading from source, using the same consumer group as before, should start from the last committed offset
-      val inSource = KafkaSource.subscribe(consumerSettings, sourceTopic).runToChannel()
+      val inSource = KafkaFlow.subscribe(consumerSettings, sourceTopic).runToChannel()
       inSource.receive().value shouldBe "4"
 
       // while reading using another group, should start from the earliest offset
-      val inSource2 = KafkaSource.subscribe(consumerSettings.groupId(group2), sourceTopic).runToChannel()
+      val inSource2 = KafkaFlow.subscribe(consumerSettings.groupId(group2), sourceTopic).runToChannel()
       inSource2.receive().value shouldBe "10"
     }
   }

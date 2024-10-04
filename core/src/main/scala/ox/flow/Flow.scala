@@ -33,6 +33,7 @@ object FlowStage:
 //
 
 trait FlowEmit[-T]:
+  /** Emit a value to be processed downstream. */
   def apply(t: T): Unit
 
 object FlowEmit:
