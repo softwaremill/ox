@@ -42,19 +42,6 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
    structured-concurrency/error-handling-scopes
    structured-concurrency/fork-local
    structured-concurrency/interruptions
-   
-.. toctree::
-   :maxdepth: 2   
-   :caption: Resiliency & utilities
-   
-   oxapp
-   retries
-   repeat
-   scheduled
-   resources
-   control-flow
-   actors
-   utility
 
 .. toctree::
    :maxdepth: 2
@@ -68,6 +55,19 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
    streaming/io
    streaming/errors
    streaming/backpressure
+   
+.. toctree::
+   :maxdepth: 2   
+   :caption: Resiliency & utilities
+   
+   oxapp
+   retries
+   repeat
+   scheduled
+   resources
+   control-flow
+   actors
+   utility
 
 .. toctree::
    :maxdepth: 2
