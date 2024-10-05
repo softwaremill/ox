@@ -1,7 +1,7 @@
 # Best practices
 
 While working on Ox and integrating ox into our other open-source projects, we found a couple of patterns and best
-practices which might be useful for anybody starting their journey with direct style Scala and ox.
+practices which might be useful for anybody starting their journey with direct-style Scala and ox.
 
 ## Make scopes as small as possible
 

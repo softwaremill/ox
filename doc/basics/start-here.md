@@ -52,7 +52,7 @@ We offer commercial support for Ox and related technologies, as well as developm
 * [Two types of futures](https://softwaremill.com/two-types-of-futures/)
 * [Supervision, Kafka and Java 21: what’s new in Ox](https://softwaremill.com/supervision-kafka-and-java-21-whats-new-in-ox/)
 * [Designing a (yet another) retry API](https://softwaremill.com/designing-a-yet-another-retry-api/)
-* [Handling errors in direct style Scala](https://softwaremill.com/handling-errors-in-direct-style-scala/)
+* [Handling errors in direct-style Scala](https://softwaremill.com/handling-errors-in-direct-style-scala/)
 
 ## Inspiration & building blocks
 
