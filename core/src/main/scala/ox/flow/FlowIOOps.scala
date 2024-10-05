@@ -18,7 +18,10 @@ import scala.util.control.NonFatal
 trait FlowIOOps[+T]:
   outer: Flow[T] =>
 
-  /** Creates a [[java.io.InputStream]] out of this flow. The InputStream can read bytes from the underlying channel. */
+  /** Runs the flow into a [[java.io.InputStream]].
+    *
+    * Must be run within a concurrency scope, as under the hood the flow is run in the background.
+    */
   def runToInputStream()(using T <:< Chunk[Byte])(using Ox, BufferCapacity): InputStream =
     val ch = this.runToChannel()
     new InputStream:

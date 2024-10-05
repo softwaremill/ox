@@ -25,28 +25,39 @@ trait FlowCompanionOps:
       override def run(emit: FlowEmit[T]): Unit = withSink(emit)
   )
 
+  /** Creates a flow, which when run, provides a [[FlowEmit]] instance to the given `withEmit` function. Elements can be emitted to be
+    * processed by downstream stages by calling [[FlowEmit.apply]].
+    */
   def usingEmit[T](withEmit: FlowEmit[T] => Unit): Flow[T] = usingEmitInline(withEmit)
 
+  /** Creates a flow using the given `source`. An element is emitted for each value received from the source. If the source is completed
+    * with an error, is it propagated by throwing.
+    */
   def fromSource[T](source: Source[T]): Flow[T] = Flow(FlowStage.FromSource(source))
 
+  /** Creates a flow from the given `iterable`. Each element of the iterable is emitted in order. */
   def fromIterable[T](it: Iterable[T]): Flow[T] = fromIterator(it.iterator)
 
+  /** Creates a flow from the given values. Each value is emitted in order. */
   def fromValues[T](ts: T*): Flow[T] = fromIterator(ts.iterator)
 
+  /** Creates a flow from the given (lazily evaluated) `iterator`. Each element of the iterator is emitted in order. */
   def fromIterator[T](it: => Iterator[T]): Flow[T] = usingEmitInline: emit =>
     val theIt = it
     while theIt.hasNext do emit(theIt.next())
 
+  /** Creates a flow from the given fork. The flow will emit up to one element, or complete by throwing an exception if the fork fails. */
   def fromFork[T](f: Fork[T]): Flow[T] = usingEmitInline: emit =>
     emit(f.join())
 
+  /** Creates a flow which emits elements starting with `zero`, and then applying `f` to the previous element to get the next one. */
   def iterate[T](zero: T)(f: T => T): Flow[T] = usingEmitInline: emit =>
     var t = zero
     forever:
       emit(t)
       t = f(t)
 
-  /** A range of numbers, from `from`, to `to` (inclusive), stepped by `step`. */
+  /** Creates a flow which emits a range of numbers, from `from`, to `to` (inclusive), stepped by `step`. */
   def range(from: Int, to: Int, step: Int): Flow[Int] = usingEmitInline: emit =>
     var t = from
     repeatWhile:
@@ -54,6 +65,10 @@ trait FlowCompanionOps:
       t = t + step
       t <= to
 
+  /** Creates a flow which emits the first element of tuples returned by repeated applications of `f`. The `initial` state is used for the
+    * first application, and then the state is updated with the second element of the tuple. Emission stops when `f` returns `None`,
+    * otherwise it continues indefinitely.
+    */
   def unfold[S, T](initial: S)(f: S => Option[(T, S)]): Flow[T] = usingEmitInline: emit =>
     var s = initial
     repeatWhile:
@@ -112,24 +127,28 @@ trait FlowCompanionOps:
         case Some(value) => emit.apply(value); true
         case None        => false
 
-  /** A flow which sleeps for the given `timeout` and then completes as done. */
+  /** Create a flow which sleeps for the given `timeout` and then completes as done. */
   def timeout[T](timeout: FiniteDuration): Flow[T] = usingEmitInline: emit =>
     sleep(timeout)
 
+  /** Creates a flow which concatenates the given `flows` in order. First elements from the first flow are emitted, then from the second
+    * etc. If any of the flows compeltes with an error, is is propagated.
+    */
   def concat[T](flows: Seq[Flow[T]]): Flow[T] = usingEmitInline: emit =>
     flows.iterator.foreach: currentFlow =>
-      currentFlow.runToSink(FlowEmit.fromInline(emit.apply))
+      currentFlow.runToEmit(FlowEmit.fromInline(emit.apply))
 
+  /** Creates an empty flow, which emits no elements and completes immediately. */
   def empty[T]: Flow[T] = Flow(
     new FlowStage:
       override def run(emit: FlowEmit[T]): Unit = () // done
   )
 
-  /** Creates a flow that emits a single element when `from` completes. */
+  /** Creates a flow that emits a single element when `from` completes, or throws an exception when `from` fails. */
   def fromFuture[T](from: Future[T]): Flow[T] = usingEmitInline: emit =>
     emit(Await.result(from, Duration.Inf))
 
-  /** Creates a flow that emits all elements from the given future source when `from` completes. */
+  /** Creates a flow that emits all elements from the given future [[Source]] when `from` completes. */
   def fromFutureSource[T](from: Future[Source[T]]): Flow[T] =
     fromSource(Await.result(from, Duration.Inf))
 

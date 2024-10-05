@@ -14,8 +14,17 @@ trait FlowRunOps[+T]:
   /** Invokes the given function for each emitted element. Blocks until the flow completes. */
   def runForeach(sink: T => Unit): Unit = last.run(FlowEmit.fromInline(t => sink(t)))
 
-  def runToSink(emit: FlowEmit[T]): Unit = last.run(emit)
+  /** Invokes the provided [[FlowEmit]] fo reach emitted element. Blocks until the flow completes. */
+  def runToEmit(emit: FlowEmit[T]): Unit = last.run(emit)
 
+  /** The flow is run in the background, and each emitted element is sent to a newly created channel, which is then returned as the result
+    * of this method.
+    *
+    * Must be run within a concurrency scope as a fork is created to run the flow. The size of the buffer is determined by the
+    * [[BufferCapacity]] that is in scope.
+    *
+    * Blocks until the flow completes.
+    */
   def runToChannel()(using OxUnsupervised, BufferCapacity): Source[T] =
     // if the previous stage is a source, there's no point in creating a new channel & fork, just to copy data
     // from one channel to another - then, returning the source directly. Otherwise, running the previous stage

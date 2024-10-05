@@ -44,7 +44,7 @@ class FlowOps[+T]:
 
   //
 
-  /** Applies the given mapping function `f` to each element emitted by this flow, and emits the result.
+  /** Applies the given mapping function `f` to each element emitted by this flow. The returned flow then emits the results.
     *
     * @param f
     *   The mapping function.
@@ -78,10 +78,14 @@ class FlowOps[+T]:
   def collect[U](f: PartialFunction[T, U]): Flow[U] = Flow.usingEmitInline: emit =>
     last.run(FlowEmit.fromInline(t => if f.isDefinedAt(t) then emit.apply(f(t))))
 
+  /** Applies the given effectful function `f` to each element emitted by this flow. The returned flow emits the elements unchanged. If `f`
+    * throws an exceptions, the flow fails and propagates the exception.
+    */
   def tap(f: T => Unit): Flow[T] = map(t =>
     f(t); t
   )
 
+  /** Intersperses elements emitted by this flow with `inject` elements. The `inject` element is emitted between each pair of elements. */
   def intersperse[U >: T](inject: U): Flow[U] = intersperse(None, inject, None)
 
   /** Intersperses elements emitted by this flow with `inject` elements. The `start` element is emitted at the beginning; `end` is emitted
@@ -164,6 +168,16 @@ class FlowOps[+T]:
       FlowEmit.channelToEmit(results, emit)
   end mapPar
 
+  /** Applies the given mapping function `f` to each element emitted by this flow. At most `parallelism` invocations of `f` are run in
+    * parallel.
+    *
+    * The mapped results **might** be emitted out-of-order, depending on the order in which the mapping function completes.
+    *
+    * @param parallelism
+    *   An upper bound on the number of forks that run in parallel. Each fork runs the function `f` on a single element from the flow.
+    * @param f
+    *   The mapping function.
+    */
   def mapParUnordered[U](parallelism: Int)(f: T => U)(using BufferCapacity): Flow[U] = Flow.usingEmitInline: emit =>
     val results = BufferCapacity.newChannel[U]
     val s = new Semaphore(parallelism)
@@ -189,6 +203,9 @@ class FlowOps[+T]:
 
   private val abortTake = new Exception("abort take")
 
+  /** Takes the first `n` elements from this flow and emits them. If the flow completes before emitting `n` elements, the returned flow
+    * completes as well.
+    */
   def take(n: Int): Flow[T] = Flow.usingEmitInline: emit =>
     var taken = 0
     try
@@ -234,6 +251,14 @@ class FlowOps[+T]:
         else emit(t)
     )
 
+  /** Merges two flows into a single flow. The resulting flow emits elements from both flows in the order they are emitted. If one of the
+    * flows completes before the other, the remaining elements from the other flow are emitted by the returned flow.
+    *
+    * Both flows are run concurrently in the background. The size of the buffers is determined by the [[BufferCapacity]] that is in scope.
+    *
+    * @param other
+    *   The flow to be merged with this flow.
+    */
   def merge[U >: T](other: Flow[U])(using BufferCapacity): Flow[U] = Flow.usingEmitInline: emit =>
     unsupervised:
       val c1 = outer.runToChannel()
@@ -249,6 +274,8 @@ class FlowOps[+T]:
 
   /** Pipes the elements of child flows into the output source. If the parent source or any of the child sources emit an error, the pulling
     * stops and the output source emits the error.
+    *
+    * Runs all flows concurrently in the background. The size of the buffers is determined by the [[BufferCapacity]] that is in scope.
     */
   def flatten[U](using T <:< Flow[U])(using BufferCapacity): Flow[U] = Flow.usingEmitInline: emit =>
     case class Nested(child: Flow[U])
@@ -341,7 +368,7 @@ class FlowOps[+T]:
                 emit((t, otherDefault)); true
             )
 
-  /** Emits a given number of elements (determined byc `segmentSize`) from this flow to the returned flow, then tmis the same number of
+  /** Emits a given number of elements (determined byc `segmentSize`) from this flow to the returned flow, then emits the same number of
     * elements from the `other` flow and repeats. The order of elements in both flows is preserved.
     *
     * If one of the flows is done before the other, the behavior depends on the `eagerCancel` flag. When set to `true`, the returned flow is
@@ -462,7 +489,7 @@ class FlowOps[+T]:
         emit(t)
         receivedAtLeastOneElement = true
     )
-    if !receivedAtLeastOneElement then alternative.runToSink(emit)
+    if !receivedAtLeastOneElement then alternative.runToEmit(emit)
   end orElse
 
   /** Chunks up the elements into groups of the specified size. The last group may be smaller due to the flow being complete.
@@ -613,7 +640,7 @@ class FlowOps[+T]:
   end sliding
 
   /** Attaches the given [[ox.channels.Sink]] to this flow, meaning elements that pass through will also be sent to the sink. If emitting an
-    * alement, or sending to the `other` sink blocks, no elements will be processed until both are done. The elements are first emitted by
+    * element, or sending to the `other` sink blocks, no elements will be processed until both are done. The elements are first emitted by
     * the flow and then, only if that was successful, to the `other` sink.
     *
     * If this flow fails, then failure is passed to the `other` sink as well. If the `other` sink is failed or complete, this becomes a
