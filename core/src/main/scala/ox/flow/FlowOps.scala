@@ -252,25 +252,37 @@ class FlowOps[+T]:
     )
 
   /** Merges two flows into a single flow. The resulting flow emits elements from both flows in the order they are emitted. If one of the
-    * flows completes before the other, the remaining elements from the other flow are emitted by the returned flow.
+    * flows completes before the other, the remaining elements from the other flow are emitted by the returned flow. This can be changed
+    * with the `propagateDoneLeft` and `propagateDoneRight` flags.
     *
     * Both flows are run concurrently in the background. The size of the buffers is determined by the [[BufferCapacity]] that is in scope.
     *
     * @param other
     *   The flow to be merged with this flow.
+    * @param propagateDoneLeft
+    *   Should the resulting flow complete when the left flow (`this`) completes, before the `other` flow. By default `false`, that is any
+    *   remaining elements from the `other` flow are emitted.
+    * @param propagateDoneRight
+    *   Should the resulting flow complete when the right flow (`outer`) completes, before `this` flow. By default `false`, that is any
+    *   remaining elements from `this` flow are emitted.
     */
-  def merge[U >: T](other: Flow[U])(using BufferCapacity): Flow[U] = Flow.usingEmitInline: emit =>
-    unsupervised:
-      val c1 = outer.runToChannel()
-      val c2 = other.runToChannel()
+  def merge[U >: T](other: Flow[U], propagateDoneLeft: Boolean = false, propagateDoneRight: Boolean = false)(using
+      BufferCapacity
+  ): Flow[U] =
+    Flow.usingEmitInline: emit =>
+      unsupervised:
+        val c1 = outer.runToChannel()
+        val c2 = other.runToChannel()
 
-      repeatWhile:
-        selectOrClosed(c1, c2) match
-          case ChannelClosed.Done =>
-            if c1.isClosedForReceive then FlowEmit.channelToEmit(c2, emit) else FlowEmit.channelToEmit(c1, emit)
-            false
-          case ChannelClosed.Error(r) => throw r
-          case r: U @unchecked        => emit(r); true
+        repeatWhile:
+          selectOrClosed(c1, c2) match
+            case ChannelClosed.Done =>
+              if c1.isClosedForReceive then
+                if !propagateDoneLeft then FlowEmit.channelToEmit(c2, emit)
+              else if !propagateDoneRight then FlowEmit.channelToEmit(c1, emit)
+              false
+            case ChannelClosed.Error(r) => throw r
+            case r: U @unchecked        => emit(r); true
 
   /** Pipes the elements of child flows into the output source. If the parent source or any of the child sources emit an error, the pulling
     * stops and the output source emits the error.
