@@ -14,10 +14,10 @@ object Actor:
     * propagated to the caller, and the actor continues. Fatal exceptions, or exceptions that occur during [[ActorRef.tell]] invocations,
     * cause the actor's channel to be closed with an error, and are propagated to the enclosing scope.
     *
-    * The actor's mailbox (incoming channel) will have a capacity as specified by the [[StageCapacity]] in scope.
+    * The actor's mailbox (incoming channel) will have a capacity as specified by the [[BufferCapacity]] in scope.
     */
-  def create[T](logic: T, close: Option[T => Unit] = None)(using ox: Ox, sc: StageCapacity): ActorRef[T] =
-    val c = StageCapacity.newChannel[T => Unit]
+  def create[T](logic: T, close: Option[T => Unit] = None)(using ox: Ox, sc: BufferCapacity): ActorRef[T] =
+    val c = BufferCapacity.newChannel[T => Unit]
     val ref = ActorRef(c)
     fork {
       try
@@ -32,6 +32,8 @@ object Actor:
       finally close.foreach(c => uninterruptible(c(logic)))
     }
     ref
+  end create
+end Actor
 
 class ActorRef[T](c: Sink[T => Unit]):
   /** Send an invocation to the actor and await for the result.
@@ -56,6 +58,7 @@ class ActorRef[T](c: Sink[T => Unit]):
           throw t
     }
     unwrapExecutionException(cf.get())
+  end ask
 
   /** Send an invocation to the actor that should be processed in the background (fire-and-forget). Might block until there's enough space
     * in the actor's mailbox (incoming channel).
@@ -63,3 +66,4 @@ class ActorRef[T](c: Sink[T => Unit]):
     * Any exceptions thrown by `f` will be propagated to the actor's enclosing scope, and the actor will close.
     */
   def tell(f: T => Unit): Unit = c.send(f)
+end ActorRef

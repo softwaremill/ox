@@ -6,51 +6,44 @@ Dependency:
 "com.softwaremill.ox" %% "kafka" % "@VERSION@"
 ```
 
-`Source`s which read from a Kafka topic, mapping stages and drains which publish to Kafka topics are available through
-the `KafkaSource`, `KafkaStage` and `KafkaDrain` objects. In all cases either a manually constructed instance of a
+`Flow`s which read from a Kafka topic, mapping stages and drains which publish to Kafka topics are available through
+the `KafkaFlow`, `KafkaStage` and `KafkaDrain` objects. In all cases either a manually constructed instance of a
 `KafkaProducer` / `KafkaConsumer` is needed, or `ProducerSettings` / `ConsumerSetttings` need to be provided with the
 bootstrap servers, consumer group id, key / value serializers, etc.
 
 To read from a Kafka topic, use:
 
 ```scala mdoc:compile-only
-import ox.channels.ChannelClosed
-import ox.kafka.{ConsumerSettings, KafkaSource, ReceivedMessage}
+import ox.kafka.{ConsumerSettings, KafkaFlow, ReceivedMessage}
 import ox.kafka.ConsumerSettings.AutoOffsetReset
-import ox.supervised
 
-supervised {
-  val settings = ConsumerSettings.default("my_group").bootstrapServers("localhost:9092").autoOffsetReset(AutoOffsetReset.Earliest)
-  val topic = "my_topic"
+val settings = ConsumerSettings.default("my_group").bootstrapServers("localhost:9092").autoOffsetReset(AutoOffsetReset.Earliest)
+val topic = "my_topic"
   
-  val source = KafkaSource.subscribe(settings, topic)
-
-  source.receive(): ReceivedMessage[String, String] | ChannelClosed
-}
+val source = KafkaFlow.subscribe(settings, topic)
+  .runForeach { (msg: ReceivedMessage[String, String]) => ??? }
 ```
 
 To publish data to a Kafka topic:
 
 ```scala mdoc:compile-only
-import ox.channels.Source
+import ox.flow.Flow
 import ox.kafka.{ProducerSettings, KafkaDrain}
-import ox.{pipe, supervised}
+import ox.pipe
 import org.apache.kafka.clients.producer.ProducerRecord
 
-supervised {
-  val settings = ProducerSettings.default.bootstrapServers("localhost:9092")
-  Source
-    .fromIterable(List("a", "b", "c"))
-    .mapAsView(msg => ProducerRecord[String, String]("my_topic", msg))
-    .pipe(KafkaDrain.publish(settings))
-}
+val settings = ProducerSettings.default.bootstrapServers("localhost:9092")
+Flow
+  .fromIterable(List("a", "b", "c"))
+  .map(msg => ProducerRecord[String, String]("my_topic", msg))
+  .pipe(KafkaDrain.runPublish(settings))
 ```
 
 Quite often data to be published to a topic (`topic1`) is computed basing on data received from another topic 
 (`topic2`). In such a case, it's possible to commit messages from `topic2`, after the messages to `topic1` are 
 successfully published. 
 
-In order to do so, a `Source[SendPacket]` needs to be created. The definition of `SendPacket` is:
+In order to do so, a `Flow[SendPacket]` needs to be created. The definition of `SendPacket` is:
 
 ```scala mdoc:compile-only
 import org.apache.kafka.clients.producer.ProducerRecord
@@ -61,27 +54,25 @@ case class SendPacket[K, V](send: List[ProducerRecord[K, V]], commit: List[Recei
 
 The `send` list contains the messages to be sent (each message is a Kafka `ProducerRecord`). The `commit` list contains
 the messages, basing on which the data to be sent was computed. These are the received messages, as produced by a 
-`KafkaSource`. When committing, for each topic-partition that appears in the received messages, the maximum offset is
+`KafkaFlow`. When committing, for each topic-partition that appears in the received messages, the maximum offset is
 computed. For example:
 
 ```scala mdoc:compile-only
-import ox.kafka.{ConsumerSettings, KafkaDrain, KafkaSource, ProducerSettings, SendPacket}
+import ox.kafka.{ConsumerSettings, KafkaDrain, KafkaFlow, ProducerSettings, SendPacket}
 import ox.kafka.ConsumerSettings.AutoOffsetReset
-import ox.{pipe, supervised}
+import ox.pipe
 import org.apache.kafka.clients.producer.ProducerRecord
 
-supervised {
-  val consumerSettings = ConsumerSettings.default("my_group").bootstrapServers("localhost:9092").autoOffsetReset(AutoOffsetReset.Earliest)
-  val producerSettings = ProducerSettings.default.bootstrapServers("localhost:9092")
-  val sourceTopic = "source_topic"
-  val destTopic = "dest_topic"
+val consumerSettings = ConsumerSettings.default("my_group").bootstrapServers("localhost:9092").autoOffsetReset(AutoOffsetReset.Earliest)
+val producerSettings = ProducerSettings.default.bootstrapServers("localhost:9092")
+val sourceTopic = "source_topic"
+val destTopic = "dest_topic"
 
-  KafkaSource
-    .subscribe(consumerSettings, sourceTopic)
-    .map(in => (in.value.toLong * 2, in))
-    .map((value, original) => SendPacket(ProducerRecord[String, String](destTopic, value.toString), original))
-    .pipe(KafkaDrain.publishAndCommit(producerSettings))
-}
+KafkaFlow
+  .subscribe(consumerSettings, sourceTopic)
+  .map(in => (in.value.toLong * 2, in))
+  .map((value, original) => SendPacket(ProducerRecord[String, String](destTopic, value.toString), original))
+  .pipe(KafkaDrain.runPublishAndCommit(producerSettings))
 ```
 
 The offsets are committed every second in a background process.
@@ -89,19 +80,16 @@ The offsets are committed every second in a background process.
 To publish data as a mapping stage:
 
 ```scala mdoc:compile-only
-import ox.channels.Source
+import ox.flow.Flow
 import ox.kafka.ProducerSettings
 import ox.kafka.KafkaStage.*
-import ox.supervised
 import org.apache.kafka.clients.producer.{ProducerRecord, RecordMetadata}
 
-supervised {
-  val settings = ProducerSettings.default.bootstrapServers("localhost:9092")
-  val metadatas: Source[RecordMetadata] = Source
-    .fromIterable(List("a", "b", "c"))
-    .mapAsView(msg => ProducerRecord[String, String]("my_topic", msg))
-    .mapPublish(settings)
+val settings = ProducerSettings.default.bootstrapServers("localhost:9092")
+val metadatas: Flow[RecordMetadata] = Flow
+  .fromIterable(List("a", "b", "c"))
+  .map(msg => ProducerRecord[String, String]("my_topic", msg))
+  .mapPublish(settings)
 
-  // process the metadatas source further
-}
+// process & run the metadatas flow further
 ```

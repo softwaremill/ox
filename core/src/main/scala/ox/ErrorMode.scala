@@ -55,8 +55,8 @@ object NoErrorMode extends ErrorMode[Nothing, [T] =>> T] {
 /** An error mode where errors are represented as `Either[E, T]` instances. */
 class EitherMode[E] extends ErrorMode[E, [T] =>> Either[E, T]] {
   override def isError[T](f: Either[E, T]): Boolean = f.isLeft
-  override def getError[T](f: Either[E, T]): E = f.left.get
-  override def getT[T](f: Either[E, T]): T = f.right.get
+  override def getError[T](f: Either[E, T]): E = f.left.getOrElse(throw new NoSuchElementException("Either.left.get on Right"))
+  override def getT[T](f: Either[E, T]): T = f.getOrElse(throw new NoSuchElementException("Either.right.get on Left"))
   override def pure[T](t: T): Either[E, T] = Right(t)
   override def pureError[T](e: E): Either[E, T] = Left(e)
 }

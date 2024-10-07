@@ -3,7 +3,8 @@ package ox.scheduling
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.{EitherValues, TryValues}
-import ox.{ElapsedTime, sleep}
+import ox.sleep
+import ox.util.ElapsedTime
 
 import scala.concurrent.duration.*
 
@@ -93,3 +94,4 @@ class FixedRateRepeatTest extends AnyFlatSpec with Matchers with EitherValues wi
     ex.getMessage shouldBe "boom"
     counter shouldBe 4
   }
+end FixedRateRepeatTest

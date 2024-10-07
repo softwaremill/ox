@@ -7,6 +7,7 @@ variants and functionalities!
 import ox.*
 import ox.either.ok
 import ox.channels.*
+import ox.flow.Flow
 import ox.resilience.*
 import ox.scheduling.*
 import scala.concurrent.duration.*
@@ -23,14 +24,13 @@ val result2: Either[Throwable, Int] = either.catching(timeout(1.second)(computat
 
 // structured concurrency & supervision
 supervised {
-  forkUser {
+  forkUser:
     sleep(1.second)
     println("Hello!")
-  }
-  forkUser {
+
+  forkUser:
     sleep(500.millis)
     throw new RuntimeException("boom!")
-  }
 }
 // on exception, ends the scope & re-throws
 
@@ -38,12 +38,12 @@ supervised {
 def computationR: Int = ???
 retry(RetryConfig.backoff(3, 100.millis, 5.minutes, Jitter.Equal))(computationR)
 
-// create channels & transform them using high-level operations
-supervised {
-  Source.iterate(0)(_ + 1) // natural numbers
-    .transform(_.filter(_ % 2 == 0).map(_ + 1).take(10))
-    .foreach(n => println(n.toString))
-}
+// create a flow & transform using high-level operations
+Flow.iterate(0)(_ + 1) // natural numbers
+  .filter(_ % 2 == 0)
+  .map(_ + 1)
+  .take(10)
+  .runForeach(n => println(n.toString))
 
 // select from a number of channels
 val c = Channel.rendezvous[Int]

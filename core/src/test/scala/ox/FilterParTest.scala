@@ -8,8 +8,9 @@ import scala.List
 import scala.collection.IterableFactory
 import scala.collection.immutable.Iterable
 import scala.concurrent.duration.*
+import scala.annotation.nowarn
 
-class FilterParTest extends AnyFlatSpec with Matchers {
+class FilterParTest extends AnyFlatSpec with Matchers:
   "filterPar" should "output the same type as input" in {
     val input = List(1, 2, 3)
     val result = input.filterPar(1)(_ => true)
@@ -21,10 +22,9 @@ class FilterParTest extends AnyFlatSpec with Matchers {
     val TransformationMillis = 100.millis
 
     val input = 0 to InputElements
-    def predicate(i: Int) = {
+    def predicate(i: Int) =
       sleep(TransformationMillis)
       i % 2 == 0
-    }
 
     val start = System.currentTimeMillis()
     val result = input.to(Iterable).filterPar(5)(predicate)
@@ -41,12 +41,11 @@ class FilterParTest extends AnyFlatSpec with Matchers {
 
     val maxCounter = new MaxCounter()
 
-    def predicate(i: Int) = {
+    def predicate(@nowarn i: Int) =
       maxCounter.increment()
       sleep(10.millis)
       maxCounter.decrement()
       true
-    }
 
     input.to(Iterable).filterPar(Parallelism)(predicate)
 
@@ -60,26 +59,21 @@ class FilterParTest extends AnyFlatSpec with Matchers {
 
     val input = (0 to InputElements)
 
-    def predicate(i: Int) = {
-      if (i == 4) {
+    def predicate(i: Int) =
+      if i == 4 then
         trail.add("exception")
         throw new Exception("boom")
-      } else {
+      else
         sleep(TransformationMillis)
         trail.add("transformation")
         true
-      }
-    }
 
-    try {
-      input.to(Iterable).filterPar(5)(predicate)
-    } catch {
-      case e: Exception if e.getMessage == "boom" => trail.add("catch")
-    }
+    try input.to(Iterable).filterPar(5)(predicate)
+    catch case e: Exception if e.getMessage == "boom" => trail.add("catch")
 
     sleep(300.millis)
     trail.add("all done")
 
     trail.get shouldBe Vector("exception", "catch", "all done")
   }
-}
+end FilterParTest

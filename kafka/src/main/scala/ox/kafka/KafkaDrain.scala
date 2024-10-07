@@ -6,44 +6,49 @@ import ox.*
 import ox.channels.*
 
 import scala.jdk.CollectionConverters.*
+import ox.flow.Flow
 
 object KafkaDrain:
   private val logger = LoggerFactory.getLogger(classOf[KafkaDrain.type])
 
-  def publish[K, V](settings: ProducerSettings[K, V]): Source[ProducerRecord[K, V]] => Unit = source =>
-    publish(settings.toProducer, closeWhenComplete = true)(source)
+  def runPublish[K, V](settings: ProducerSettings[K, V])(using BufferCapacity): Flow[ProducerRecord[K, V]] => Unit = flow =>
+    runPublish(settings.toProducer, closeWhenComplete = true)(flow)
 
-  def publish[K, V](producer: KafkaProducer[K, V], closeWhenComplete: Boolean): Source[ProducerRecord[K, V]] => Unit = source =>
-    // if sending multiple records ends in an exception, we'll receive at most one anyway; we don't want to block the
-    // producers, hence creating an unbounded channel
-    val producerExceptions = Channel.unlimited[Throwable]
+  def runPublish[K, V](producer: KafkaProducer[K, V], closeWhenComplete: Boolean)(using
+      BufferCapacity
+  ): Flow[ProducerRecord[K, V]] => Unit =
+    flow =>
+      // if sending multiple records ends in an exception, we'll receive at most one anyway; we don't want to block the
+      // producers, hence creating an unbounded channel
+      val producerExceptions = Channel.unlimited[Throwable]
 
-    try
-      repeatWhile {
-        selectOrClosed(producerExceptions.receiveClause, source.receiveClause) match // bias on exceptions
-          case e: ChannelClosed.Error         => throw e.toThrowable
-          case ChannelClosed.Done             => false // source must be done, as producerExceptions is never done
-          case producerExceptions.Received(e) => throw e
-          case source.Received(record) =>
-            producer.send(
-              record,
-              (_: RecordMetadata, exception: Exception) => {
-                if exception != null then
-                  logger.error("Exception when sending record", exception)
-                  producerExceptions.sendOrClosed(exception).discard
-              }
-            )
-            true
-      }
-    finally
-      if closeWhenComplete then uninterruptible(producer.close())
-
+      supervised:
+        val source = flow.runToChannel()
+        try
+          repeatWhile {
+            selectOrClosed(producerExceptions.receiveClause, source.receiveClause) match // bias on exceptions
+              case e: ChannelClosed.Error         => throw e.toThrowable
+              case ChannelClosed.Done             => false // source must be done, as producerExceptions is never done
+              case producerExceptions.Received(e) => throw e
+              case source.Received(record) =>
+                producer.send(
+                  record,
+                  (_: RecordMetadata, exception: Exception) =>
+                    if exception != null then
+                      logger.error("Exception when sending record", exception)
+                      producerExceptions.sendOrClosed(exception).discard
+                )
+                true
+          }
+        finally
+          if closeWhenComplete then uninterruptible(producer.close())
+        end try
   /** @return
     *   A drain, which consumes all packets from the provided `Source`.. For each packet, first all `send` messages (producer records) are
     *   sent. Then, all `commit` messages (consumer records) up to their offsets are committed.
     */
-  def publishAndCommit[K, V](producerSettings: ProducerSettings[K, V]): Source[SendPacket[K, V]] => Unit =
-    source => publishAndCommit(producerSettings.toProducer, closeWhenComplete = true)(source)
+  def runPublishAndCommit[K, V](producerSettings: ProducerSettings[K, V])(using BufferCapacity): Flow[SendPacket[K, V]] => Unit =
+    flow => runPublishAndCommit(producerSettings.toProducer, closeWhenComplete = true)(flow)
 
   /** @param producer
     *   The producer that is used to send messages.
@@ -51,8 +56,9 @@ object KafkaDrain:
     *   A drain, which consumes all packets from the provided `Source`.. For each packet, first all `send` messages (producer records) are
     *   sent. Then, all `commit` messages (consumer records) up to their offsets are committed.
     */
-  def publishAndCommit[K, V](producer: KafkaProducer[K, V], closeWhenComplete: Boolean): Source[SendPacket[K, V]] => Unit = source =>
-    supervised {
-      import KafkaStage.*
-      source.mapPublishAndCommit(producer, closeWhenComplete).drain()
-    }
+  def runPublishAndCommit[K, V](producer: KafkaProducer[K, V], closeWhenComplete: Boolean)(using
+      BufferCapacity
+  ): Flow[SendPacket[K, V]] => Unit = flow =>
+    import KafkaStage.*
+    flow.mapPublishAndCommit(producer, closeWhenComplete).runDrain()
+end KafkaDrain

@@ -9,17 +9,19 @@ import java.util.concurrent.atomic.AtomicInteger
 import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.jdk.CollectionConverters.*
+import ox.flow.Flow
+import ox.flow.FlowEmit
 
 object KafkaStage:
   private val logger = LoggerFactory.getLogger(classOf[KafkaStage.type])
 
-  extension [K, V](source: Source[ProducerRecord[K, V]])
+  extension [K, V](flow: Flow[ProducerRecord[K, V]])
     /** Publish the messages using a producer created with the given `settings`.
       *
       * @return
       *   A stream of published records metadata, in the order in which the [[ProducerRecord]]s are received.
       */
-    def mapPublish(settings: ProducerSettings[K, V])(using StageCapacity, Ox): Source[RecordMetadata] =
+    def mapPublish(settings: ProducerSettings[K, V])(using BufferCapacity): Flow[RecordMetadata] =
       mapPublish(settings.toProducer, closeWhenComplete = true)
 
     /** Publish the messages using the given `producer`. The producer is closed depending on the `closeWhenComplete` flag, after all
@@ -28,10 +30,11 @@ object KafkaStage:
       * @return
       *   A stream of published records metadata, in the order in which the [[ProducerRecord]]s are received.
       */
-    def mapPublish(producer: KafkaProducer[K, V], closeWhenComplete: Boolean)(using StageCapacity, Ox): Source[RecordMetadata] =
-      source.mapAsView(r => SendPacket(List(r), Nil)).mapPublishAndCommit(producer, closeWhenComplete, commitOffsets = false)
+    def mapPublish(producer: KafkaProducer[K, V], closeWhenComplete: Boolean)(using BufferCapacity): Flow[RecordMetadata] =
+      flow.map(r => SendPacket(List(r), Nil)).mapPublishAndCommit(producer, closeWhenComplete, commitOffsets = false)
+  end extension
 
-  extension [K, V](source: Source[SendPacket[K, V]])
+  extension [K, V](flow: Flow[SendPacket[K, V]])
     /** For each packet, first all messages (producer records) from [[SendPacket.send]] are sent, using a producer created with the given
       * `producerSettings`. Then, all messages from [[SendPacket.commit]] are committed: for each topic-partition, up to the highest
       * observed offset.
@@ -39,7 +42,7 @@ object KafkaStage:
       * @return
       *   A stream of published records metadata, in the order in which the [[SendPacket]]s are received.
       */
-    def mapPublishAndCommit(producerSettings: ProducerSettings[K, V])(using StageCapacity, Ox): Source[RecordMetadata] =
+    def mapPublishAndCommit(producerSettings: ProducerSettings[K, V])(using BufferCapacity): Flow[RecordMetadata] =
       mapPublishAndCommit(producerSettings.toProducer, closeWhenComplete = true)
 
     /** For each packet, first all messages (producer records) are sent, using the given `producer`. Then, all messages from
@@ -52,43 +55,39 @@ object KafkaStage:
       * @return
       *   A stream of published records metadata, in the order in which the [[SendPacket]]s are received.
       */
-    def mapPublishAndCommit(producer: KafkaProducer[K, V], closeWhenComplete: Boolean)(using
-        StageCapacity,
-        Ox
-    ): Source[RecordMetadata] =
+    def mapPublishAndCommit(producer: KafkaProducer[K, V], closeWhenComplete: Boolean)(using BufferCapacity): Flow[RecordMetadata] =
       mapPublishAndCommit(producer, closeWhenComplete, commitOffsets = true)
 
     private def mapPublishAndCommit(producer: KafkaProducer[K, V], closeWhenComplete: Boolean, commitOffsets: Boolean)(using
-        StageCapacity,
-        Ox
-    ): Source[RecordMetadata] =
-      // source - the upstream from which packets are received
+        BufferCapacity
+    ): Flow[RecordMetadata] =
+      Flow.usingEmit { emit =>
+        // a helper channel to signal any exceptions that occur while publishing or committing offsets
+        // the exceptions & metadata channels are unlimited so as to only block the Kafka callback thread in the smallest
+        // possible way
+        val exceptions = Channel.unlimited[Throwable]
+        // possible out-of-order metadata of the records published from `packet.send`
+        val metadata = Channel.unlimited[(Long, RecordMetadata)]
+        // packets which are fully sent, and should be committed
+        val toCommit = BufferCapacity.newChannel[SendPacket[_, _]]
 
-      // the result, where metadata of published records is sent in the same order, as the received packets
-      val c = StageCapacity.newChannel[RecordMetadata]
-      // a helper channel to signal any exceptions that occur while publishing or committing offsets
-      // the exceptions & metadata channels are unlimited so as to only block the Kafka callback thread in the smallest
-      // possible way
-      val exceptions = Channel.unlimited[Exception]
-      // possible out-of-order metadata of the records published from `packet.send`
-      val metadata = Channel.unlimited[(Long, RecordMetadata)]
-      // packets which are fully sent, and should be committed
-      val toCommit = StageCapacity.newChannel[SendPacket[_, _]]
-      // used to reorder values received from `metadata` using the assigned sequence numbers
-      val sendInSequence = SendInSequence(c)
+        // used to reorder values received from `metadata` using the assigned sequence numbers
+        val sendInSequence = SendInSequence(emit)
 
-      fork {
         try
           // starting a nested scope, so that the committer is interrupted when the main process ends (when there's an exception)
-          unsupervised {
+          supervised {
+            // source - the upstream from which packets are received
+            val source = flow.runToChannel()
+
             // committer
             val commitDoneSource =
-              if commitOffsets then Source.fromFork(fork(doCommit(toCommit).tapException(e => c.errorOrClosed(e).discard)))
+              if commitOffsets then Source.fromFork(fork(doCommit(toCommit).tapException(exceptions.sendOrClosed(_).discard)))
               else Source.empty
 
             repeatWhile {
               selectOrClosed(exceptions.receiveClause, metadata.receiveClause, source.receiveClause) match
-                case ChannelClosed.Error(r) => c.errorOrClosed(r); false
+                case ChannelClosed.Error(r) => throw r
                 case ChannelClosed.Done     =>
                   // waiting until all records are sent and metadata forwarded to `c`
                   sendInSequence.drainFrom(metadata, exceptions)
@@ -96,11 +95,9 @@ object KafkaStage:
                   toCommit.done()
                   // waiting until the commit fork is done - this might also return Done if commitOffsets is false, hence the safe variant
                   commitDoneSource.receiveOrClosed()
-                  // completing the downstream
-                  c.done()
-                  // and finally winding down this scope & fork
+                  // and finally winding down this scope
                   false
-                case exceptions.Received(e)    => c.errorOrClosed(e); false
+                case exceptions.Received(e)    => throw e
                 case metadata.Received((s, m)) => sendInSequence.send(s, m); true
                 case source.Received(packet) =>
                   try
@@ -108,7 +105,7 @@ object KafkaStage:
                     true
                   catch
                     case e: Exception =>
-                      c.errorOrClosed(e)
+                      throw e
                       false
             }
           }
@@ -116,9 +113,10 @@ object KafkaStage:
           if closeWhenComplete then
             logger.debug("Closing the Kafka producer")
             uninterruptible(producer.close())
+        end try
       }
-
-      c
+    end mapPublishAndCommit
+  end extension
 
   private def sendPacket[K, V](
       producer: KafkaProducer[K, V],
@@ -136,17 +134,18 @@ object KafkaStage:
         toSend,
         (m: RecordMetadata, e: Exception) =>
           if e != null then exceptions.sendOrClosed(e).discard
-          else {
+          else
             // sending commit request first, as when upstream `source` is done, we need to know that all commits are
             // scheduled in order to shut down properly
             if commitOffsets && leftToSend.decrementAndGet() == 0 then toCommit.send(packet)
             metadata.send((sequenceNo, m))
-          }
       )
     }
+  end sendPacket
+end KafkaStage
 
-/** Sends `T` elements to the given `c` sink, when elements with subsequent sequence numbers are available. Thread-unsafe. */
-private class SendInSequence[T](c: Sink[T]):
+/** Sends `T` elements to the given `emit`, when elements with subsequent sequence numbers are available. Thread-unsafe. */
+private class SendInSequence[T](emit: FlowEmit[T]):
   private var sequenceNoNext = 0L
   private var sequenceNoToSendNext = 0L
   private val toSend = mutable.SortedSet[(Long, T)]()(Ordering.by(_._1))
@@ -166,7 +165,7 @@ private class SendInSequence[T](c: Sink[T]):
   private def trySend(): Unit = toSend.headOption match
     case Some((s, m)) if s == sequenceNoToSendNext =>
       toSend.remove((s, m))
-      c.send(m)
+      emit(m)
       sequenceNoToSendNext += 1
       trySend()
     case _ => ()
@@ -174,11 +173,12 @@ private class SendInSequence[T](c: Sink[T]):
   @tailrec
   final def drainFrom(
       incoming: Source[(Long, T)],
-      exceptions: Source[Exception]
+      exceptions: Source[Throwable]
   ): Unit =
     if !allSent then
       selectOrClosed(exceptions.receiveClause, incoming.receiveClause) match
-        case ChannelClosed.Error(r)    => c.errorOrClosed(r).discard
+        case ChannelClosed.Error(r)    => throw r
         case ChannelClosed.Done        => throw new IllegalStateException()
-        case exceptions.Received(e)    => c.errorOrClosed(e).discard
+        case exceptions.Received(e)    => throw e
         case incoming.Received((s, m)) => send(s, m); drainFrom(incoming, exceptions)
+end SendInSequence

@@ -1,288 +1,41 @@
 package ox.channels
 
 import ox.*
-import ox.channels.ChannelClosedUnion.isValue
 
 import java.util
-import scala.collection.mutable
 import scala.concurrent.ExecutionContext
 import scala.concurrent.ExecutionException
 import scala.concurrent.Future
-import scala.concurrent.duration.FiniteDuration
 import scala.util.Failure
 import scala.util.Success
+import ox.flow.Flow
 
 trait SourceCompanionOps:
-  def fromIterable[T](it: Iterable[T])(using Ox, StageCapacity): Source[T] = fromIterator(it.iterator)
-
-  def fromValues[T](ts: T*)(using Ox, StageCapacity): Source[T] = fromIterator(ts.iterator)
-
-  def fromIterator[T](it: => Iterator[T])(using Ox, StageCapacity): Source[T] =
-    val c = StageCapacity.newChannel[T]
-    forkPropagate(c) {
-      val theIt = it
-      while theIt.hasNext do c.sendOrClosed(theIt.next()).discard
-      c.doneOrClosed().discard
-    }
-    c
-
-  def fromFork[T](f: Fork[T])(using Ox, StageCapacity): Source[T] =
-    val c = StageCapacity.newChannel[T]
-    forkPropagate(c) {
-      c.sendOrClosed(f.join())
-      c.doneOrClosed().discard
-    }
-    c
-
-  def iterate[T](zero: T)(f: T => T)(using Ox, StageCapacity): Source[T] =
-    val c = StageCapacity.newChannel[T]
-    forkPropagate(c) {
-      var t = zero
-      forever {
-        c.sendOrClosed(t)
-        t = f(t)
-      }
-    }
-    c
-
-  /** A range of number, from `from`, to `to` (inclusive), stepped by `step`. */
-  def range(from: Int, to: Int, step: Int)(using Ox, StageCapacity): Source[Int] =
-    val c = StageCapacity.newChannel[Int]
-    forkPropagate(c) {
-      var t = from
-      repeatWhile {
-        c.sendOrClosed(t)
-        t = t + step
-        t <= to
-      }
-      c.doneOrClosed().discard
-    }
-    c
-
-  def unfold[S, T](initial: S)(f: S => Option[(T, S)])(using Ox, StageCapacity): Source[T] =
-    val c = StageCapacity.newChannel[T]
-    forkPropagate(c) {
-      var s = initial
-      repeatWhile {
-        f(s) match
-          case Some((value, next)) =>
-            c.sendOrClosed(value)
-            s = next
-            true
-          case None =>
-            c.doneOrClosed()
-            false
-      }
-    }
-    c
-
-  /** Creates a rendezvous channel (without a buffer, regardless of the [[StageCapacity]] in scope), to which the given value is sent
-    * repeatedly, at least [[interval]] apart between each two elements. The first value is sent immediately.
-    *
-    * The interval is measured between the subsequent invocations of the `send(value)` method. Hence, if there's a slow consumer, the next
-    * tick can be sent right after the previous one is received (if it was received later than the inter-tick interval duration). However,
-    * ticks don't accumulate, e.g. when the consumer is so slow that multiple intervals pass between `send` invocations.
-    *
-    * Must be run within a scope, since a child fork is created which sends the ticks, and waits until the next tick can be sent.
-    *
-    * @param interval
-    *   The temporal spacing between subsequent ticks.
-    * @param value
-    *   The value to send to the channel on every tick.
-    * @return
-    *   A source to which the tick values are sent.
-    * @example
-    *   {{{
-    *   scala>
-    *   import ox.*
-    *   import ox.channels.Source
-    *   import scala.concurrent.duration.DurationInt
-    *
-    *   supervised {
-    *     val s1 = Source.tick(100.millis)
-    *     s1.receive()
-    *     s2.receive() // this will complete at least 100 milliseconds later
-    *   }
-    *   }}}
-    */
-  def tick[T](interval: FiniteDuration, value: T = ())(using Ox): Source[T] =
-    val c = Channel.rendezvous[T]
-    fork {
-      forever {
-        val start = System.nanoTime()
-        c.sendOrClosed(value)
-        val end = System.nanoTime()
-        val sleep = interval.toNanos - (end - start)
-        if sleep > 0 then Thread.sleep(sleep / 1_000_000, (sleep % 1_000_000).toInt)
-      }
-    }
-    c
-
-  /** Creates a channel, to which the given `element` is sent repeatedly.
-    *
-    * @param element
-    *   The element to send
-    * @return
-    *   A source to which the given element is sent repeatedly.
-    */
-  def repeat[T](element: T = ())(using Ox, StageCapacity): Source[T] = repeatEval(element)
-
-  /** Creates a channel, to which the result of evaluating `f` is sent repeatedly. As the parameter is passed by-name, the evaluation is
-    * deferred until the element is sent, and happens multiple times.
-    *
-    * @param f
-    *   The code block, computing the element to send.
-    * @return
-    *   A source to which the result of evaluating `f` is sent repeatedly.
-    */
-  def repeatEval[T](f: => T)(using Ox, StageCapacity): Source[T] =
-    val c = StageCapacity.newChannel[T]
-    forkPropagate(c) {
-      forever {
-        c.sendOrClosed(f).discard
-      }
-    }
-    c
-
-  /** Creates a channel, to which the value contained in the result of evaluating `f` is sent repeatedly. When the evaluation of `f` returns
-    * a `None`, the channel is completed as "done", and no more values are evaluated or sent.
-    *
-    * As the `f` parameter is passed by-name, the evaluation is deferred until the element is sent, and happens multiple times.
-    *
-    * @param f
-    *   The code block, computing the optional element to send.
-    * @return
-    *   A source to which the value contained in the result of evaluating `f` is sent repeatedly.
-    */
-  def repeatEvalWhileDefined[T](f: => Option[T])(using Ox, StageCapacity): Source[T] =
-    val c = StageCapacity.newChannel[T]
-    forkPropagate(c) {
-      repeatWhile {
-        f match
-          case Some(value) => c.sendOrClosed(value); true
-          case None        => c.doneOrClosed(); false
-      }
-    }
-    c
-
-  def timeout[T](interval: FiniteDuration, element: T = ())(using Ox, StageCapacity): Source[T] =
-    val c = StageCapacity.newChannel[T]
-    fork {
-      sleep(interval)
-      c.sendOrClosed(element)
-      c.doneOrClosed()
-    }
-    c
-
-  def concat[T](sources: Seq[() => Source[T]])(using Ox, StageCapacity): Source[T] =
-    val c = StageCapacity.newChannel[T]
-    forkPropagate(c) {
-      var currentSource: Option[Source[T]] = None
-      val sourcesIterator = sources.iterator
-      var continue = true
-      while continue do
-        currentSource match
-          case None if sourcesIterator.hasNext => currentSource = Some(sourcesIterator.next()())
-          case None =>
-            c.doneOrClosed()
-            continue = false
-          case Some(source) =>
-            source.receiveOrClosed() match
-              case ChannelClosed.Done =>
-                currentSource = None
-              case ChannelClosed.Error(r) =>
-                c.errorOrClosed(r)
-                continue = false
-              case t: T @unchecked =>
-                c.sendOrClosed(t).discard
-    }
-    c
-
+  /** Creates an empty source, that is immediately completed as done. */
   def empty[T]: Source[T] =
     val c = Channel.rendezvous[T]
     c.doneOrClosed()
     c
 
-  /** Sends a given number of elements (determined byc `segmentSize`) from each source in `sources` to the returned channel and repeats. The
-    * order of elements in all sources is preserved.
+  /** Creates a source that fails immediately with the given [[java.lang.Throwable]]
     *
-    * If any of the sources is done before the others, the behavior depends on the `eagerCancel` flag. When set to `true`, the returned
-    * channel is completed immediately, otherwise the interleaving continues with the remaining non-completed sources. Once all but one
-    * sources are complete, the elements of the remaining non-complete source are sent to the returned channel.
-    *
-    * Must be run within a scope, since a child fork is created which receives from the subsequent sources and sends to the resulting
-    * channel.
-    *
-    * @param sources
-    *   The sources whose elements will be interleaved.
-    * @param segmentSize
-    *   The number of elements sent from each source before switching to the next one. Default is 1.
-    * @param eagerComplete
-    *   If `true`, the returned channel is completed as soon as any of the sources completes. If `false`, the interleaving continues with
-    *   the remaining non-completed sources.
+    * @param t
+    *   The [[java.lang.Throwable]] to fail with
     * @return
-    *   A source to which the interleaved elements from both sources would be sent.
-    * @example
-    *   {{{
-    *   scala>
-    *   import ox.*
-    *   import ox.channels.Source
-    *
-    *   supervised {
-    *     val s1 = Source.fromValues(1, 2, 3, 4, 5, 6, 7, 8)
-    *     val s2 = Source.fromValues(10, 20, 30)
-    *     val s3 = Source.fromValues(100, 200, 300, 400, 500)
-    *     Source.interleaveAll(List(s1, s2, s3), segmentSize = 2, eagerComplete = true).toList
-    *   }
-    *
-    *   scala> val res0: List[Int] = List(1, 2, 10, 20, 100, 200, 3, 4, 30)
-    *   }}}
+    *   A source that would fail immediately with the given [[java.lang.Throwable]]
     */
-  def interleaveAll[T](sources: Seq[Source[T]], segmentSize: Int = 1, eagerComplete: Boolean = false)(using
-      Ox,
-      StageCapacity
-  ): Source[T] =
-    sources match
-      case Nil           => Source.empty
-      case single :: Nil => single
-      case _ =>
-        val c = StageCapacity.newChannel[T]
+  def failed[T](t: Throwable): Source[T] =
+    val c = Channel.rendezvous[T]
+    c.errorOrClosed(t)
+    c
 
-        fork {
-          val availableSources = mutable.ArrayBuffer.from(sources)
-          var currentSourceIndex = 0
-          var elementsRead = 0
+  def fromIterable[T](it: Iterable[T])(using Ox, BufferCapacity): Source[T] = fromIterator(it.iterator)
 
-          def completeCurrentSource(): Unit =
-            availableSources.remove(currentSourceIndex)
-            currentSourceIndex = if (currentSourceIndex == 0) availableSources.size - 1 else currentSourceIndex - 1
+  def fromValues[T](ts: T*)(using Ox, BufferCapacity): Source[T] = fromIterator(ts.iterator)
 
-          def switchToNextSource(): Unit =
-            currentSourceIndex = (currentSourceIndex + 1) % availableSources.size
-            elementsRead = 0
+  def fromIterator[T](it: => Iterator[T])(using Ox, BufferCapacity): Source[T] = Flow.fromIterator(it).runToChannel()
 
-          repeatWhile {
-            availableSources(currentSourceIndex).receiveOrClosed() match
-              case ChannelClosed.Done =>
-                completeCurrentSource()
-
-                if (eagerComplete || availableSources.isEmpty)
-                  c.doneOrClosed()
-                  false
-                else
-                  switchToNextSource()
-                  true
-              case ChannelClosed.Error(r) =>
-                c.errorOrClosed(r)
-                false
-              case value: T @unchecked =>
-                elementsRead += 1
-                // after reaching segmentSize, only switch to next source if there's any other available
-                if (elementsRead == segmentSize && availableSources.size > 1) switchToNextSource()
-                c.sendOrClosed(value).isValue
-          }
-        }
-        c
+  def fromFork[T](f: Fork[T])(using Ox, BufferCapacity): Source[T] = Flow.fromFork(f).runToChannel()
 
   /** Creates a source that emits a single value when `from` completes or fails otherwise. The `from` completion is performed on the
     * provided [[scala.concurrent.ExecutionContext]]. Note that when `from` fails with [[scala.concurrent.ExecutionException]] then its
@@ -308,14 +61,14 @@ trait SourceCompanionOps:
     *   }
     *   }}}
     */
-  def future[T](from: Future[T])(using StageCapacity, ExecutionContext): Source[T] =
-    val c = StageCapacity.newChannel[T]
+  def fromFuture[T](from: Future[T])(using BufferCapacity, ExecutionContext): Source[T] =
+    val c = BufferCapacity.newChannel[T]
     receiveAndSendFromFuture(from, c)
     c
 
-  /** Creates a source that emits elements from future source when `from` completes or fails otherwise. The `from` completion is performed
-    * on the provided [[scala.concurrent.ExecutionContext]] whereas elements are emitted through Ox. Note that when `from` fails with
-    * [[scala.concurrent.ExecutionException]] then its cause is returned as source failure.
+  /** Creates a source to which the future's value is sent, once `from` completes or fails otherwise. The `from` completion is performed on
+    * the provided [[scala.concurrent.ExecutionContext]]. Note that when `from` fails with [[scala.concurrent.ExecutionException]] then its
+    * cause is returned as source failure.
     *
     * @param from
     *   A [[scala.concurrent.Future]] that returns source upon completion.
@@ -337,9 +90,9 @@ trait SourceCompanionOps:
     *   }
     *   }}}
     */
-  def futureSource[T](from: Future[Source[T]])(using Ox, StageCapacity, ExecutionContext): Source[T] =
-    val c = StageCapacity.newChannel[T]
-    val transportChannel = StageCapacity.newChannel[Source[T]](using StageCapacity(1))
+  def fromFutureSource[T](from: Future[Source[T]])(using Ox, BufferCapacity, ExecutionContext): Source[T] =
+    val c = BufferCapacity.newChannel[T]
+    val transportChannel = BufferCapacity.newChannel[Source[T]](using BufferCapacity(1))
 
     receiveAndSendFromFuture(from, transportChannel)
 
@@ -350,23 +103,12 @@ trait SourceCompanionOps:
         case source: Source[T] @unchecked => source.pipeTo(c, propagateDone = true)
     }
     c
+  end fromFutureSource
 
-  private def receiveAndSendFromFuture[T](from: Future[T], to: Channel[T])(using ExecutionContext): Unit = {
+  private def receiveAndSendFromFuture[T](from: Future[T], to: Channel[T])(using ExecutionContext): Unit =
     from.onComplete {
       case Success(value)                  => to.sendOrClosed(value); to.doneOrClosed()
       case Failure(ex: ExecutionException) => to.errorOrClosed(ex.getCause)
       case Failure(ex)                     => to.errorOrClosed(ex)
     }
-  }
-
-  /** Creates a source that fails immediately with the given [[java.lang.Throwable]]
-    *
-    * @param t
-    *   The [[java.lang.Throwable]] to fail with
-    * @return
-    *   A source that would fail immediately with the given [[java.lang.Throwable]]
-    */
-  def failed[T](t: Throwable): Source[T] =
-    val c = Channel.rendezvous[T]
-    c.errorOrClosed(t)
-    c
+end SourceCompanionOps

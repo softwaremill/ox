@@ -4,7 +4,7 @@
 [![CI](https://github.com/softwaremill/ox/workflows/CI/badge.svg)](https://github.com/softwaremill/ox/actions?query=workflow%3A%22CI%22)
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.softwaremill.ox/core_3/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.softwaremill.ox/core_3)
 
-Safe direct style concurrency and resiliency for Scala on the JVM. Requires JDK 21 & Scala 3. The areas that we'd like 
+Safe direct-style concurrency and resiliency for Scala on the JVM. Requires JDK 21 & Scala 3. The areas that we'd like 
 to cover with Ox are:
 
 * concurrency: developer-friendly structured concurrency, high-level concurrency operators, safe low-level primitives, 
@@ -40,7 +40,9 @@ Documentation is available at [https://ox.softwaremill.com](https://ox.softwarem
 import ox.*
 import ox.either.ok
 import ox.channels.*
+import ox.flow.Flow
 import ox.resilience.*
+import ox.scheduling.*
 import scala.concurrent.duration.*
 
 // run two computations in parallel
@@ -51,31 +53,30 @@ val result1: (Int, String) = par(computation1, computation2)
 
 // timeout a computation
 def computation: Int = { sleep(2.seconds); 1 }
-val result2: Either[Throwable, Int] = catching(timeout(1.second)(computation))
+val result2: Either[Throwable, Int] = either.catching(timeout(1.second)(computation))
 
 // structured concurrency & supervision
 supervised {
-  forkUser {
+  forkUser:
     sleep(1.second)
     println("Hello!")
-  }
-  forkUser {
+
+  forkUser:
     sleep(500.millis)
     throw new RuntimeException("boom!")
-  }
 }
 // on exception, ends the scope & re-throws
 
 // retry a computation
 def computationR: Int = ???
-retry(RetryPolicy.backoff(3, 100.millis, 5.minutes, Jitter.Equal))(computationR)
+retry(RetryConfig.backoff(3, 100.millis, 5.minutes, Jitter.Equal))(computationR)
 
-// create channels & transform them using high-level operations
-supervised {
-  Source.iterate(0)(_ + 1) // natural numbers
-          .transform(_.filter(_ % 2 == 0).map(_ + 1).take(10))
-          .foreach(n => println(n.toString))
-}
+// create a flow & transform using high-level operations
+Flow.iterate(0)(_ + 1) // natural numbers
+  .filter(_ % 2 == 0)
+  .map(_ + 1)
+  .take(10)
+  .runForeach(n => println(n.toString))
 
 // select from a number of channels
 val c = Channel.rendezvous[Int]
@@ -94,12 +95,12 @@ More examples [in the docs!](https://ox.softwaremill.com).
 
 ## Other projects
 
-The wider goal of direct style Scala is enabling teams to deliver working software quickly and with confidence. Our
+The wider goal of direct-style Scala is enabling teams to deliver working software quickly and with confidence. Our
 other projects, including [sttp client](https://sttp.softwaremill.com) and [tapir](https://tapir.softwaremill.com),
 also include integrations directly tailored towards direct style.
 
 Moreover, also check out the [gears](https://github.com/lampepfl/gears) project, an experimental multi-platform library
-also covering direct style Scala.
+also covering direct-style Scala.
 
 ## Contributing
 

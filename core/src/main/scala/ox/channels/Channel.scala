@@ -9,7 +9,7 @@ import scala.annotation.unchecked.uncheckedVariance
 // select result: needs to be defined here, as implementations are defined here as well
 
 /** Results of a [[select]] call, when clauses are passed (instead of a number of [[Source]]s). Each result corresponds to a clause, and can
-  * be pattern-matched (using a path-dependent type)) to inspect which clause was selected.
+  * be pattern-matched (using a path-dependent type) to inspect which clause was selected.
   */
 sealed trait SelectResult[+T]:
   def value: T
@@ -39,7 +39,7 @@ case class Default[T](value: T) extends SelectClause[T]:
 //
 
 /** A channel source, which can be used to receive values from the channel. See [[Channel]] for more details. */
-trait Source[+T] extends SourceOps[T] with SourceDrainOps[T] with SourceIOOps[T] with SourceTextOps[T]:
+trait Source[+T] extends SourceOps[T] with SourceDrainOps[T]:
   protected def delegate: JSource[Any] // we need to use `Any` as the java types are invariant (they use use-site variance)
 
   // Skipping variance checks here is fine, as the only way a `Received` instance is created is by this Source (Channel),
@@ -99,12 +99,13 @@ trait Source[+T] extends SourceOps[T] with SourceDrainOps[T] with SourceIOOps[T]
     *   for receive, sending values is also not possible, [[isClosedForSend]] will return `true`.
     */
   def isClosedForReceiveDetail: Option[ChannelClosed] = Option(ChannelClosed.fromJoxOrT(delegate.closedForReceive()))
+end Source
 
 /** Various operations which allow creating [[Source]] instances.
   *
   * Some need to be run within a concurrency scope, such as [[supervised]].
   */
-object Source extends SourceCompanionOps with SourceCompanionIOOps
+object Source extends SourceCompanionOps
 
 //
 
@@ -147,7 +148,7 @@ trait Sink[-T]:
 
   /** Close the channel, indicating an error.
     *
-    * Any elements that are already buffered won't be delivered. Any send or receive operations that are in progress will complete with a
+    * Any values that are already buffered won't be delivered. Any send or receive operations that are in progress will complete with a
     * channel closed result.
     *
     * Subsequent [[sendOrClosed()]] and [[Source.receiveOrClosed()]] operations will return [[ChannelClosed]].
@@ -163,7 +164,7 @@ trait Sink[-T]:
 
   /** Close the channel, indicating an error.
     *
-    * Any elements that are already buffered won't be delivered. Any send or receive operations that are in progress will complete with a
+    * Any values that are already buffered won't be delivered. Any send or receive operations that are in progress will complete with a
     * channel closed result.
     *
     * Subsequent [[send()]] and [[Source.receive()]] operations will throw [[ChannelClosedException]].
@@ -177,10 +178,10 @@ trait Sink[-T]:
     */
   def error(reason: Throwable): Unit = errorOrClosed(reason).orThrow
 
-  /** Close the channel, indicating that no more elements will be sent. Doesn't throw exceptions when the channel is closed, but returns a
+  /** Close the channel, indicating that no more values will be sent. Doesn't throw exceptions when the channel is closed, but returns a
     * value.
     *
-    * Any elements that are already buffered will be delivered. Any send operations that are in progress will complete normally, when a
+    * Any values that are already buffered will be delivered. Any send operations that are in progress will complete normally, when a
     * receiver arrives. Any pending receive operations will complete with a channel closed result.
     *
     * Subsequent [[sendOrClosed()]] operations will return [[ChannelClosed]].
@@ -192,10 +193,10 @@ trait Sink[-T]:
     */
   def doneOrClosed(): Unit | ChannelClosed = ChannelClosed.fromJoxOrUnit(delegate.doneOrClosed())
 
-  /** Close the channel, indicating that no more elements will be sent. Doesn't throw exceptions when the channel is closed, but returns a
+  /** Close the channel, indicating that no more values will be sent. Doesn't throw exceptions when the channel is closed, but returns a
     * value.
     *
-    * Any elements that are already buffered will be delivered. Any send operations that are in progress will complete normally, when a
+    * Any values that are already buffered will be delivered. Any send operations that are in progress will complete normally, when a
     * receiver arrives. Any pending receive operations will complete with a channel closed result.
     *
     * Subsequent [[send()]] operations will throw [[ChannelClosedException]].
@@ -220,6 +221,7 @@ trait Sink[-T]:
     *   using [[isClosedForReceive]].
     */
   def isClosedForSendDetail: Option[ChannelClosed] = Option(ChannelClosed.fromJoxOrT(delegate.closedForSend()))
+end Sink
 
 //
 
@@ -237,7 +239,7 @@ trait Sink[-T]:
   *
   * Channels can be created using the channel's companion object. A rendezvous channel is created using [[Channel.rendezvous]]. A buffered
   * channel can be created either with a given capacity - by providing a positive integer to the [[Channel.buffered]] method - or with the
-  * default capacity ([[StageCapacity.default]]) using [[Channel.bufferedDefault]] . A rendezvous channel behaves like a buffered channel
+  * default capacity ([[BufferCapacity.default]]) using [[Channel.bufferedDefault]] . A rendezvous channel behaves like a buffered channel
   * with buffer size 0. An unlimited channel can be created using [[Channel.unlimited]].
   *
   * In a rendezvous channel, senders and receivers block, until a matching party arrives (unless one is already waiting). Similarly,
@@ -266,7 +268,7 @@ class Channel[T] private (capacity: Int) extends Source[T] with Sink[T]:
 
 object Channel:
   /** Creates a buffered channel with the default capacity (16). */
-  def bufferedDefault[T]: Channel[T] = StageCapacity.newChannel[T]
+  def bufferedDefault[T]: Channel[T] = BufferCapacity.newChannel[T]
 
   /** Creates a buffered channel with the given capacity. */
   def buffered[T](capacity: Int): Channel[T] = new Channel(capacity)
@@ -274,10 +276,11 @@ object Channel:
   /** Creates a rendezvous channel (without a buffer, senders & receivers must meet to exchange values). */
   def rendezvous[T]: Channel[T] = new Channel(0)
 
-  /** Creates an unlimited channel (which can buffer an arbitrary number of elements). */
+  /** Creates an unlimited channel (which can buffer an arbitrary number of values). */
   def unlimited[T]: Channel[T] = new Channel(-1)
 
   /** Creates a channel with the given capacity; -1 creates an [[unlimited]] channel, 0 creates a [[rendezvous]], positive values create a
     * [[buffered]] channel.
     */
   def withCapacity[T](capacity: Int): Channel[T] = new Channel(capacity)
+end Channel
