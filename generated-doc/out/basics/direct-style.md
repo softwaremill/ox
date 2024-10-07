@@ -41,18 +41,18 @@ of use and performance of imperative programming. This is a departure from a pur
 [cats-effect](https://github.com/typelevel/cats-effect) or [ZIO](https://zio.dev), in favor of running effectful 
 computations imperatively.
 
-Note, however, that in all other aspects direct style Scala remains functional: using immutable data structures,
+Note, however, that in all other aspects direct-style Scala remains functional: using immutable data structures,
 higher order functions, typeclasses, restricting effects, separating code and data, favoring function composition, etc.
 
 Ox uses the above mentioned virtual threads in Java 21 to implement a safe approach to concurrency, combined with 
 Go-like channels for inter-thread communication. Moreover, Ox supports and proposes an approach to error handling, along 
 with multiple utility functions providing safe resiliency, resource management, scheduling and others.
 
-The overarching goal of Ox is enabling safe direct style programming using the power of the Scala 3 language. While 
+The overarching goal of Ox is enabling safe direct-style programming using the power of the Scala 3 language. While 
 still in its early days, a lot of functionality is available in ox today!
 
-## Other direct style Scala projects
+## Other direct-style Scala projects
 
-The wider goal of direct style Scala is enabling teams to deliver working software quickly and with confidence. Our
+The wider goal of direct-style Scala is enabling teams to deliver working software quickly and with confidence. Our
 other projects, including [sttp client](https://sttp.softwaremill.com) and [tapir](https://tapir.softwaremill.com),
 also include integrations directly tailored towards direct style.

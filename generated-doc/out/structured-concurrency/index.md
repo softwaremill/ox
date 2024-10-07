@@ -12,7 +12,7 @@ started. The scope only finishes once all threads started within finish (either 
 it isn't possible to "leak" threads outside of a method. Threads become more a method's implementation detail, rather
 than an effect.
 
-These characteristics make structured concurrency an ideal candidate to make concurrency safer in direct style 
+These characteristics make structured concurrency an ideal candidate to make concurrency safer in direct-style 
 programming, while keeping blocking-like method calls. Structured concurrency enables local reasoning on the threading 
 effects, which is also one of the prime tenets of functional programming!
 

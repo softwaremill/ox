@@ -42,6 +42,19 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
    structured-concurrency/error-handling-scopes
    structured-concurrency/fork-local
    structured-concurrency/interruptions
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Streaming
+
+   streaming/index
+   streaming/channels
+   streaming/transforming-channels
+   streaming/selecting-from-channels
+   streaming/flows
+   streaming/io
+   streaming/errors
+   streaming/backpressure
    
 .. toctree::
    :maxdepth: 2   
@@ -53,23 +66,8 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
    scheduled
    resources
    control-flow
+   actors
    utility
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Channels
-
-   channels/index
-   channels/sinks
-   channels/sources
-   channels/channel-closed
-   channels/transforming-sources
-   channels/discharging
-   channels/select
-   channels/errors
-   channels/backpressure
-   channels/actors
-   channels/io
 
 .. toctree::
    :maxdepth: 2

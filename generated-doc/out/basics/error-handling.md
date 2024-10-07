@@ -9,7 +9,7 @@ Ox uses two channels, through which errors can be signalled:
 
 Exceptions are always appropriately handled by computation combinators, such as the high-level concurrency operations
 [`par`](../high-level-concurrency/par.md) and [`race`](../high-level-concurrency/race.md), as well as by 
-[scopes](../structured-concurrency/fork-join.md) and [channels](../channels/index.md).
+[scopes](../structured-concurrency/fork-join.md) and [streams](../streaming/index.md).
 
 The general rule for computation combinators is that using them should throw exactly the same exceptions, as if the 
 provided code was executed without them. That is, no additional exceptions might be thrown, and no exceptions are 

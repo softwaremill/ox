@@ -24,6 +24,7 @@ As an example, this can be used as follows:
 ```scala
 import ox.supervised
 import ox.channels.*
+import ox.flow.Flow
 
 import scala.annotation.tailrec
 import scala.concurrent.duration.*
@@ -31,7 +32,7 @@ import scala.concurrent.duration.*
 case object Tick
 def consumer(strings: Source[String]): Nothing =
   supervised {
-    val tick = Source.tick(1.second, Tick)
+    val tick = Flow.tick(1.second, Tick).runToChannel()
 
     @tailrec
     def doConsume(acc: Int): Nothing =
