@@ -86,3 +86,4 @@ object Router:
           case e => logger.error("Exception when receiving from a socket", e)
       }
     }
+end Router

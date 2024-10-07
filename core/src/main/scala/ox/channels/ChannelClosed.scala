@@ -21,6 +21,7 @@ object ChannelClosed:
       case _: JChannelDone  => Done
       case e: JChannelError => Error(e.cause())
       case _                => joxResult
+end ChannelClosed
 
 enum ChannelClosedException(cause: Option[Throwable]) extends Exception(cause.orNull):
   case Error(cause: Throwable) extends ChannelClosedException(Some(cause))

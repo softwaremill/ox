@@ -62,3 +62,4 @@ class OnRetryTest extends AnyFlatSpec with Matchers with EitherValues with TryVa
     onRetryInvocationCount shouldBe 4
     returnedResult shouldBe Left(failedResult)
   }
+end OnRetryTest

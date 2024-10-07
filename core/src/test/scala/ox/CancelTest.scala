@@ -8,7 +8,7 @@ import java.util.concurrent.Semaphore
 
 import scala.concurrent.duration.*
 
-class CancelTest extends AnyFlatSpec with Matchers {
+class CancelTest extends AnyFlatSpec with Matchers:
   "cancel" should "block until the fork completes" in {
     val trail = Trail()
     val r = supervised {
@@ -23,6 +23,7 @@ class CancelTest extends AnyFlatSpec with Matchers {
             sleep(500.millis)
             trail.add("interrupted done")
             throw e
+        end try
       }
 
       sleep(100.millis) // making sure the fork starts
@@ -36,7 +37,7 @@ class CancelTest extends AnyFlatSpec with Matchers {
   }
 
   it should "block until the fork completes (stress test)" in {
-    for (i <- 1 to 20) {
+    for i <- 1 to 20 do
       info(s"iteration $i")
       val trail = Trail()
       val s = Semaphore(0)
@@ -62,7 +63,6 @@ class CancelTest extends AnyFlatSpec with Matchers {
       if trail.get.length == 1
       then trail.get shouldBe Vector("cancel done") // the fork wasn't even started
       else trail.get shouldBe Vector("interrupted", "interrupted done", "cancel done")
-    }
   }
 
   "cancelNow" should "return immediately, and wait for forks when scope completes" in {
@@ -98,4 +98,4 @@ class CancelTest extends AnyFlatSpec with Matchers {
 
     r should matchPattern { case Left(e: InterruptedException) => }
   }
-}
+end CancelTest

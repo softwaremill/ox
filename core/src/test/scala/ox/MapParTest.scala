@@ -9,7 +9,7 @@ import scala.collection.immutable.Iterable
 import scala.concurrent.duration.*
 import scala.List
 
-class MapParTest extends AnyFlatSpec with Matchers {
+class MapParTest extends AnyFlatSpec with Matchers:
   "mapPar" should "output the same type as input" in {
     val input = List(1, 2, 3)
     val result = input.mapPar(1)(identity)
@@ -21,10 +21,9 @@ class MapParTest extends AnyFlatSpec with Matchers {
     val TransformationMillis = 100.millis
 
     val input = 0 to InputElements
-    def transformation(i: Int) = {
+    def transformation(i: Int) =
       sleep(TransformationMillis)
       i + 1
-    }
 
     val start = System.currentTimeMillis()
     val result = input.to(Iterable).mapPar(5)(transformation)
@@ -41,11 +40,10 @@ class MapParTest extends AnyFlatSpec with Matchers {
 
     val maxCounter = new MaxCounter()
 
-    def transformation(i: Int) = {
+    def transformation(i: Int) =
       maxCounter.increment()
       sleep(10.millis)
       maxCounter.decrement()
-    }
 
     input.to(Iterable).mapPar(Parallelism)(transformation)
 
@@ -59,26 +57,22 @@ class MapParTest extends AnyFlatSpec with Matchers {
 
     val input = 0 to InputElements
 
-    def transformation(i: Int) = {
-      if (i == 4) {
+    def transformation(i: Int) =
+      if i == 4 then
         trail.add("exception")
         throw new Exception("boom")
-      } else {
+      else {
         sleep(TransformationMillis)
         trail.add("transformation")
         i + 1
       }
-    }
 
-    try {
-      input.to(Iterable).mapPar(5)(transformation)
-    } catch {
-      case e: Exception if e.getMessage == "boom" => trail.add("catch")
-    }
+    try input.to(Iterable).mapPar(5)(transformation)
+    catch case e: Exception if e.getMessage == "boom" => trail.add("catch")
 
     sleep(300.millis)
     trail.add("all done")
 
     trail.get shouldBe Vector("exception", "catch", "all done")
   }
-}
+end MapParTest

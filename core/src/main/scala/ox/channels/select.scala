@@ -5,34 +5,34 @@ import com.softwaremill.jox.Select as JSelect
 import ox.channels.ChannelClosedUnion.{map, orThrow}
 
 /** @see [[selectOrClosed(List[SelectClause])]]. */
-def selectOrClosed(clause1: SelectClause[_], clause2: SelectClause[_]): clause1.Result | clause2.Result | ChannelClosed =
+def selectOrClosed(clause1: SelectClause[?], clause2: SelectClause[?]): clause1.Result | clause2.Result | ChannelClosed =
   selectOrClosed(List(clause1, clause2)).asInstanceOf[clause1.Result | clause2.Result | ChannelClosed]
 
 /** @see [[selectOrClosed(List[SelectClause])]]. */
 def selectOrClosed(
-    clause1: SelectClause[_],
-    clause2: SelectClause[_],
-    clause3: SelectClause[_]
+    clause1: SelectClause[?],
+    clause2: SelectClause[?],
+    clause3: SelectClause[?]
 ): clause1.Result | clause2.Result | clause3.Result | ChannelClosed =
   selectOrClosed(List(clause1, clause2, clause3)).asInstanceOf[clause1.Result | clause2.Result | clause3.Result | ChannelClosed]
 
 /** @see [[selectOrClosed(List[SelectClause])]]. */
 def selectOrClosed(
-    clause1: SelectClause[_],
-    clause2: SelectClause[_],
-    clause3: SelectClause[_],
-    clause4: SelectClause[_]
+    clause1: SelectClause[?],
+    clause2: SelectClause[?],
+    clause3: SelectClause[?],
+    clause4: SelectClause[?]
 ): clause1.Result | clause2.Result | clause3.Result | clause4.Result | ChannelClosed =
   selectOrClosed(List(clause1, clause2, clause3, clause4))
     .asInstanceOf[clause1.Result | clause2.Result | clause3.Result | clause4.Result | ChannelClosed]
 
 /** @see [[selectOrClosed(List[SelectClause])]]. */
 def selectOrClosed(
-    clause1: SelectClause[_],
-    clause2: SelectClause[_],
-    clause3: SelectClause[_],
-    clause4: SelectClause[_],
-    clause5: SelectClause[_]
+    clause1: SelectClause[?],
+    clause2: SelectClause[?],
+    clause3: SelectClause[?],
+    clause4: SelectClause[?],
+    clause5: SelectClause[?]
 ): clause1.Result | clause2.Result | clause3.Result | clause4.Result | clause5.Result | ChannelClosed =
   selectOrClosed(List(clause1, clause2, clause3, clause4, clause5))
     .asInstanceOf[clause1.Result | clause2.Result | clause3.Result | clause4.Result | clause5.Result | ChannelClosed]
@@ -53,38 +53,38 @@ def selectOrClosed(
   *   (done or in error).
   */
 def selectOrClosed[T](clauses: List[SelectClause[T]]): SelectResult[T] | ChannelClosed =
-  ChannelClosed.fromJoxOrT(JSelect.selectOrClosed(clauses.map(_.delegate): _*))
+  ChannelClosed.fromJoxOrT(JSelect.selectOrClosed(clauses.map(_.delegate)*))
 
 //
 
 /** @see [[select(List[SelectClause])]]. */
-def select(clause1: SelectClause[_], clause2: SelectClause[_]): clause1.Result | clause2.Result =
+def select(clause1: SelectClause[?], clause2: SelectClause[?]): clause1.Result | clause2.Result =
   select(List(clause1, clause2)).asInstanceOf[clause1.Result | clause2.Result]
 
 /** @see [[select(List[SelectClause])]]. */
 def select(
-    clause1: SelectClause[_],
-    clause2: SelectClause[_],
-    clause3: SelectClause[_]
+    clause1: SelectClause[?],
+    clause2: SelectClause[?],
+    clause3: SelectClause[?]
 ): clause1.Result | clause2.Result | clause3.Result =
   select(List(clause1, clause2, clause3)).asInstanceOf[clause1.Result | clause2.Result | clause3.Result]
 
 /** @see [[select(List[SelectClause])]]. */
 def select(
-    clause1: SelectClause[_],
-    clause2: SelectClause[_],
-    clause3: SelectClause[_],
-    clause4: SelectClause[_]
+    clause1: SelectClause[?],
+    clause2: SelectClause[?],
+    clause3: SelectClause[?],
+    clause4: SelectClause[?]
 ): clause1.Result | clause2.Result | clause3.Result | clause4.Result =
   select(List(clause1, clause2, clause3, clause4)).asInstanceOf[clause1.Result | clause2.Result | clause3.Result | clause4.Result]
 
 /** @see [[select(List[SelectClause])]]. */
 def select(
-    clause1: SelectClause[_],
-    clause2: SelectClause[_],
-    clause3: SelectClause[_],
-    clause4: SelectClause[_],
-    clause5: SelectClause[_]
+    clause1: SelectClause[?],
+    clause2: SelectClause[?],
+    clause3: SelectClause[?],
+    clause4: SelectClause[?],
+    clause5: SelectClause[?]
 ): clause1.Result | clause2.Result | clause3.Result | clause4.Result | clause5.Result =
   select(List(clause1, clause2, clause3, clause4, clause5))
     .asInstanceOf[clause1.Result | clause2.Result | clause3.Result | clause4.Result | clause5.Result]
@@ -168,34 +168,31 @@ def selectOrClosed[T](sources: List[Source[T]])(using DummyImplicit): T | Channe
   selectOrClosed(sources.map(_.receiveClause: SelectClause[T])) match
     case r: Source[T]#Received => r.value
     case c: ChannelClosed      => c
-    case _: Sink[_]#Sent       => throw new IllegalStateException()
-    case _: DefaultResult[_]   => throw new IllegalStateException()
+    case _: Sink[?]#Sent       => throw new IllegalStateException()
+    case _: DefaultResult[?]   => throw new IllegalStateException()
 
 //
 
 /** @see [[select(List[Source])]]. */
 def select[T1, T2](source1: Source[T1], source2: Source[T2]): T1 | T2 =
-  select(source1.receiveClause, source2.receiveClause) match {
+  select(source1.receiveClause, source2.receiveClause) match
     case source1.Received(v) => v
     case source2.Received(v) => v
-  }
 
 /** @see [[select(List[Source])]]. */
 def select[T1, T2, T3](source1: Source[T1], source2: Source[T2], source3: Source[T3]): T1 | T2 | T3 =
-  select(source1.receiveClause, source2.receiveClause, source3.receiveClause) match {
+  select(source1.receiveClause, source2.receiveClause, source3.receiveClause) match
     case source1.Received(v) => v
     case source2.Received(v) => v
     case source3.Received(v) => v
-  }
 
 /** @see [[select(List[Source])]]. */
 def select[T1, T2, T3, T4](source1: Source[T1], source2: Source[T2], source3: Source[T3], source4: Source[T4]): T1 | T2 | T3 | T4 =
-  select(source1.receiveClause, source2.receiveClause, source3.receiveClause, source4.receiveClause) match {
+  select(source1.receiveClause, source2.receiveClause, source3.receiveClause, source4.receiveClause) match
     case source1.Received(v) => v
     case source2.Received(v) => v
     case source3.Received(v) => v
     case source4.Received(v) => v
-  }
 
 /** @see [[select(List[Source])]]. */
 def select[T1, T2, T3, T4, T5](
@@ -205,13 +202,12 @@ def select[T1, T2, T3, T4, T5](
     source4: Source[T4],
     source5: Source[T5]
 ): T1 | T2 | T3 | T4 | T5 =
-  select(source1.receiveClause, source2.receiveClause, source3.receiveClause, source4.receiveClause, source5.receiveClause) match {
+  select(source1.receiveClause, source2.receiveClause, source3.receiveClause, source4.receiveClause, source5.receiveClause) match
     case source1.Received(v) => v
     case source2.Received(v) => v
     case source3.Received(v) => v
     case source4.Received(v) => v
     case source5.Received(v) => v
-  }
 
 /** Select exactly one source, from which to receive a value. Sources should not repeat. Clauses can be created using
   * [[Source.receiveClause]], [[Sink.sendClause]] and [[Default]].

@@ -137,3 +137,4 @@ object either:
     def orThrow: T = e match
       case Right(value)    => value
       case Left(throwable) => throw throwable
+end either

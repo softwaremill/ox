@@ -26,7 +26,7 @@ object InheritableMDC:
     // Obtaining the current provider, to replace it later with our implementation returning the correct MDCAdapter.
     val getProviderMethod = classOf[LoggerFactory].getDeclaredMethod("getProvider")
     getProviderMethod.setAccessible(true)
-    getProviderMethod.invoke(null) match {
+    getProviderMethod.invoke(null) match
       case currentProvider: LogbackServiceProvider =>
         // Creating and setting the correct MDCAdapter on the LoggerContext; this is used internally by Logback to
         // obtain the MDC values.
@@ -44,7 +44,7 @@ object InheritableMDC:
         logger.info(s"Scoped-value based MDC initialized")
       case currentProvider =>
         logger.warn(s"A non-Logback SLF4J provider ($currentProvider) is being used, unable to initialize scoped-value based MDC")
-    }
+    end match
   end init
 
   /** Set the given MDC key-value mappings as passed in `kvs`, for the duration of evaluating `f`. The values will be available for any
@@ -53,7 +53,7 @@ object InheritableMDC:
     * @see
     *   Usage notes on [[ForkLocal.unsupervisedWhere()]].
     */
-  def unsupervisedWhere[T](kvs: (String, String)*)(f: OxUnsupervised ?=> T): T = currentContext.unsupervisedWhere(adapterWith(kvs: _*))(f)
+  def unsupervisedWhere[T](kvs: (String, String)*)(f: OxUnsupervised ?=> T): T = currentContext.unsupervisedWhere(adapterWith(kvs*))(f)
 
   /** Set the given MDC key-value mappings as passed in `kvs`, for the duration of evaluating `f`. The values will be available for any
     * forks created within `f`.
@@ -61,7 +61,7 @@ object InheritableMDC:
     * @see
     *   Usage notes on [[ForkLocal.supervisedWhere()]].
     */
-  def supervisedWhere[T](kvs: (String, String)*)(f: Ox ?=> T): T = currentContext.supervisedWhere(adapterWith(kvs: _*))(f)
+  def supervisedWhere[T](kvs: (String, String)*)(f: Ox ?=> T): T = currentContext.supervisedWhere(adapterWith(kvs*))(f)
 
   /** Set the given MDC key-value mappings as passed in `kvs`, for the duration of evaluating `f`. The values will be available for any
     * forks created within `f`.
@@ -70,13 +70,13 @@ object InheritableMDC:
     *   Usage notes on [[ForkLocal.supervisedErrorWhere()]].
     */
   def supervisedErrorWhere[E, F[_], U](errorMode: ErrorMode[E, F])(kvs: (String, String)*)(f: OxError[E, F] ?=> F[U]): F[U] =
-    currentContext.supervisedErrorWhere(errorMode)(adapterWith(kvs: _*))(f)
+    currentContext.supervisedErrorWhere(errorMode)(adapterWith(kvs*))(f)
 
   private def adapterWith(kvs: (String, String)*): Option[ScopedMDCAdapter] =
     // unwrapping the MDC adapter, so that we get the "target" one; using DelegateToCurrentMDCAdapter would lead to
     // infinite loops when delegating
     val currentAdapter = MDC.getMDCAdapter.asInstanceOf[DelegateToCurrentMDCAdapter].currentAdapter()
-    Some(new ScopedMDCAdapter(Map(kvs: _*), currentAdapter))
+    Some(new ScopedMDCAdapter(Map(kvs*), currentAdapter))
 end InheritableMDC
 
 private class OverrideMDCAdapterDelegateProvider(delegate: SLF4JServiceProvider, mdcAdapter: MDCAdapter) extends SLF4JServiceProvider:
@@ -101,6 +101,7 @@ private class DelegateToCurrentMDCAdapter(rootAdapter: MDCAdapter) extends MDCAd
   override def popByKey(key: String): String = currentAdapter().popByKey(key)
   override def getCopyOfDequeByKey(key: String): java.util.Deque[String] = currentAdapter().getCopyOfDequeByKey(key)
   override def clearDequeByKey(key: String): Unit = currentAdapter().clearDequeByKey(key)
+end DelegateToCurrentMDCAdapter
 
 /** An [[MDCAdapter]] that is used within a structured scope. Stores an (immutable) map of values that are set within this scope. All other
   * operations are delegated to the parent adapter (might be either another scoped, or the root Logback, adapter).
@@ -120,3 +121,4 @@ private class ScopedMDCAdapter(mdcValues: Map[String, String], delegate: MDCAdap
   override def popByKey(key: String): String = delegate.popByKey(key)
   override def getCopyOfDequeByKey(key: String): java.util.Deque[String] = delegate.getCopyOfDequeByKey(key)
   override def clearDequeByKey(key: String): Unit = delegate.clearDequeByKey(key)
+end ScopedMDCAdapter

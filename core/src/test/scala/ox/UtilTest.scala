@@ -4,7 +4,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.util.Trail
 
-class UtilTest extends AnyFlatSpec with Matchers {
+class UtilTest extends AnyFlatSpec with Matchers:
   "discard" should "do nothing" in {
     val t = Trail()
     def f(): Int =
@@ -60,4 +60,4 @@ class UtilTest extends AnyFlatSpec with Matchers {
     }.tap(v => t.add(s"Got: $v")) shouldBe 3
     t.get shouldBe Vector("Adding", "Got: 3")
   }
-}
+end UtilTest

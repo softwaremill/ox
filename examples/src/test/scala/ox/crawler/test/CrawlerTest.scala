@@ -15,7 +15,7 @@ class CrawlerTest extends AnyFlatSpec with Matchers with CrawlerTestData with Sc
       interval = scaled(Span(150, Millis))
     )
 
-  for (testData <- testDataSets) {
+  for testData <- testDataSets do
     it should s"crawl a test data set ${testData.name}" in {
       import testData.*
 
@@ -26,4 +26,5 @@ class CrawlerTest extends AnyFlatSpec with Matchers with CrawlerTestData with Sc
       shouldTakeMillisMin.foreach(m => t should be >= (m))
       shouldTakeMillisMax.foreach(m => t should be <= (m))
     }
-  }
+  end for
+end CrawlerTest

@@ -29,23 +29,23 @@ case class RateLimiterQueue[F](maxRuns: Int, perMillis: Long, lastTimestamps: Qu
   def notScheduled: RateLimiterQueue[F] = copy(scheduled = false)
 
   private def doRun(now: Long): (List[RateLimiterTask[F]], RateLimiterQueue[F]) =
-    if lastTimestamps.size < maxRuns then {
-      waiting.dequeueOption match {
+    if lastTimestamps.size < maxRuns then
+      waiting.dequeueOption match
         case Some((io, w)) =>
           val (tasks, next) = copy(lastTimestamps = lastTimestamps.enqueue(now), waiting = w).run(now)
           (Run(io) :: tasks, next)
         case None =>
           (Nil, this)
-      }
-    } else if !scheduled then {
+    else if !scheduled then
       val nextAvailableSlot = perMillis - (now - lastTimestamps.head)
       (List(RunAfter(nextAvailableSlot)), this.copy(scheduled = true))
-    } else (Nil, this)
+    else (Nil, this)
 
   /** Remove timestamps which are outside of the current time window, that is timestamps which are further from `now` than `timeMillis`. */
   private def pruneTimestamps(now: Long): RateLimiterQueue[F] =
     val threshold = now - perMillis
     copy(lastTimestamps = lastTimestamps.filter(_ >= threshold))
+end RateLimiterQueue
 
 object RateLimiterQueue:
   def apply[F](maxRuns: Int, perMillis: Long): RateLimiterQueue[F] =

@@ -4,7 +4,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.*
 
-class SourceOpsEmptyTest extends AnyFlatSpec with Matchers {
+class SourceOpsEmptyTest extends AnyFlatSpec with Matchers:
 
   behavior of "Source.empty"
 
@@ -15,4 +15,4 @@ class SourceOpsEmptyTest extends AnyFlatSpec with Matchers {
   it should "be empty" in supervised {
     Source.empty.toList shouldBe empty
   }
-}
+end SourceOpsEmptyTest

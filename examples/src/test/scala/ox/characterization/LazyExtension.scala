@@ -12,3 +12,4 @@ import ox.discard
     println("In block")
     1
   }.test.discard
+end lazyExtension

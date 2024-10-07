@@ -6,7 +6,7 @@ import org.scalatest.matchers.should.Matchers
 
 import scala.concurrent.duration.*
 
-class JitterTest extends AnyFlatSpec with Matchers {
+class JitterTest extends AnyFlatSpec with Matchers:
 
   behavior of "Jitter"
 
@@ -65,4 +65,4 @@ class JitterTest extends AnyFlatSpec with Matchers {
       case _ => fail("should never happen") // so that the match is exhaustive
     }
   }
-}
+end JitterTest

@@ -30,8 +30,10 @@ case class ConsumerSettings[K, V](
     autoOffsetReset.foreach { reset => props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, reset.toString.toLowerCase) }
     otherProperties.foreach { case (key, value) => props.put(key, value) }
     props
+  end toProperties
 
   def toConsumer: KafkaConsumer[K, V] = KafkaConsumer(toProperties, keyDeserializer, valueDeserializer)
+end ConsumerSettings
 
 object ConsumerSettings:
   private val StringDeserializerInstance = new StringDeserializer
@@ -48,3 +50,4 @@ object ConsumerSettings:
 
   enum AutoOffsetReset:
     case Earliest, Latest, None
+end ConsumerSettings

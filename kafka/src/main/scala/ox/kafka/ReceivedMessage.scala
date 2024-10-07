@@ -16,3 +16,4 @@ case class ReceivedMessage[K, V](consumer: ActorRef[KafkaConsumerWrapper[K, V]],
   def topic: String = consumerRecord.topic()
   def timestamp: Long = consumerRecord.timestamp()
   def timestampType: TimestampType = consumerRecord.timestampType()
+end ReceivedMessage

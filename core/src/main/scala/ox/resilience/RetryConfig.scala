@@ -28,7 +28,7 @@ case class RetryConfig[E, T](
     schedule: Schedule,
     resultPolicy: ResultPolicy[E, T] = ResultPolicy.default[E, T],
     onRetry: (Int, Either[E, T]) => Unit = (_: Int, _: Either[E, T]) => ()
-) {
+):
   def toScheduledConfig: ScheduledConfig[E, T] = ScheduledConfig(
     schedule,
     onRetry,
@@ -36,7 +36,7 @@ case class RetryConfig[E, T](
     shouldContinueOnResult = t => !resultPolicy.isSuccess(t),
     sleepMode = SleepMode.Delay
   )
-}
+end RetryConfig
 
 object RetryConfig:
   /** Creates a config that retries up to a given number of times, with no delay between subsequent attempts, using a default
@@ -124,3 +124,4 @@ object RetryConfig:
       jitter: Jitter = Jitter.None
   ): RetryConfig[E, T] =
     RetryConfig(Schedule.Backoff.forever(initialDelay, maxDelay, jitter))
+end RetryConfig

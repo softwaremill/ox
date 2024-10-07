@@ -9,7 +9,7 @@ import scala.collection.IterableFactory
 import scala.collection.immutable.Iterable
 import scala.concurrent.duration.*
 
-class CollectParTest extends AnyFlatSpec with Matchers {
+class CollectParTest extends AnyFlatSpec with Matchers:
   "collectPar" should "output the same type as input" in {
     val input = List(1, 2, 3)
     val result = input.collectPar(1)(x => x)
@@ -40,11 +40,10 @@ class CollectParTest extends AnyFlatSpec with Matchers {
 
     val maxCounter = new MaxCounter()
 
-    def transformation(i: Int) = {
+    def transformation(i: Int) =
       maxCounter.increment()
       sleep(10.millis)
       maxCounter.decrement()
-    }
 
     input.to(Iterable).collectPar(Parallelism)(x => transformation(x))
 
@@ -58,26 +57,22 @@ class CollectParTest extends AnyFlatSpec with Matchers {
 
     val input = 0 to InputElements
 
-    def transformation(i: Int) = {
-      if (i == 4) {
+    def transformation(i: Int) =
+      if i == 4 then
         trail.add("exception")
         throw new Exception("boom")
-      } else {
+      else {
         sleep(TransformationMillis)
         trail.add("transformation")
         i + 1
       }
-    }
 
-    try {
-      input.to(Iterable).collectPar(5)(x => transformation(x))
-    } catch {
-      case e: Exception if e.getMessage == "boom" => trail.add("catch")
-    }
+    try input.to(Iterable).collectPar(5)(x => transformation(x))
+    catch case e: Exception if e.getMessage == "boom" => trail.add("catch")
 
     sleep(300.millis)
     trail.add("all done")
 
     trail.get shouldBe Vector("exception", "catch", "all done")
   }
-}
+end CollectParTest

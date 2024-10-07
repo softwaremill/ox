@@ -31,14 +31,15 @@ class OxAppTest extends AnyFlatSpec with Matchers:
 
     object Main20 extends OxApp:
       override private[ox] def mountShutdownHook(thread: Thread): Unit =
-        val damoclesThread = Thread(() => {
+        val damoclesThread = Thread(() =>
           shutdownLatch.await()
           // simulating interrupt by running the shutdown hook
           thread.start()
           thread.join()
-        })
+        )
 
         damoclesThread.start()
+      end mountShutdownHook
 
       override private[ox] def exit(exitCode: ExitCode): Unit =
         ec = exitCode.code
@@ -48,6 +49,7 @@ class OxAppTest extends AnyFlatSpec with Matchers:
           sleep(10.millis)
 
         Success
+    end Main20
 
     supervised:
       fork(Main20.main(Array.empty))
@@ -85,12 +87,13 @@ class OxAppTest extends AnyFlatSpec with Matchers:
       override private[ox] def exit(exitCode: ExitCode): Unit =
         ec = exitCode.code
 
-      override protected def settings: OxApp.Settings = super.settings.copy(handleException = { t =>
+      override protected def settings: OxApp.Settings = super.settings.copy(handleException = t =>
         val sw = StringWriter()
         val pw = PrintWriter(sw)
         t.printStackTrace(pw)
         stackTrace = sw.toString
-      })
+      )
+    end Main31
 
     Main31.main(Array.empty)
 
@@ -107,12 +110,13 @@ class OxAppTest extends AnyFlatSpec with Matchers:
       override private[ox] def exit(exitCode: ExitCode): Unit =
         ec = exitCode.code
 
-      override protected def settings: OxApp.Settings = super.settings.copy(handleException = { t =>
+      override protected def settings: OxApp.Settings = super.settings.copy(handleException = t =>
         val sw = StringWriter()
         val pw = PrintWriter(sw)
         t.printStackTrace(pw)
         stackTrace = sw.toString
-      })
+      )
+    end Main32
 
     Main32.main(Array.empty)
 
@@ -127,14 +131,15 @@ class OxAppTest extends AnyFlatSpec with Matchers:
 
     object Main40 extends OxApp:
       override private[ox] def mountShutdownHook(thread: Thread): Unit =
-        val damoclesThread = Thread(() => {
+        val damoclesThread = Thread(() =>
           shutdownLatch.await()
           // simulating interrupt by running the shutdown hook
           thread.start()
           thread.join()
-        })
+        )
 
         damoclesThread.start()
+      end mountShutdownHook
 
       override private[ox] def exit(exitCode: ExitCode): Unit = ec = exitCode.code
 
@@ -149,6 +154,7 @@ class OxAppTest extends AnyFlatSpec with Matchers:
           throw new Exception("bye!")
 
         never
+    end Main40
 
     supervised:
       fork(Main40.main(Array.empty))
@@ -179,13 +185,14 @@ class OxAppTest extends AnyFlatSpec with Matchers:
 
     object Main60 extends OxApp.Simple:
       override private[ox] def mountShutdownHook(thread: Thread): Unit =
-        val damoclesThread = Thread(() => {
+        val damoclesThread = Thread(() =>
           shutdownLatch.await()
           thread.start()
           thread.join()
-        })
+        )
 
         damoclesThread.start()
+      end mountShutdownHook
 
       override def exit(exitCode: ExitCode): Unit =
         ec = exitCode.code
@@ -193,6 +200,7 @@ class OxAppTest extends AnyFlatSpec with Matchers:
       override def run(using Ox): Unit =
         forever:
           sleep(10.millis)
+    end Main60
 
     supervised:
       fork(Main60.main(Array.empty))
@@ -212,12 +220,13 @@ class OxAppTest extends AnyFlatSpec with Matchers:
       override private[ox] def exit(exitCode: ExitCode): Unit =
         ec = exitCode.code
 
-      override protected def settings: OxApp.Settings = super.settings.copy(handleException = { t =>
+      override protected def settings: OxApp.Settings = super.settings.copy(handleException = t =>
         val sw = StringWriter()
         val pw = PrintWriter(sw)
         t.printStackTrace(pw)
         stackTrace = sw.toString
-      })
+      )
+    end Main70
 
     Main70.main(Array.empty)
 
@@ -241,6 +250,7 @@ class OxAppTest extends AnyFlatSpec with Matchers:
 
       override def run(args: Vector[String])(using Ox, EitherError[FunException]): ExitCode =
         errOrEc.ok()
+    end Main80
 
     Main80.main(Array.empty)
 
@@ -254,13 +264,14 @@ class OxAppTest extends AnyFlatSpec with Matchers:
 
     object Main90 extends OxApp.WithEitherErrors[FunException]:
       override private[ox] def mountShutdownHook(thread: Thread): Unit =
-        val damoclesThread = Thread(() => {
+        val damoclesThread = Thread(() =>
           shutdownLatch.await()
           thread.start()
           thread.join()
-        })
+        )
 
         damoclesThread.start()
+      end mountShutdownHook
 
       override def handleError(e: FunException): ExitCode = Failure(e.code)
 
@@ -272,6 +283,7 @@ class OxAppTest extends AnyFlatSpec with Matchers:
           sleep(10.millis)
 
         errOrEc.ok()
+    end Main90
 
     supervised:
       fork(Main90.main(Array.empty))
@@ -294,6 +306,7 @@ class OxAppTest extends AnyFlatSpec with Matchers:
         ec = exitCode.code
 
       override def handleError(e: FunException): ExitCode = Failure(e.code)
+    end Main100
 
     Main100.main(Array.empty)
 
@@ -308,12 +321,12 @@ class OxAppTest extends AnyFlatSpec with Matchers:
       override private[ox] def exit(exitCode: ExitCode): Unit =
         ec = exitCode.code
 
-      override protected def settings: OxApp.Settings = super.settings.copy(handleException = { t =>
+      override protected def settings: OxApp.Settings = super.settings.copy(handleException = t =>
         val sw = StringWriter()
         val pw = PrintWriter(sw)
         t.printStackTrace(pw)
         stackTrace = sw.toString
-      })
+      )
 
       override def handleError(e: FunException): ExitCode = ??? // should not get called!
 
@@ -322,3 +335,4 @@ class OxAppTest extends AnyFlatSpec with Matchers:
     ec shouldEqual 1
     assert(stackTrace.contains("oh no"))
   }
+end OxAppTest

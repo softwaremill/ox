@@ -7,7 +7,7 @@ import ox.util.Trail
 import scala.concurrent.duration.*
 import scala.util.{Failure, Try}
 
-class SupervisedTest extends AnyFlatSpec with Matchers {
+class SupervisedTest extends AnyFlatSpec with Matchers:
   "supervised" should "wait until all forks complete" in {
     val trail = Trail()
 
@@ -151,5 +151,4 @@ class SupervisedTest extends AnyFlatSpec with Matchers {
     // the exception that caused the scope to end should be re-thrown
     e.getMessage shouldBe "oh no!"
   }
-
-}
+end SupervisedTest

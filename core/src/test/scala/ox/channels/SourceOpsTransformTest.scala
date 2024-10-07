@@ -4,7 +4,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.*
 
-class SourceOpsTransformTest extends AnyFlatSpec with Matchers {
+class SourceOpsTransformTest extends AnyFlatSpec with Matchers:
 
   behavior of "Source.transform"
 
@@ -51,7 +51,7 @@ class SourceOpsTransformTest extends AnyFlatSpec with Matchers {
   }
 
   it should "transform an infinite source (stress test)" in {
-    for (_ <- 1 to 1000) { // this nicely demonstrated two race conditions
+    for _ <- 1 to 1000 do // this nicely demonstrated two race conditions
       val c = Channel.rendezvous[Int]
       supervised {
         fork {
@@ -64,6 +64,5 @@ class SourceOpsTransformTest extends AnyFlatSpec with Matchers {
         val s = c.transform(x => x)
         s.receive() shouldBe 0
       }
-    }
   }
-}
+end SourceOpsTransformTest

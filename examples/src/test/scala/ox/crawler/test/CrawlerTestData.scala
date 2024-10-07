@@ -28,14 +28,13 @@ trait CrawlerTestData:
       "d4" -> 2
     )
 
-    override val parseLinks: String => List[Url] = (_: String) match {
+    override val parseLinks: String => List[Url] = (_: String) match
       case "body11" => List(Url("d1", "p1"), Url("d1", "p2"), Url("d2", "p1"))
       case "body12" => List(Url("d1", "p1"), Url("d1", "p3"), Url("d2", "p1"), Url("d3", "p1"))
       case "body13" => List(Url("d1", "p3"))
       case "body21" => List(Url("d1", "p2"), Url("d3", "p1"), Url("d4", "p1"))
       case "body31" => List(Url("d4", "p1"))
       case "body41" => Nil
-    }
 
     override val http: Url => Host = {
       case Url("d1", "p1") => "body11"
@@ -55,10 +54,9 @@ trait CrawlerTestData:
 
     override val name = "single domain chain"
     override val expectedCounts = Map("d1" -> count)
-    override val parseLinks: String => List[Url] = { b =>
+    override val parseLinks: String => List[Url] = b =>
       val i = b.toInt
-      if (i < count) List(Url("d1", (i + 1).toString)) else Nil
-    }
+      if i < count then List(Url("d1", (i + 1).toString)) else Nil
     override val http: Url => String = _.path
     override val startingUrl = Url("d1", "0")
   end SingleDomainChain
@@ -70,10 +68,9 @@ trait CrawlerTestData:
     override val expectedCounts: Map[Host, Int] = (1 to count).map { i =>
       i.toString -> 1
     }.toMap
-    override val parseLinks: String => List[Url] = { b =>
+    override val parseLinks: String => List[Url] = b =>
       val i = b.toInt
-      if (i < count) List(Url((i + 1).toString, "p")) else Nil
-    }
+      if i < count then List(Url((i + 1).toString, "p")) else Nil
     override val http: Url => Host = _.host
     override val startingUrl = Url("0", "p")
   end MultipleDomainChain
@@ -84,7 +81,7 @@ trait CrawlerTestData:
     override val name = "dense links"
     override val expectedCounts: Map[Host, Int] = Map("d" -> count * count)
     val links: List[Url] = (1 to count).map(i => Url("d", i.toString)).toList
-    override val parseLinks: String => List[Url] = { _ => links }
+    override val parseLinks: String => List[Url] = _ => links
     override val http: Url => Host = _.host
     override val startingUrl = Url("d", "1")
   end DenseLinks
@@ -96,14 +93,12 @@ trait CrawlerTestData:
     override val expectedCounts = Map(
       "d1" -> count
     )
-    override val parseLinks: String => List[Url] = { b =>
+    override val parseLinks: String => List[Url] = b =>
       val i = b.toInt
-      if (i < count) List(Url("d1", (i + 1).toString)) else Nil
-    }
-    override val http: Url => String = { url =>
+      if i < count then List(Url("d1", (i + 1).toString)) else Nil
+    override val http: Url => String = url =>
       sleep(100.millis)
       url.path
-    }
     override val startingUrl = Url("d1", "0")
     override def shouldTakeMillisMin: Option[Long] = Some(1000L)
   end SingleDomainChainTimed
@@ -116,11 +111,10 @@ trait CrawlerTestData:
       i.toString -> count
     }.toMap
     val links: List[Url] = (1 to count).map(i => Url(i.toString, "p")).toList
-    override val parseLinks: String => List[Url] = { _ => links }
-    override val http: Url => String = { url =>
+    override val parseLinks: String => List[Url] = _ => links
+    override val http: Url => String = url =>
       sleep(100.millis)
       url.host
-    }
     override val startingUrl = Url("1", "p")
     override def shouldTakeMillisMax: Option[Long] = Some(500L)
   end DenseLinksTimed
@@ -130,3 +124,4 @@ trait CrawlerTestData:
     t
     val finish = System.currentTimeMillis()
     finish - start
+end CrawlerTestData

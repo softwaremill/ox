@@ -26,3 +26,4 @@ import org.slf4j.LoggerFactory
   log.info("T1: Interrupted")
   t.join()
   log.info("T1: Done")
+end catchInterrupt

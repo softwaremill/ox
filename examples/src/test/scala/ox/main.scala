@@ -20,3 +20,4 @@ import scala.concurrent.duration.*
     f1.join() + f2.join()
   }
   log.info("result: " + r)
+end test1

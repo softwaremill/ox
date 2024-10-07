@@ -22,6 +22,7 @@ trait OxUnsupervised:
   private[ox] def finalizers: AtomicReference[List[() => Unit]]
   private[ox] def supervisor: Supervisor[Nothing]
   private[ox] def addFinalizer(f: () => Unit): Unit = finalizers.updateAndGet(f :: _).discard
+end OxUnsupervised
 
 /** Capability granted by an [[supervised]] or [[supervisedError]] concurrency scope.
   *
@@ -61,6 +62,7 @@ case class OxError[E, F[_]](
   override private[ox] def asNoErrorMode: OxError[Nothing, [T] =>> T] =
     if errorMode == NoErrorMode then this.asInstanceOf[OxError[Nothing, [T] =>> T]]
     else OxError(scope, finalizers, supervisor, NoErrorMode)
+end OxError
 
 object OxError:
   def apply[E, F[_]](s: Supervisor[E], em: ErrorMode[E, F]): OxError[E, F] = OxError(DoNothingScope[Any](), new AtomicReference(Nil), s, em)

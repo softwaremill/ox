@@ -23,6 +23,7 @@ case class ProducerSettings[K, V](
     props
 
   def toProducer: KafkaProducer[K, V] = KafkaProducer(toProperties, keySerializer, valueSerializer)
+end ProducerSettings
 
 object ProducerSettings:
   private val StringSerializerInstance = new StringSerializer

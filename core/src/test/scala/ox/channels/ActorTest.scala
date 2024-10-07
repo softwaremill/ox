@@ -9,17 +9,15 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 class ActorTest extends AnyFlatSpec with Matchers:
 
-  trait Test1 {
+  trait Test1:
     def f(x: Int): Long
-  }
 
   it should "invoke methods on the actor" in supervised {
     var state = 0L
-    val logic = new Test1 {
+    val logic = new Test1:
       override def f(x: Int): Long =
         state += x
         state
-    }
 
     val ref = Actor.create(logic)
 
@@ -29,11 +27,10 @@ class ActorTest extends AnyFlatSpec with Matchers:
 
   it should "protect the internal state of the actor" in supervised {
     var state = 0L
-    val logic = new Test1 {
+    val logic = new Test1:
       override def f(x: Int): Long =
         state += x
         state
-    }
 
     val ref = Actor.create(logic)
 
@@ -41,9 +38,7 @@ class ActorTest extends AnyFlatSpec with Matchers:
     val inner = 1000
 
     val forks = for (i <- 1 to outer) yield fork {
-      for (j <- 1 to inner) {
-        ref.ask(_.f(1))
-      }
+      for j <- 1 to inner do ref.ask(_.f(1))
     }
     forks.foreach(_.join())
 
@@ -55,12 +50,11 @@ class ActorTest extends AnyFlatSpec with Matchers:
     val thrown = the[RuntimeException] thrownBy {
       supervised {
         var state = 0L
-        val logic = new Test1 {
+        val logic = new Test1:
           override def f(x: Int): Long =
             state += x
             if state > 2 then throw new RuntimeException("too much")
             state
-        }
 
         val ref = Actor.create(logic, Some(_ => isClosed.set(true)))
 
@@ -75,9 +69,8 @@ class ActorTest extends AnyFlatSpec with Matchers:
   it should "end the scope when an exception is thrown when handling .tell" in {
     val thrown = the[RuntimeException] thrownBy {
       supervised {
-        val logic = new Test1 {
+        val logic = new Test1:
           override def f(x: Int): Long = throw new RuntimeException("boom")
-        }
 
         val ref = Actor.create(logic)
         ref.tell(_.f(5).discard)
@@ -87,3 +80,4 @@ class ActorTest extends AnyFlatSpec with Matchers:
 
     thrown.getMessage shouldBe "boom"
   }
+end ActorTest

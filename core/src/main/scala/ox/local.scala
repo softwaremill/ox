@@ -36,6 +36,7 @@ class ForkLocal[T](scopedValue: ScopedValue[T], default: T):
     */
   def supervisedErrorWhere[E, F[_], U](errorMode: ErrorMode[E, F])(newValue: T)(f: OxError[E, F] ?=> F[U]): F[U] =
     scopedValueWhere(scopedValue, newValue)(supervisedError(errorMode)(f))
+end ForkLocal
 
 object ForkLocal:
   def apply[T](initialValue: T): ForkLocal[T] = new ForkLocal(ScopedValue.newInstance[T](), initialValue)

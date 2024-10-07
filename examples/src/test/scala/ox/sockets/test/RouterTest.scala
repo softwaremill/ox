@@ -10,7 +10,7 @@ import java.util.concurrent.{ArrayBlockingQueue, ConcurrentLinkedQueue, TimeUnit
 import scala.concurrent.duration.*
 import scala.jdk.CollectionConverters.*
 
-class RouterTest extends AnyFlatSpec with Matchers with Eventually with IntegrationPatience {
+class RouterTest extends AnyFlatSpec with Matchers with Eventually with IntegrationPatience:
 
   it should "distribute message and connect new clients" in {
     val acceptQueue = new ArrayBlockingQueue[ConnectedSocket](1024)
@@ -24,15 +24,14 @@ class RouterTest extends AnyFlatSpec with Matchers with Eventually with Integrat
       private val sentQueue = new ConcurrentLinkedQueue[String]()
 
       override def send(msg: String): Unit = sentQueue.offer(msg).discard
-      override def receive(timeout: Long): String = {
+      override def receive(timeout: Long): String =
         val msg = receiveQueue.poll(timeout, TimeUnit.MILLISECONDS)
-        if msg == "KILL" then {
-          throw new SocketTerminatedException
-        } else msg
-      }
+        if msg == "KILL" then throw new SocketTerminatedException
+        else msg
 
       def sent: List[String] = sentQueue.asScala.toList
       def receiveNext(msg: String): Unit = receiveQueue.offer(msg).discard
+    end TestConnectedSocket
 
     def socketListen(): Unit = Router.router(testSocket)
 
@@ -81,7 +80,8 @@ class RouterTest extends AnyFlatSpec with Matchers with Eventually with Integrat
         s4.sent should be(List("msg4"))
         s5.sent should be(List("msg2", "msg3"))
       }.discard
+    end socketTest
 
     raceResult(socketListen(), socketTest())
   }
-}
+end RouterTest

@@ -17,6 +17,7 @@ enum SleepMode:
   /** Delay (since the end of the last operation), i.e. sleeps the duration provided by the schedule before the next operation starts.
     */
   case Delay
+end SleepMode
 
 /** A config that defines how to schedule an operation.
   *
@@ -100,6 +101,7 @@ def scheduledWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(config: ScheduledCon
         case SleepMode.Delay => nextDuration
       if delay.toMillis > 0 then sleep(delay)
       delay
+    end sleepIfNeeded
 
     val startTimestamp = System.nanoTime()
     operation match
@@ -119,6 +121,8 @@ def scheduledWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(config: ScheduledCon
           val delay = sleepIfNeeded(startTimestamp)
           loop(invocation + 1, remainingInvocations.map(_ - 1), Some(delay))
         else v
+    end match
+  end loop
 
   val remainingInvocations = config.schedule match
     case finiteSchedule: Schedule.Finite => Some(finiteSchedule.maxRepeats)
@@ -128,3 +132,4 @@ def scheduledWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(config: ScheduledCon
   if initialDelay.toMillis > 0 then sleep(initialDelay)
 
   loop(1, remainingInvocations, None)
+end scheduledWithErrorMode

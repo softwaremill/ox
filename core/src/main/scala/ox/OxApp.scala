@@ -96,12 +96,13 @@ object OxApp:
 
     def defaultHandleInterruptedException(logException: Throwable => Unit): InterruptedException => Unit = (t: InterruptedException) =>
       // inspecting both the top-level and any suppressed exceptions
-      for (t2 <- t.getSuppressed.toList)
+      for t2 <- t.getSuppressed.toList do
         t2 match
           case _: InterruptedException => // skip
           case _                       => logException(t2)
 
     val Default: Settings = Settings(ExitCode.Success, defaultHandleInterruptedException(DefaultLogException), DefaultLogException)
+  end Settings
 
   /** Simple variant of OxApp does not pass command line arguments and exits with exit code 0 if no exceptions were thrown. */
   trait Simple extends OxApp:

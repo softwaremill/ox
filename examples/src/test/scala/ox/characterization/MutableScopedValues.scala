@@ -27,3 +27,4 @@ import java.util.concurrent.atomic.AtomicReference
   )
 
   println(s"Result: $result")
+end mutableScopedValues

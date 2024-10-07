@@ -62,6 +62,7 @@ class ExceptionTest extends AnyFlatSpec with Matchers:
         }
       }
     catch case e: Exception => addExceptionWithSuppressedTo(trail, e)
+    end try
 
     trail.get shouldBe Vector("CustomException(suppressed=ExecutionException,InterruptedException,InterruptedException)")
   }
@@ -81,6 +82,7 @@ class ExceptionTest extends AnyFlatSpec with Matchers:
         }
       }
     catch case e: Exception => addExceptionWithSuppressedTo(trail, e)
+    end try
 
     trail.get shouldBe Vector("CustomException(suppressed=ExecutionException,CustomException2)")
   }
@@ -99,6 +101,7 @@ class ExceptionTest extends AnyFlatSpec with Matchers:
 
       // either join() might throw the original exception (shouldn't be suppressed), or it might be interrupted before
       // throwing (should be suppressed then)
+    end try
     trail.get should (be(Vector("CustomException(suppressed=ExecutionException)")) or be(
       Vector("CustomException(suppressed=ExecutionException,InterruptedException)")
     ))
@@ -112,11 +115,10 @@ class ExceptionTest extends AnyFlatSpec with Matchers:
           throw new CustomException()
         }
         try f.join()
-        catch {
-          case e: Exception => throw new CustomException3(e)
-        }
+        catch case e: Exception => throw new CustomException3(e)
       }
     catch case e: Exception => addExceptionWithSuppressedTo(trail, e)
+    end try
 
     trail.get shouldBe Vector("CustomException(suppressed=ExecutionException,CustomException3)")
   }
@@ -132,7 +134,7 @@ class ExceptionTest extends AnyFlatSpec with Matchers:
     r should matchPattern { case Left(e: CustomException) => }
   }
 
-  def addExceptionWithSuppressedTo(t: Trail, e: Throwable): Unit = {
+  def addExceptionWithSuppressedTo(t: Trail, e: Throwable): Unit =
     val suppressed = e.getSuppressed.map(_.getClass.getSimpleName)
     t.add(s"${e.getClass.getSimpleName}(suppressed=${suppressed.mkString(",")})")
-  }
+end ExceptionTest

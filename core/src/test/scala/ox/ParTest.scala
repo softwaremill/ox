@@ -8,7 +8,7 @@ import scala.concurrent.duration.*
 
 import java.util.concurrent.atomic.AtomicInteger
 
-class ParTest extends AnyFlatSpec with Matchers {
+class ParTest extends AnyFlatSpec with Matchers:
   "par" should "run computations in parallel" in {
     val trail = Trail()
     val result = par(
@@ -46,6 +46,7 @@ class ParTest extends AnyFlatSpec with Matchers {
       case e: Exception if e.getMessage == "boom" => trail.add("catch")
 
       // checking if the forks aren't left running
+    end try
     sleep(300.millis)
     trail.add("all done")
 
@@ -58,13 +59,12 @@ class ParTest extends AnyFlatSpec with Matchers {
     val result = unsupervised {
       parLimit(2)(
         (1 to 9).map(i =>
-          () => {
+          () =>
             val current = running.incrementAndGet()
             max.updateAndGet(m => if current > m then current else m)
             sleep(100.millis)
             running.decrementAndGet()
             i * 2
-          }
         )
       )
     }
@@ -79,7 +79,7 @@ class ParTest extends AnyFlatSpec with Matchers {
     try
       parLimit(2)(
         (1 to 5).map(i =>
-          () => {
+          () =>
             if counter.incrementAndGet() == 4 then
               sleep(10.millis)
               trail.add("exception")
@@ -87,10 +87,10 @@ class ParTest extends AnyFlatSpec with Matchers {
             else
               sleep(200.millis)
               trail.add("x")
-          }
         )
       )
     catch case e: Exception if e.getMessage == "boom" => trail.add("catch")
+    end try
 
     sleep(300.millis)
     trail.add("all done")
@@ -140,4 +140,4 @@ class ParTest extends AnyFlatSpec with Matchers {
 
     trail.get shouldBe Vector("exception", "all done")
   }
-}
+end ParTest

@@ -50,8 +50,10 @@ def forkError[E, F[_], T](using OxError[E, F])(f: => F[T]): Fork[T] =
         // if the supervisor doesn't end the scope, the exception will be thrown when joining the result; otherwise, not
         // completing the result; any joins will end up being interrupted
         if !supervisor.forkException(e) then result.completeExceptionally(e).discard
+    end try
   }
   new ForkUsingResult(result) {}
+end forkError
 
 /** Starts a fork (logical thread of execution), which is guaranteed to complete before the enclosing [[supervised]] or [[supervisedError]]
   * block completes.
@@ -93,8 +95,10 @@ def forkUserError[E, F[_], T](using OxError[E, F])(f: => F[T]): Fork[T] =
     catch
       case e: Throwable =>
         if !supervisor.forkException(e) then result.completeExceptionally(e).discard
+    end try
   }
   new ForkUsingResult(result) {}
+end forkUserError
 
 /** Starts a fork (logical thread of execution), which is guaranteed to complete before the enclosing [[supervised]], [[supervisedError]] or
   * [[unsupervised]] block completes.
@@ -170,12 +174,15 @@ def forkCancellable[T](f: => T)(using OxUnsupervised): CancellableFork[T] =
         case e: ExecutionException if NonFatal.unapply(e.getCause).isDefined        => Left(causeWithSelfAsSuppressed(e))
         case e: InterruptedException                                                => Left(e)
         case NonFatal(e)                                                            => Left(e)
+    end cancel
 
     override def cancelNow(): Unit =
       // will cause the scope to end, interrupting the task if it hasn't yet finished (or potentially never starting it)
       done.release()
       if !started.getAndSet(true)
       then result.completeExceptionally(new InterruptedException("fork was cancelled before it started")).discard
+  end new
+end forkCancellable
 
 private trait ForkUsingResult[T](result: CompletableFuture[T]) extends Fork[T]:
   override def join(): T = unwrapExecutionException(result.get())
@@ -211,6 +218,7 @@ trait Fork[T]:
   def join(): T
 
   private[ox] def wasInterruptedWith(ie: InterruptedException): Boolean
+end Fork
 
 object Fork:
   /** A dummy pretending to represent a fork which successfully completed with the given value. */
@@ -233,6 +241,7 @@ trait UnsupervisedFork[T] extends Fork[T]:
       // we do discern between the fork and the current thread being cancelled and rethrow if it's us who's getting the axe
       case e: InterruptedException => if wasInterruptedWith(e) then Left(e) else throw e
       case NonFatal(e)             => Left(e)
+end UnsupervisedFork
 
 object UnsupervisedFork:
   /** A dummy pretending to represent a fork which successfully completed with the given value. */
@@ -244,6 +253,7 @@ object UnsupervisedFork:
   def failed[T](e: Throwable): UnsupervisedFork[T] = new UnsupervisedFork[T]:
     override def join(): T = throw e
     override private[ox] def wasInterruptedWith(ie: InterruptedException): Boolean = e eq ie
+end UnsupervisedFork
 
 /** A fork started using [[forkCancellable]], backed by a (virtual) thread. */
 trait CancellableFork[T] extends UnsupervisedFork[T]:
@@ -254,3 +264,4 @@ trait CancellableFork[T] extends UnsupervisedFork[T]:
     * complete once all forks have completed.
     */
   def cancelNow(): Unit
+end CancellableFork

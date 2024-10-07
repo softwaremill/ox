@@ -16,6 +16,7 @@ class RateLimiter(queue: BlockingQueue[RateLimiterMsg]):
       catch case e: Throwable => cf.completeExceptionally(e).discard
     })
     cf
+end RateLimiter
 
 object RateLimiter:
   private val logger = LoggerFactory.getLogger(this.getClass)
@@ -35,10 +36,9 @@ object RateLimiter:
     val msg = queue.take()
 
     // (2) modify the data structure accordingly
-    val data2 = msg match {
+    val data2 = msg match
       case ScheduledRunQueue => data.notScheduled
       case Schedule(t)       => data.enqueue(t)
-    }
 
     // (3) run the rate limiter queue: obtain the rate-limiter-tasks to be run
     val (tasks, data3) = data2.run(System.currentTimeMillis())
@@ -55,6 +55,8 @@ object RateLimiter:
 
     // (7) recursive call to handle the next message, using the updated data structure
     runQueue(data3, queue)
+  end runQueue
+end RateLimiter
 
 private sealed trait RateLimiterMsg
 private case object ScheduledRunQueue extends RateLimiterMsg

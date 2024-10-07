@@ -34,8 +34,11 @@ import java.util.concurrent.StructuredTaskScope
     finally
       scope2.close()
       log.info("Scope 2 closed")
+    end try
   finally
     scope1.close()
     log.info("Scope 1 closed")
+  end try
 
   sleep(5.seconds)
+end nestedScopes

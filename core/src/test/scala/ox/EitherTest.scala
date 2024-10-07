@@ -182,3 +182,5 @@ class EitherTest extends AnyFlatSpec with Matchers:
           "Nesting of either blocks is not allowed as it's error prone, due to type inference. Consider extracting the nested either block to a separate function."
         )
     then throw Exception(errs.mkString("\n"))
+  end receivesNoEitherNestingError
+end EitherTest

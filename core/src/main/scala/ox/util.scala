@@ -80,6 +80,7 @@ extension [T](inline t: T)
         try f(e)
         catch case ee: Throwable => e.addSuppressed(ee)
         throw e
+end extension
 
 extension [T](inline f: Future[T])
   /** Block the current thread/fork until the future completes. Returns the successful value of the future, or throws the exception, with

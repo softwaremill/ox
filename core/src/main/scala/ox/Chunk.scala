@@ -25,10 +25,9 @@ abstract sealed class Chunk[+A] extends IndexedSeq[A]:
 
   override def splitAt(n: Int): (Chunk[A], Chunk[A]) = (take(n), drop(n))
   final def ++[A1 >: A](that: Chunk[A1]): Chunk[A1] =
-    given ct: ClassTag[A1] = that match {
-      case a: ArrayChunk[_] => ClassTag(a.array.getClass.getComponentType)
+    given ct: ClassTag[A1] = that match
+      case a: ArrayChunk[?] => ClassTag(a.array.getClass.getComponentType)
       case Empty            => classTag[java.lang.Object].asInstanceOf[ClassTag[A1]]
-    }
     Chunk.fromArray(toArray[A1] ++ that.toArray)
 
   /** Converts a chunk of into a String, if supported by element type (for example for byte chunks). */
@@ -37,6 +36,7 @@ abstract sealed class Chunk[+A] extends IndexedSeq[A]:
 
   final def asString(charset: Charset)(using ev: Chunk.IsText[A]): String =
     ev.convert(this, charset)
+end Chunk
 
 final case class ArrayChunk[A](array: Array[A]) extends Chunk[A]:
   override def apply(i: Int): A = array(i)
@@ -60,11 +60,11 @@ object Chunk:
   def fromArray[A](array: Array[A]): Chunk[A] =
     ArrayChunk(array)
 
-  sealed trait IsText[-T] {
+  sealed trait IsText[-T]:
     def convert(chunk: Chunk[T], charset: Charset): String
-  }
 
-  object IsText {
+  object IsText:
     given byteIsText: IsText[Byte] =
-      new IsText[Byte] { def convert(chunk: Chunk[Byte], charset: Charset): String = new String(chunk.toArray, charset) }
-  }
+      new IsText[Byte]:
+        def convert(chunk: Chunk[Byte], charset: Charset): String = new String(chunk.toArray, charset)
+end Chunk

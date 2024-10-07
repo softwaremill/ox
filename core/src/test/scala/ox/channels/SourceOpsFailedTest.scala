@@ -4,7 +4,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.*
 
-class SourceOpsFailedTest extends AnyFlatSpec with Matchers {
+class SourceOpsFailedTest extends AnyFlatSpec with Matchers:
 
   behavior of "Source.failed"
 
@@ -19,4 +19,4 @@ class SourceOpsFailedTest extends AnyFlatSpec with Matchers {
   it should "be in error" in supervised {
     Source.failed(RuntimeException("boom")).isClosedForReceive shouldBe true
   }
-}
+end SourceOpsFailedTest

@@ -93,6 +93,7 @@ object Schedule:
   ) extends Finite:
     override def nextDuration(invocation: Int, lastDuration: Option[FiniteDuration]): FiniteDuration =
       Backoff.nextDuration(invocation, firstDuration, maxDuration, jitter, lastDuration)
+  end Backoff
 
   object Backoff:
     private[scheduling] def calculateDuration(invocation: Int, firstDuration: FiniteDuration, maxDuration: FiniteDuration): FiniteDuration =
@@ -117,6 +118,8 @@ object Schedule:
         case Jitter.Decorrelated =>
           val last = lastDuration.getOrElse(firstDuration).toMillis
           Random.between(firstDuration.toMillis, last * 3).millis
+      end match
+    end nextDuration
 
     /** A schedule that represents an increasing duration between invocations (backoff) without any invocations limit.
       *
@@ -133,6 +136,7 @@ object Schedule:
       */
     def forever(firstDuration: FiniteDuration, maxDuration: FiniteDuration = 1.minute, jitter: Jitter = Jitter.None): Infinite =
       BackoffForever(firstDuration, maxDuration, jitter)
+  end Backoff
 
   private[scheduling] case class BackoffForever(
       firstDuration: FiniteDuration,
@@ -160,3 +164,4 @@ object Schedule:
     */
   private[scheduling] case class FiniteAndInfiniteSchedules(first: Finite, second: Infinite) extends CombinedSchedules, Infinite:
     override def initialDelay: FiniteDuration = first.initialDelay
+end Schedule

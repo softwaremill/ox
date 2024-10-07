@@ -37,7 +37,8 @@ private[ox] def scopedWithCapability[T](capability: Ox)(f: Ox ?=> T): T =
     else
       val es = uninterruptible {
         fs.flatMap { f =>
-          try { f(); None }
+          try
+            f(); None
           catch case e: Throwable => Some(e)
         }
       }
@@ -46,18 +47,22 @@ private[ox] def scopedWithCapability[T](capability: Ox)(f: Ox ?=> T): T =
         case Left(e)                => throwWithSuppressed(e :: es)
         case Right(t) if es.isEmpty => t
         case _                      => throwWithSuppressed(es)
+    end if
+  end runFinalizers
 
   try
     val t =
-      try {
+      try
         try f(using capability)
         finally
           scope.shutdown()
           scope.join().discard
         // join might have been interrupted
-      } finally scope.close()
+      finally scope.close()
 
     // running the finalizers only once we are sure that all child threads have been terminated, so that no new
     // finalizers are added, and none are lost
     runFinalizers(Right(t))
   catch case e: Throwable => runFinalizers(Left(e))
+  end try
+end scopedWithCapability

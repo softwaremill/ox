@@ -60,6 +60,8 @@ def supervisedError[E, F[_], T](em: ErrorMode[E, F])(f: OxError[E, F] ?=> F[T]):
       // others), but only the first one is propagated below. That's why we add all the other exceptions as suppressed.
       s.addSuppressedErrors(e)
       throw e
+  end try
+end supervisedError
 
 private[ox] sealed trait Supervisor[-E]:
   def forkStarts(): Unit
@@ -70,6 +72,7 @@ private[ox] sealed trait Supervisor[-E]:
     */
   def forkException(e: Throwable): Boolean
   def forkAppError(e: E): Unit
+end Supervisor
 
 private[ox] object NoOpSupervisor extends Supervisor[Nothing]:
   override def forkStarts(): Unit = ()
@@ -114,6 +117,7 @@ private[ox] class DefaultSupervisor[E] extends Supervisor[E]:
     otherExceptions.forEach(e => result = errorMode.addSuppressedException(result, e))
     otherErrors.forEach(e => result = errorMode.addSuppressedError(result, e))
     result
+end DefaultSupervisor
 
 private[ox] enum ErrorModeSupervisorResult:
   case Success

@@ -73,3 +73,4 @@ class ForkTest extends AnyFlatSpec with Matchers:
 
     trail.get shouldBe Vector("main mid", "f1 complete", "result = 5", "f2 interrupted")
   }
+end ForkTest

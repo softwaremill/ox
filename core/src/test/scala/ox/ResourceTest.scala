@@ -5,7 +5,7 @@ import org.scalatest.matchers.should.Matchers
 import ox.*
 import ox.util.Trail
 
-class ResourceTest extends AnyFlatSpec with Matchers {
+class ResourceTest extends AnyFlatSpec with Matchers:
   "useInScope" should "release resources after allocation" in {
     val trail = Trail()
 
@@ -46,6 +46,7 @@ class ResourceTest extends AnyFlatSpec with Matchers {
         throw new RuntimeException
       }
     catch case _ => trail.add("exception")
+    end try
     trail.get shouldBe Vector("allocate 1", "allocate 2", "release 2", "release 1", "exception")
   }
 
@@ -73,6 +74,7 @@ class ResourceTest extends AnyFlatSpec with Matchers {
         throw new RuntimeException
       }
     catch case _ => trail.add("exception")
+    end try
     trail.get shouldBe Vector("allocate 1", "allocate 2", "release 2", "release 1", "exception")
   }
 
@@ -89,10 +91,9 @@ class ResourceTest extends AnyFlatSpec with Matchers {
   it should "use a resource" in {
     val trail = Trail()
 
-    class TestResource {
+    class TestResource:
       trail.add("allocate")
       def release(): Unit = trail.add("release")
-    }
 
     use(new TestResource, _.release()) { r =>
       trail.add("in scope")
@@ -104,10 +105,9 @@ class ResourceTest extends AnyFlatSpec with Matchers {
   it should "use a closeable resource" in {
     val trail = Trail()
 
-    class TestResource extends AutoCloseable {
+    class TestResource extends AutoCloseable:
       trail.add("allocate")
       def close(): Unit = trail.add("release")
-    }
 
     useCloseable(new TestResource) { r =>
       trail.add("in scope")
@@ -115,4 +115,4 @@ class ResourceTest extends AnyFlatSpec with Matchers {
 
     trail.get shouldBe Vector("allocate", "in scope", "release")
   }
-}
+end ResourceTest

@@ -40,3 +40,4 @@ class AppErrorTest extends AnyFlatSpec with Matchers:
       Right(())
     } shouldBe Left(-1)
   }
+end AppErrorTest

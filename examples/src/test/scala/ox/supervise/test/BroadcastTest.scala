@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger}
 import scala.concurrent.duration.*
 import scala.jdk.CollectionConverters.*
 
-class BroadcastTest extends AnyFlatSpec with Matchers with ScalaFutures with IntegrationPatience with Eventually {
+class BroadcastTest extends AnyFlatSpec with Matchers with ScalaFutures with IntegrationPatience with Eventually:
 
   it should "forward messages and recover from failures" in {
     val testData = createTestData
@@ -40,7 +40,7 @@ class BroadcastTest extends AnyFlatSpec with Matchers with ScalaFutures with Int
     def queue3: RemoteQueue
     def queueConnector: QueueConnector
 
-  def createTestData: TestData = new TestData {
+  def createTestData: TestData = new TestData:
     val closing = new AtomicBoolean()
     val lastClosed = new AtomicBoolean(true)
     val connectingWhileClosing = new AtomicBoolean(false)
@@ -51,7 +51,7 @@ class BroadcastTest extends AnyFlatSpec with Matchers with ScalaFutures with Int
       sleep(500.millis)
       closing.set(false)
 
-    val queue1: RemoteQueue = new RemoteQueue {
+    val queue1: RemoteQueue = new RemoteQueue:
       val counter = new AtomicInteger()
 
       override def read(): String =
@@ -61,8 +61,7 @@ class BroadcastTest extends AnyFlatSpec with Matchers with ScalaFutures with Int
           case _ => throw new RuntimeException("exception 1")
 
       override def close(): Unit = doClose()
-    }
-    val queue2: RemoteQueue = new RemoteQueue {
+    val queue2: RemoteQueue = new RemoteQueue:
       val counter = new AtomicInteger()
 
       override def read(): String =
@@ -73,36 +72,29 @@ class BroadcastTest extends AnyFlatSpec with Matchers with ScalaFutures with Int
           case _ => throw new RuntimeException("exception 2")
 
       override def close(): Unit = doClose()
-    }
-    val queue3: RemoteQueue = new RemoteQueue {
+    val queue3: RemoteQueue = new RemoteQueue:
       override def read(): String =
         sleep(100.millis)
         "msg"
 
       override def close(): Unit = doClose()
-    }
 
-    val queueConnector: QueueConnector = new QueueConnector {
+    val queueConnector: QueueConnector = new QueueConnector:
       val counter = new AtomicInteger()
 
-      override def connect: RemoteQueue = {
-        if (closing.get()) {
+      override def connect: RemoteQueue =
+        if closing.get() then
           connectingWhileClosing.set(true)
           println(s"Connecting while closing! Counter: ${counter.get()}")
-        }
-        if (!lastClosed.get()) {
+        if !lastClosed.get() then
           connectingWithoutClosing.set(true)
           println(s"Reconnecting without closing the previous connection! Counter: ${counter.get()}")
-        }
-        counter.incrementAndGet() match {
+        counter.incrementAndGet() match
           case 1 => queue1
           case 2 => throw new RuntimeException("connect exception 1")
           case 3 => queue2
           case 4 => throw new RuntimeException("connect exception 2")
           case 5 => throw new RuntimeException("connect exception 3")
           case _ => queue3
-        }
-      }
-    }
-  }
-}
+      end connect
+end BroadcastTest

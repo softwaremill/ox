@@ -44,3 +44,5 @@ object KafkaConsumerWrapper:
       uninterruptible(consumer.close())
 
     Actor.create(logic, Some(close))
+  end apply
+end KafkaConsumerWrapper

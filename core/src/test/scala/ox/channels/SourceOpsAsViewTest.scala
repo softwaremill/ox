@@ -9,7 +9,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import scala.jdk.CollectionConverters.*
 import scala.util.{Failure, Try}
 
-class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually {
+class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually:
   it should "map over a source as a view" in {
     val c: Channel[Int] = Channel.rendezvous
 
@@ -155,4 +155,4 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually {
       selectOrClosed(c1.receiveClause, s2.receiveClause) shouldBe ChannelClosed.Done
     }
   }
-}
+end SourceOpsAsViewTest

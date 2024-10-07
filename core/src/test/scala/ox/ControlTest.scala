@@ -10,7 +10,7 @@ import scala.concurrent.duration.DurationInt
 import scala.util.Failure
 import scala.util.Try
 
-class ControlTest extends AnyFlatSpec with Matchers {
+class ControlTest extends AnyFlatSpec with Matchers:
   "timeout" should "short-circuit a long computation" in {
     val trail = Trail()
     unsupervised {
@@ -83,5 +83,4 @@ class ControlTest extends AnyFlatSpec with Matchers {
       timeoutEither(1.second, new TimeoutException(s"Timed out after 1 seconds"))(throw myException)
     } shouldBe Failure(myException)
   }
-
-}
+end ControlTest

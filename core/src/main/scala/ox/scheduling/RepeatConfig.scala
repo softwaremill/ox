@@ -27,13 +27,13 @@ import scala.concurrent.duration.DurationInt
 case class RepeatConfig[E, T](
     schedule: Schedule,
     shouldContinueOnResult: T => Boolean = (_: T) => true
-) {
+):
   def toScheduledConfig: ScheduledConfig[E, T] = ScheduledConfig(
     schedule,
     shouldContinueOnResult = shouldContinueOnResult,
     sleepMode = SleepMode.Interval
   )
-}
+end RepeatConfig
 
 object RepeatConfig:
   /** Creates a config that repeats up to a given number of times, with no interval between subsequent invocations and optional initial
@@ -136,3 +136,4 @@ object RepeatConfig:
       case Some(delay) =>
         RepeatConfig(Schedule.InitialDelay(delay).andThen(Schedule.Backoff.forever(firstInterval, maxInterval, jitter)))
       case None => RepeatConfig(Schedule.Backoff.forever(firstInterval, maxInterval, jitter))
+end RepeatConfig

@@ -4,7 +4,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.*
 
-class SourceOpsForeachTest extends AnyFlatSpec with Matchers {
+class SourceOpsForeachTest extends AnyFlatSpec with Matchers:
 
   behavior of "Source.foreach"
 
@@ -29,9 +29,8 @@ class SourceOpsForeachTest extends AnyFlatSpec with Matchers {
     c.doneOrClosed()
 
     var r: List[Int] = Nil
-    for {
-      v <- c
-    } r = v :: r
+    for v <- c
+    do r = v :: r
 
     r shouldBe List(3, 2, 1)
   }
@@ -45,4 +44,4 @@ class SourceOpsForeachTest extends AnyFlatSpec with Matchers {
 
     c.toList shouldBe List(1, 2, 3)
   }
-}
+end SourceOpsForeachTest

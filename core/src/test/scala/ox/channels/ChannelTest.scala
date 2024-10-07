@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import scala.concurrent.duration.*
 import scala.jdk.CollectionConverters.*
 
-class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
+class ChannelTest extends AnyFlatSpec with Matchers with Eventually:
   List(0, 1, 2, 100, 10000).foreach { capacity =>
     s"channel with capacity $capacity" should "send and receive two spaced elements" in {
       val c = Channel.withCapacity[Int](capacity)
@@ -113,11 +113,10 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
 
         forkUnsupervised {
           var loop = true
-          while loop do {
+          while loop do
             val r = selectOrClosed(cs.map(_.receiveClause))
             result.add(r.map(_.value))
             loop = r != ChannelClosed.Done
-          }
         }
 
         eventually {
@@ -211,8 +210,8 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
   "buffered channel" should "select a send when one is available" in {
     val c1 = Channel.buffered[Int](1)
     val c2 = Channel.buffered[Int](1)
-    select(c1.sendClause(1), c2.sendClause(2)) should matchPattern { case _: Channel[_]#Sent => }
-    select(c1.sendClause(1), c2.sendClause(2)) should matchPattern { case _: Channel[_]#Sent => }
+    select(c1.sendClause(1), c2.sendClause(2)) should matchPattern { case _: Channel[?]#Sent => }
+    select(c1.sendClause(1), c2.sendClause(2)) should matchPattern { case _: Channel[?]#Sent => }
 
     Set(c1.receive(), c2.receive()) shouldBe Set(1, 2)
   }
@@ -326,7 +325,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
   }
 
   it should "use the default value once a source is done (buffered channel, stress test)" in {
-    for (i <- 1 to 100) {
+    for i <- 1 to 100 do
       info(s"iteration $i")
 
       unsupervised {
@@ -342,6 +341,5 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually {
         // then
         result.toList shouldBe List(1, 2, 3, 5)
       }
-    }
   }
-}
+end ChannelTest

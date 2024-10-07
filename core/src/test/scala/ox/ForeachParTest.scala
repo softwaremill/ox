@@ -9,17 +9,16 @@ import scala.collection.IterableFactory
 import scala.collection.immutable.Iterable
 import scala.concurrent.duration.*
 
-class ForeachParTest extends AnyFlatSpec with Matchers {
+class ForeachParTest extends AnyFlatSpec with Matchers:
   "foreachPar" should "run computations in parallel" in {
     val InputElements = 17
     val TransformationMillis = 100.millis
     val trail = new Trail()
 
     val input = 0 to InputElements
-    def transformation(i: Int): Unit = {
+    def transformation(i: Int): Unit =
       sleep(TransformationMillis)
       trail.add(i.toString)
-    }
 
     val start = System.currentTimeMillis()
     input.to(Iterable).foreachPar(5)(transformation)
@@ -36,11 +35,10 @@ class ForeachParTest extends AnyFlatSpec with Matchers {
 
     val maxCounter = MaxCounter()
 
-    def transformation(i: Int) = {
+    def transformation(i: Int) =
       maxCounter.increment()
       sleep(10.millis)
       maxCounter.decrement()
-    }
 
     input.to(Iterable).foreachPar(Parallelism)(transformation)
 
@@ -54,26 +52,22 @@ class ForeachParTest extends AnyFlatSpec with Matchers {
 
     val input = 0 to InputElements
 
-    def transformation(i: Int) = {
-      if (i == 4) {
+    def transformation(i: Int) =
+      if i == 4 then
         trail.add("exception")
         throw new Exception("boom")
-      } else {
+      else {
         sleep(TransformationMillis)
         trail.add("transformation")
         i + 1
       }
-    }
 
-    try {
-      input.to(Iterable).foreachPar(5)(transformation)
-    } catch {
-      case e: Exception if e.getMessage == "boom" => trail.add("catch")
-    }
+    try input.to(Iterable).foreachPar(5)(transformation)
+    catch case e: Exception if e.getMessage == "boom" => trail.add("catch")
 
     sleep(300.millis)
     trail.add("all done")
 
     trail.get shouldBe Vector("exception", "catch", "all done")
   }
-}
+end ForeachParTest

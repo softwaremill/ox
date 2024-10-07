@@ -35,3 +35,4 @@ object ResultPolicy:
 
   /** A policy that considers every non-erroneous result successful and never retries any error, i.e. fails fast */
   def neverRetry[E, T]: ResultPolicy[E, T] = ResultPolicy(isWorthRetrying = _ => false)
+end ResultPolicy

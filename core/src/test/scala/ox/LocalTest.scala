@@ -7,7 +7,7 @@ import ox.util.Trail
 
 import scala.concurrent.duration.*
 
-class LocalTest extends AnyFlatSpec with Matchers {
+class LocalTest extends AnyFlatSpec with Matchers:
   "fork locals" should "properly propagate values" in {
     val trail = Trail()
     val v = ForkLocal("a")
@@ -76,4 +76,4 @@ class LocalTest extends AnyFlatSpec with Matchers {
 
     caught.getMessage shouldBe "boom!"
   }
-}
+end LocalTest

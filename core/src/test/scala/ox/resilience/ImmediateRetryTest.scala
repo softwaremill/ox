@@ -161,3 +161,4 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
     result.left.value shouldBe errorMessage
     counter shouldBe 4
   }
+end ImmediateRetryTest

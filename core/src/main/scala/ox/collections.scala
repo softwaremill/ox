@@ -25,6 +25,7 @@ private[ox] def commonPar[I, O, C[E] <: Iterable[E], FO](
     val outputs = forks.toSeq.map(f => f.join())
     handleOutputs(outputs)
   }
+end commonPar
 
 extension [I, C[E] <: Iterable[E]](iterable: C[I])
   /** Runs partial function in parallel on each element of `iterable` for which the partial function is defined. If function is not defined
@@ -52,6 +53,7 @@ extension [I, C[E] <: Iterable[E]](iterable: C[I])
       outputs.collect { case Some(output) => output }.to(iterable.iterableFactory.asInstanceOf[IterableFactory[C]])
 
     commonPar(parallelism, iterable, nonPartialOperation, handleOutputs)
+  end collectPar
 
   /** Runs predicate in parallel on each element of `iterable`. Elements for which predicate returns `true` are returned in the same order
     * as in `iterable`. Elements for which predicate returns `false` are skipped. Using not more than `parallelism` forks concurrently.
@@ -73,6 +75,7 @@ extension [I, C[E] <: Iterable[E]](iterable: C[I])
       outputs.collect { case (true, elem) => elem }.to(iterable.iterableFactory.asInstanceOf[IterableFactory[C]])
 
     commonPar(parallelism, iterable, addCalculatedFilter, handleOutputs)
+  end filterPar
 
   /** Parallelize a foreach operation. Runs the operation on each element of the iterable in parallel. Using not more than `parallelism`
     * forks concurrently.
@@ -83,7 +86,7 @@ extension [I, C[E] <: Iterable[E]](iterable: C[I])
     *   the operation to perform on each element
     */
   def foreachPar(parallelism: Int)(operation: I => Any): Unit =
-    def handleOutputs(@unused outputs: Seq[_]): Unit = ()
+    def handleOutputs(@unused outputs: Seq[?]): Unit = ()
 
     commonPar(parallelism, iterable, operation, handleOutputs)
 
@@ -106,3 +109,4 @@ extension [I, C[E] <: Iterable[E]](iterable: C[I])
       outputs.to(iterable.iterableFactory.asInstanceOf[IterableFactory[C]])
 
     commonPar(parallelism, iterable, transform, handleOutputs)
+end extension

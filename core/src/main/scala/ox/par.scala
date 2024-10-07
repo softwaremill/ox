@@ -61,6 +61,7 @@ def par[E, F[_], T1, T2, T3, T4](em: ErrorMode[E, F])(t1: => F[T1], t2: => F[T2]
   else
     val rr = em.getT(r)
     em.pure((rr(0), rr(1), rr(2), rr(3)).asInstanceOf[(T1, T2, T3, T4)])
+end par
 
 /** Runs the given computations in parallel. If any fails because of an exception, or if any returns an application error, other
   * computations are interrupted. Then, the exception is re-thrown, or the error value returned. Application errors must be of type `E` in
@@ -122,6 +123,7 @@ def parEither[E, T1, T2, T3, T4](
 ): Either[E, (T1, T2, T3, T4)] =
   val r = parEither(Vector(() => t1, () => t2, () => t3, () => t4))
   r.map(rr => (rr(0), rr(1), rr(2), rr(3)).asInstanceOf[(T1, T2, T3, T4)])
+end parEither
 
 /** Runs the given computations in parallel. If any fails because of an exception, or if any returns a `Left`, other computations are
   * interrupted. Then, the exception is re-thrown, or the `Left` error value returned. Each computation must return an `Either`, with an

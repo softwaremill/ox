@@ -13,12 +13,11 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with Eventually with Int
   it should "rate limit futures scheduled upfront" in {
     RateLimiter.withRateLimiter(2, 1.second) { rateLimiter =>
       val complete = new AtomicReference(Vector.empty[Int])
-      for (i <- 1 to 7) {
+      for i <- 1 to 7 do
         rateLimiter.runLimited {
           println(s"${LocalTime.now()} Running $i")
           complete.updateAndGet(_ :+ i)
         }
-      }
 
       eventually {
         complete.get() should have size (7)
@@ -29,3 +28,4 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with Eventually with Int
       }
     }
   }
+end RateLimiterTest

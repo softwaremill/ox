@@ -7,7 +7,7 @@ import java.util.concurrent.{ArrayBlockingQueue, BlockingQueue}
 import scala.annotation.tailrec
 import scala.util.control.NonFatal
 
-object Broadcast {
+object Broadcast:
   private val logger = LoggerFactory.getLogger(this.getClass)
 
   sealed trait BroadcastMessage
@@ -35,10 +35,16 @@ object Broadcast {
     val inbox = new ArrayBlockingQueue[BroadcastMessage](32)
     val f1 = forkCancellable(consumeForever(inbox))
     val f2 = forkCancellable(processMessages(inbox, Set()))
-    f(BroadcastResult(inbox, () => { f1.cancel(); f2.cancel().discard }))
+    f(
+      BroadcastResult(
+        inbox,
+        () =>
+          f1.cancel(); f2.cancel().discard
+      )
+    )
   }
 
-  def consume(connector: QueueConnector, inbox: BlockingQueue[BroadcastMessage]): Unit = {
+  def consume(connector: QueueConnector, inbox: BlockingQueue[BroadcastMessage]): Unit =
     val connect: RemoteQueue =
       logger.info("[queue-start] connecting")
       val q = connector.connect
@@ -61,5 +67,5 @@ object Broadcast {
     val q = connect
     try consumeQueue(q)
     finally uninterruptible(releaseQueue(q))
-  }
-}
+  end consume
+end Broadcast

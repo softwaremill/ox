@@ -17,3 +17,4 @@ package ox.characterization
       }
     }
   }
+end nestedContexts

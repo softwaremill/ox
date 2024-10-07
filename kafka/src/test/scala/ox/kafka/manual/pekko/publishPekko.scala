@@ -24,3 +24,4 @@ import scala.concurrent.duration.Duration
     producerRecordSource.runWith(Producer.plainSink(producerSettings)).get()
     system.terminate().get().discard
   }
+end publishPekko

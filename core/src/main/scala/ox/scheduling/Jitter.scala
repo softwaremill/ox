@@ -23,3 +23,4 @@ enum Jitter:
 
   /** Decorrelated jitter, i.e. the delay is a random value between the initial delay and the last delay multiplied by 3. */
   case Decorrelated
+end Jitter
