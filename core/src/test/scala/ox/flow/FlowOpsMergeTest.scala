@@ -51,4 +51,36 @@ class FlowOpsMergeTest extends AnyFlatSpec with Matchers:
     intercept[IllegalStateException] {
       s.runToList()
     }
+
+  it should "merge two flows, emitting all elements from the left when right completes" in:
+    val c1 = Flow.fromValues(1, 2, 3, 4).throttle(1, 100.millis)
+    val c2 = Flow.fromValues(5, 6).throttle(1, 100.millis)
+
+    val s = c1.merge(c2)
+
+    s.runToList().sorted shouldBe List(1, 2, 3, 4, 5, 6)
+
+  it should "merge two flows, emitting all elements from the right when left completes" in:
+    val c1 = Flow.fromValues(1, 2).throttle(1, 100.millis)
+    val c2 = Flow.fromValues(3, 4, 5, 6).throttle(1, 100.millis)
+
+    val s = c1.merge(c2)
+
+    s.runToList().sorted shouldBe List(1, 2, 3, 4, 5, 6)
+
+  it should "merge two flows, completing the resulting flow when the left flow completes" in:
+    val c1 = Flow.fromValues(1, 2).throttle(1, 100.millis)
+    val c2 = Flow.fromValues(3, 4, 5, 6).throttle(1, 100.millis)
+
+    val s = c1.merge(c2, propagateDoneLeft = true)
+
+    s.runToList().sorted should (be(List(1, 2, 3, 4)) or be(List(1, 2, 3)))
+
+  it should "merge two flows, completing the resulting flow when the right flow completes" in:
+    val c1 = Flow.fromValues(1, 2, 3, 4).throttle(1, 100.millis)
+    val c2 = Flow.fromValues(5, 6).throttle(1, 100.millis)
+
+    val s = c1.merge(c2, propagateDoneRight = true)
+
+    s.runToList().sorted should (be(List(1, 2, 5, 6)) or be(List(1, 2, 5)))
 end FlowOpsMergeTest
