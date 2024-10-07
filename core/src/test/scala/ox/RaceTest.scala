@@ -10,7 +10,7 @@ import scala.concurrent.TimeoutException
 import scala.concurrent.duration.DurationInt
 import scala.util.control.ControlThrowable
 
-class RaceTest extends AnyFlatSpec with Matchers {
+class RaceTest extends AnyFlatSpec with Matchers:
   "timeout" should "short-circuit a long computation" in {
     val trail = Trail()
     try
@@ -57,7 +57,7 @@ class RaceTest extends AnyFlatSpec with Matchers {
   "race" should "race a slower and faster computation" in {
     val trail = Trail()
     val start = System.currentTimeMillis()
-    race(
+    raceSuccess(
       {
         sleep(1.second)
         trail.add("slow")
@@ -76,7 +76,7 @@ class RaceTest extends AnyFlatSpec with Matchers {
   it should "race a faster and slower computation" in {
     val trail = Trail()
     val start = System.currentTimeMillis()
-    race(
+    raceSuccess(
       {
         sleep(500.millis)
         trail.add("fast")
@@ -95,7 +95,7 @@ class RaceTest extends AnyFlatSpec with Matchers {
   it should "return the first successful computation to complete" in {
     val trail = Trail()
     val start = System.currentTimeMillis()
-    race(
+    raceSuccess(
       {
         sleep(200.millis)
         trail.add("error")
@@ -117,7 +117,7 @@ class RaceTest extends AnyFlatSpec with Matchers {
 
   it should "add other exceptions as suppressed" in {
     try
-      race(
+      raceSuccess(
         throw new RuntimeException("boom1!"), {
           sleep(200.millis)
           throw new RuntimeException("boom2!")
@@ -135,7 +135,7 @@ class RaceTest extends AnyFlatSpec with Matchers {
 
   it should "treat ControlThrowable as a non-fatal exception" in {
     try
-      race(
+      raceSuccess(
         throw new NastyControlThrowable("boom1!"), {
           sleep(200.millis)
           throw new NastyControlThrowable("boom2!")
@@ -154,7 +154,7 @@ class RaceTest extends AnyFlatSpec with Matchers {
   it should "immediately rethrow other fatal exceptions" in {
     val flag = new AtomicBoolean(false)
     try
-      race(
+      raceSuccess(
         throw new StackOverflowError(), {
           sleep(1.second)
           flag.set(true)
@@ -206,6 +206,7 @@ class RaceTest extends AnyFlatSpec with Matchers {
       case e: Throwable =>
         e.getMessage shouldBe "boom!"
         flag.get() shouldBe false
+    end try
   }
 
   it should "immediately return when a control exception occurs" in {
@@ -219,6 +220,7 @@ class RaceTest extends AnyFlatSpec with Matchers {
       )
       fail("raceResult should throw")
     catch case e: NastyControlThrowable => flag.get() shouldBe false
+    end try
   }
 
   it should "immediately return when a fatal exception occurs" in {
@@ -232,7 +234,8 @@ class RaceTest extends AnyFlatSpec with Matchers {
       )
       fail("raceResult should throw")
     catch case e: StackOverflowError => flag.get() shouldBe false
+    end try
   }
 
   class NastyControlThrowable(val message: String) extends ControlThrowable(message) {}
-}
+end RaceTest

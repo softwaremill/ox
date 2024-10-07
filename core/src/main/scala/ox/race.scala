@@ -30,13 +30,13 @@ def timeoutEither[E, T](duration: FiniteDuration, timeoutValue: E)(t: => Either[
 //
 
 /** Returns the result of the first computation to complete successfully, or if all fail - throws the first exception. */
-def race[T](fs: Seq[() => T]): T = race(NoErrorMode)(fs)
+def raceSuccess[T](fs: Seq[() => T]): T = raceSuccess(NoErrorMode)(fs)
 
 /** Returns the result of the first computation to complete successfully, or if all fail / return an application error - throws the first
   * exception / returns the first application error. Application errors must be of type `E` in context `F`, and each computation must return
   * an `F`-wrapped value.
   */
-def race[E, F[_], T](em: ErrorMode[E, F])(fs: Seq[() => F[T]]): F[T] =
+def raceSuccess[E, F[_], T](em: ErrorMode[E, F])(fs: Seq[() => F[T]]): F[T] =
   unsupervised {
     val result = new ArrayBlockingQueue[RaceBranchResult[F[T]]](fs.size)
     fs.foreach(f =>
@@ -82,54 +82,55 @@ def race[E, F[_], T](em: ErrorMode[E, F])(fs: Seq[() => F[T]]): F[T] =
   }
 
 /** Returns the result of the first computation to complete successfully, or if all fail - throws the first exception. */
-def race[T](f1: => T, f2: => T): T = race(List(() => f1, () => f2))
+def raceSuccess[T](f1: => T, f2: => T): T = raceSuccess(List(() => f1, () => f2))
 
 /** Returns the result of the first computation to complete successfully, or if all fail - throws the first exception. */
-def race[T](f1: => T, f2: => T, f3: => T): T = race(List(() => f1, () => f2, () => f3))
+def raceSuccess[T](f1: => T, f2: => T, f3: => T): T = raceSuccess(List(() => f1, () => f2, () => f3))
 
 /** Returns the result of the first computation to complete successfully, or if all fail - throws the first exception. */
-def race[T](f1: => T, f2: => T, f3: => T, f4: => T): T = race(List(() => f1, () => f2, () => f3, () => f4))
+def raceSuccess[T](f1: => T, f2: => T, f3: => T, f4: => T): T = raceSuccess(List(() => f1, () => f2, () => f3, () => f4))
 
 /** Returns the result of the first computation to complete successfully, or if all fail / return an application error - throws the first
   * exception / returns the first application error. Application errors must be of type `E` in context `F`, and each computation must return
   * an `F`-wrapped value.
   */
-def race[E, F[_], T](em: ErrorMode[E, F])(f1: => F[T], f2: => F[T]): F[T] = race(em)(List(() => f1, () => f2))
+def raceSuccess[E, F[_], T](em: ErrorMode[E, F])(f1: => F[T], f2: => F[T]): F[T] = raceSuccess(em)(List(() => f1, () => f2))
 
 /** Returns the result of the first computation to complete successfully, or if all fail / return an application error - throws the first
   * exception / returns the first application error. Application errors must be of type `E` in context `F`, and each computation must return
   * an `F`-wrapped value.
   */
-def race[E, F[_], T](em: ErrorMode[E, F])(f1: => F[T], f2: => F[T], f3: => F[T]): F[T] = race(em)(List(() => f1, () => f2, () => f3))
+def raceSuccess[E, F[_], T](em: ErrorMode[E, F])(f1: => F[T], f2: => F[T], f3: => F[T]): F[T] =
+  raceSuccess(em)(List(() => f1, () => f2, () => f3))
 
 /** Returns the result of the first computation to complete successfully, or if all fail / return an application error - throws the first
   * exception / returns the first application error. Application errors must be of type `E` in context `F`, and each computation must return
   * an `F`-wrapped value.
   */
-def race[E, F[_], T](em: ErrorMode[E, F])(f1: => F[T], f2: => F[T], f3: => F[T], f4: => F[T]): F[T] =
-  race(em)(List(() => f1, () => f2, () => f3, () => f4))
+def raceSuccess[E, F[_], T](em: ErrorMode[E, F])(f1: => F[T], f2: => F[T], f3: => F[T], f4: => F[T]): F[T] =
+  raceSuccess(em)(List(() => f1, () => f2, () => f3, () => f4))
 
 /** Returns the result of the first computation to complete successfully, or if all fail / return a `Left` - throws the first exception /
   * returns the first `Left`. Each computation must return an `Either`, with an error type being a subtype of `E`.
   */
-def raceEither[E, T](f1: => Either[E, T], f2: => Either[E, T]): Either[E, T] = race(EitherMode[E])(List(() => f1, () => f2))
+def raceEither[E, T](f1: => Either[E, T], f2: => Either[E, T]): Either[E, T] = raceSuccess(EitherMode[E])(List(() => f1, () => f2))
 
 /** Returns the result of the first computation to complete successfully, or if all fail / return a `Left` - throws the first exception /
   * returns the first `Left`. Each computation must return an `Either`, with an error type being a subtype of `E`.
   */
 def raceEither[E, T](f1: => Either[E, T], f2: => Either[E, T], f3: => Either[E, T]): Either[E, T] =
-  race(EitherMode[E])(List(() => f1, () => f2, () => f3))
+  raceSuccess(EitherMode[E])(List(() => f1, () => f2, () => f3))
 
 /** Returns the result of the first computation to complete successfully, or if all fail / return a `Left` - throws the first exception /
   * returns the first `Left`. Each computation must return an `Either`, with an error type being a subtype of `E`.
   */
 def raceEither[E, T](f1: => Either[E, T], f2: => Either[E, T], f3: => Either[E, T], f4: => Either[E, T]): Either[E, T] =
-  race(EitherMode[E])(List(() => f1, () => f2, () => f3, () => f4))
+  raceSuccess(EitherMode[E])(List(() => f1, () => f2, () => f3, () => f4))
 
 //
 
 /** Returns the result of the first computation to complete (either successfully or with an exception). */
-def raceResult[T](fs: Seq[() => T]): T = race(
+def raceResult[T](fs: Seq[() => T]): T = raceSuccess(
   fs.map(f =>
     () =>
       // #213: the Try() constructor doesn't catch fatal exceptions; in this context, we want to propagate *all*
