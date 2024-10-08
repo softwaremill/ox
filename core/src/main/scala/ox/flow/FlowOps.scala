@@ -703,6 +703,11 @@ class FlowOps[+T]:
   def drain(): Flow[Nothing] = Flow.usingEmitInline: emit =>
     last.run(FlowEmit.fromInline(_ => ()))
 
+  /** Always runs `f` after the flow completes, whether it's because all elements are emitted, or when there's an error. */
+  def ensure(f: => Unit): Flow[T] = Flow.usingEmitInline: emit =>
+    try last.run(emit)
+    finally f
+
   //
 
   protected def runLastToChannelAsync(ch: Sink[T])(using OxUnsupervised): Unit =
