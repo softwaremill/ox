@@ -698,6 +698,11 @@ class FlowOps[+T]:
     }.tapException(other.errorOrClosed(_).discard)
   end alsoToTap
 
+  /** Discard all elements emitted by this flow. The returned flow completes only when this flow completes (successfully or with an error).
+    */
+  def drain(): Flow[Nothing] = Flow.usingEmitInline: emit =>
+    last.run(FlowEmit.fromInline(_ => ()))
+
   //
 
   protected def runLastToChannelAsync(ch: Sink[T])(using OxUnsupervised): Unit =

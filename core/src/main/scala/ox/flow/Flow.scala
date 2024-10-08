@@ -44,7 +44,7 @@ object FlowEmit:
     new FlowEmit[T]:
       def apply(t: T): Unit = f(t)
 
-  /** Propagates all elements and closure events to the given emit. */
+  /** Propagates all elements to the given emit. */
   def channelToEmit[T](source: Source[T], emit: FlowEmit[T]): Unit =
     repeatWhile:
       val t = source.receiveOrClosed()
