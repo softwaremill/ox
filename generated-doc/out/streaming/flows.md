@@ -19,20 +19,7 @@ Flow.iterate(0)(_ + 1) // natural numbers
 
 Note that creating a flow as above doesn't emit any elements, or execute any of the flow's logic. Only when run, the elements are emitted and any effects that are part of the flow's stages happen.
 
-Flows can be also created by providing arbitrary element-emitting logic:
-
-```scala
-import ox.flow.Flow
-
-def isNoon(): Boolean = ???
-
-Flow.usingEmit: emit =>
-  emit(1)
-  for i <- 4 to 50 do emit(i)
-  if isNoon() then emit(42)
-```
-
-Finally, flows can be created using [channel](channels.md) `Source`s:
+Flows can also be created using [channel](channels.md) `Source`s:
 
 ```scala
 import ox.channels.Channel
@@ -49,6 +36,25 @@ supervised:
 
   Flow.fromSource(ch) // TODO: transform the flow further & run
 ```
+
+Finally, flows can be created by providing arbitrary element-emitting logic:
+
+```scala
+import ox.flow.Flow
+
+def isNoon(): Boolean = ???
+
+Flow.usingEmit: emit =>
+  emit(1)
+  for i <- 4 to 50 do emit(i)
+  if isNoon() then emit(42)
+```
+
+The `emit: FlowEmit` instances is used to emit elements by the flow, that is process them further, as defined by the downstream pipeline. This method only completes once the element is fully processed, and it might throw exceptions in case there's a processing error.
+
+As part of the callback, you can create [supervision scopes](../structured-concurrency/error-handling-scopes.md), fork background computations or run other flows asynchronously. However, take care **not** to share the `emit: FlowEmit` instance across threads. That is, instances of `FlowEmit` are thread-unsafe and should only be used on the calling thread. The lifetime of `emit` should not extend over the duration of the invocation of `withEmit`.
+
+Any asynchronous communication should be best done with [channels](channels.md). You can then manually any elements received from a channel to `emit`, or use e.g. `FlowEmit.channelToEmit`.
 
 ## Transforming flows: basics
 
