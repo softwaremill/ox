@@ -704,9 +704,18 @@ class FlowOps[+T]:
     last.run(FlowEmit.fromInline(_ => ()))
 
   /** Always runs `f` after the flow completes, whether it's because all elements are emitted, or when there's an error. */
-  def ensure(f: => Unit): Flow[T] = Flow.usingEmitInline: emit =>
+  def onComplete(f: => Unit): Flow[T] = Flow.usingEmitInline: emit =>
     try last.run(emit)
     finally f
+
+  /** Runs `f` after the flow completes successfully, that is when all elements are emitted. */
+  def onDone(f: => Unit): Flow[T] = Flow.usingEmitInline: emit =>
+    last.run(emit)
+    f
+
+  /** Runs `f` after the flow completes with an error. The error can't be recovered. */
+  def onError(f: Throwable => Unit): Flow[T] = Flow.usingEmitInline: emit =>
+    last.run(emit).tapException(f)
 
   //
 
