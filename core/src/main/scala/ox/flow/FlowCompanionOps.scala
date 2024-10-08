@@ -20,9 +20,9 @@ import scala.concurrent.duration.FiniteDuration
 trait FlowCompanionOps:
   this: Flow.type =>
 
-  private[flow] inline def usingEmitInline[T](inline withSink: FlowEmit[T] => Unit): Flow[T] = Flow(
+  private[flow] inline def usingEmitInline[T](inline withEmit: FlowEmit[T] => Unit): Flow[T] = Flow(
     new FlowStage:
-      override def run(emit: FlowEmit[T]): Unit = withSink(emit)
+      override def run(emit: FlowEmit[T]): Unit = withEmit(emit)
   )
 
   /** Creates a flow, which when run, provides a [[FlowEmit]] instance to the given `withEmit` function. Elements can be emitted to be
