@@ -3,6 +3,7 @@ package ox.flow
 import ox.channels.ChannelClosed
 import ox.channels.Source
 import ox.repeatWhile
+import scala.annotation.nowarn
 
 /** Describes an asynchronous transformation pipeline. When run, emits elements of type `T`.
   *
@@ -40,11 +41,13 @@ trait FlowEmit[-T]:
   def apply(t: T): Unit
 
 object FlowEmit:
-  private[flow] inline def fromInline[T](inline f: T => Unit): FlowEmit[T] =
+  // suppressing the "New anonymous class definition will be duplicated at each inline site" warning: the whole point of this inline
+  // is to create new FlowEmit instances
+  @nowarn private[flow] inline def fromInline[T](inline f: T => Unit): FlowEmit[T] =
     new FlowEmit[T]:
       def apply(t: T): Unit = f(t)
 
-  /** Propagates all elements and closure events to the given emit. */
+  /** Propagates all elements to the given emit. */
   def channelToEmit[T](source: Source[T], emit: FlowEmit[T]): Unit =
     repeatWhile:
       val t = source.receiveOrClosed()

@@ -698,6 +698,25 @@ class FlowOps[+T]:
     }.tapException(other.errorOrClosed(_).discard)
   end alsoToTap
 
+  /** Discard all elements emitted by this flow. The returned flow completes only when this flow completes (successfully or with an error).
+    */
+  def drain(): Flow[Nothing] = Flow.usingEmitInline: emit =>
+    last.run(FlowEmit.fromInline(_ => ()))
+
+  /** Always runs `f` after the flow completes, whether it's because all elements are emitted, or when there's an error. */
+  def onComplete(f: => Unit): Flow[T] = Flow.usingEmitInline: emit =>
+    try last.run(emit)
+    finally f
+
+  /** Runs `f` after the flow completes successfully, that is when all elements are emitted. */
+  def onDone(f: => Unit): Flow[T] = Flow.usingEmitInline: emit =>
+    last.run(emit)
+    f
+
+  /** Runs `f` after the flow completes with an error. The error can't be recovered. */
+  def onError(f: Throwable => Unit): Flow[T] = Flow.usingEmitInline: emit =>
+    last.run(emit).tapException(f)
+
   //
 
   protected def runLastToChannelAsync(ch: Sink[T])(using OxUnsupervised): Unit =

@@ -16,17 +16,23 @@ import scala.concurrent.Await
 import scala.concurrent.Future
 import scala.concurrent.duration.Duration
 import scala.concurrent.duration.FiniteDuration
+import scala.annotation.nowarn
 
 trait FlowCompanionOps:
   this: Flow.type =>
 
-  private[flow] inline def usingEmitInline[T](inline withSink: FlowEmit[T] => Unit): Flow[T] = Flow(
+  // suppressing the "New anonymous class definition will be duplicated at each inline site" warning: the whole point of this inline
+  // is to create new FlowStage instances
+  @nowarn private[flow] inline def usingEmitInline[T](inline withEmit: FlowEmit[T] => Unit): Flow[T] = Flow(
     new FlowStage:
-      override def run(emit: FlowEmit[T]): Unit = withSink(emit)
+      override def run(emit: FlowEmit[T]): Unit = withEmit(emit)
   )
 
   /** Creates a flow, which when run, provides a [[FlowEmit]] instance to the given `withEmit` function. Elements can be emitted to be
     * processed by downstream stages by calling [[FlowEmit.apply]].
+    *
+    * The `FlowEmit` instance provided to the `withEmit` callback should only be used on the calling thread. That is, `FlowEmit` is
+    * thread-unsafe`. Moreover, the instance should not be stored or captured in closures, which outlive the invocation of `withEmit`.
     */
   def usingEmit[T](withEmit: FlowEmit[T] => Unit): Flow[T] = usingEmitInline(withEmit)
 
