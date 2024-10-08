@@ -16,11 +16,14 @@ import scala.concurrent.Await
 import scala.concurrent.Future
 import scala.concurrent.duration.Duration
 import scala.concurrent.duration.FiniteDuration
+import scala.annotation.nowarn
 
 trait FlowCompanionOps:
   this: Flow.type =>
 
-  private[flow] inline def usingEmitInline[T](inline withEmit: FlowEmit[T] => Unit): Flow[T] = Flow(
+  // suppressing the "New anonymous class definition will be duplicated at each inline site" warning: the whole point of this inline
+  // is to create new FlowStage instances
+  @nowarn private[flow] inline def usingEmitInline[T](inline withEmit: FlowEmit[T] => Unit): Flow[T] = Flow(
     new FlowStage:
       override def run(emit: FlowEmit[T]): Unit = withEmit(emit)
   )
