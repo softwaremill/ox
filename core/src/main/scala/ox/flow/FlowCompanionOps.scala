@@ -27,6 +27,9 @@ trait FlowCompanionOps:
 
   /** Creates a flow, which when run, provides a [[FlowEmit]] instance to the given `withEmit` function. Elements can be emitted to be
     * processed by downstream stages by calling [[FlowEmit.apply]].
+    *
+    * The `FlowEmit` instance provided to the `withEmit` callback should only be used on the calling thread. That is, `FlowEmit` is
+    * thread-unsafe`. Moreover, the instance should not be stored or captured in closures, which outlive the invocation of `withEmit`.
     */
   def usingEmit[T](withEmit: FlowEmit[T] => Unit): Flow[T] = usingEmitInline(withEmit)
 
