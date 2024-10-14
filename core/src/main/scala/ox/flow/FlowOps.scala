@@ -55,6 +55,9 @@ class FlowOps[+T]:
   /** Applies the given mapping function `f` to each element emitted by this flow, in sequence. The given [[FlowSink]] can be used to emit
     * an arbirary number of elements.
     *
+    * The `FlowEmit` instance provided to the `f` callback should only be used on the calling thread. That is, `FlowEmit` is thread-unsafe.
+    * Moreover, the instance should not be stored or captured in closures, which outlive the invocation of `f`.
+    *
     * @param f
     *   The mapping function.
     */

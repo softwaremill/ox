@@ -36,8 +36,11 @@ object FlowStage:
 
 //
 
+/** Instances of this trait should be considered thread-unsafe, and only used within the scope in which they have been obtained, e.g. as
+  * part of [[Flow.usingEmit]] or [[Flow.mapUsingEmit]].
+  */
 trait FlowEmit[-T]:
-  /** Emit a value to be processed downstream. */
+  /** Emit a value to be processed downstream. Blocks until the value is fully processed, or throws an exception if an error occured. */
   def apply(t: T): Unit
 
 object FlowEmit:
@@ -47,7 +50,9 @@ object FlowEmit:
     new FlowEmit[T]:
       def apply(t: T): Unit = f(t)
 
-  /** Propagates all elements to the given emit. */
+  /** Propagates all elements to the given emit. Completes once the channel completes as done. Throws an exception if the channel transits
+    * to an error state.
+    */
   def channelToEmit[T](source: Source[T], emit: FlowEmit[T]): Unit =
     repeatWhile:
       val t = source.receiveOrClosed()

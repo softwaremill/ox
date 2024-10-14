@@ -32,7 +32,7 @@ trait FlowCompanionOps:
     * processed by downstream stages by calling [[FlowEmit.apply]].
     *
     * The `FlowEmit` instance provided to the `withEmit` callback should only be used on the calling thread. That is, `FlowEmit` is
-    * thread-unsafe`. Moreover, the instance should not be stored or captured in closures, which outlive the invocation of `withEmit`.
+    * thread-unsafe. Moreover, the instance should not be stored or captured in closures, which outlive the invocation of `withEmit`.
     */
   def usingEmit[T](withEmit: FlowEmit[T] => Unit): Flow[T] = usingEmitInline(withEmit)
 
