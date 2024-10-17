@@ -284,7 +284,7 @@ class FlowOps[+T]:
                 if !propagateDoneLeft then FlowEmit.channelToEmit(c2, emit)
               else if !propagateDoneRight then FlowEmit.channelToEmit(c1, emit)
               false
-            case ChannelClosed.Error(r) => throw r
+            case e: ChannelClosed.Error => throw e.toThrowable
             case r: U @unchecked        => emit(r); true
 
   /** Pipes the elements of child flows into the output source. If the parent source or any of the child sources emit an error, the pulling
@@ -306,7 +306,7 @@ class FlowOps[+T]:
             pool = pool.filterNot(_.isClosedForReceiveDetail.contains(ChannelClosed.Done))
             if pool.isEmpty then false
             else true
-          case ChannelClosed.Error(e) => throw e
+          case e: ChannelClosed.Error => throw e.toThrowable
           case Nested(t) =>
             pool = t.runToChannel() :: pool
             true
@@ -340,11 +340,11 @@ class FlowOps[+T]:
       repeatWhile:
         s1.receiveOrClosed() match
           case ChannelClosed.Done     => false
-          case ChannelClosed.Error(r) => throw r
+          case e: ChannelClosed.Error => throw e.toThrowable
           case t: T @unchecked =>
             s2.receiveOrClosed() match
               case ChannelClosed.Done     => false
-              case ChannelClosed.Error(r) => throw r
+              case e: ChannelClosed.Error => throw e.toThrowable
               case u: U @unchecked        => emit((t, u)); true
 
   /** Combines elements from this and the other flow into tuples, handling early completion of either flow with defaults. The flows are run
@@ -365,7 +365,7 @@ class FlowOps[+T]:
       def receiveFromOther(thisElement: U, otherDoneHandler: () => Boolean): Boolean =
         s2.receiveOrClosed() match
           case ChannelClosed.Done     => otherDoneHandler()
-          case ChannelClosed.Error(r) => throw r
+          case e: ChannelClosed.Error => throw e.toThrowable
           case v: V @unchecked        => emit((thisElement, v)); true
 
       repeatWhile:
@@ -375,7 +375,7 @@ class FlowOps[+T]:
               thisDefault,
               () => false
             )
-          case ChannelClosed.Error(r) => throw r
+          case e: ChannelClosed.Error => throw e.toThrowable
           case t: T @unchecked =>
             receiveFromOther(
               t,

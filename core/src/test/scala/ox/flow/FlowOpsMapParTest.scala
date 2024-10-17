@@ -10,6 +10,7 @@ import scala.concurrent.duration.*
 import java.util.concurrent.atomic.AtomicInteger
 import ox.flow.Flow
 import ox.channels.ChannelClosed
+import ox.channels.ChannelClosedException
 
 class FlowOpsMapParTest extends AnyFlatSpec with Matchers with Eventually:
   behavior of "mapPar"
@@ -79,7 +80,7 @@ class FlowOpsMapParTest extends AnyFlatSpec with Matchers with Eventually:
       s2.runToList()
       fail("should have thrown")
     catch
-      case e if e.getMessage == "boom" =>
+      case e if e.getCause().getMessage == "boom" =>
         started.get() should be >= 4
         started.get() should be <= 7 // 4 successful + at most 3 taking up all the permits
 
@@ -104,7 +105,9 @@ class FlowOpsMapParTest extends AnyFlatSpec with Matchers with Eventually:
     // then
     s2.receive() shouldBe 2
     s2.receive() shouldBe 4
-    s2.receiveOrClosed() should matchPattern { case ChannelClosed.Error(reason) if reason.getMessage == "boom" => }
+    s2.receiveOrClosed() should matchPattern {
+      case ChannelClosed.Error(ChannelClosedException.Error(reason)) if reason.getMessage == "boom" =>
+    }
 
     // checking if the forks aren't left running
     sleep(200.millis)
