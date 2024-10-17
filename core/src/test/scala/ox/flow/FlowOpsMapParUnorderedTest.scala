@@ -11,6 +11,7 @@ import scala.concurrent.duration.*
 import java.util.concurrent.atomic.AtomicInteger
 import ox.channels.ChannelClosed
 import ox.channels.BufferCapacity
+import ox.channels.ChannelClosedException
 
 class FlowOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventually:
 
@@ -80,7 +81,7 @@ class FlowOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventual
       flow2.runToList()
       fail("should have thrown")
     catch
-      case e if e.getMessage == "boom" =>
+      case e if e.getCause().getMessage == "boom" =>
         started.get() should be >= 2 // 1 needs to start & finish; 2 other need to start; and then the failing one has to start & proceed
         started.get() should be <= 7 // 4 successful + at most 3 taking up all the permits
 
@@ -105,7 +106,7 @@ class FlowOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventual
     // then
     List(s2.receive(), s2.receive()) should contain only (2, 4)
     s2.receiveOrClosed() should matchPattern:
-      case ChannelClosed.Error(reason) if reason.getMessage == "boom" =>
+      case ChannelClosed.Error(reason) if reason.getCause().getMessage == "boom" =>
     s2.isClosedForReceive shouldBe true
 
     // checking if the forks aren't left running
@@ -128,7 +129,9 @@ class FlowOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventual
       }
 
     // then
-    an[IllegalStateException] should be thrownBy flow2.runToList()
+    intercept[ChannelClosedException.Error] {
+      flow2.runToList()
+    }.getCause() shouldBe a[IllegalStateException]
 
     // checking if the forks aren't left running
     sleep(200.millis)
@@ -155,7 +158,7 @@ class FlowOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventual
 
     List(s2.receive(), s2.receive()) should contain only (2, 4)
     s2.receiveOrClosed() should matchPattern:
-      case ChannelClosed.Error(reason) if reason.getMessage == "boom" =>
+      case ChannelClosed.Error(reason) if reason.getCause().getMessage == "boom" =>
     s2.isClosedForReceive shouldBe true
 
     // then

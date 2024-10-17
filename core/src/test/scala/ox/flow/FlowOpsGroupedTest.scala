@@ -9,6 +9,7 @@ import ox.*
 import scala.util.{Success, Try}
 import ox.channels.ChannelClosed
 import ox.channels.BufferCapacity
+import ox.channels.ChannelClosedException
 
 class FlowOpsGroupedTest extends AnyFlatSpec with Matchers:
   behavior of "grouped"
@@ -125,7 +126,9 @@ class FlowOpsGroupedTest extends AnyFlatSpec with Matchers:
 
   it should "return failed source when the original source is failed" in supervised:
     val failure = new RuntimeException()
-    Flow.failed(failure).groupedWithin(3, 10.seconds).runToChannel().receiveOrClosed() shouldBe ChannelClosed.Error(failure)
+    Flow.failed(failure).groupedWithin(3, 10.seconds).runToChannel().receiveOrClosed() shouldBe ChannelClosed.Error(
+      ChannelClosedException.Error(failure)
+    )
 
   behavior of "groupedWeightedWithin"
 
@@ -146,10 +149,10 @@ class FlowOpsGroupedTest extends AnyFlatSpec with Matchers:
   it should "return failed source when cost function throws exception" in supervised:
     val result = Flow.fromValues(1, 2, 3, 0, 4, 5, 6, 7).groupedWeightedWithin(150, 100.millis)(n => 100 / n).runToChannel().drainOrError()
     result should matchPattern:
-      case ChannelClosed.Error(reason) if reason.isInstanceOf[ArithmeticException] =>
+      case ChannelClosed.Error(ChannelClosedException.Error(reason)) if reason.isInstanceOf[ArithmeticException] =>
 
   it should "return failed source when the original source is failed" in supervised:
     val failure = new RuntimeException()
     Flow.failed[Long](failure).groupedWeightedWithin(10, 100.millis)(n => n * 2).runToChannel().receiveOrClosed() shouldBe ChannelClosed
-      .Error(failure)
+      .Error(ChannelClosedException.Error(failure))
 end FlowOpsGroupedTest

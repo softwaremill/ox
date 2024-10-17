@@ -10,6 +10,7 @@ import scala.collection.mutable.ListBuffer
 import ox.channels.Channel
 import ox.channels.BufferCapacity
 import ox.channels.ChannelClosed
+import ox.channels.ChannelClosedException
 
 class FlowOpsFlattenTest extends AnyFlatSpec with Matchers with OptionValues:
 
@@ -88,7 +89,9 @@ class FlowOpsFlattenTest extends AnyFlatSpec with Matchers with OptionValues:
         implicit val capacity: BufferCapacity = BufferCapacity(0)
         flow.flatten
 
-      an[IllegalStateException] should be thrownBy (flattenedFlow.runToList())
+      intercept[ChannelClosedException.Error] {
+        flattenedFlow.runToList()
+      }.getCause() shouldBe a[IllegalStateException]
 
       // no values should be piped by the flattening process after the error
       lock.countDown()

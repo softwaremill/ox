@@ -58,6 +58,6 @@ object FlowEmit:
       val t = source.receiveOrClosed()
       t match
         case ChannelClosed.Done     => false
-        case ChannelClosed.Error(r) => throw r
+        case e: ChannelClosed.Error => throw e.toThrowable
         case t: T @unchecked        => emit(t); true
 end FlowEmit

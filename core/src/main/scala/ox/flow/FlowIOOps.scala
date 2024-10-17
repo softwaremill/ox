@@ -31,7 +31,7 @@ trait FlowIOOps[+T]:
         if !currentChunk.hasNext then
           ch.receiveOrClosed() match
             case ChannelClosed.Done     => return -1
-            case ChannelClosed.Error(t) => throw t
+            case e: ChannelClosed.Error => throw e.toThrowable
             case chunk: T @unchecked =>
               currentChunk = chunk.iterator
         currentChunk.next() & 0xff // Convert to unsigned

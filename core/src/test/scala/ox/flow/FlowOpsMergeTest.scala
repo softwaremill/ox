@@ -4,6 +4,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.*
 import scala.concurrent.duration.DurationInt
+import ox.channels.ChannelClosedException
 
 class FlowOpsMergeTest extends AnyFlatSpec with Matchers:
   behavior of "merge"
@@ -38,9 +39,9 @@ class FlowOpsMergeTest extends AnyFlatSpec with Matchers:
 
     val s = c1.merge(c2)
 
-    intercept[IllegalStateException] {
+    intercept[ChannelClosedException.Error] {
       s.runToList()
-    }
+    }.getCause() shouldBe a[IllegalStateException]
 
   it should "propagate error from the right" in:
     val c1 = Flow.fromValues(1, 2, 3)
@@ -48,9 +49,9 @@ class FlowOpsMergeTest extends AnyFlatSpec with Matchers:
 
     val s = c1.merge(c2)
 
-    intercept[IllegalStateException] {
+    intercept[ChannelClosedException.Error] {
       s.runToList()
-    }
+    }.getCause() shouldBe a[IllegalStateException]
 
   it should "merge two flows, emitting all elements from the left when right completes" in:
     val c1 = Flow.fromValues(1, 2, 3, 4).throttle(1, 100.millis)
