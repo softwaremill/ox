@@ -8,7 +8,6 @@ import ox.channels.*
 import java.util.concurrent.atomic.AtomicInteger
 import scala.annotation.tailrec
 import scala.collection.mutable
-import scala.jdk.CollectionConverters.*
 import ox.flow.Flow
 import ox.flow.FlowEmit
 

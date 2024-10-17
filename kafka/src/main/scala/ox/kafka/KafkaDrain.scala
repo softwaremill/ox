@@ -5,7 +5,6 @@ import org.slf4j.LoggerFactory
 import ox.*
 import ox.channels.*
 
-import scala.jdk.CollectionConverters.*
 import ox.flow.Flow
 
 object KafkaDrain:
