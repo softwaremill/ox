@@ -50,11 +50,11 @@ Flow.usingEmit: emit =>
   if isNoon() then emit(42)
 ```
 
-The `emit: FlowEmit` instances is used to emit elements by the flow, that is process them further, as defined by the downstream pipeline. This method only completes once the element is fully processed, and it might throw exceptions in case there's a processing error.
+The `emit: FlowEmit` instance is used to emit elements by the flow, that is process them further, as defined by the downstream pipeline. This method only completes once the element is fully processed, and it might throw exceptions in case there's a processing error.
 
 As part of the callback, you can create [supervision scopes](../structured-concurrency/error-handling-scopes.md), fork background computations or run other flows asynchronously. However, take care **not** to share the `emit: FlowEmit` instance across threads. That is, instances of `FlowEmit` are thread-unsafe and should only be used on the calling thread. The lifetime of `emit` should not extend over the duration of the invocation of `withEmit`.
 
-Any asynchronous communication should be best done with [channels](channels.md). You can then manually any elements received from a channel to `emit`, or use e.g. `FlowEmit.channelToEmit`.
+Any asynchronous communication should be best done with [channels](channels.md). You can then manually forward any elements received from a channel to `emit`, or use e.g. `FlowEmit.channelToEmit`.
 
 ## Transforming flows: basics
 

@@ -4,10 +4,10 @@
 
 ```scala
 // sbt dependency
-"com.softwaremill.ox" %% "core" % "0.5.1"
+"com.softwaremill.ox" %% "core" % "0.5.2"
 
 // scala-cli dependency
-//> using dep com.softwaremill.ox::core:0.5.1
+//> using dep com.softwaremill.ox::core:0.5.2
 ```
 
 ## Scope of the Ox project
@@ -53,6 +53,7 @@ We offer commercial support for Ox and related technologies, as well as developm
 * [Supervision, Kafka and Java 21: what’s new in Ox](https://softwaremill.com/supervision-kafka-and-java-21-whats-new-in-ox/)
 * [Designing a (yet another) retry API](https://softwaremill.com/designing-a-yet-another-retry-api/)
 * [Handling errors in direct-style Scala](https://softwaremill.com/handling-errors-in-direct-style-scala/)
+* [Direct-style concurrent streaming](https://softwaremill.com/direct-style-concurrent-streaming/)
 
 ## Inspiration & building blocks
 
