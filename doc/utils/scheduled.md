@@ -9,7 +9,7 @@ In fact `retry` and `repeat` use `scheduled` internally.
 Similarly to the `retry` and `repeat` APIs, the `operation` can be defined: 
 * directly using a by-name parameter, i.e. `f: => T`
 * using a by-name `Either[E, T]`
-* or using an arbitrary [error mode](basics/error-handling.md), accepting the computation in an `F` context: `f: => F[T]`.
+* or using an arbitrary [error mode](../basics/error-handling.md), accepting the computation in an `F` context: `f: => F[T]`.
 
 ## Configuration
 

@@ -8,7 +8,7 @@ practices which might be useful for anybody starting their journey with direct-s
 If you end up using concurrency scopes such as `supervised`, make sure that their lifetime is as short as possible. In
 some cases it might be necessary to start a "global" scope (e.g. for application-wide, long-running tasks), but even
 if so, don't let the global scope leak to any other parts of your code, and isolate its usage, e.g. using 
-[actors](actors.md).
+[actors](../utils/actors.md).
 
 For all other tasks, create short-lived scopes, which handle a single request, message from a queue or a single job
 instance.
@@ -16,7 +16,7 @@ instance.
 ## Integrate with callback-based APIs using channels
 
 Callback-based APIs, including "reactive" ones, are by their nature non-structured, and don't play well with 
-structured concurrency. For such cases, [channels](streaming/channels.md) are an ideal tool. Sending or receiving to/from 
+structured concurrency. For such cases, [channels](../streaming/channels.md) are an ideal tool. Sending or receiving to/from 
 a channel doesn't require any context, and can be done from any thread. On the other hand, processing the data that
 is on the channel often involves concurrency and creating thread, which can be then done in a structured way.
 
@@ -36,7 +36,7 @@ Transforming channels directly might lead to excessive concurrency, as each tran
 background fork, processing the data and sending it to a new channel. While this still performs well, as creating 
 virtual threads & channels is cheap, it might incur an unnecessary overhead. 
 
-Instead, you can use [flows](streaming/flows.md) and their high-level API, which allows inserting asynchronous
+Instead, you can use [flows](../streaming/flows.md) and their high-level API, which allows inserting asynchronous
 boundaries when necessary, but otherwise runs the subsequent processing stages on the same thread.
 
 ## Avoid returning `Fork`

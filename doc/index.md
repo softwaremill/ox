@@ -60,28 +60,28 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
    :maxdepth: 2   
    :caption: Resiliency & utilities
    
-   oxapp
-   retries
-   repeat
-   scheduled
-   resources
-   control-flow
-   actors
-   utility
+   utils/oxapp
+   utils/retries
+   utils/repeat
+   utils/scheduled
+   utils/resources
+   utils/control-flow
+   utils/actors
+   utils/utility
 
 .. toctree::
    :maxdepth: 2
    :caption: Integrations
 
-   kafka
-   mdc-logback
+   integrations/kafka
+   integrations/mdc-logback
 
 .. toctree::
    :maxdepth: 2
    :caption: Other topics
    
-   dictionary
-   best-practices
-   performance
-   compare-gears
-   compare-funeff
+   other/dictionary
+   other/best-practices
+   other/performance
+   other/compare-gears
+   other/compare-funeff
