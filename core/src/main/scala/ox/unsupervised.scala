@@ -53,11 +53,11 @@ private[ox] def scopedWithCapability[T](capability: Ox)(f: Ox ?=> T): T =
   try
     val t =
       try
-        try f(using capability)
-        finally
-          scope.shutdown()
-          scope.join().discard
-        // join might have been interrupted
+      try f(using capability)
+      finally
+        scope.shutdown()
+        scope.join().discard
+      // join might have been interrupted
       finally scope.close()
 
     // running the finalizers only once we are sure that all child threads have been terminated, so that no new
