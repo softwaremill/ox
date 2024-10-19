@@ -248,12 +248,13 @@ object RateLimiterConfig:
         newTokens.toInt
 
       def getNextTime(): Long =
-      if isReady then 0
-      else lastRefillTime.get() + refillInterval - System.nanoTime()
+        if isReady then 0
+        else lastRefillTime.get() + refillInterval - System.nanoTime()
 
-      /** Leaky bucket algorithm
-        */
     end TokenBucket
+
+    /** Leaky bucket algorithm
+      */
     case class LeakyBucket(capacity: Int, leakRate: FiniteDuration) extends RateLimiterAlgorithm:
       private val counter = new AtomicReference[Double](0.0)
       private val leakInterval = leakRate.toNanos
