@@ -178,7 +178,7 @@ Flow.usingEmit { emit =>
 }
 ```
 
-Use completable high-performance [https://ox.softwaremill.com/latest/channels](streaming/channels.html) for inter-fork communication within concurrency scopes:
+Use completable high-performance [channels](https://ox.softwaremill.com/latest/streaming/channels.html) for inter-fork communication within concurrency scopes:
 
 ```scala mdoc:compile-only
 val c = Channel.buffered[String](8)
