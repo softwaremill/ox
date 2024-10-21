@@ -249,6 +249,8 @@ Use `doc/requirements.txt` to set up your Python environment with `pip`.
 Alternatively, if you're a Nix user, run `nix develop` in `doc/` to start a shell with an environment allowing to run `watch.sh`.
 Moreover, you can use the `compileDocumentation` sbt task to verify, that all code snippets compile properly.
 
+When you have a PR ready, take a look at our ["How to prepare a good PR" guide](https://softwaremill.community/t/how-to-prepare-a-good-pr-to-a-library/448). Thanks! :)
+
 ## Project sponsor
 
 We offer commercial development services. [Contact us](https://softwaremill.com) to learn more about us!
