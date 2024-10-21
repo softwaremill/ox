@@ -179,12 +179,15 @@ val result: Either[Int | Long, String] = either:
   v1.ok() ++ v2.ok()
 ```
 
-[Pipe](utils/control-flow.md) a value to a function to use the dot-syntax:
+[Pipe & tap](utils/control-flow.md) values to functions to use the dot-syntax:
 
 ```scala mdoc:compile-only
-(5+2)
+def compute: Int = ???
+def computeMore(v: Int): Long = ???
+compute
   .pipe(2 * _)
-  .pipe(println)  
+  .tap(println)
+  .pipe(computeMore)  
 ```
 
 Dive into the specific documentation sections for more details, variants and functionalities!
