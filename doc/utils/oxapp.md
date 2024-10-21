@@ -58,7 +58,7 @@ object MyApp extends OxApp.Simple:
   def run(using Ox): Unit = println("All done!")
 ```
 
-`OxApp` has also a variant that integrates with [either](basics/error-handling.md#boundary-break-for-eithers) 
+`OxApp` has also a variant that integrates with [either](../basics/error-handling.md#boundary-break-for-eithers) 
 blocks for direct-style error handling called `OxApp.WithEitherErrors[E]`. Here, `E` is the type of errors from the 
 `run` function that you want to handle. The interesting bit is that `run` function in `OxApp.WithEitherErrors` receives
 an `either` block token of type `EitherError[E]` (which itself is an alias for `Label[Either[E, ExitCode]]` as `either` 

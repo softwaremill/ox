@@ -144,7 +144,8 @@ in the return type of a method, another `either:` block will be selected by the 
 change in execution semantics without a compile error. Consider:
 
 ```scala 
-import ox.either, either.*
+import ox.either
+import ox. either.*
 
 def returnsEither: Either[String, Int] = ???
 
@@ -160,7 +161,8 @@ Now, after a small refactor of `returnsEither` return type the `returnsEither.ok
 instead of short-circuiting the inner `either:` block, it would immediately jump to the outer `either:` block on errors.
 
 ```scala
-import ox.either, either.*
+import ox.either
+import ox.either.*
 
 def returnsEither: Either[Exception, Int] = ???
 
@@ -175,7 +177,8 @@ val outerResult: Either[Exception, Unit] = either:
 Proper way to solve this is to extract the inner `either:` block to a separate function:
 
 ```scala mdoc:compile-only
-import ox.either, either.*
+import ox.either
+import ox.either.*
 
 def returnsEither: Either[String, Int] = ???
 
