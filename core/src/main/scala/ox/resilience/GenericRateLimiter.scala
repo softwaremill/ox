@@ -15,7 +15,7 @@ case class GenericRateLimiter[Returns[_[_]] <: Strategy[_]](
 
   import GenericRateLimiter.Strategy.given
 
-  /** Limits the rate of execution of the given operation
+  /** Limits the rate of execution of the given operation with custom Result type
     */
   def apply[T, Result[_]](operation: => T)(using Returns[Result]): Result[T] =
     executor.lock.lock()
@@ -47,7 +47,6 @@ object GenericRateLimiter:
   object Strategy:
     sealed trait Blocking[F[*]] extends Strategy[F]
     sealed trait Dropping[F[*]] extends Strategy[F]
-    // def drop[T]: F[T]
     sealed trait BlockOrDrop[F[*]] extends Strategy[F]
 
     case class Block() extends Blocking[Id] with BlockOrDrop[Id]:
