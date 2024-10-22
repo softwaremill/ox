@@ -3,15 +3,10 @@ package ox.resilience
 import ox.*
 import ox.resilience.RateLimiterAlgorithm.*
 import scala.concurrent.duration.*
-import ox.scheduling.*
 import java.util.concurrent.atomic.{AtomicInteger, AtomicBoolean, AtomicLong}
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.*
-import scala.util.{Try, Success, Failure}
-import javax.swing.text.html.HTML.Tag
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.locks.ReentrantLock
 
 /** Determines the algorithm to use for the rate limiter
   */
@@ -64,6 +59,7 @@ object RateLimiterAlgorithm:
 
     def acceptOperation: Unit =
       counter.incrementAndGet()
+      ()
 
     def getNextTime(): Long =
       if isReady then 0
@@ -86,6 +82,7 @@ object RateLimiterAlgorithm:
       while counter.get() > 0 && log.peek() < now - per.toNanos do
         log.poll()
         counter.decrementAndGet()
+        ()
       isReady
 
     def isReady: Boolean =
@@ -97,6 +94,7 @@ object RateLimiterAlgorithm:
       val now = System.nanoTime()
       log.add(now)
       counter.incrementAndGet()
+      ()
 
     def getNextTime(): Long =
       if isReady then 0
@@ -121,6 +119,7 @@ object RateLimiterAlgorithm:
 
     def acceptOperation: Unit =
       tokens.decrementAndGet()
+      ()
 
     private def refillTokens: Int =
       val now = System.nanoTime()
@@ -154,6 +153,7 @@ object RateLimiterAlgorithm:
 
     def acceptOperation: Unit =
       counter.getAndUpdate(_ + 1.0)
+      ()
 
     private def leak: Double =
       val now = System.nanoTime()
