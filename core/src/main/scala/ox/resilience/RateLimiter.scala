@@ -1,73 +1,54 @@
 package ox.resilience
 
 import scala.concurrent.duration.*
-import RateLimiterConfig.*
 
-/** Configurable rate limiter
+/** Rate Limiter with customizable algorithm. It allows to choose between blocking or dropping an operation.
   */
 case class RateLimiter(
-    config: RateLimiterConfig
+    algorithm: RateLimiterAlgorithm
 ):
-  /** Limits the rate of execution of the given operation
+  import GenericRateLimiter.*
+
+  private val rateLimiter = GenericRateLimiter(Executor.BlockOrDrop(), algorithm)
+
+  /** Blocks the operation until the rate limiter allows it.
     */
-  def apply[T](operation: => T): Option[T] =
-    if config.blockingPolicy.isUnblocked then
-      if config.algorithm.isUnblocked then
-        if config.isReady then
-          config.acceptOperation
-          val result = operation
-          Some(result)
-        else
-          config.algorithm.rejectOperation
-          config.block(operation)
-      else config.block(operation)
-    else config.block(operation)
+  def runBlocking[T](operation: => T): T = rateLimiter(operation)(using Strategy.Block())
+
+  /** Drops the operation if not allowed by the rate limiter.
+    */
+  def runOrDrop[T](operation: => T): Option[T] = rateLimiter(operation)(using Strategy.Drop())
+
 end RateLimiter
 
 object RateLimiter:
 
   def leakyBucket(
       capacity: Int,
-      leakInterval: FiniteDuration,
-      blocks: Boolean = true
+      leakInterval: FiniteDuration
   ): RateLimiter =
-    val algorithm = RateLimiterAlgorithm.LeakyBucket(capacity, leakInterval)
-    val blockingPolicy = RateLimiterConfig.BlockingPolicy(blocks)
-    val config = RateLimiterConfig(blockingPolicy, algorithm)
-    RateLimiter(config)
+    RateLimiter(RateLimiterAlgorithm.LeakyBucket(capacity, leakInterval))
   end leakyBucket
 
   def tokenBucket(
       maxTokens: Int,
-      refillInterval: FiniteDuration,
-      blocks: Boolean = true
+      refillInterval: FiniteDuration
   ): RateLimiter =
-    val algorithm = RateLimiterAlgorithm.TokenBucket(maxTokens, refillInterval)
-    val blockingPolicy = RateLimiterConfig.BlockingPolicy(blocks)
-    val config = RateLimiterConfig(blockingPolicy, algorithm)
-    RateLimiter(config)
+    RateLimiter(RateLimiterAlgorithm.TokenBucket(maxTokens, refillInterval))
   end tokenBucket
 
   def fixedRate(
       maxRequests: Int,
-      windowSize: FiniteDuration,
-      blocks: Boolean = true
+      windowSize: FiniteDuration
   ): RateLimiter =
-    val algorithm = RateLimiterAlgorithm.FixedRate(maxRequests, windowSize)
-    val blockingPolicy = RateLimiterConfig.BlockingPolicy(blocks)
-    val config = RateLimiterConfig(blockingPolicy, algorithm)
-    RateLimiter(config)
+    RateLimiter(RateLimiterAlgorithm.FixedRate(maxRequests, windowSize))
   end fixedRate
 
   def slidingWindow(
       maxRequests: Int,
-      windowSize: FiniteDuration,
-      blocks: Boolean = true
+      windowSize: FiniteDuration
   ): RateLimiter =
-    val algorithm = RateLimiterAlgorithm.SlidingWindow(maxRequests, windowSize)
-    val blockingPolicy = RateLimiterConfig.BlockingPolicy(blocks)
-    val config = RateLimiterConfig(blockingPolicy, algorithm)
-    RateLimiter(config)
+    RateLimiter(RateLimiterAlgorithm.SlidingWindow(maxRequests, windowSize))
   end slidingWindow
 
 end RateLimiter
