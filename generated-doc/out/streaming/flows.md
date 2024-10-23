@@ -4,6 +4,10 @@ A `Flow[T]` describes an asynchronous data transformation pipeline. When run, it
 
 Flows are lazy, evaluation (and any effects) happen only when the flow is run. Flows might be finite or infinite; in the latter case running a flow never ends normally; it might be interrupted, though. Finally, any exceptions that occur when evaluating the flow's logic will be thrown when running the flow, after any cleanup logic completes.
 
+```{note}
+An introduction to Ox's Flow, along with some code samples is available [as a video](https://www.youtube.com/watch?v=2sZGVRXP9PM).
+```
+
 ## Creating flows
 
 There's a number of methods on the `Flow` companion object that can be used to create a flow:

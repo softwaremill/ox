@@ -4,8 +4,8 @@ Actors in Ox enable invoking methods on an object serially, keeping the behavior
 invocation. That is, even though invocations may happen from multiple threads, they are guaranteed to happen one after 
 the other, not concurrently.
 
-Actor invocations are fully type-safe, with minimal overhead. They use [channels](streaming/channels.md) and 
-[scopes](structured-concurrency/fork-join.md) behind the scenes.
+Actor invocations are fully type-safe, with minimal overhead. They use [channels](../streaming/channels.md) and 
+[scopes](../structured-concurrency/fork-join.md) behind the scenes.
 
 One of the use-cases is integrating with external APIs, which are represented by an object containing mutable state.
 Such integrations must be protected and cannot be accessed by multiple threads concurrently.
