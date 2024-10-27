@@ -22,7 +22,9 @@ trait RateLimiterAlgorithm:
   /** Returns whether the rate limiter is ready to accept a new operation without modifying internal state
     */
   def isReady: Boolean
-  /** Returns the time until the next operation can be accepted to be used by the `GenericRateLimiter.Executor`. IT should not modify internal state
+
+  /** Returns the time until the next operation can be accepted to be used by the `GenericRateLimiter.Executor`. IT should not modify
+    * internal state
     */
   def getNextTime(): Long =
     if isReady then 0
@@ -59,7 +61,7 @@ object RateLimiterAlgorithm:
       if lastUpdate.get() + per.toNanos < System.nanoTime() then
         lastUpdate.set(System.nanoTime())
         semaphore.release(rate)
-      
+
   end FixedRate
 
   /** Sliding window algorithm
@@ -156,5 +158,6 @@ object RateLimiterAlgorithm:
       val newTime = leaking * leakInterval + lastLeak
       semaphore.release(leaking.toInt)
       lastLeakTime.set(newTime)
+    end leak
   end LeakyBucket
 end RateLimiterAlgorithm
