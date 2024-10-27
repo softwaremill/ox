@@ -3,170 +3,158 @@ package ox.resilience
 import ox.*
 import ox.resilience.RateLimiterAlgorithm.*
 import scala.concurrent.duration.*
-import java.util.concurrent.atomic.{AtomicInteger, AtomicBoolean, AtomicLong}
+import java.util.concurrent.atomic.AtomicLong
 import scala.concurrent.*
-import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.Semaphore
 
 /** Determines the algorithm to use for the rate limiter
   */
 trait RateLimiterAlgorithm:
-
-  val blocked = new AtomicBoolean(false)
-  def isUnblocked: Boolean = !blocked.get() || tryUnblock
-
-  /** Update internal state to check whether the algorithm can be unblocked.
+  /** Acquire a permit to execute the operation. This method should block until a permit is available.
     */
-  def tryUnblock: Boolean
+  def acquire: Unit
 
-  /** Determines if the operation can be accepted. Implementations should not update internal state. `acceptOperation` and `rejectOperation`
-    * are used for updating internal state after accepting or rejecting an operation.
+  /** Try to acquire a permit to execute the operation. This method should not block.
+    */
+  def tryAcquire: Boolean
+
+  /** Returns whether the rate limiter is ready to accept a new operation without modifying internal state
     */
   def isReady: Boolean
-
-  /** Modifies internal state to mark that an operation has been accepted.
+  /** Returns the time until the next operation can be accepted to be used by the `GenericRateLimiter.Executor`. IT should not modify internal state
     */
-  def acceptOperation: Unit
+  def getNextTime(): Long =
+    if isReady then 0
+    else computeNextTime()
 
-  /** Modifies internal state to mark that an operation has been rejected.
+  /** Compute the time until the next operation can be accepted.
     */
-  def rejectOperation: Unit
-
-  /** Returns the time until the next operation can be accepted to be used by the BlockingPolicy. IT should not modify internal state
-    */
-  def getNextTime(): Long
+  def computeNextTime(): Long
 end RateLimiterAlgorithm
 
 object RateLimiterAlgorithm:
   /** Fixed rate algorithm
     */
   case class FixedRate(rate: Int, per: FiniteDuration) extends RateLimiterAlgorithm:
-    private val counter = new AtomicInteger(0)
     private lazy val lastUpdate = new AtomicLong(System.nanoTime())
+    private val semaphore = new Semaphore(rate)
 
-    def tryUnblock: Boolean =
-      if lastUpdate.get() + per.toNanos < System.nanoTime() then
-        reset
-        true
-      else false
+    def acquire: Unit =
+      tryUnblock
+      semaphore.acquire()
+
+    def tryAcquire: Boolean =
+      tryUnblock
+      semaphore.tryAcquire()
 
     def isReady: Boolean =
       lastUpdate.get()
-      counter.get() < rate
+      semaphore.availablePermits() > 0
 
-    def rejectOperation: Unit =
-      blocked.set(true)
+    def computeNextTime(): Long =
+      lastUpdate.get() + per.toNanos - System.nanoTime()
 
-    def acceptOperation: Unit =
-      counter.incrementAndGet()
-      ()
-
-    def getNextTime(): Long =
-      if isReady then 0
-      else lastUpdate.get() + per.toNanos - System.nanoTime()
-
-    private def reset: Unit =
-      lastUpdate.set(System.nanoTime())
-      counter.set(0)
-      blocked.set(false)
+    private def tryUnblock: Unit =
+      if lastUpdate.get() + per.toNanos < System.nanoTime() then
+        lastUpdate.set(System.nanoTime())
+        semaphore.release(rate)
+      
   end FixedRate
 
   /** Sliding window algorithm
     */
   case class SlidingWindow(rate: Int, per: FiniteDuration) extends RateLimiterAlgorithm:
-    private val counter = new AtomicInteger(0)
     private val log = new ConcurrentLinkedQueue[Long]()
+    private val semaphore = new Semaphore(rate)
 
-    def tryUnblock: Boolean =
-      val now = System.nanoTime()
-      while counter.get() > 0 && log.peek() < now - per.toNanos do
-        log.poll()
-        counter.decrementAndGet()
-        ()
-      isReady
-
-    def isReady: Boolean =
-      counter.get() < rate
-
-    def rejectOperation: Unit = ()
-
-    def acceptOperation: Unit =
+    def acquire: Unit =
+      tryUnblock
+      semaphore.acquire()
       val now = System.nanoTime()
       log.add(now)
-      counter.incrementAndGet()
       ()
 
-    def getNextTime(): Long =
-      if isReady then 0
-      else log.peek() + per.toNanos - System.nanoTime()
+    def tryAcquire: Boolean =
+      tryUnblock
+      if semaphore.tryAcquire() then
+        val now = System.nanoTime()
+        log.add(now)
+        true
+      else false
+
+    def isReady: Boolean =
+      semaphore.availablePermits() > 0
+
+    def computeNextTime(): Long =
+      log.peek() + per.toNanos - System.nanoTime()
+
+    private def tryUnblock: Unit =
+      val now = System.nanoTime()
+      while semaphore.availablePermits() < rate && log.peek() < now - per.toNanos do
+        log.poll()
+        semaphore.release()
+        ()
   end SlidingWindow
 
   /** Token bucket algorithm
     */
   case class TokenBucket(rate: Int, per: FiniteDuration) extends RateLimiterAlgorithm:
-    private val maxTokens = rate
     private val refillInterval = per.toNanos
-    private val tokens = new AtomicInteger(1)
     private val lastRefillTime = new AtomicLong(System.nanoTime())
+    private val semaphore = new Semaphore(1)
 
-    def tryUnblock: Boolean =
-      isReady || refillTokens > 0
+    def acquire: Unit =
+      refillTokens
+      semaphore.acquire()
+
+    def tryAcquire: Boolean =
+      refillTokens
+      semaphore.tryAcquire()
 
     def isReady: Boolean =
-      tokens.get() > 0
+      semaphore.availablePermits() > 0
 
-    def rejectOperation: Unit = ()
+    def computeNextTime(): Long =
+      lastRefillTime.get() + refillInterval - System.nanoTime()
 
-    def acceptOperation: Unit =
-      tokens.decrementAndGet()
-      ()
-
-    private def refillTokens: Int =
+    private def refillTokens: Unit =
       val now = System.nanoTime()
       val elapsed = now - lastRefillTime.get()
       val newTokens = elapsed / refillInterval
-      tokens.set(Math.min(tokens.get() + newTokens.toInt, maxTokens))
       lastRefillTime.set(newTokens * refillInterval + lastRefillTime.get())
-      newTokens.toInt
-
-    def getNextTime(): Long =
-      if isReady then 0
-      else lastRefillTime.get() + refillInterval - System.nanoTime()
+      semaphore.release(newTokens.toInt)
 
   end TokenBucket
 
   /** Leaky bucket algorithm
     */
   case class LeakyBucket(capacity: Int, leakRate: FiniteDuration) extends RateLimiterAlgorithm:
-    private val counter = new AtomicReference[Double](0.0)
     private val leakInterval = leakRate.toNanos
     private val lastLeakTime = new AtomicLong(System.nanoTime())
+    private val semaphore = new Semaphore(capacity)
 
-    def tryUnblock: Boolean =
-      val leaking = leak
-      isReady || leaking > 0.0
+    def acquire: Unit =
+      leak
+      semaphore.acquire()
+
+    def tryAcquire: Boolean =
+      leak
+      semaphore.tryAcquire()
 
     def isReady: Boolean =
-      counter.get() <= capacity - 1.0
+      semaphore.availablePermits() > 0
 
-    def rejectOperation: Unit = ()
+    def computeNextTime(): Long =
+      lastLeakTime.get() + leakInterval - System.nanoTime()
 
-    def acceptOperation: Unit =
-      counter.getAndUpdate(_ + 1.0)
-      ()
-
-    private def leak: Double =
+    private def leak: Unit =
       val now = System.nanoTime()
       val lastLeak = lastLeakTime.get()
       val elapsed = now - lastLeak
-      val leaking: Double = (elapsed.toDouble / leakInterval.toDouble)
-      counter.set(Math.max(counter.get() - leaking, 0))
-      lastLeakTime.set(now)
-      leaking
-    end leak
-
-    def getNextTime(): Long =
-      if isReady then 0
-      else lastLeakTime.get() + leakInterval - System.nanoTime()
+      val leaking = elapsed / leakInterval
+      val newTime = leaking * leakInterval + lastLeak
+      semaphore.release(leaking.toInt)
+      lastLeakTime.set(newTime)
   end LeakyBucket
 end RateLimiterAlgorithm

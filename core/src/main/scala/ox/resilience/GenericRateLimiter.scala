@@ -1,12 +1,12 @@
 package ox.resilience
 
-import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.locks.ReentrantLock
+import java.util.concurrent.{ConcurrentLinkedQueue, Semaphore}
 import scala.concurrent.{Await, Future, Promise}
 import scala.concurrent.duration.{Duration, FiniteDuration}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.blocking
 import GenericRateLimiter.*
+import ox.resilience.GenericRateLimiter.Strategy.Blocking
 
 case class GenericRateLimiter[Returns[_[_]] <: Strategy[_]](
     executor: Executor[Returns],
@@ -18,29 +18,18 @@ case class GenericRateLimiter[Returns[_[_]] <: Strategy[_]](
   /** Limits the rate of execution of the given operation with custom Result type
     */
   def apply[T, Result[_]](operation: => T)(using Returns[Result]): Result[T] =
-    executor.lock.lock()
-    if executor.isUnblocked then
-      if algorithm.isUnblocked then
-        if algorithm.isReady then
-          algorithm.acceptOperation
-          executor.lock.unlock()
-          executor.run(operation)
-        else
-          algorithm.rejectOperation
-          executor.lock.unlock()
-          executor.block(algorithm, operation)
-      else
-        executor.lock.unlock()
-        executor.block(algorithm, operation)
-    else
-      executor.lock.unlock()
-      executor.block(algorithm, operation)
-    end if
+    val future = executor.add(algorithm, operation)
+    executor.execute(algorithm, operation)
+    Await.result(future, Duration.Inf)
   end apply
 end GenericRateLimiter
 
 object GenericRateLimiter:
+  
   type Id[A] = A
+  
+  /** Describe the execution strategy that must be used by the rate limiter in a given operation
+    */
   sealed trait Strategy[F[*]]:
     def run[T](operation: => T): F[T]
 
@@ -63,22 +52,19 @@ object GenericRateLimiter:
     */
   trait Executor[Returns[_[_]] <: Strategy[_]]:
 
-    val lock = new ReentrantLock()
+    /** Returns a future that will be completed when the operation is executed
+     */
+    def add[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Returns[Result]): Future[Result[T]] 
 
-    /** This method is called when a new operation can't be readily accepted by the rate limiter. Implementations should execute the
-      * operation only if the algorithm and the Executor are both unblocked and they are responsible for checking when the algorithm is
-      * ready to accept a new operation, unblocking it and updating its internal state.
-      */
-    def block[T, Result[_]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Returns[Result]): Result[T]
+    /** Ensures that the future returned by `add` is completed 
+     */
+    def execute[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Returns[Result]): Unit
 
     /** Runs the operation and returns the result using the given strategy
       */
     def run[T, Result[_]](operation: => T)(using cfg: Returns[Result]): Result[T] =
       cfg.run(operation).asInstanceOf[Result[T]]
 
-    /** Returns whether a new operation will be the first one to be passed to the RateLimiterAlgorithm after unblocking
-      */
-    def isUnblocked: Boolean
   end Executor
 
   object Executor:
@@ -86,85 +72,67 @@ object GenericRateLimiter:
       */
     case class Block() extends Executor[Strategy.Blocking]:
 
-      def isUnblocked: Boolean =
-        block.peek() == null
-
       val block = new ConcurrentLinkedQueue[Promise[Unit]]()
-      val queueLock = new ReentrantLock()
+      val schedule = new Semaphore(1)
 
-      def block[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Strategy.Blocking[Result[*]]): Result[T] =
-        // blocks until it can accept current operation and returns next time it will be unblocked
-        blockUntilReady(algorithm)
-
-        // updating internal state of algorithm
-        lock.lock()
-        algorithm.tryUnblock
-        lock.unlock()
-        algorithm.acceptOperation
-        block.poll()
-
-        // fulfilling next promise in queue after waiting time given by algorithm
-        fulfillNextPromise(FiniteDuration(algorithm.getNextTime(), "nanoseconds"))
-
-        run(operation)
-      end block
-
-      private def blockUntilReady(algorithm: RateLimiterAlgorithm): Unit =
-        // creates a promise for the current operation and waits until fulfilled
-        queueLock.lock()
-        val waitTime =
-          if block.peek() == null then Some((algorithm.getNextTime()))
-          else None
-
+      def add[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Strategy.Blocking[Result[*]]): Future[Result[T]]  = {
         val promise = Promise[Unit]()
-
         block.add(promise)
-        queueLock.unlock()
-
-        val future = promise.future
-        // if it's not the first promise, it will be fulfilled later
-        waitTime.map { wt =>
-          fulfillNextPromise(FiniteDuration(wt, "nanoseconds"))
+        promise.future.map { _ =>
+          run(operation)
         }
+      }
 
-        Await.ready(future, Duration.Inf)
-      end blockUntilReady
+      def execute[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Strategy.Blocking[Result[*]]): Unit = {
+        // can't be called with empty queue
+        if algorithm.tryAcquire then
+          val p = block.poll()
+          p.success(())
+        else
+          schedule.acquire()
+          val wt = algorithm.getNextTime()
+          fulfillNext(algorithm, FiniteDuration(wt, "nanoseconds"))
+      }
 
-      private def fulfillNextPromise(waitTime: FiniteDuration): Unit =
+      private def fulfillNext(algorithm: RateLimiterAlgorithm, waitTime: FiniteDuration): Unit =
         // sleeps waitTime and fulfills next promise in queue
-        queueLock.lock()
-        if block.peek() != null then
-          val p = block.peek()
-          queueLock.unlock()
+          val p = block.poll()
           if waitTime.toNanos != 0 then
             Future {
               val wt1 = waitTime.toMillis
               val wt2 = waitTime.toNanos - wt1 * 1000000
               blocking(Thread.sleep(wt1, wt2.toInt))
             }.onComplete { _ =>
+              algorithm.acquire
               p.success(())
+              schedule.release()
             }
-          else p.success(())
-          end if
-        else queueLock.unlock()
-        end if
-      end fulfillNextPromise
+          else
+            algorithm.acquire
+            p.success(())
+            schedule.release()
+      end fulfillNext
     end Block
 
     /** Drop rejected operations
       */
     case class Drop() extends Executor[Strategy.Dropping]:
-      def isUnblocked: Boolean = true
-      def block[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Strategy.Dropping[Result[*]]): Result[T] =
-        lock.lock()
-        if algorithm.tryUnblock && algorithm.isReady then
-          algorithm.acceptOperation
-          lock.unlock()
-          cfg.run(operation)
-        else
-          lock.unlock()
-          None.asInstanceOf[Result[T]]
-      end block
+
+      def add[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Strategy.Dropping[Result[*]]): Future[Result[T]] = {
+        val promise = Promise[Unit]()
+        val f = promise.future
+        if algorithm.tryAcquire then promise.success(())
+        else promise.failure(new Exception("Rate limiter is full"))
+        f.map {
+          _ => cfg.run(operation)
+        }.recover {
+          case e: Exception => None.asInstanceOf[Result[T]]
+        }
+      }
+
+      def execute[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Strategy.Dropping[Result[*]]): Unit =
+        ()
+
     end Drop
 
     /** Block rejected operations until the rate limiter is ready to accept them
@@ -174,17 +142,22 @@ object GenericRateLimiter:
       val blockExecutor = Block()
       val dropExecutor = Drop()
 
-      def isUnblocked: Boolean =
-        blockExecutor.isUnblocked
+      def add[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Strategy.BlockOrDrop[Result]): Future[Result[T]] = {
 
-      def block[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Strategy.BlockOrDrop[Result]): Result[T] =
         cfg match
           case cfg: Strategy.Block =>
-            blockExecutor.block(algorithm, operation)(using cfg)
+            blockExecutor.add(algorithm, operation)(using cfg)
           case cfg: Strategy.Drop =>
-            dropExecutor.block(algorithm, operation)(using cfg)
+            dropExecutor.add(algorithm, operation)(using cfg)
+      }
 
-      end block
+      def execute[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Strategy.BlockOrDrop[Result]): Unit = {
+        cfg match
+          case cfg: Strategy.Block =>
+            blockExecutor.execute(algorithm, operation)(using cfg.asInstanceOf[Strategy.Blocking[Result]])
+          case cfg: Strategy.Drop =>
+            dropExecutor.execute(algorithm, operation)(using cfg)
+      }
     end BlockOrDrop
 
   end Executor
