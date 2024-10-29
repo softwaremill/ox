@@ -5,11 +5,12 @@ import scala.concurrent.duration.*
 /** Rate Limiter with customizable algorithm. It allows to choose between blocking or dropping an operation.
   */
 case class RateLimiter(
-    algorithm: RateLimiterAlgorithm
+    algorithm: RateLimiterAlgorithm,
+    fairness: Boolean = false
 ):
   import GenericRateLimiter.*
 
-  private val rateLimiter = GenericRateLimiter(Executor.BlockOrDrop(), algorithm)
+  private val rateLimiter = GenericRateLimiter(Executor.BlockOrDrop(fairness), algorithm)
 
   /** Blocks the operation until the rate limiter allows it.
     */
@@ -25,30 +26,34 @@ object RateLimiter:
 
   def leakyBucket(
       capacity: Int,
-      leakInterval: FiniteDuration
+      leakInterval: FiniteDuration,
+      fairness: Boolean = false
   ): RateLimiter =
-    RateLimiter(RateLimiterAlgorithm.LeakyBucket(capacity, leakInterval))
+    RateLimiter(RateLimiterAlgorithm.LeakyBucket(capacity, leakInterval), fairness)
   end leakyBucket
 
   def tokenBucket(
       maxTokens: Int,
-      refillInterval: FiniteDuration
+      refillInterval: FiniteDuration,
+      fairness: Boolean = false
   ): RateLimiter =
-    RateLimiter(RateLimiterAlgorithm.TokenBucket(maxTokens, refillInterval))
+    RateLimiter(RateLimiterAlgorithm.TokenBucket(maxTokens, refillInterval), fairness)
   end tokenBucket
 
   def fixedRate(
       maxRequests: Int,
-      windowSize: FiniteDuration
+      windowSize: FiniteDuration,
+      fairness: Boolean = false
   ): RateLimiter =
-    RateLimiter(RateLimiterAlgorithm.FixedRate(maxRequests, windowSize))
+    RateLimiter(RateLimiterAlgorithm.FixedRate(maxRequests, windowSize), fairness)
   end fixedRate
 
   def slidingWindow(
       maxRequests: Int,
-      windowSize: FiniteDuration
+      windowSize: FiniteDuration,
+      fairness: Boolean = false
   ): RateLimiter =
-    RateLimiter(RateLimiterAlgorithm.SlidingWindow(maxRequests, windowSize))
+    RateLimiter(RateLimiterAlgorithm.SlidingWindow(maxRequests, windowSize), fairness)
   end slidingWindow
 
 end RateLimiter

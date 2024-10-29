@@ -10,6 +10,8 @@ import ox.resilience.*
 
 val algorithm = RateLimiterAlgorithm.FixedRate(2, FiniteDurationt(1, "seconds"))
 val rateLimiter = RateLimiter(algorithm)
+//val fairness = true
+//val rateLimiter = RateLimiter(algorithm, fairness)
 
 type T
 def operation: T = ???
@@ -18,7 +20,7 @@ val blockedOperation: T = rateLimiter.runBlocking(operation)
 val droppedOperation: Some[T] = rateLimiter.runOrDrop(operation)
 ```
 
-`blockedOperation` will block the operation until the algorithm allows it to be executed. Therefore, the return type is the same as the operation. On the other hand, if the algorithm doesn't allow execution of more operations, `runOrDrop` will drop the operation returning `None` and wrapping the result in `Some` when the operation is successfully executed.
+`blockedOperation` will block the operation until the algorithm allows it to be executed. Therefore, the return type is the same as the operation. On the other hand, if the algorithm doesn't allow execution of more operations, `runOrDrop` will drop the operation returning `None` and wrapping the result in `Some` when the operation is successfully executed. The fairness policy when blocking an operation can be specified per rate limiter and defaults to false. If the rate limiter is fair, blocked calls will be executed in order of arrival. Otherwise, the first blocked operation might not be the first to be executed after unblocking.
 The `RateLimiter` API uses the `GenericRateLimiter` API underneath. See [custom rate limiters](custom-rate-limiter.md) for more details.
 
 ## Operation definition
@@ -33,7 +35,7 @@ The configuration of a `RateLimiter` depends on an underlying algorithm that con
 - `RateLimiterAlgorithm.TokenBucket(maximum: Int, dur: FiniteDuration)` - where `maximum` is the maximum capacity of tokens availables in the token bucket algorithm and one token is added after `dur`.
 - `RateLimiterAlgorithm.LeakyBucket(maximum: Int, dur: FiniteDuration)` - where `maximum` is the maximum capacity availables in the leaky bucket algorithm and 0 capacity is achieved after `dur` duration.
 
-It's possible to define your own algorithm. See [custom rate limiters](custom-rate-limiter.md) for more details.
+It's also possible to specify fairness in each of these methods. It's possible to define your own algorithm. See [custom rate limiters](custom-rate-limiter.md) for more details.
 ### API shorthands
 
 You can use one of the following shorthands to define a Rate Limiter with the corresponding algorithm:

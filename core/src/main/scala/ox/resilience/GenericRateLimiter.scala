@@ -20,7 +20,7 @@ case class GenericRateLimiter[Returns[_[_]] <: Strategy[_]](
   def apply[T, Result[_]](operation: => T)(using Returns[Result]): Result[T] =
     val future = executor.add(algorithm, operation)
     executor.schedule(algorithm, operation)
-    future.map(f => Await.result(f, Duration.Inf))
+    future.map(f => Await.ready(f, Duration.Inf))
     executor.execute(algorithm, operation)
   end apply
 end GenericRateLimiter
@@ -75,7 +75,7 @@ object GenericRateLimiter:
   object Executor:
     /** Block rejected operations until the rate limiter is ready to accept them
       */
-    case class Block() extends Executor[Strategy.Blocking]:
+    case class Block(fairness: Boolean = false) extends Executor[Strategy.Blocking]:
 
       val block = new ConcurrentLinkedQueue[Promise[Unit]]()
       val schedule = new Semaphore(1)
@@ -83,22 +83,53 @@ object GenericRateLimiter:
       def add[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using
           cfg: Strategy.Blocking[Result[*]]
       ): Option[Future[Unit]] =
-        val promise = Promise[Unit]()
-        block.add(promise)
-        Some(promise.future)
+        if fairness then
+          val promise = Promise[Unit]()
+          block.add(promise)
+          Some(promise.future)
+        else None
 
       def execute[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Strategy.Blocking[Result]): Result[T] =
         cfg.run(operation)
 
       def schedule[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Strategy.Blocking[Result[*]]): Unit =
         // can't be called with empty queue
-        if algorithm.tryAcquire then
-          val p = block.poll()
-          p.success(())
-        else
-          schedule.acquire()
-          val wt = algorithm.getNextTime()
-          releaseNext(algorithm, FiniteDuration(wt, "nanoseconds"))
+        if fairness then
+          if algorithm.tryAcquire then
+            val p = block.poll()
+            p.success(())
+          else
+            schedule.acquire()
+            val wt = algorithm.getNextTime()
+            releaseNext(algorithm, FiniteDuration(wt, "nanoseconds"))
+        else if !algorithm.tryAcquire then
+          if schedule.tryAcquire() then
+            val wt = algorithm.getNextTime()
+            releaseUnfair(algorithm, FiniteDuration(wt, "nanoseconds"))
+
+            algorithm.acquire
+            schedule.release()
+
+            // schedules next release
+            val wt2 = algorithm.getNextTime()
+            releaseUnfair(algorithm, FiniteDuration(wt2, "nanoseconds"))
+          else
+            algorithm.acquire
+            // schedules next release
+            val wt = algorithm.getNextTime()
+            releaseUnfair(algorithm, FiniteDuration(wt, "nanoseconds"))
+
+      private def releaseUnfair(algorithm: RateLimiterAlgorithm, waitTime: FiniteDuration): Unit =
+        if waitTime.toNanos != 0 then
+          Future {
+            val wt1 = waitTime.toMillis
+            val wt2 = waitTime.toNanos - wt1 * 1000000
+            blocking(Thread.sleep(wt1, wt2.toInt))
+          }.onComplete { _ =>
+            algorithm.reset
+          }
+        end if
+      end releaseUnfair
 
       private def releaseNext(algorithm: RateLimiterAlgorithm, waitTime: FiniteDuration): Unit =
         // sleeps waitTime and fulfills next promise in queue
@@ -142,9 +173,9 @@ object GenericRateLimiter:
 
     /** Block rejected operations until the rate limiter is ready to accept them
       */
-    case class BlockOrDrop() extends Executor[Strategy.BlockOrDrop]:
+    case class BlockOrDrop(fairness: Boolean = false) extends Executor[Strategy.BlockOrDrop]:
 
-      val blockExecutor = Block()
+      val blockExecutor = Block(fairness)
       val dropExecutor = Drop()
 
       def add[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using

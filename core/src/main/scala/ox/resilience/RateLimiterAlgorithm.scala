@@ -11,6 +11,7 @@ import java.util.concurrent.Semaphore
 /** Determines the algorithm to use for the rate limiter
   */
 trait RateLimiterAlgorithm:
+
   /** Acquire a permit to execute the operation. This method should block until a permit is available.
     */
   def acquire: Unit
@@ -19,12 +20,16 @@ trait RateLimiterAlgorithm:
     */
   def tryAcquire: Boolean
 
-  /** Returns whether the rate limiter is ready to accept a new operation without modifying internal state
+  /** Returns whether the rate limiter is ready to accept a new operation without modifying internal state.
     */
   def isReady: Boolean
 
-  /** Returns the time until the next operation can be accepted to be used by the `GenericRateLimiter.Executor`. IT should not modify
-    * internal state
+  /** Updates the internal state of the rate limiter to check whether new operations can be accepted.
+    */
+  def reset: Unit
+
+  /** Returns the time until the next operation can be accepted to be used by the `GenericRateLimiter.Executor`. It should not modify
+    * internal state.
     */
   def getNextTime(): Long =
     if isReady then 0
@@ -57,10 +62,12 @@ object RateLimiterAlgorithm:
     def computeNextTime(): Long =
       lastUpdate.get() + per.toNanos - System.nanoTime()
 
+    def reset: Unit =
+      lastUpdate.set(System.nanoTime())
+      semaphore.release(rate)
+
     private def tryUnblock: Unit =
-      if lastUpdate.get() + per.toNanos < System.nanoTime() then
-        lastUpdate.set(System.nanoTime())
-        semaphore.release(rate)
+      if lastUpdate.get() + per.toNanos < System.nanoTime() then reset
 
   end FixedRate
 
@@ -91,6 +98,9 @@ object RateLimiterAlgorithm:
     def computeNextTime(): Long =
       log.peek() + per.toNanos - System.nanoTime()
 
+    def reset: Unit =
+      tryUnblock
+
     private def tryUnblock: Unit =
       val now = System.nanoTime()
       while semaphore.availablePermits() < rate && log.peek() < now - per.toNanos do
@@ -119,6 +129,9 @@ object RateLimiterAlgorithm:
 
     def computeNextTime(): Long =
       lastRefillTime.get() + refillInterval - System.nanoTime()
+
+    def reset: Unit =
+      refillTokens
 
     private def refillTokens: Unit =
       val now = System.nanoTime()
@@ -149,6 +162,9 @@ object RateLimiterAlgorithm:
 
     def computeNextTime(): Long =
       lastLeakTime.get() + leakInterval - System.nanoTime()
+
+    def reset: Unit =
+      leak
 
     private def leak: Unit =
       val now = System.nanoTime()
