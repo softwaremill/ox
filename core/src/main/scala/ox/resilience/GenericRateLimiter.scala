@@ -77,7 +77,7 @@ object GenericRateLimiter:
       */
     case class Block(fairness: Boolean = false) extends Executor[Strategy.Blocking]:
 
-      val block = new ConcurrentLinkedQueue[Promise[Unit]]()
+      lazy val queue = new ConcurrentLinkedQueue[Promise[Unit]]()
       val schedule = new Semaphore(1)
 
       def add[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using
@@ -85,7 +85,7 @@ object GenericRateLimiter:
       ): Option[Future[Unit]] =
         if fairness then
           val promise = Promise[Unit]()
-          block.add(promise)
+          queue.add(promise)
           Some(promise.future)
         else None
 
@@ -96,44 +96,34 @@ object GenericRateLimiter:
         // can't be called with empty queue
         if fairness then
           if algorithm.tryAcquire then
-            val p = block.poll()
+            val p = queue.poll()
             p.success(())
           else
             schedule.acquire()
             val wt = algorithm.getNextTime()
             releaseNext(algorithm, FiniteDuration(wt, "nanoseconds"))
         else if !algorithm.tryAcquire then
-          if schedule.tryAcquire() then
-            val wt = algorithm.getNextTime()
-            releaseUnfair(algorithm, FiniteDuration(wt, "nanoseconds"))
+          if schedule.tryAcquire() then releaseUnfair(algorithm, true)
+          algorithm.acquire
+          releaseUnfair(algorithm, false)
 
-            algorithm.acquire
-            schedule.release()
-
-            // schedules next release
-            val wt2 = algorithm.getNextTime()
-            releaseUnfair(algorithm, FiniteDuration(wt2, "nanoseconds"))
-          else
-            algorithm.acquire
-            // schedules next release
-            val wt = algorithm.getNextTime()
-            releaseUnfair(algorithm, FiniteDuration(wt, "nanoseconds"))
-
-      private def releaseUnfair(algorithm: RateLimiterAlgorithm, waitTime: FiniteDuration): Unit =
-        if waitTime.toNanos != 0 then
+      private def releaseUnfair(algorithm: RateLimiterAlgorithm, releaseSchedule: Boolean): Unit =
+        val waitTime = algorithm.getNextTime()
+        if waitTime != 0 then
           Future {
-            val wt1 = waitTime.toMillis
-            val wt2 = waitTime.toNanos - wt1 * 1000000
+            val wt1 = waitTime / 1000000
+            val wt2 = waitTime - wt1 * 1000000
             blocking(Thread.sleep(wt1, wt2.toInt))
           }.onComplete { _ =>
             algorithm.reset
+            if releaseSchedule then schedule.release()
           }
         end if
       end releaseUnfair
 
       private def releaseNext(algorithm: RateLimiterAlgorithm, waitTime: FiniteDuration): Unit =
         // sleeps waitTime and fulfills next promise in queue
-        val p = block.poll()
+        val p = queue.poll()
         if waitTime.toNanos != 0 then
           Future {
             val wt1 = waitTime.toMillis
