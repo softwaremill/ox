@@ -6,7 +6,7 @@ capability provided.
 
 Here's an example:
 
-```scala mdoc:compile-only
+```scala
 import ox.*
 import scala.concurrent.duration.*
 
@@ -26,7 +26,7 @@ forks) are interrupted. This allows for a clean shutdown: any resources that are
 
 In the code below, the resource is released when the application is interrupted:
 
-```scala mdoc:compile-only
+```scala
 import ox.*
 
 object MyApp extends OxApp:
@@ -41,7 +41,7 @@ The `run` function receives command line arguments as a `Vector` of `String`s, a
 has to return an `ox.ExitCode` value which translates to the exit code returned from the program. `ox.ExitCode` is 
 defined as:
 
-```scala mdoc:compile-only
+```scala
 enum ExitCode(val code: Int):
   case Success extends ExitCode(0)
   case Failure(exitCode: Int = 1) extends ExitCode(exitCode)
@@ -51,14 +51,14 @@ There's also a simplified variant of `OxApp` for situations where you don't care
 The `run` function doesn't take any arguments beyond the root `Ox` capability, expects no `ExitCode` and will 
 handle any exceptions thrown by printing a stack trace and returning an exit code of `1`:
 
-```scala mdoc:compile-only
+```scala
 import ox.*
 
 object MyApp extends OxApp.Simple:
   def run(using Ox): Unit = println("All done!")
 ```
 
-`OxApp` has also a variant that integrates with [either](basics/error-handling.md#boundary-break-for-eithers) 
+`OxApp` has also a variant that integrates with [either](../basics/error-handling.md#boundary-break-for-eithers) 
 blocks for direct-style error handling called `OxApp.WithEitherErrors[E]`. Here, `E` is the type of errors from the 
 `run` function that you want to handle. The interesting bit is that `run` function in `OxApp.WithEitherErrors` receives
 an `either` block token of type `EitherError[E]` (which itself is an alias for `Label[Either[E, ExitCode]]` as `either` 
@@ -66,7 +66,7 @@ operates on boundary/break mechanism). Therefore, it's possible to use `.ok()` c
 function scope. `OxApp.WithEitherErrors` requires that one implements a function that translates application errors
 into `ExitCode` instances. Here's an example that always fails and exits with exit code `23`:
 
-```scala mdoc:compile-only
+```scala
 import ox.*
 import ox.either.*
 
@@ -97,7 +97,7 @@ All `ox.OxApp` instances can be configured by overriding the `def settings: Sett
 
 Settings can be overridden:
 
-```scala mdoc:compile-only
+```scala
 import ox.*
 import scala.concurrent.duration.*
 

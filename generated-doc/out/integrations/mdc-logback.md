@@ -20,7 +20,7 @@ The best place would be the application's entrypoint (the `main` method).
 Once this is done, inheritable MDC values can be set in a scoped & structured manner using `InheritableMDC.supervisedWhere`
 and variants.
 
-As inheritable MDC values use a [`ForkLocal`](structured-concurrency/fork-local.md) under the hood, their usage 
+As inheritable MDC values use a [`ForkLocal`](../structured-concurrency/fork-local.md) under the hood, their usage 
 restrictions apply: outer concurrency scopes should not be used to create forks within the scopes. Only newly created
 scopes, or the provided scope can be used to create forks. That's why `supervisedError`, `unsupervisedError` and
 `supervisedErrorWhere` methods are provided.

@@ -4,8 +4,8 @@ Actors in Ox enable invoking methods on an object serially, keeping the behavior
 invocation. That is, even though invocations may happen from multiple threads, they are guaranteed to happen one after 
 the other, not concurrently.
 
-Actor invocations are fully type-safe, with minimal overhead. They use [channels](streaming/channels.md) and 
-[scopes](structured-concurrency/fork-join.md) behind the scenes.
+Actor invocations are fully type-safe, with minimal overhead. They use [channels](../streaming/channels.md) and 
+[scopes](../structured-concurrency/fork-join.md) behind the scenes.
 
 One of the use-cases is integrating with external APIs, which are represented by an object containing mutable state.
 Such integrations must be protected and cannot be accessed by multiple threads concurrently.
@@ -27,7 +27,7 @@ The result is an `ActorRef`, using which invocations can be scheduled using eith
 
 `ask` sends an invocation to the actor and awaits for a result. For example:
 
-```scala
+```scala mdoc:compile-only
 import ox.supervised
 import ox.channels.*
 
@@ -66,7 +66,7 @@ When creating an actor, it's possible to specify a callback that will be called 
 Such a callback can be used to release any resources held by the actor's logic. It's called when the actor closes, which
 includes closing of the enclosing scope:
 
-```scala
+```scala mdoc:compile-only
 import ox.{never, supervised}
 import ox.channels.*
 

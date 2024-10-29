@@ -20,7 +20,7 @@ The `repeat` API uses `scheduled` underneath with DSL focused on repeats. See [s
 Similarly to the `retry` API, the `operation` can be defined: 
 * directly using a by-name parameter, i.e. `f: => T`
 * using a by-name `Either[E, T]`
-* or using an arbitrary [error mode](basics/error-handling.md), accepting the computation in an `F` context: `f: => F[T]`.
+* or using an arbitrary [error mode](../basics/error-handling.md), accepting the computation in an `F` context: `f: => F[T]`.
 
 ## Configuration
 
@@ -48,7 +48,7 @@ See [scheduled](scheduled.md) for details on how to create custom schedules.
 
 ## Examples
 
-```scala mdoc:compile-only
+```scala
 import ox.UnionMode
 import ox.scheduling.{Schedule, repeat, repeatEither, repeatWithErrorMode, RepeatConfig}
 import ox.resilience.{retry, RetryConfig}

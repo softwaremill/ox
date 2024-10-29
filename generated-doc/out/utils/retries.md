@@ -20,7 +20,7 @@ The `retry` API uses `scheduled` underneath with DSL focused on retries. See [sc
 The `operation` can be provided directly using a by-name parameter, i.e. `f: => T`.
 
 There's also a `retryEither` variant which accepts a by-name `Either[E, T]`, i.e. `f: => Either[E, T]`, as well as one
-which accepts arbitrary [error modes](basics/error-handling.md), accepting the computation in an `F` context: `f: => F[T]`.
+which accepts arbitrary [error modes](../basics/error-handling.md), accepting the computation in an `F` context: `f: => F[T]`.
 
 ## Configuration
 
@@ -90,7 +90,7 @@ If you want to customize a part of the result policy, you can use the following 
 
 ## Examples
 
-```scala mdoc:compile-only
+```scala
 import ox.UnionMode
 import ox.resilience.{retry, retryEither, retryWithErrorMode, ResultPolicy, RetryConfig}
 import ox.scheduling.{Jitter, Schedule}
