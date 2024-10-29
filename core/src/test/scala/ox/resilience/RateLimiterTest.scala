@@ -33,7 +33,7 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
   }
 
   it should "drop or block operation depending on method used for sliding window algorithm" in {
-    val rateLimiter = RateLimiter.fixedRate(2, FiniteDuration(1, "second"))
+    val rateLimiter = RateLimiter.slidingWindow(2, FiniteDuration(1, "second"))
       
     var executions = 0
     def operation = {
@@ -54,7 +54,7 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
   }
 
   it should "drop or block operation depending on method used for token bucket algorithm" in {
-    val rateLimiter = RateLimiter.fixedRate(2, FiniteDuration(1, "second"))
+    val rateLimiter = RateLimiter.tokenBucket(2, FiniteDuration(1, "second"))
       
     var executions = 0
     def operation = {
@@ -68,10 +68,10 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
     val result4 = rateLimiter.runBlocking(operation)
 
     result1 shouldBe Some(0)
-    result2 shouldBe Some(0)
+    result2 shouldBe None
     result3 shouldBe None
     result4 shouldBe 0
-    executions shouldBe 3
+    executions shouldBe 2
   }
 
   it should "drop or block operation depending on method used for leaky bucker algorithm" in {

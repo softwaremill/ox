@@ -62,6 +62,8 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
    
    oxapp
    retries
+   rate-limiter
+   custom-rate-limiter
    repeat
    scheduled
    resources

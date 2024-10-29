@@ -6,6 +6,7 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.{EitherValues, TryValues}
 import ox.util.ElapsedTime
 import scala.concurrent.duration._
+import java.util.concurrent.atomic.AtomicReference
 
 class GenericRateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with TryValues with ElapsedTime:
 
@@ -46,7 +47,6 @@ class GenericRateLimiterTest extends AnyFlatSpec with Matchers with EitherValues
       0
     }
 
-    val before = System.nanoTime()
     val result1 = rateLimiter(operation)
     val result2 = rateLimiter(operation)
     val result3 = rateLimiter(operation)
@@ -141,10 +141,10 @@ class GenericRateLimiterTest extends AnyFlatSpec with Matchers with EitherValues
       RateLimiterAlgorithm.FixedRate(2, FiniteDuration(1, "second"))
       )
 
-    var order = List.empty[Int]
+    val order = new AtomicReference(List.empty[Int])
     def operationN(n: Int) = {
       rateLimiter {
-        order = n :: order
+        order.updateAndGet(ord => n :: ord)
         n
       }
     }
@@ -196,7 +196,7 @@ class GenericRateLimiterTest extends AnyFlatSpec with Matchers with EitherValues
     (time3-time1) should be <= 2200L
     (time4-time1) should be <= 3200L
     (time5-time1) should be <= 4200L
-    order should be (List(9, 8,7,6,5,4, 3,2,1))
+    order.get() should be (List(9, 8,7,6,5,4, 3,2,1))
   }
 
 
@@ -319,10 +319,10 @@ class GenericRateLimiterTest extends AnyFlatSpec with Matchers with EitherValues
       RateLimiterAlgorithm.SlidingWindow(2, FiniteDuration(1, "second"))
       )
 
-    var order = List.empty[Int]
+    val order = new AtomicReference(List.empty[Int])
     def operationN(n: Int) = {
       rateLimiter {
-        order = n :: order
+        order.updateAndGet(ord => n :: ord)
         n
       }
     }
@@ -352,7 +352,7 @@ class GenericRateLimiterTest extends AnyFlatSpec with Matchers with EitherValues
     (time3-time1) should be >= 1300L - 10
     (time2-time1) should be <= 1100L
     (time3-time1) should be <= 1400L
-    order should be (List(4, 3,2,1))
+    order.get() should be (List(4, 3,2,1))
   }
 
   behavior of "token bucket GenericRateLimiter"
@@ -371,7 +371,6 @@ class GenericRateLimiterTest extends AnyFlatSpec with Matchers with EitherValues
 
     val result1 = rateLimiter(operation)
     val result2 = rateLimiter(operation)
-    val result3 = rateLimiter(operation)
 
     result1 shouldBe Some(0)
     result2 shouldBe None
@@ -474,10 +473,10 @@ class GenericRateLimiterTest extends AnyFlatSpec with Matchers with EitherValues
       RateLimiterAlgorithm.TokenBucket(2, FiniteDuration(1, "second"))
       )
 
-    var order = List.empty[Int]
+    val order = new AtomicReference(List.empty[Int])
     def operationN(n: Int) = {
       rateLimiter {
-        order = n :: order
+        order.updateAndGet(ord => n :: ord)
         n
       }
     }
@@ -505,7 +504,7 @@ class GenericRateLimiterTest extends AnyFlatSpec with Matchers with EitherValues
     (time3-time1) should be >= 3000L - 10
     (time2-time1) should be <= 2200L
     (time3-time1) should be <= 3200L
-    order should be (List(4, 3,2,1))
+    order.get() should be (List(4, 3,2,1))
   }
 
   behavior of "leaky bucket GenericRateLimiter"
@@ -652,10 +651,10 @@ class GenericRateLimiterTest extends AnyFlatSpec with Matchers with EitherValues
       RateLimiterAlgorithm.LeakyBucket(2, FiniteDuration(1, "second"))
     )
 
-    var order = List.empty[Int]
+    val order = new AtomicReference(List.empty[Int])
     def operationN(n: Int) = {
       rateLimiter {
-        order = n :: order
+        order.updateAndGet(ord => n :: ord)
         n
       }
     }
@@ -683,7 +682,7 @@ class GenericRateLimiterTest extends AnyFlatSpec with Matchers with EitherValues
     (time3-time1) should be >= 2000L - 10
     (time2-time1) should be <= 1200L
     (time3-time1) should be <= 2200L
-    order should be (List(4, 3,2,1))
+    order.get() should be (List(4, 3,2,1))
   }
 
 end GenericRateLimiterTest

@@ -19,8 +19,9 @@ case class GenericRateLimiter[Returns[_[_]] <: Strategy[_]](
     */
   def apply[T, Result[_]](operation: => T)(using Returns[Result]): Result[T] =
     val future = executor.add(algorithm, operation)
+    executor.schedule(algorithm, operation)
+    future.map(f => Await.result(f, Duration.Inf))
     executor.execute(algorithm, operation)
-    Await.result(future, Duration.Inf)
   end apply
 end GenericRateLimiter
 
@@ -52,13 +53,17 @@ object GenericRateLimiter:
     */
   trait Executor[Returns[_[_]] <: Strategy[_]]:
 
-    /** Returns a future that will be completed when the operation is executed
+    /** Returns a future that will be completed when the operation is execute. It can be used for queueing mechanisms.
       */
-    def add[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Returns[Result]): Future[Result[T]]
+    def add[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Returns[Result]): Option[Future[Unit]]
 
-    /** Ensures that the future returned by `add` is completed
+    /** Ensures that the future returned by `add` can be completed
       */
-    def execute[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Returns[Result]): Unit
+    def schedule[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Returns[Result]): Unit
+
+    /** Executes the operation and returns the expected result depending on the strategy
+      */
+    def execute[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Returns[Result]): Result[T]
 
     /** Runs the operation and returns the result using the given strategy
       */
@@ -75,14 +80,17 @@ object GenericRateLimiter:
       val block = new ConcurrentLinkedQueue[Promise[Unit]]()
       val schedule = new Semaphore(1)
 
-      def add[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Strategy.Blocking[Result[*]]): Future[Result[T]] =
+      def add[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using
+          cfg: Strategy.Blocking[Result[*]]
+      ): Option[Future[Unit]] =
         val promise = Promise[Unit]()
         block.add(promise)
-        promise.future.map { _ =>
-          run(operation)
-        }
+        Some(promise.future)
 
-      def execute[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Strategy.Blocking[Result[*]]): Unit =
+      def execute[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Strategy.Blocking[Result]): Result[T] =
+        cfg.run(operation)
+
+      def schedule[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Strategy.Blocking[Result[*]]): Unit =
         // can't be called with empty queue
         if algorithm.tryAcquire then
           val p = block.poll()
@@ -117,20 +125,18 @@ object GenericRateLimiter:
       */
     case class Drop() extends Executor[Strategy.Dropping]:
 
-      def add[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Strategy.Dropping[Result[*]]): Future[Result[T]] =
-        val promise = Promise[Unit]()
-        val f = promise.future
-        if algorithm.tryAcquire then promise.success(())
-        else promise.failure(new Exception("Rate limiter is full"))
-        f.map { _ =>
-          cfg.run(operation)
-        }.recover { case e: Exception =>
-          None.asInstanceOf[Result[T]]
-        }
+      def add[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using
+          cfg: Strategy.Dropping[Result[*]]
+      ): Option[Future[Unit]] =
+        None
       end add
 
-      def execute[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Strategy.Dropping[Result[*]]): Unit =
+      def schedule[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Strategy.Dropping[Result[*]]): Unit =
         ()
+
+      def execute[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Strategy.Dropping[Result[*]]): Result[T] =
+        if algorithm.tryAcquire then cfg.run(operation)
+        else None.asInstanceOf[Result[T]]
 
     end Drop
 
@@ -141,19 +147,28 @@ object GenericRateLimiter:
       val blockExecutor = Block()
       val dropExecutor = Drop()
 
-      def add[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Strategy.BlockOrDrop[Result]): Future[Result[T]] =
+      def add[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using
+          cfg: Strategy.BlockOrDrop[Result]
+      ): Option[Future[Unit]] =
         cfg match
           case cfg: Strategy.Block =>
-            blockExecutor.add(algorithm, operation)(using cfg)
+            blockExecutor.add(algorithm, operation)(using cfg.asInstanceOf[Strategy.Blocking[Result]])
           case cfg: Strategy.Drop =>
             dropExecutor.add(algorithm, operation)(using cfg)
 
-      def execute[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Strategy.BlockOrDrop[Result]): Unit =
+      def execute[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Strategy.BlockOrDrop[Result]): Result[T] =
         cfg match
           case cfg: Strategy.Block =>
             blockExecutor.execute(algorithm, operation)(using cfg.asInstanceOf[Strategy.Blocking[Result]])
           case cfg: Strategy.Drop =>
             dropExecutor.execute(algorithm, operation)(using cfg)
+
+      def schedule[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Strategy.BlockOrDrop[Result]): Unit =
+        cfg match
+          case cfg: Strategy.Block =>
+            blockExecutor.schedule(algorithm, operation)(using cfg.asInstanceOf[Strategy.Blocking[Result]])
+          case cfg: Strategy.Drop =>
+            dropExecutor.schedule(algorithm, operation)(using cfg)
     end BlockOrDrop
 
   end Executor
