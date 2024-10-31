@@ -56,7 +56,7 @@ class ControlTest extends AnyFlatSpec with Matchers:
   it should "block a thread indefinitely" in {
     val trail = Trail()
     supervised {
-      fork {
+      forkDiscard {
         never
         trail.add("never happened!")
       }

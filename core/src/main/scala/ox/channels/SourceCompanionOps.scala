@@ -14,7 +14,7 @@ trait SourceCompanionOps:
   /** Creates an empty source, that is immediately completed as done. */
   def empty[T]: Source[T] =
     val c = Channel.rendezvous[T]
-    c.doneOrClosed()
+    c.doneOrClosed().discard
     c
 
   /** Creates a source that fails immediately with the given [[java.lang.Throwable]]
@@ -26,7 +26,7 @@ trait SourceCompanionOps:
     */
   def failed[T](t: Throwable): Source[T] =
     val c = Channel.rendezvous[T]
-    c.errorOrClosed(t)
+    c.errorOrClosed(t).discard
     c
 
   def fromIterable[T](it: Iterable[T])(using Ox, BufferCapacity): Source[T] = fromIterator(it.iterator)
@@ -101,13 +101,13 @@ trait SourceCompanionOps:
         case ChannelClosed.Done           => c.doneOrClosed()
         case ChannelClosed.Error(r)       => c.errorOrClosed(r)
         case source: Source[T] @unchecked => source.pipeTo(c, propagateDone = true)
-    }
+    }.discard
     c
   end fromFutureSource
 
   private def receiveAndSendFromFuture[T](from: Future[T], to: Channel[T])(using ExecutionContext): Unit =
     from.onComplete {
-      case Success(value)                  => to.sendOrClosed(value); to.doneOrClosed()
+      case Success(value)                  => to.sendOrClosed(value).discard; to.doneOrClosed()
       case Failure(ex: ExecutionException) => to.errorOrClosed(ex.getCause)
       case Failure(ex)                     => to.errorOrClosed(ex)
     }

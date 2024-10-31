@@ -21,7 +21,7 @@ import scala.concurrent.duration.Duration
 
     val source = Source(1 to 10000000).map(_ => randomString())
     val producerRecordSource = source.map { m => new ProducerRecord[String, String](topic, m) }
-    producerRecordSource.runWith(Producer.plainSink(producerSettings)).get()
+    producerRecordSource.runWith(Producer.plainSink(producerSettings)).get().discard
     system.terminate().get().discard
   }
 end publishPekko

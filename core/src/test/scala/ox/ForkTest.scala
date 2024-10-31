@@ -60,7 +60,7 @@ class ForkTest extends AnyFlatSpec with Matchers:
             case e: InterruptedException =>
               trail.add("f2 interrupted")
               throw e
-        }
+        }.discard
 
         sleep(500.millis)
         trail.add("f1 complete")

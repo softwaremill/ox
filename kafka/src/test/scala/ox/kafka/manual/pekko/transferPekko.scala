@@ -42,7 +42,7 @@ import scala.concurrent.duration.Duration
       .run()
       .streamCompletion
 
-    stream.get()
+    stream.get().discard
     system.terminate().get().discard
   }
 end transferPekko

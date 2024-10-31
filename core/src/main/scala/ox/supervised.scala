@@ -58,7 +58,7 @@ def supervisedError[E, F[_], T](em: ErrorMode[E, F])(f: OxError[E, F] ?=> F[T]):
     case e: Throwable =>
       // all forks are guaranteed to have finished: some might have ended up throwing exceptions (InterruptedException or
       // others), but only the first one is propagated below. That's why we add all the other exceptions as suppressed.
-      s.addSuppressedErrors(e)
+      s.addSuppressedErrors(e).discard
       throw e
   end try
 end supervisedError

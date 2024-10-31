@@ -93,7 +93,7 @@ object KafkaStage:
                   // we now know that there won't be any more offsets sent to be committed - we can complete the channel
                   toCommit.done()
                   // waiting until the commit fork is done - this might also return Done if commitOffsets is false, hence the safe variant
-                  commitDoneSource.receiveOrClosed()
+                  commitDoneSource.receiveOrClosed().discard
                   // and finally winding down this scope
                   false
                 case exceptions.Received(e)    => throw e
@@ -155,7 +155,7 @@ private class SendInSequence[T](emit: FlowEmit[T]):
     n
 
   def send(sequenceNo: Long, v: T): Unit =
-    toSend.add((sequenceNo, v))
+    toSend.add((sequenceNo, v)).discard
     trySend()
 
   def allSent: Boolean = sequenceNoNext == sequenceNoToSendNext
@@ -163,7 +163,7 @@ private class SendInSequence[T](emit: FlowEmit[T]):
   @tailrec
   private def trySend(): Unit = toSend.headOption match
     case Some((s, m)) if s == sequenceNoToSendNext =>
-      toSend.remove((s, m))
+      toSend.remove((s, m)).discard
       emit(m)
       sequenceNoToSendNext += 1
       trySend()

@@ -47,7 +47,7 @@ trait SourceDrainOps[+T]:
     repeatWhile {
       receiveOrClosed() match
         case ChannelClosed.Done     => if propagateDone then sink.doneOrClosed().discard; false
-        case e: ChannelClosed.Error => sink.errorOrClosed(e.reason); false
+        case e: ChannelClosed.Error => sink.errorOrClosed(e.reason).discard; false
         case t: T @unchecked        => sink.send(t); true
     }
 

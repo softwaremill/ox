@@ -22,7 +22,7 @@ object Broadcast:
       inbox.take match
         case Subscribe(consumer) => processMessages(inbox, consumers + consumer)
         case Received(msg) =>
-          consumers.map(consumer => fork(consumer(msg)))
+          consumers.foreach(consumer => fork(consumer(msg)))
           processMessages(inbox, consumers)
 
     def consumeForever(inbox: BlockingQueue[BroadcastMessage]): Unit = forever {
@@ -39,7 +39,8 @@ object Broadcast:
       BroadcastResult(
         inbox,
         () =>
-          f1.cancel(); f2.cancel().discard
+          f1.cancel().discard
+          f2.cancel().discard
       )
     )
   }

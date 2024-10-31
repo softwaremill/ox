@@ -2,7 +2,7 @@ package ox.ratelimiter
 
 import org.slf4j.LoggerFactory
 import ox.ratelimiter.RateLimiterQueue.{Run, RunAfter}
-import ox.{discard, sleep, Ox, fork, supervised}
+import ox.{discard, sleep, Ox, fork, forkDiscard, supervised}
 
 import java.util.concurrent.{ArrayBlockingQueue, BlockingQueue, CompletableFuture, Future}
 import scala.annotation.tailrec
@@ -23,7 +23,7 @@ object RateLimiter:
 
   def withRateLimiter[T](maxRuns: Int, per: FiniteDuration)(f: RateLimiter => T): T = supervised {
     val queue = new ArrayBlockingQueue[RateLimiterMsg](32)
-    fork {
+    forkDiscard {
       try runQueue(RateLimiterQueue(maxRuns, per.toMillis), queue)
       finally logger.info("Stopping rate limiter")
     }

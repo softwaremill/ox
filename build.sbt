@@ -11,7 +11,9 @@ lazy val commonSettings = commonSmlBuildSettings ++ ossPublishSettings ++ Seq(
       (documentation / mdoc).toTask("").value
       files1 ++ Seq(file("generated-doc/out"))
     }
-  }.value
+  }.value,
+  Test / scalacOptions += "-Wconf:msg=unused value of type org.scalatest.Assertion:s",
+  Test / scalacOptions += "-Wconf:msg=unused value of type org.scalatest.compatible.Assertion:s"
 )
 
 val scalaTest = "org.scalatest" %% "scalatest" % "3.2.19" % Test
