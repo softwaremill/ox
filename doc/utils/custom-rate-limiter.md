@@ -52,8 +52,8 @@ sealed trait Strategy[F[*]]:
     def run[T](operation: => T): F[T]
 
 trait Executor[Returns[_[_]] <: Strategy[_]]:
-    def add[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Returns[Result]): Future[Result[T]] 
-    def execute[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Returns[Result]): Unit
+    def schedule[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Returns[Result]): Unit
+    def execute[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Returns[Result]): Result[T]
     def run[T, Result[_]](operation: => T)(using cfg: Returns[Result]): Result[T] // calls Strategy.run
   end Executor
 ```

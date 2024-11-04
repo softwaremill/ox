@@ -1,5 +1,5 @@
 # Rate limiter
-The rate limiter mechanism allows controlling the rate at which operations are executed. It ensures that a certain number of operations are performed within a specified time frame, preventing system overload and ensuring fair resource usage. 
+The rate limiter mechanism allows controlling the rate at which operations are executed. It ensures that a certain number of operations are performed within a specified time frame, preventing system overload and ensuring fair resource usage. Note that the implemented limiting mechanism within `Ox` only take into account the start of execution and not the whole execution of an operation. This could be tweaked customizing the rate limiter executor and algorithm employed. 
 
 ## API
 

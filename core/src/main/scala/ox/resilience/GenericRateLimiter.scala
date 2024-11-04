@@ -1,13 +1,14 @@
 package ox.resilience
 
-import java.util.concurrent.{ConcurrentLinkedQueue, Semaphore}
-import scala.concurrent.{Await, Future, Promise}
-import scala.concurrent.duration.{Duration, FiniteDuration}
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.blocking
+import java.util.concurrent.Semaphore
 import GenericRateLimiter.*
 import ox.resilience.GenericRateLimiter.Strategy.Blocking
+import ox.*
 
+/** Rate limiter which allows to pass a configuration value to the execution. This can include both runtime and compile time information,
+  * allowing for customization of return types and runtime behavior. If the only behavior needed is to block or drop operations, the
+  * `RateLimiter` class provides a simpler interface.
+  */
 case class GenericRateLimiter[Returns[_[_]] <: Strategy[_]](
     executor: Executor[Returns],
     algorithm: RateLimiterAlgorithm
@@ -15,12 +16,10 @@ case class GenericRateLimiter[Returns[_[_]] <: Strategy[_]](
 
   import GenericRateLimiter.Strategy.given
 
-  /** Limits the rate of execution of the given operation with custom Result type
+  /** Limits the rate of execution of the given operation with a custom Result type
     */
   def apply[T, Result[_]](operation: => T)(using Returns[Result]): Result[T] =
-    val future = executor.add(algorithm, operation)
     executor.schedule(algorithm, operation)
-    future.map(f => Await.ready(f, Duration.Inf))
     executor.execute(algorithm, operation)
   end apply
 end GenericRateLimiter
@@ -29,7 +28,8 @@ object GenericRateLimiter:
 
   type Id[A] = A
 
-  /** Describe the execution strategy that must be used by the rate limiter in a given operation
+  /** Describe the execution strategy that must be used by the rate limiter in a given operation. It allows the encoding of return types and
+    * custom runtime behavior.
     */
   sealed trait Strategy[F[*]]:
     def run[T](operation: => T): F[T]
@@ -49,23 +49,22 @@ object GenericRateLimiter:
     given Dropping[Option] = Drop()
   end Strategy
 
-  /** Determines the policy to apply when the rate limiter is full
+  /** Determines the policy to apply when the rate limiter is full. The executor is responsible of managing the inner state of the algorithm
+    * employed. In particular, it must ensure that operations are executed only if allowed and that the algorithm is updated.
     */
   trait Executor[Returns[_[_]] <: Strategy[_]]:
 
-    /** Returns a future that will be completed when the operation is execute. It can be used for queueing mechanisms.
+    /** Performs any tasks needed to delay the operation or alter the execution mode. Usually, this will involve using `acquire` or
+      * `tryAcquire` methods from the algorithm and taking care of updating it.
       */
-    def add[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Returns[Result]): Option[Future[Unit]]
+    def schedule[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using Returns[Result]): Unit
 
-    /** Ensures that the future returned by `add` can be completed
+    /** Executes the operation and returns the expected result depending on the strategy. It might perform scheduling tasks if they are not
+      * independent from the execution.
       */
-    def schedule[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Returns[Result]): Unit
+    def execute[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using Returns[Result]): Result[T]
 
-    /** Executes the operation and returns the expected result depending on the strategy
-      */
-    def execute[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Returns[Result]): Result[T]
-
-    /** Runs the operation and returns the result using the given strategy
+    /** Runs the operation and returns the result using the given strategy.
       */
     def run[T, Result[_]](operation: => T)(using cfg: Returns[Result]): Result[T] =
       cfg.run(operation).asInstanceOf[Result[T]]
@@ -73,109 +72,60 @@ object GenericRateLimiter:
   end Executor
 
   object Executor:
-    /** Block rejected operations until the rate limiter is ready to accept them
+    /** Block rejected operations until the rate limiter is ready to accept them.
       */
-    case class Block(fairness: Boolean = false) extends Executor[Strategy.Blocking]:
+    case class Block() extends Executor[Strategy.Blocking]:
 
-      lazy val queue = new ConcurrentLinkedQueue[Promise[Unit]]()
+      val updateLock = new Semaphore(0)
+
       val schedule = new Semaphore(1)
-
-      def add[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using
-          cfg: Strategy.Blocking[Result[*]]
-      ): Option[Future[Unit]] =
-        if fairness then
-          val promise = Promise[Unit]()
-          queue.add(promise)
-          Some(promise.future)
-        else None
 
       def execute[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Strategy.Blocking[Result]): Result[T] =
         cfg.run(operation)
 
-      def schedule[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Strategy.Blocking[Result[*]]): Unit =
-        // can't be called with empty queue
-        if fairness then
-          if algorithm.tryAcquire then
-            val p = queue.poll()
-            p.success(())
-          else
-            schedule.acquire()
-            val wt = algorithm.getNextTime()
-            releaseNext(algorithm, FiniteDuration(wt, "nanoseconds"))
-        else if !algorithm.tryAcquire then
-          if schedule.tryAcquire() then releaseUnfair(algorithm, true)
+      def schedule[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using Strategy.Blocking[Result[*]]): Unit =
+        if !algorithm.tryAcquire then
+          // starts scheduler if not already running
+          if schedule.tryAcquire() then
+            supervised:
+              val _ = forkUser:
+                runScheduler(algorithm)
+            ()
           algorithm.acquire
-          releaseUnfair(algorithm, false)
 
-      private def releaseUnfair(algorithm: RateLimiterAlgorithm, releaseSchedule: Boolean): Unit =
+      private def runScheduler(algorithm: RateLimiterAlgorithm): Unit =
         val waitTime = algorithm.getNextTime()
-        if waitTime != 0 then
-          Future {
-            val wt1 = waitTime / 1000000
-            val wt2 = waitTime - wt1 * 1000000
-            blocking(Thread.sleep(wt1, wt2.toInt))
-          }.onComplete { _ =>
-            algorithm.reset
-            if releaseSchedule then schedule.release()
-          }
-        end if
-      end releaseUnfair
+        algorithm.update
+        if waitTime > 0 then
+          val millis = waitTime / 1000000
+          val nanos = waitTime % 1000000
+          Thread.sleep(millis, nanos.toInt)
+          runScheduler(algorithm)
+        else schedule.release()
+      end runScheduler
 
-      private def releaseNext(algorithm: RateLimiterAlgorithm, waitTime: FiniteDuration): Unit =
-        // sleeps waitTime and fulfills next promise in queue
-        val p = queue.poll()
-        if waitTime.toNanos != 0 then
-          Future {
-            val wt1 = waitTime.toMillis
-            val wt2 = waitTime.toNanos - wt1 * 1000000
-            blocking(Thread.sleep(wt1, wt2.toInt))
-          }.onComplete { _ =>
-            algorithm.acquire
-            p.success(())
-            schedule.release()
-          }
-        else
-          algorithm.acquire
-          p.success(())
-          schedule.release()
-        end if
-      end releaseNext
     end Block
 
-    /** Drop rejected operations
+    /** Drops rejected operations
       */
     case class Drop() extends Executor[Strategy.Dropping]:
 
-      def add[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using
-          cfg: Strategy.Dropping[Result[*]]
-      ): Option[Future[Unit]] =
-        None
-      end add
-
-      def schedule[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Strategy.Dropping[Result[*]]): Unit =
+      def schedule[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using Strategy.Dropping[Result[*]]): Unit =
         ()
 
       def execute[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Strategy.Dropping[Result[*]]): Result[T] =
+        algorithm.update
         if algorithm.tryAcquire then cfg.run(operation)
         else None.asInstanceOf[Result[T]]
 
     end Drop
 
-    /** Block rejected operations until the rate limiter is ready to accept them
+    /** Blocks rejected operations until the rate limiter is ready to accept them or drops them depending on the choosen strategy.
       */
-    case class BlockOrDrop(fairness: Boolean = false) extends Executor[Strategy.BlockOrDrop]:
+    case class BlockOrDrop() extends Executor[Strategy.BlockOrDrop]:
 
-      val blockExecutor = Block(fairness)
+      val blockExecutor = Block()
       val dropExecutor = Drop()
-
-      def add[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using
-          cfg: Strategy.BlockOrDrop[Result]
-      ): Option[Future[Unit]] =
-        cfg match
-          case cfg: Strategy.Block =>
-            blockExecutor.add(algorithm, operation)(using cfg.asInstanceOf[Strategy.Blocking[Result]])
-          case cfg: Strategy.Drop =>
-            dropExecutor.add(algorithm, operation)(using cfg)
 
       def execute[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Strategy.BlockOrDrop[Result]): Result[T] =
         cfg match
@@ -184,8 +134,8 @@ object GenericRateLimiter:
           case cfg: Strategy.Drop =>
             dropExecutor.execute(algorithm, operation)(using cfg)
 
-      def schedule[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Strategy.BlockOrDrop[Result]): Unit =
-        cfg match
+      def schedule[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using Strategy.BlockOrDrop[Result]): Unit =
+        implicitly[Strategy.BlockOrDrop[Result]] match
           case cfg: Strategy.Block =>
             blockExecutor.schedule(algorithm, operation)(using cfg.asInstanceOf[Strategy.Blocking[Result]])
           case cfg: Strategy.Drop =>
