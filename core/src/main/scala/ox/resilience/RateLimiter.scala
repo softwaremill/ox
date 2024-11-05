@@ -7,12 +7,11 @@ import ox.*
   */
 case class RateLimiter(
     algorithm: RateLimiterAlgorithm
-):
+)(using Ox):
   import GenericRateLimiter.*
 
   private val rateLimiter =
-    supervised:
-      GenericRateLimiter(Executor.BlockOrDrop(), algorithm)
+    GenericRateLimiter(Executor.BlockOrDrop(), algorithm)
 
   /** Blocks the operation until the rate limiter allows it.
     */
@@ -29,28 +28,28 @@ object RateLimiter:
   def leakyBucket(
       capacity: Int,
       leakInterval: FiniteDuration
-  ): RateLimiter =
+  )(using Ox): RateLimiter =
     RateLimiter(RateLimiterAlgorithm.LeakyBucket(capacity, leakInterval))
   end leakyBucket
 
   def tokenBucket(
       maxTokens: Int,
       refillInterval: FiniteDuration
-  ): RateLimiter =
+  )(using Ox): RateLimiter =
     RateLimiter(RateLimiterAlgorithm.TokenBucket(maxTokens, refillInterval))
   end tokenBucket
 
   def fixedRate(
       maxRequests: Int,
       windowSize: FiniteDuration
-  ): RateLimiter =
+  )(using Ox): RateLimiter =
     RateLimiter(RateLimiterAlgorithm.FixedRate(maxRequests, windowSize))
   end fixedRate
 
   def slidingWindow(
       maxRequests: Int,
       windowSize: FiniteDuration
-  ): RateLimiter =
+  )(using Ox): RateLimiter =
     RateLimiter(RateLimiterAlgorithm.SlidingWindow(maxRequests, windowSize))
   end slidingWindow
 

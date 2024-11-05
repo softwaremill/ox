@@ -12,9 +12,12 @@ import ox.*
 case class GenericRateLimiter[Returns[_[_]] <: Strategy[_]](
     executor: Executor[Returns],
     algorithm: RateLimiterAlgorithm
-):
+)(using Ox):
 
   import GenericRateLimiter.Strategy.given
+
+  val _ = fork:
+    executor.update(algorithm)
 
   /** Limits the rate of execution of the given operation with a custom Result type
     */
@@ -58,6 +61,7 @@ object GenericRateLimiter:
       * `tryAcquire` methods from the algorithm and taking care of updating it.
       */
     def schedule[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using Returns[Result]): Unit
+    def update(algorithm: RateLimiterAlgorithm): Unit = ()
 
     /** Executes the operation and returns the expected result depending on the strategy. It might perform scheduling tasks if they are not
       * independent from the execution.
@@ -88,10 +92,14 @@ object GenericRateLimiter:
           // starts scheduler if not already running
           if schedule.tryAcquire() then
             supervised:
-              val _ = forkUser:
-                runScheduler(algorithm)
+              updateLock.release()
             ()
           algorithm.acquire
+
+      override def update(algorithm: RateLimiterAlgorithm): Unit =
+        updateLock.acquire()
+        runScheduler(algorithm)
+        update(algorithm)
 
       private def runScheduler(algorithm: RateLimiterAlgorithm): Unit =
         val waitTime = algorithm.getNextTime()
@@ -126,6 +134,9 @@ object GenericRateLimiter:
 
       val blockExecutor = Block()
       val dropExecutor = Drop()
+
+      override def update(algorithm: RateLimiterAlgorithm): Unit =
+        blockExecutor.update(algorithm)
 
       def execute[T, Result[*]](algorithm: RateLimiterAlgorithm, operation: => T)(using cfg: Strategy.BlockOrDrop[Result]): Result[T] =
         cfg match
