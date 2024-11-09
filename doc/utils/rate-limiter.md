@@ -10,8 +10,6 @@ import ox.resilience.*
 
 val algorithm = RateLimiterAlgorithm.FixedRate(2, FiniteDurationt(1, "seconds"))
 val rateLimiter = RateLimiter(algorithm)
-//val fairness = true
-//val rateLimiter = RateLimiter(algorithm, fairness)
 
 type T
 def operation: T = ???
@@ -20,8 +18,9 @@ val blockedOperation: T = rateLimiter.runBlocking(operation)
 val droppedOperation: Some[T] = rateLimiter.runOrDrop(operation)
 ```
 
-`blockedOperation` will block the operation until the algorithm allows it to be executed. Therefore, the return type is the same as the operation. On the other hand, if the algorithm doesn't allow execution of more operations, `runOrDrop` will drop the operation returning `None` and wrapping the result in `Some` when the operation is successfully executed. The fairness policy when blocking an operation can be specified per rate limiter and defaults to false. If the rate limiter is fair, blocked calls will be executed in order of arrival. Otherwise, the first blocked operation might not be the first to be executed after unblocking.
-The `RateLimiter` API uses the `GenericRateLimiter` API underneath. See [custom rate limiters](custom-rate-limiter.md) for more details.
+`blockedOperation` will block the operation until the algorithm allows it to be executed. Therefore, the return type is the same as the operation. On the other hand, if the algorithm doesn't allow execution of more operations, `runOrDrop` will drop the operation returning `None` and wrapping the result in `Some` when the operation is successfully executed.
+
+The `RateLimiter` API uses the `GenericRateLimiter` API underneath. This API allows customizing the behaviour of rate limiters. See [custom rate limiters](custom-rate-limiter.md) for more details.
 
 ## Operation definition
 
@@ -32,17 +31,15 @@ The `operation` can be provided directly using a by-name parameter, i.e. `f: => 
 The configuration of a `RateLimiter` depends on an underlying algorithm that controls whether an operation can be executed or not. The following algorithms are available:
 - `RateLimiterAlgorithm.FixedRate(rate: Int, dur: FiniteDuration)` - where `rate` is the maximum number of operations to be executed in segments of `dur` duration after the execution of the first operation.
 - `RateLimiterAlgorithm.SlidingWindow(rate: Int, dur: FiniteDuration)` - where `rate` is the maximum number of operations to be executed in the a windows of time of duration `dur`.
-- `RateLimiterAlgorithm.TokenBucket(maximum: Int, dur: FiniteDuration)` - where `maximum` is the maximum capacity of tokens availables in the token bucket algorithm and one token is added after `dur`.
-- `RateLimiterAlgorithm.LeakyBucket(maximum: Int, dur: FiniteDuration)` - where `maximum` is the maximum capacity availables in the leaky bucket algorithm and 0 capacity is achieved after `dur` duration.
+- `RateLimiterAlgorithm.Bucket(maximum: Int, dur: FiniteDuration)` - where `maximum` is the maximum capacity of tokens availables in the token bucket algorithm and one token is added after `dur`. It can represent both the leaky bucket algorithm or the tocken bucket algorithm.
 
-It's also possible to specify fairness in each of these methods. It's possible to define your own algorithm. See [custom rate limiters](custom-rate-limiter.md) for more details.
+It's possible to define your own algorithm and executor. This allows to specify custom configuration per operation, for example, the "size" that an operation must occupy. See [custom rate limiters](custom-rate-limiter.md) for more details.
 ### API shorthands
 
 You can use one of the following shorthands to define a Rate Limiter with the corresponding algorithm:
 
 - `RateLimiter.fixedRate(rate: Int, dur: FiniteDuration)`,
 - `RateLimiter.slidingWindow(rate: Int, dur: FiniteDuration)`,
-- `RateLimiter.tokenBucket(maximum: Int, dur: FiniteDuration)`,
-- `RateLimiter.leakyBucket(maximum: Int, dur: FiniteDuration)`.
+- `RateLimiter.bucket(maximum: Int, dur: FiniteDuration)`,
 
 See the tests in `ox.resilience.*` for more.

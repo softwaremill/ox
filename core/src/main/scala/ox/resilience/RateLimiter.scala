@@ -1,9 +1,9 @@
 package ox.resilience
 
-import scala.concurrent.duration.*
-import ox.*
+import scala.concurrent.duration.FiniteDuration
+import ox.Ox
 
-/** Rate Limiter with customizable algorithm. It allows to choose between blocking or dropping an operation.
+/** Rate Limiter with customizable algorithm. It allows to choose between blocking or dropping an incoming operation.
   */
 case class RateLimiter(
     algorithm: RateLimiterAlgorithm
@@ -25,20 +25,13 @@ end RateLimiter
 
 object RateLimiter:
 
-  def leakyBucket(
-      capacity: Int,
-      leakInterval: FiniteDuration
-  )(using Ox): RateLimiter =
-    RateLimiter(RateLimiterAlgorithm.LeakyBucket(capacity, leakInterval))
-  end leakyBucket
-
-  def tokenBucket(
-      maxTokens: Int,
-      refillInterval: FiniteDuration
-  )(using Ox): RateLimiter =
-    RateLimiter(RateLimiterAlgorithm.TokenBucket(maxTokens, refillInterval))
-  end tokenBucket
-
+  /** Rate limiter with fixed rate algorithm with possibility to drop or block an operation if not allowed to run
+    *
+    * @param maxRequests
+    *   Maximum number of requests per consecutive window
+    * @param windowSize
+    *   Interval of time to pass before reset of the rate limiter
+    */
   def fixedRate(
       maxRequests: Int,
       windowSize: FiniteDuration
@@ -46,6 +39,13 @@ object RateLimiter:
     RateLimiter(RateLimiterAlgorithm.FixedRate(maxRequests, windowSize))
   end fixedRate
 
+  /** Rate limiter with sliding window algorithm with possibility to drop or block an operation if not allowed to run
+    *
+    * @param maxRequests
+    *   Maximum number of requests in any window of time
+    * @param windowSize
+    *   Size of the window
+    */
   def slidingWindow(
       maxRequests: Int,
       windowSize: FiniteDuration
@@ -53,4 +53,17 @@ object RateLimiter:
     RateLimiter(RateLimiterAlgorithm.SlidingWindow(maxRequests, windowSize))
   end slidingWindow
 
+  /** Rate limiter with token/leaky bucket algorithm with possibility to drop or block an operation if not allowed to run
+    *
+    * @param maxTokens
+    *   Max capacity of tokens in the algorithm
+    * @param refillInterval
+    *   Interval of time after which a token is added
+    */
+  def bucket(
+      maxTokens: Int,
+      refillInterval: FiniteDuration
+  )(using Ox): RateLimiter =
+    RateLimiter(RateLimiterAlgorithm.Bucket(maxTokens, refillInterval))
+  end bucket
 end RateLimiter

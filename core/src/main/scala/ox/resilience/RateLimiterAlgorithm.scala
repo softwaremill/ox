@@ -1,10 +1,7 @@
 package ox.resilience
 
-import ox.*
-import ox.resilience.RateLimiterAlgorithm.*
-import scala.concurrent.duration.*
+import scala.concurrent.duration.FiniteDuration
 import java.util.concurrent.atomic.AtomicLong
-import scala.concurrent.*
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.Semaphore
 import java.util.{LinkedList, Queue}
@@ -13,177 +10,141 @@ import java.util.{LinkedList, Queue}
   */
 trait RateLimiterAlgorithm:
 
-  /** Acquire a permit to execute the operation. This method should block until a permit is available.
+  /** Acquires a permit to execute the operation. This method should block until a permit is available.
     */
-  def acquire: Unit
+  final def acquire: Unit =
+    acquire(1)
 
-  /** Try to acquire a permit to execute the operation. This method should not block.
+  /** Acquires permits to execute the operation. This method should block until a permit is available.
     */
-  def tryAcquire: Boolean
+  def acquire(permits: Int): Unit
+
+  /** Tries to acquire a permit to execute the operation. This method should not block.
+    */
+  final def tryAcquire: Boolean =
+    tryAcquire(1)
+
+  /** Tries to acquire permits to execute the operation. This method should not block.
+    */
+  def tryAcquire(permits: Int): Boolean
 
   /** Updates the internal state of the rate limiter to check whether new operations can be accepted.
     */
   def update: Unit
 
-  /** Returns the time until the next operation can be accepted to be used by the `GenericRateLimiter.Executor`. It should return 0 only if
-    * there is no need of rescheduling an update in the future. It should not modify internal state.
+  /** Returns the time in nanoseconds that needs to elapse until the next update. It should not modify internal state.
     */
-  def getNextTime(): Long
+  def getNextUpdate: Long
 
 end RateLimiterAlgorithm
 
 object RateLimiterAlgorithm:
-  /** Fixed rate algorithm
+  /** Fixed rate algorithm It allows starting at most `rate` operations in consecutively segments of duration `per`.
     */
   case class FixedRate(rate: Int, per: FiniteDuration) extends RateLimiterAlgorithm:
     private val lastUpdate = new AtomicLong(System.nanoTime())
     private val semaphore = new Semaphore(rate)
-    val lock = new java.util.concurrent.locks.ReentrantLock()
 
-    def acquire: Unit =
-      semaphore.acquire()
+    def acquire(permits: Int): Unit =
+      semaphore.acquire(permits)
 
-    def tryAcquire: Boolean =
-      semaphore.tryAcquire()
+    def tryAcquire(permits: Int): Boolean =
+      semaphore.tryAcquire(permits)
 
-    def getNextTime(): Long =
+    def getNextUpdate: Long =
       val waitTime = lastUpdate.get() + per.toNanos - System.nanoTime()
-      val q = semaphore.getQueueLength()
-      if waitTime > 0 then waitTime
-      else if q > 0 then per.toNanos
-      else 0L
+      if waitTime > 0 then waitTime else 0L
 
     def update: Unit =
       val now = System.nanoTime()
-      lastUpdate.updateAndGet { time =>
-        if time + per.toNanos < now then
-          semaphore.drainPermits()
-          semaphore.release(rate)
-          now
-        else time
-      }
-      ()
+      lastUpdate.set(now)
+      semaphore.release(rate - semaphore.availablePermits())
     end update
 
   end FixedRate
 
-  /** Sliding window algorithm
+  /** Sliding window algorithm It allows to start at most `rate` operations in the lapse of `per` before current time.
     */
   case class SlidingWindow(rate: Int, per: FiniteDuration) extends RateLimiterAlgorithm:
-    private val log = new AtomicReference[Queue[Long]](new LinkedList[Long]())
+    // stores the timestamp and the number of permits acquired after calling acquire or tryAcquire succesfully
+    private val log = new AtomicReference[Queue[(Long, Int)]](new LinkedList[(Long, Int)]())
     private val semaphore = new Semaphore(rate)
 
-    def acquire: Unit =
-      semaphore.acquire()
+    def acquire(permits: Int): Unit =
+      semaphore.acquire(permits)
+      // adds timestamp to log
       val now = System.nanoTime()
       log.updateAndGet { q =>
-        q.add(now)
+        q.add((now, permits))
         q
       }
       ()
     end acquire
 
-    def tryAcquire: Boolean =
-      if semaphore.tryAcquire() then
+    def tryAcquire(permits: Int): Boolean =
+      if semaphore.tryAcquire(permits) then
+        // adds timestamp to log
         val now = System.nanoTime()
         log.updateAndGet { q =>
-          q.add(now)
+          q.add((now, permits))
           q
         }
         true
       else false
 
-    def getNextTime(): Long =
-      val furtherLog = log.get().peek()
-      if null eq furtherLog then
-        if semaphore.getQueueLength() > 0 then per.toNanos
-        else 0L
+    def getNextUpdate: Long =
+      if log.get().size() == 0 then
+        // no logs so no need to update until `per` has passed
+        per.toNanos
       else
-        val waitTime = log.get().peek() + per.toNanos - System.nanoTime()
-        val q = semaphore.getQueueLength()
-        if waitTime > 0 then waitTime
-        else if q > 0 then
-          update
-          getNextTime()
-        else 0L
-      end if
-    end getNextTime
+        // oldest log provides the new updating point
+        val waitTime = log.get().peek()._1 + per.toNanos - System.nanoTime()
+        if waitTime > 0 then waitTime else 0L
+    end getNextUpdate
 
     def update: Unit =
       val now = System.nanoTime()
-      while semaphore.availablePermits() < rate && log
-          .updateAndGet { q =>
-            if q.peek() < now - per.toNanos then
-              q.poll()
-              semaphore.release()
-              q
-            else q
-          }
-          .peek() < now - per.toNanos
-      do ()
-      end while
+      // retrieving current queue to append it later if some elements were added concurrently
+      val q = log.getAndUpdate(_ => new LinkedList[(Long, Int)]())
+      // remove records older than window size
+      while semaphore.availablePermits() < rate && q.peek()._1 + per.toNanos < now
+      do
+        val (_, permits) = q.poll()
+        semaphore.release(permits)
+      // merge old records with the ones concurrently added
+      val _ = log.updateAndGet(q2 =>
+        val qBefore = q
+        while q2.size() > 0
+        do
+          qBefore.add(q2.poll())
+          ()
+        qBefore
+      )
     end update
 
   end SlidingWindow
 
-  /** Token bucket algorithm
+  /** Token/leaky bucket algorithm It adds a token to start an new operation each `per` with a maximum number of tokens of `rate`.
     */
-  case class TokenBucket(rate: Int, per: FiniteDuration) extends RateLimiterAlgorithm:
+  case class Bucket(rate: Int, per: FiniteDuration) extends RateLimiterAlgorithm:
     private val refillInterval = per.toNanos
     private val lastRefillTime = new AtomicLong(System.nanoTime())
     private val semaphore = new Semaphore(1)
 
-    def acquire: Unit =
-      semaphore.acquire()
+    def acquire(permits: Int): Unit =
+      semaphore.acquire(permits)
 
-    def tryAcquire: Boolean =
-      semaphore.tryAcquire()
+    def tryAcquire(permits: Int): Boolean =
+      semaphore.tryAcquire(permits)
 
-    def getNextTime(): Long =
+    def getNextUpdate: Long =
       val waitTime = lastRefillTime.get() + refillInterval - System.nanoTime()
-      val q = semaphore.getQueueLength()
-      if waitTime > 0 then waitTime
-      else if q > 0 then refillInterval
-      else 0L
+      if waitTime > 0 then waitTime else 0L
 
     def update: Unit =
       val now = System.nanoTime()
-      val elapsed = now - lastRefillTime.get()
-      val newTokens = elapsed / refillInterval
-      lastRefillTime.set(newTokens * refillInterval + lastRefillTime.get())
-      semaphore.release(newTokens.toInt)
+      lastRefillTime.set(now)
+      if semaphore.availablePermits() < rate then semaphore.release()
 
-  end TokenBucket
-
-  /** Leaky bucket algorithm
-    */
-  case class LeakyBucket(capacity: Int, leakRate: FiniteDuration) extends RateLimiterAlgorithm:
-    private val leakInterval = leakRate.toNanos
-    private val lastLeakTime = new AtomicLong(System.nanoTime())
-    private val semaphore = new Semaphore(capacity)
-
-    def acquire: Unit =
-      semaphore.acquire()
-
-    def tryAcquire: Boolean =
-      semaphore.tryAcquire()
-
-    def getNextTime(): Long =
-      val waitTime = lastLeakTime.get() + leakInterval - System.nanoTime()
-      val q = semaphore.getQueueLength()
-      if waitTime > 0 then waitTime
-      else if q > 0 then leakInterval
-      else 0L
-
-    def update: Unit =
-      val now = System.nanoTime()
-      val lastLeak = lastLeakTime.get()
-      val elapsed = now - lastLeak
-      val leaking = elapsed / leakInterval
-      val newTime = leaking * leakInterval + lastLeak
-      semaphore.release(leaking.toInt)
-      lastLeakTime.set(newTime)
-    end update
-
-  end LeakyBucket
+  end Bucket
 end RateLimiterAlgorithm
