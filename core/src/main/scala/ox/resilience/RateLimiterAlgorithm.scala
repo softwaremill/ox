@@ -1,10 +1,10 @@
 package ox.resilience
 
 import scala.concurrent.duration.FiniteDuration
+import scala.collection.immutable.Queue
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.Semaphore
-import java.util.{LinkedList, Queue}
 
 /** Determines the algorithm to use for the rate limiter
   */
@@ -67,7 +67,7 @@ object RateLimiterAlgorithm:
     */
   case class SlidingWindow(rate: Int, per: FiniteDuration) extends RateLimiterAlgorithm:
     // stores the timestamp and the number of permits acquired after calling acquire or tryAcquire succesfully
-    private val log = new AtomicReference[Queue[(Long, Int)]](new LinkedList[(Long, Int)]())
+    private val log = new AtomicReference[Queue[(Long, Int)]](Queue[(Long, Int)]())
     private val semaphore = new Semaphore(rate)
 
     def acquire(permits: Int): Unit =
@@ -75,8 +75,7 @@ object RateLimiterAlgorithm:
       // adds timestamp to log
       val now = System.nanoTime()
       log.updateAndGet { q =>
-        q.add((now, permits))
-        q
+        q.enqueue((now, permits))
       }
       ()
     end acquire
@@ -86,41 +85,45 @@ object RateLimiterAlgorithm:
         // adds timestamp to log
         val now = System.nanoTime()
         log.updateAndGet { q =>
-          q.add((now, permits))
-          q
+          q.enqueue((now, permits))
         }
         true
       else false
 
     def getNextUpdate: Long =
-      if log.get().size() == 0 then
-        // no logs so no need to update until `per` has passed
-        per.toNanos
-      else
-        // oldest log provides the new updating point
-        val waitTime = log.get().peek()._1 + per.toNanos - System.nanoTime()
-        if waitTime > 0 then waitTime else 0L
+      log.get().headOption match
+        case None =>
+          // no logs so no need to update until `per` has passed
+          per.toNanos
+        case Some(record) =>
+          // oldest log provides the new updating point
+          val waitTime = record._1 + per.toNanos - System.nanoTime()
+          if waitTime > 0 then waitTime else 0L
     end getNextUpdate
 
     def update: Unit =
       val now = System.nanoTime()
       // retrieving current queue to append it later if some elements were added concurrently
-      val q = log.getAndUpdate(_ => new LinkedList[(Long, Int)]())
+      val q = log.getAndUpdate(_ => Queue[(Long, Int)]())
       // remove records older than window size
-      while semaphore.availablePermits() < rate && q.peek()._1 + per.toNanos < now
-      do
-        val (_, permits) = q.poll()
-        semaphore.release(permits)
+      val qUpdated = removeRecords(q, now)
       // merge old records with the ones concurrently added
-      val _ = log.updateAndGet(q2 =>
-        val qBefore = q
-        while q2.size() > 0
-        do
-          qBefore.add(q2.poll())
-          ()
-        qBefore
+      val _ = log.updateAndGet(qNew =>
+        qNew.foldLeft(qUpdated) { case (queue, record) =>
+          queue.enqueue(record)
+        }
       )
     end update
+
+    private def removeRecords(q: Queue[(Long, Int)], now: Long): Queue[(Long, Int)] =
+      q.dequeueOption match
+        case None => q
+        case Some((head, tail)) =>
+          if semaphore.availablePermits() < rate && head._1 + per.toNanos < now then
+            val (_, permits) = head
+            semaphore.release(permits)
+            removeRecords(tail, now)
+          else q
 
   end SlidingWindow
 

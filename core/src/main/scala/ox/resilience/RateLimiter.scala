@@ -1,25 +1,38 @@
 package ox.resilience
 
 import scala.concurrent.duration.FiniteDuration
-import ox.Ox
+import ox.*
 
 /** Rate Limiter with customizable algorithm. It allows to choose between blocking or dropping an incoming operation.
   */
 case class RateLimiter(
     algorithm: RateLimiterAlgorithm
 )(using Ox):
-  import GenericRateLimiter.*
 
-  private val rateLimiter =
-    GenericRateLimiter(Executor.BlockOrDrop(), algorithm)
+  val _ =
+    fork:
+      update()
+
+  private def update(): Unit =
+    val waitTime = algorithm.getNextUpdate
+    val millis = waitTime / 1000000
+    val nanos = waitTime % 1000000
+    Thread.sleep(millis, nanos.toInt)
+    algorithm.update
+    update()
+  end update
 
   /** Blocks the operation until the rate limiter allows it.
     */
-  def runBlocking[T](operation: => T): T = rateLimiter(operation)(using Strategy.Block())
+  def runBlocking[T](operation: => T): T =
+    algorithm.acquire
+    operation
 
   /** Drops the operation if not allowed by the rate limiter returning `None`.
     */
-  def runOrDrop[T](operation: => T): Option[T] = rateLimiter(operation)(using Strategy.Drop())
+  def runOrDrop[T](operation: => T): Option[T] =
+    if algorithm.tryAcquire then Some(operation)
+    else None
 
 end RateLimiter
 
