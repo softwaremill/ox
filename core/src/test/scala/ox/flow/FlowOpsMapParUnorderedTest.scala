@@ -32,7 +32,7 @@ class FlowOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventual
         finally running.decrementAndGet().discard
 
       // update max running
-      fork:
+      forkDiscard:
         var max = 0
         forever:
           max = math.max(max, running.get())
@@ -78,7 +78,7 @@ class FlowOpsMapParUnorderedTest extends AnyFlatSpec with Matchers with Eventual
 
     // then
     try
-      flow2.runToList()
+      flow2.runToList().discard
       fail("should have thrown")
     catch
       case e if e.getCause().getMessage == "boom" =>

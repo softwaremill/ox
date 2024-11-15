@@ -41,7 +41,7 @@ class SourceOpsTransformTest extends AnyFlatSpec with Matchers:
         while true do
           c.send(i)
           i += 1
-      }
+      }.discard
 
       val s = c.transform(_.filter(_ % 2 == 0).flatMap(i => List(i, i + 1)))
       s.receive() shouldBe 0
@@ -59,7 +59,7 @@ class SourceOpsTransformTest extends AnyFlatSpec with Matchers:
           while true do
             c.send(i)
             i += 1
-        }
+        }.discard
 
         val s = c.transform(x => x)
         s.receive() shouldBe 0

@@ -21,8 +21,7 @@ class FlowOpsEnsureTest extends AnyFlatSpec with Matchers:
     val f = Flow.fromValues(1, 2, 3).concat(Flow.failed(new RuntimeException)).onComplete(didRun.set(true))
 
     didRun.get() shouldBe false
-    intercept[RuntimeException]:
-      f.runDrain()
+    intercept[RuntimeException](f.runDrain()).discard
     didRun.get() shouldBe true
 
   behavior of "ensure.onDone"
@@ -40,8 +39,7 @@ class FlowOpsEnsureTest extends AnyFlatSpec with Matchers:
     val f = Flow.fromValues(1, 2, 3).concat(Flow.failed(new RuntimeException)).onDone(didRun.set(true))
 
     didRun.get() shouldBe false
-    intercept[RuntimeException]:
-      f.runDrain()
+    intercept[RuntimeException](f.runDrain()).discard
     didRun.get() shouldBe false
 
   behavior of "ensure.onError"
@@ -59,7 +57,6 @@ class FlowOpsEnsureTest extends AnyFlatSpec with Matchers:
     val f = Flow.fromValues(1, 2, 3).concat(Flow.failed(new RuntimeException)).onError(_ => didRun.set(true))
 
     didRun.get() shouldBe false
-    intercept[RuntimeException]:
-      f.runDrain()
+    intercept[RuntimeException](f.runDrain()).discard
     didRun.get() shouldBe true
 end FlowOpsEnsureTest

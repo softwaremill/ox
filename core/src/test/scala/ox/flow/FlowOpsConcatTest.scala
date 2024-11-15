@@ -4,6 +4,7 @@ import org.scalatest.concurrent.Eventually
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import java.util.concurrent.atomic.AtomicBoolean
+import ox.discard
 
 class FlowOpsConcatTest extends AnyFlatSpec with Matchers with Eventually:
 
@@ -25,6 +26,6 @@ class FlowOpsConcatTest extends AnyFlatSpec with Matchers with Eventually:
         emit(1)
       ))
 
-    intercept[IllegalStateException](f.runToList())
+    intercept[IllegalStateException](f.runToList()).discard
     evaluated.get() shouldBe false
 end FlowOpsConcatTest

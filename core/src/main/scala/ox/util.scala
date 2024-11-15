@@ -97,7 +97,7 @@ inline def uninterruptible[T](inline f: T): T =
       try t.join()
       catch
         case e: InterruptedException =>
-          joinDespiteInterrupted
+          joinDespiteInterrupted.discard
           throw e
 
     joinDespiteInterrupted

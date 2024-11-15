@@ -13,7 +13,7 @@ class FlowOpsPipeToTest extends AnyFlatSpec with Matchers with Eventually:
     val c1 = Flow.fromValues(1, 2, 3)
     val c2 = Channel.rendezvous[Int]
 
-    fork:
+    forkDiscard:
       c1.runPipeToSink(c2, propagateDone = false)
       c2.done()
 
@@ -23,7 +23,7 @@ class FlowOpsPipeToTest extends AnyFlatSpec with Matchers with Eventually:
     val c1 = Flow.fromValues(1, 2, 3)
     val c2 = Channel.rendezvous[Int]
 
-    fork:
+    forkDiscard:
       c1.runPipeToSink(c2, propagateDone = true)
 
     c2.toList shouldBe List(1, 2, 3)

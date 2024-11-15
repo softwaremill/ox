@@ -17,6 +17,7 @@ import scala.concurrent.Future
 import scala.concurrent.duration.Duration
 import scala.concurrent.duration.FiniteDuration
 import scala.annotation.nowarn
+import ox.discard
 
 trait FlowCompanionOps:
   this: Flow.type =>
@@ -199,7 +200,7 @@ trait FlowCompanionOps:
               var elementsRead = 0
 
               def completeCurrentSource(): Unit =
-                availableSources.remove(currentSourceIndex)
+                availableSources.remove(currentSourceIndex).discard
                 currentSourceIndex = if currentSourceIndex == 0 then availableSources.size - 1 else currentSourceIndex - 1
 
               def switchToNextSource(): Unit =
@@ -212,19 +213,20 @@ trait FlowCompanionOps:
                     completeCurrentSource()
 
                     if eagerComplete || availableSources.isEmpty then
-                      results.doneOrClosed()
+                      results.doneOrClosed().discard
                       false
                     else
                       switchToNextSource()
                       true
                   case ChannelClosed.Error(r) =>
-                    results.errorOrClosed(r)
+                    results.errorOrClosed(r).discard
                     false
                   case value: T @unchecked =>
                     elementsRead += 1
                     // after reaching segmentSize, only switch to next source if there's any other available
                     if elementsRead == segmentSize && availableSources.size > 1 then switchToNextSource()
                     results.sendOrClosed(value).isValue
+            .discard
             FlowEmit.channelToEmit(results, emit)
 
 end FlowCompanionOps

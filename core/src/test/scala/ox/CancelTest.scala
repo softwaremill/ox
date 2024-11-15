@@ -55,7 +55,7 @@ class CancelTest extends AnyFlatSpec with Matchers:
         }
 
         if i % 2 == 0 then sleep(1.millis) // interleave immediate cancels and after the fork starts (probably)
-        f.cancel()
+        f.cancel().discard
         s.release(1) // the acquire should be interrupted
         trail.add("cancel done")
         sleep(100.millis)
@@ -82,7 +82,7 @@ class CancelTest extends AnyFlatSpec with Matchers:
       f.cancelNow()
       trail.add("cancel done")
       trail.get shouldBe Vector("cancel done")
-    }
+    }.discard
     trail.get shouldBe Vector("cancel done", "interrupted done")
   }
 

@@ -52,10 +52,10 @@ class ExceptionTest extends AnyFlatSpec with Matchers:
       supervised {
         forkUser {
           s.acquire() // will never complete
-        }
+        }.discard
         forkUser {
           s.acquire() // will never complete
-        }
+        }.discard
         forkUser {
           sleep(100.millis)
           throw CustomException()
@@ -75,7 +75,7 @@ class ExceptionTest extends AnyFlatSpec with Matchers:
         forkUser {
           try s.acquire() // will never complete
           finally throw CustomException2()
-        }
+        }.discard
         forkUser {
           sleep(100.millis)
           throw CustomException()

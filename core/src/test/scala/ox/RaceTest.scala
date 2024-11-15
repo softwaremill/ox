@@ -184,7 +184,7 @@ class RaceTest extends AnyFlatSpec with Matchers:
         trail.add("very slow")
         Right("also ok")
       }
-    )
+    ).discard
     val end = System.currentTimeMillis()
 
     sleep(1.second)

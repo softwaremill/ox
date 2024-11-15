@@ -137,7 +137,7 @@ class FlowOps[+T]:
           Some(u)
         catch
           case t: Throwable => // same as in `forkPropagate`, catching all exceptions
-            results.errorOrClosed(t)
+            results.errorOrClosed(t).discard
             None
 
     // creating a nested scope, so that in case of errors, we can clean up any mapping forks in a "local" fashion,
@@ -165,6 +165,7 @@ class FlowOps[+T]:
             case f: Fork[Option[U]] @unchecked => f.join().map(results.sendOrClosed).isDefined
             case ChannelClosed.Done            => results.done(); false
             case ChannelClosed.Error(e)        => throw new IllegalStateException("inProgress should never be closed with an error", e)
+      .discard
 
       // in the main body, we call the `emit` methods using the (sequentially received) results; when an error occurs,
       // the scope ends, interrupting any forks that are still running
@@ -193,7 +194,7 @@ class FlowOps[+T]:
                 s.acquire()
                 forkUser:
                   try
-                    results.sendOrClosed(f(t))
+                    results.sendOrClosed(f(t)).discard
                     s.release()
                   catch case t: Throwable => results.errorOrClosed(t).discard
                 .discard

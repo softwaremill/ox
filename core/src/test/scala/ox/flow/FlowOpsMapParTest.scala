@@ -32,7 +32,7 @@ class FlowOpsMapParTest extends AnyFlatSpec with Matchers with Eventually:
       end f
 
       // update max running
-      fork:
+      forkDiscard:
         var max = 0
         forever:
           max = math.max(max, running.get())
@@ -77,7 +77,7 @@ class FlowOpsMapParTest extends AnyFlatSpec with Matchers with Eventually:
 
     // then
     try
-      s2.runToList()
+      s2.runToList().discard
       fail("should have thrown")
     catch
       case e if e.getCause().getMessage == "boom" =>

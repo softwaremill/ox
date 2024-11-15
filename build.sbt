@@ -11,7 +11,9 @@ lazy val commonSettings = commonSmlBuildSettings ++ ossPublishSettings ++ Seq(
       (documentation / mdoc).toTask("").value
       files1 ++ Seq(file("generated-doc/out"))
     }
-  }.value
+  }.value,
+  Test / scalacOptions += "-Wconf:msg=unused value of type org.scalatest.Assertion:s",
+  Test / scalacOptions += "-Wconf:msg=unused value of type org.scalatest.compatible.Assertion:s"
 )
 
 val scalaTest = "org.scalatest" %% "scalatest" % "3.2.19" % Test
@@ -60,7 +62,7 @@ lazy val kafka: Project = (project in file("kafka"))
       "org.apache.kafka" % "kafka-clients" % "3.8.0",
       slf4j,
       logback % Test,
-      "io.github.embeddedkafka" %% "embedded-kafka" % "3.8.0" % Test,
+      "io.github.embeddedkafka" %% "embedded-kafka" % "3.8.1" % Test,
       "org.apache.pekko" %% "pekko-connectors-kafka" % "1.1.0" % Test,
       "org.apache.pekko" %% "pekko-stream" % "1.1.2" % Test,
       scalaTest

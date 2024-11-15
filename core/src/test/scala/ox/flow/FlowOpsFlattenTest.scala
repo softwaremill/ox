@@ -49,13 +49,13 @@ class FlowOpsFlattenTest extends AnyFlatSpec with Matchers with OptionValues:
       source.send:
         val subSource = Channel.bufferedDefault[Int]
         subSource.send(20)
-        fork:
+        forkDiscard:
           lockA.await() // 30 won't be added until, lockA is released after 20 consumption
           subSource.send(30)
           subSource.done()
         Flow.fromSource(subSource)
 
-      fork:
+      forkDiscard:
         lockB.await() // 40 won't be added until, lockB is released after 30 consumption
         source.send(Flow.fromValues(40))
         source.done()
@@ -75,12 +75,12 @@ class FlowOpsFlattenTest extends AnyFlatSpec with Matchers with OptionValues:
     supervised:
       val child1 = Channel.rendezvous[Int]
       val lock = CountDownLatch(1)
-      fork:
+      forkDiscard:
         lock.await() // wait for the error to be discovered
         child1.send(10) // `flatten` will not receive this, as it will be short-circuited by the error
         child1.doneOrClosed()
       val child2 = Channel.rendezvous[Int]
-      fork:
+      forkDiscard:
         child2.error(new IllegalStateException())
 
       val flow = Flow.fromValues(Flow.fromSource(child1), Flow.fromSource(child2))
@@ -103,7 +103,7 @@ class FlowOpsFlattenTest extends AnyFlatSpec with Matchers with OptionValues:
       val child1 = Channel.rendezvous[Int]
       val lockA = CountDownLatch(1)
       val lockB = CountDownLatch(1)
-      fork:
+      forkDiscard:
         child1.send(10)
         lockB.countDown()
         lockA.await()

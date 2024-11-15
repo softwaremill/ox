@@ -25,9 +25,9 @@ class FlowOpsAlsoToTest extends AnyFlatSpec with Matchers:
 
   it should "close main flow when other closes" in supervised:
     val c = Channel.withCapacity[Int](1) // TODO: check why the test hangs with rendezvous channel
-    fork:
+    forkDiscard:
       val list = List(c.receiveOrClosed(), c.receiveOrClosed(), c.receiveOrClosed())
-      c.doneOrClosed()
+      c.doneOrClosed().discard
       list
 
     a[ChannelClosedException.Done] shouldBe thrownBy(Flow.fromIterable(1 to 100).alsoTo(c).runToList())
@@ -35,9 +35,9 @@ class FlowOpsAlsoToTest extends AnyFlatSpec with Matchers:
   it should "close main flow with error when other errors" in supervised:
     val c = Channel.withCapacity[Int](1)
     val f = fork:
-      c.receiveOrClosed()
-      c.receiveOrClosed()
-      c.receiveOrClosed()
+      c.receiveOrClosed().discard
+      c.receiveOrClosed().discard
+      c.receiveOrClosed().discard
       c.errorOrClosed(new IllegalStateException)
 
     Try(Flow.fromIterable(1 to 100).alsoTo(c).runToList()) shouldBe a[Failure[IllegalStateException]]

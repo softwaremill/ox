@@ -15,12 +15,12 @@ class SupervisedTest extends AnyFlatSpec with Matchers:
       forkUser {
         sleep(200.millis)
         trail.add("a")
-      }
+      }.discard
 
       forkUser {
         sleep(100.millis)
         trail.add("b")
-      }
+      }.discard
 
       2
     }
@@ -34,7 +34,7 @@ class SupervisedTest extends AnyFlatSpec with Matchers:
     val trail = Trail()
 
     val result = supervised {
-      fork {
+      forkDiscard {
         sleep(200.millis)
         trail.add("a")
       }
@@ -42,7 +42,7 @@ class SupervisedTest extends AnyFlatSpec with Matchers:
       forkUser {
         sleep(100.millis)
         trail.add("b")
-      }
+      }.discard
 
       2
     }
@@ -59,17 +59,17 @@ class SupervisedTest extends AnyFlatSpec with Matchers:
       forkUser {
         sleep(300.millis)
         trail.add("a")
-      }
+      }.discard
 
       forkUser {
         sleep(200.millis)
         throw new RuntimeException("x")
-      }
+      }.discard
 
       forkUser {
         sleep(100.millis)
         trail.add("b")
-      }
+      }.discard
 
       2
     })
@@ -86,7 +86,7 @@ class SupervisedTest extends AnyFlatSpec with Matchers:
       forkUser {
         sleep(200.millis)
         throw new RuntimeException("x")
-      }
+      }.discard
 
       sleep(300.millis)
       trail.add("a")
@@ -104,17 +104,17 @@ class SupervisedTest extends AnyFlatSpec with Matchers:
       forkUser {
         sleep(300.millis)
         trail.add("a")
-      }
+      }.discard
 
       forkUnsupervised {
         sleep(200.millis)
         throw new RuntimeException("x")
-      }
+      }.discard
 
       forkUser {
         sleep(100.millis)
         trail.add("b")
-      }
+      }.discard
 
       2
     }
@@ -138,7 +138,7 @@ class SupervisedTest extends AnyFlatSpec with Matchers:
 
         // this joinEither() might be interrupted because the scope ends, or it might obtain the interrupted exception,
         // because `f` is interrupted as well
-        f1.joinEither()
+        f1.joinEither().discard
 
         // either the previous operation should throw an IE, or the thread should become interrupted while joining
         f2.join()

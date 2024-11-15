@@ -87,7 +87,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually:
           forever {
             result.addAndGet(select(cs.map(_.receiveClause)).value).discard
           }
-        }
+        }.discard
 
         eventually {
           result.get() shouldBe cn * n * (n + 1) / 2
@@ -117,7 +117,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually:
             val r = selectOrClosed(cs.map(_.receiveClause))
             result.add(r.map(_.value))
             loop = r != ChannelClosed.Done
-        }
+        }.discard
 
         eventually {
           result.asScala.toList should have size (n * cn + 1) // all numbers + done
@@ -133,7 +133,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually:
       val c4 = Channel.withCapacity[Int](capacity)
 
       supervised {
-        fork {
+        forkDiscard {
           c2.send(10)
         }
         sleep(100.millis) // wait for the send to suspend
@@ -173,7 +173,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually:
         forkUnsupervised {
           c1.send(1)
           c2.done()
-        }
+        }.discard
 
         sleep(100.millis) // let the fork progress
         select(c1.receiveClause, c2.receiveClause) shouldBe c1.Received(1)
@@ -186,7 +186,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually:
       unsupervised {
         forkUnsupervised {
           c2.done()
-        }
+        }.discard
 
         sleep(100.millis) // let the fork progress
         selectOrClosed(c1, c2) shouldBe ChannelClosed.Done
@@ -200,7 +200,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually:
         forkUnsupervised {
           sleep(100.millis) // let the select block
           c2.done()
-        }
+        }.discard
 
         selectOrClosed(c1, c2) shouldBe ChannelClosed.Done
       }
@@ -246,11 +246,11 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually:
       forkUnsupervised {
         c.send("x")
         trail.add("S")
-      }
+      }.discard
       forkUnsupervised {
         c.send("y")
         trail.add("S")
-      }
+      }.discard
       val f3 = forkUnsupervised {
         sleep(100.millis)
         trail.add("R1")
@@ -274,11 +274,11 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually:
 
     unsupervised {
       val f1 = forkUnsupervised(c1.receive())
-      select(c1.sendClause(1), c2.sendClause(2))
+      select(c1.sendClause(1), c2.sendClause(2)).discard
       f1.join() shouldBe 1
 
       val f2 = forkUnsupervised(c2.receive())
-      select(c1.sendClause(1), c2.sendClause(2))
+      select(c1.sendClause(1), c2.sendClause(2)).discard
       f2.join() shouldBe 2
     }
   }

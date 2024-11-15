@@ -17,11 +17,11 @@ class AppErrorTest extends AnyFlatSpec with Matchers:
   }
 
   it should "return the app error returned by a failing fork" in {
-    supervisedError(EitherMode[Int]) { forkUserError(Left(10)); Right(()) } shouldBe Left(10)
+    supervisedError(EitherMode[Int]) { forkUserError(Left(10)).discard; Right(()) } shouldBe Left(10)
   }
 
   it should "return success from the main body if a fork is successful" in {
-    supervisedError(EitherMode[Int]) { forkUserError(Right("ok")); Right(()) } shouldBe Right(())
+    supervisedError(EitherMode[Int]) { forkUserError(Right("ok")).discard; Right(()) } shouldBe Right(())
   }
 
   it should "interrupt other forks if one fails" in {
@@ -29,14 +29,14 @@ class AppErrorTest extends AnyFlatSpec with Matchers:
     supervisedError(EitherMode[Int]) {
       forkUser {
         s.acquire() // will never complete
-      }
+      }.discard
       forkUser {
         s.acquire() // will never complete
-      }
+      }.discard
       forkUserError {
         sleep(100.millis)
         Left(-1)
-      }
+      }.discard
       Right(())
     } shouldBe Left(-1)
   }

@@ -36,7 +36,7 @@ class ForeachParTest extends AnyFlatSpec with Matchers:
     val maxCounter = MaxCounter()
 
     def transformation(i: Int) =
-      maxCounter.increment()
+      maxCounter.increment().discard
       sleep(10.millis)
       maxCounter.decrement()
 
@@ -56,11 +56,10 @@ class ForeachParTest extends AnyFlatSpec with Matchers:
       if i == 4 then
         trail.add("exception")
         throw new Exception("boom")
-      else {
+      else
         sleep(TransformationMillis)
         trail.add("transformation")
         i + 1
-      }
 
     try input.to(Iterable).foreachPar(5)(transformation)
     catch case e: Exception if e.getMessage == "boom" => trail.add("catch")
