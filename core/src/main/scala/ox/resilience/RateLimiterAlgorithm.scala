@@ -19,28 +19,23 @@ trait RateLimiterAlgorithm:
     */
   def acquire(permits: Int): Unit
 
-  /** Tries to acquire a permit to execute the operation. This method should not block.
-    */
+  /** Tries to acquire a permit to execute the operation. This method should not block. */
   final def tryAcquire: Boolean =
     tryAcquire(1)
 
-  /** Tries to acquire permits to execute the operation. This method should not block.
-    */
+  /** Tries to acquire permits to execute the operation. This method should not block. */
   def tryAcquire(permits: Int): Boolean
 
-  /** Updates the internal state of the rate limiter to check whether new operations can be accepted.
-    */
+  /** Updates the internal state of the rate limiter to check whether new operations can be accepted. */
   def update: Unit
 
-  /** Returns the time in nanoseconds that needs to elapse until the next update. It should not modify internal state.
-    */
+  /** Returns the time in nanoseconds that needs to elapse until the next update. It should not modify internal state. */
   def getNextUpdate: Long
 
 end RateLimiterAlgorithm
 
 object RateLimiterAlgorithm:
-  /** Fixed rate algorithm It allows starting at most `rate` operations in consecutively segments of duration `per`.
-    */
+  /** Fixed rate algorithm It allows starting at most `rate` operations in consecutively segments of duration `per`. */
   case class FixedRate(rate: Int, per: FiniteDuration) extends RateLimiterAlgorithm:
     private val lastUpdate = new AtomicLong(System.nanoTime())
     private val semaphore = new Semaphore(rate)
@@ -63,8 +58,7 @@ object RateLimiterAlgorithm:
 
   end FixedRate
 
-  /** Sliding window algorithm It allows to start at most `rate` operations in the lapse of `per` before current time.
-    */
+  /** Sliding window algorithm It allows to start at most `rate` operations in the lapse of `per` before current time. */
   case class SlidingWindow(rate: Int, per: FiniteDuration) extends RateLimiterAlgorithm:
     // stores the timestamp and the number of permits acquired after calling acquire or tryAcquire succesfully
     private val log = new AtomicReference[Queue[(Long, Int)]](Queue[(Long, Int)]())
@@ -127,8 +121,7 @@ object RateLimiterAlgorithm:
 
   end SlidingWindow
 
-  /** Token/leaky bucket algorithm It adds a token to start an new operation each `per` with a maximum number of tokens of `rate`.
-    */
+  /** Token/leaky bucket algorithm It adds a token to start an new operation each `per` with a maximum number of tokens of `rate`. */
   case class Bucket(rate: Int, per: FiniteDuration) extends RateLimiterAlgorithm:
     private val refillInterval = per.toNanos
     private val lastRefillTime = new AtomicLong(System.nanoTime())

@@ -3,11 +3,8 @@ package ox.resilience
 import scala.concurrent.duration.FiniteDuration
 import ox.*
 
-/** Rate Limiter with customizable algorithm. It allows to choose between blocking or dropping an incoming operation.
-  */
-case class RateLimiter(
-    algorithm: RateLimiterAlgorithm
-)(using Ox):
+/** Rate Limiter with customizable algorithm. It allows to choose between blocking or dropping an incoming operation. */
+case class RateLimiter(algorithm: RateLimiterAlgorithm)(using Ox):
 
   val _ =
     fork:
@@ -45,10 +42,7 @@ object RateLimiter:
     * @param windowSize
     *   Interval of time to pass before reset of the rate limiter
     */
-  def fixedRate(
-      maxRequests: Int,
-      windowSize: FiniteDuration
-  )(using Ox): RateLimiter =
+  def fixedRate(maxRequests: Int, windowSize: FiniteDuration)(using Ox): RateLimiter =
     RateLimiter(RateLimiterAlgorithm.FixedRate(maxRequests, windowSize))
   end fixedRate
 
@@ -59,10 +53,7 @@ object RateLimiter:
     * @param windowSize
     *   Size of the window
     */
-  def slidingWindow(
-      maxRequests: Int,
-      windowSize: FiniteDuration
-  )(using Ox): RateLimiter =
+  def slidingWindow(maxRequests: Int, windowSize: FiniteDuration)(using Ox): RateLimiter =
     RateLimiter(RateLimiterAlgorithm.SlidingWindow(maxRequests, windowSize))
   end slidingWindow
 
@@ -73,10 +64,7 @@ object RateLimiter:
     * @param refillInterval
     *   Interval of time after which a token is added
     */
-  def bucket(
-      maxTokens: Int,
-      refillInterval: FiniteDuration
-  )(using Ox): RateLimiter =
+  def bucket(maxTokens: Int, refillInterval: FiniteDuration)(using Ox): RateLimiter =
     RateLimiter(RateLimiterAlgorithm.Bucket(maxTokens, refillInterval))
   end bucket
 end RateLimiter

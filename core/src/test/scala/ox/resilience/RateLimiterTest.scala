@@ -15,13 +15,12 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
     supervised:
       val rateLimiter = RateLimiter(
         RateLimiterAlgorithm.FixedRate(2, FiniteDuration(1, "second"))
-        )
+      )
 
       var executions = 0
-      def operation = {
-        executions +=1
+      def operation =
+        executions += 1
         0
-      }
 
       val result1 = rateLimiter.runOrDrop(operation)
       val result2 = rateLimiter.runOrDrop(operation)
@@ -33,17 +32,16 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
       executions shouldBe 2
   }
 
-    it should "restart rate limiter after given duration" in {
+  it should "restart rate limiter after given duration" in {
     supervised:
       val rateLimiter = RateLimiter(
         RateLimiterAlgorithm.FixedRate(2, FiniteDuration(1, "second"))
-        )
+      )
 
       var executions = 0
-      def operation = {
-        executions +=1
+      def operation =
+        executions += 1
         0
-      }
 
       val result1 = rateLimiter.runOrDrop(operation)
       val result2 = rateLimiter.runOrDrop(operation)
@@ -65,10 +63,9 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
       )
 
       var executions = 0
-      def operation = {
+      def operation =
         executions += 1
         0
-      }
 
       val before = System.currentTimeMillis()
       val result1 = rateLimiter.runBlocking(operation)
@@ -91,12 +88,11 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
       )
 
       var order = List.empty[Int]
-      def operationN(n: Int) = {
+      def operationN(n: Int) =
         rateLimiter.runBlocking {
           order = n :: order
           n
         }
-      }
 
       val time1 = System.currentTimeMillis() // 0 seconds
       val result1 = operationN(1)
@@ -141,12 +137,11 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
       )
 
       val order = new AtomicReference(List.empty[Int])
-      def operationN(n: Int) = {
+      def operationN(n: Int) =
         rateLimiter.runBlocking {
           order.updateAndGet(ord => n :: ord)
           n
         }
-      }
 
       val before = System.currentTimeMillis() // 0 seconds
       supervised {
@@ -184,8 +179,6 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
     }
   }
 
-
-
   behavior of "sliding window RateLimiter"
   it should "drop operation when rate limit is exceeded" in {
     supervised {
@@ -194,10 +187,9 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
       )
 
       var executions = 0
-      def operation = {
+      def operation =
         executions += 1
         0
-      }
 
       val result1 = rateLimiter.runOrDrop(operation)
       val result2 = rateLimiter.runOrDrop(operation)
@@ -217,10 +209,9 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
       )
 
       var executions = 0
-      def operation = {
+      def operation =
         executions += 1
         0
-      }
 
       val result1 = rateLimiter.runOrDrop(operation)
       val result2 = rateLimiter.runOrDrop(operation)
@@ -243,10 +234,9 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
       )
 
       var executions = 0
-      def operation = {
+      def operation =
         executions += 1
         0
-      }
 
       val ((result1, result2, result3), timeElapsed) = measure {
         val r1 = rateLimiter.runBlocking(operation)
@@ -270,18 +260,17 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
       )
 
       var order = List.empty[Int]
-      def operationN(n: Int) = {
+      def operationN(n: Int) =
         rateLimiter.runBlocking {
           order = n :: order
           n
         }
-      }
 
       val time1 = System.currentTimeMillis() // 0 seconds
       val result1 = operationN(1)
       ox.sleep(500.millis)
       val result2 = operationN(2)
-      val result3 = operationN(3) //blocks until 1 second elapsed
+      val result3 = operationN(3) // blocks until 1 second elapsed
       val time2 = System.currentTimeMillis() // 1 second
       val result4 = operationN(4)
       val time3 = System.currentTimeMillis() // blocks until 1.5 seconds elapsed
@@ -305,12 +294,11 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
       )
 
       val order = new AtomicReference(List.empty[Int])
-      def operationN(n: Int) = {
+      def operationN(n: Int) =
         rateLimiter.runBlocking {
           order.updateAndGet(ord => n :: ord)
           n
         }
-      }
 
       val before = System.currentTimeMillis() // 0 seconds
       supervised {
@@ -342,10 +330,9 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
       )
 
       var executions = 0
-      def operation = {
+      def operation =
         executions += 1
         0
-      }
 
       val result1 = rateLimiter.runOrDrop(operation)
       val result2 = rateLimiter.runOrDrop(operation)
@@ -363,10 +350,9 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
       )
 
       var executions = 0
-      def operation = {
+      def operation =
         executions += 1
         0
-      }
 
       val result1 = rateLimiter.runOrDrop(operation)
       ox.sleep(500.millis)
@@ -388,10 +374,9 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
       )
 
       var executions = 0
-      def operation = {
+      def operation =
         executions += 1
         0
-      }
 
       val ((result1, result2, result3), timeElapsed) = measure {
         val r1 = rateLimiter.runBlocking(operation)
@@ -414,12 +399,11 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
       )
 
       var order = List.empty[Int]
-      def operationN(n: Int) = {
+      def operationN(n: Int) =
         rateLimiter.runBlocking {
           order = n :: order
           n
         }
-      }
 
       val time1 = System.currentTimeMillis() // 0 seconds
       val result1 = operationN(1)
@@ -454,12 +438,11 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
       )
 
       val order = new AtomicReference(List.empty[Int])
-      def operationN(n: Int) = {
+      def operationN(n: Int) =
         rateLimiter.runBlocking {
           order.updateAndGet(ord => n :: ord)
           n
         }
-      }
 
       val before = System.currentTimeMillis()
       supervised {
