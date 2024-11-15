@@ -47,6 +47,7 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
       val result2 = rateLimiter.runOrDrop(operation)
       val result3 = rateLimiter.runOrDrop(operation)
       ox.sleep(1.second)
+      ox.sleep(100.milliseconds) // make sure the rate limiter is replenished
       val result4 = rateLimiter.runOrDrop(operation)
 
       result1 shouldBe Some(0)

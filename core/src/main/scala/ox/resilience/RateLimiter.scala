@@ -6,7 +6,7 @@ import ox.*
 import scala.annotation.tailrec
 
 /** Rate Limiter with customizable algorithm. It allows to choose between blocking or dropping an incoming operation. */
-case class RateLimiter(algorithm: RateLimiterAlgorithm):
+class RateLimiter private (algorithm: RateLimiterAlgorithm):
   /** Runs the operation, blocking if the rate limit is reached, until new permits are available. */
   def runBlocking[T](operation: => T): T =
     algorithm.acquire
@@ -24,7 +24,7 @@ case class RateLimiter(algorithm: RateLimiterAlgorithm):
 end RateLimiter
 
 object RateLimiter:
-  def create(algorithm: RateLimiterAlgorithm)(using Ox): RateLimiter =
+  def apply(algorithm: RateLimiterAlgorithm)(using Ox): RateLimiter =
     @tailrec
     def update(): Unit =
       val waitTime = algorithm.getNextUpdate
@@ -36,8 +36,8 @@ object RateLimiter:
     end update
 
     forkDiscard(update())
-    RateLimiter(algorithm)
-  end create
+    new RateLimiter(algorithm)
+  end apply
 
   /** Rate limiter with fixed rate algorithm with possibility to drop or block an operation if not allowed to run.
     *
@@ -49,7 +49,7 @@ object RateLimiter:
     *   Interval of time to pass before reset of the rate limiter
     */
   def fixedRate(maxRequests: Int, windowSize: FiniteDuration)(using Ox): RateLimiter =
-    create(RateLimiterAlgorithm.FixedRate(maxRequests, windowSize))
+    apply(RateLimiterAlgorithm.FixedRate(maxRequests, windowSize))
 
   /** Rate limiter with sliding window algorithm with possibility to drop or block an operation if not allowed to run.
     *
@@ -61,7 +61,7 @@ object RateLimiter:
     *   Size of the window
     */
   def slidingWindow(maxRequests: Int, windowSize: FiniteDuration)(using Ox): RateLimiter =
-    create(RateLimiterAlgorithm.SlidingWindow(maxRequests, windowSize))
+    apply(RateLimiterAlgorithm.SlidingWindow(maxRequests, windowSize))
 
   /** Rate limiter with token/leaky bucket algorithm with possibility to drop or block an operation if not allowed to run.
     *
@@ -73,5 +73,5 @@ object RateLimiter:
     *   Interval of time after which a token is added
     */
   def bucket(maxTokens: Int, refillInterval: FiniteDuration)(using Ox): RateLimiter =
-    create(RateLimiterAlgorithm.Bucket(maxTokens, refillInterval))
+    apply(RateLimiterAlgorithm.Bucket(maxTokens, refillInterval))
 end RateLimiter
