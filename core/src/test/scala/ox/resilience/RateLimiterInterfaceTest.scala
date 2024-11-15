@@ -11,7 +11,7 @@ class RateLimiterInterfaceTest extends AnyFlatSpec with Matchers with EitherValu
 
   it should "drop or block operation depending on method used for fixed rate algorithm" in {
     supervised:
-      val rateLimiter = RateLimiter.fixedRate(2, FiniteDuration(1, "second"))
+      val rateLimiter = RateLimiter.fixedWindow(2, FiniteDuration(1, "second"))
 
       var executions = 0
       def operation =
@@ -61,7 +61,7 @@ class RateLimiterInterfaceTest extends AnyFlatSpec with Matchers with EitherValu
 
   it should "drop or block operation depending on method used for bucket algorithm" in {
     supervised:
-      val rateLimiter = RateLimiter.bucket(2, FiniteDuration(1, "second"))
+      val rateLimiter = RateLimiter.leakyBucket(2, FiniteDuration(1, "second"))
 
       var executions = 0
       def operation =
@@ -86,7 +86,7 @@ class RateLimiterInterfaceTest extends AnyFlatSpec with Matchers with EitherValu
 
   it should "drop or block operation concurrently" in {
     supervised:
-      val rateLimiter = RateLimiter.fixedRate(2, FiniteDuration(1, "second"))
+      val rateLimiter = RateLimiter.fixedWindow(2, FiniteDuration(1, "second"))
 
       def operation = 0
 

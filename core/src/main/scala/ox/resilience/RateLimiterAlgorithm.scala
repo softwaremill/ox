@@ -118,7 +118,7 @@ object RateLimiterAlgorithm:
   end SlidingWindow
 
   /** Token/leaky bucket algorithm It adds a token to start an new operation each `per` with a maximum number of tokens of `rate`. */
-  case class Bucket(rate: Int, per: FiniteDuration) extends RateLimiterAlgorithm:
+  case class LeakyBucket(rate: Int, per: FiniteDuration) extends RateLimiterAlgorithm:
     private val refillInterval = per.toNanos
     private val lastRefillTime = new AtomicLong(System.nanoTime())
     private val semaphore = new Semaphore(1)
@@ -138,5 +138,5 @@ object RateLimiterAlgorithm:
       lastRefillTime.set(now)
       if semaphore.availablePermits() < rate then semaphore.release()
 
-  end Bucket
+  end LeakyBucket
 end RateLimiterAlgorithm

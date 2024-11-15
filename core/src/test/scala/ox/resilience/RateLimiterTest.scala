@@ -328,7 +328,7 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
   it should "drop operation when rate limit is exceeded" in {
     supervised {
       val rateLimiter = RateLimiter(
-        RateLimiterAlgorithm.Bucket(2, FiniteDuration(1, "second"))
+        RateLimiterAlgorithm.LeakyBucket(2, FiniteDuration(1, "second"))
       )
 
       var executions = 0
@@ -348,7 +348,7 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
   it should "refill token after time elapsed from last refill and not before" in {
     supervised {
       val rateLimiter = RateLimiter(
-        RateLimiterAlgorithm.Bucket(2, FiniteDuration(1, "second"))
+        RateLimiterAlgorithm.LeakyBucket(2, FiniteDuration(1, "second"))
       )
 
       var executions = 0
@@ -372,7 +372,7 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
   it should "block operation when rate limit is exceeded" in {
     supervised {
       val rateLimiter = RateLimiter(
-        RateLimiterAlgorithm.Bucket(2, FiniteDuration(1, "second"))
+        RateLimiterAlgorithm.LeakyBucket(2, FiniteDuration(1, "second"))
       )
 
       var executions = 0
@@ -397,7 +397,7 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
   it should "respect time constraints when blocking" in {
     supervised {
       val rateLimiter = RateLimiter(
-        RateLimiterAlgorithm.Bucket(2, FiniteDuration(1, "second"))
+        RateLimiterAlgorithm.LeakyBucket(2, FiniteDuration(1, "second"))
       )
 
       var order = List.empty[Int]
@@ -436,7 +436,7 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
   it should "respect time constraints when blocking concurrently" in {
     supervised {
       val rateLimiter = RateLimiter(
-        RateLimiterAlgorithm.Bucket(2, FiniteDuration(1, "second"))
+        RateLimiterAlgorithm.LeakyBucket(2, FiniteDuration(1, "second"))
       )
 
       val order = new AtomicReference(List.empty[Int])
