@@ -6,17 +6,14 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.Semaphore
 
-/** Determines the algorithm to use for the rate limiter
-  */
+/** Determines the algorithm to use for the rate limiter */
 trait RateLimiterAlgorithm:
 
-  /** Acquires a permit to execute the operation. This method should block until a permit is available.
-    */
+  /** Acquires a permit to execute the operation. This method should block until a permit is available. */
   final def acquire: Unit =
     acquire(1)
 
-  /** Acquires permits to execute the operation. This method should block until a permit is available.
-    */
+  /** Acquires permits to execute the operation. This method should block until a permit is available. */
   def acquire(permits: Int): Unit
 
   /** Tries to acquire a permit to execute the operation. This method should not block. */
@@ -35,8 +32,8 @@ trait RateLimiterAlgorithm:
 end RateLimiterAlgorithm
 
 object RateLimiterAlgorithm:
-  /** Fixed rate algorithm It allows starting at most `rate` operations in consecutively segments of duration `per`. */
-  case class FixedRate(rate: Int, per: FiniteDuration) extends RateLimiterAlgorithm:
+  /** Fixed window algorithm: allows starting at most `rate` operations in consecutively segments of duration `per`. */
+  case class FixedWindow(rate: Int, per: FiniteDuration) extends RateLimiterAlgorithm:
     private val lastUpdate = new AtomicLong(System.nanoTime())
     private val semaphore = new Semaphore(rate)
 
@@ -56,11 +53,11 @@ object RateLimiterAlgorithm:
       semaphore.release(rate - semaphore.availablePermits())
     end update
 
-  end FixedRate
+  end FixedWindow
 
-  /** Sliding window algorithm It allows to start at most `rate` operations in the lapse of `per` before current time. */
+  /** Sliding window algorithm: allows to start at most `rate` operations in the lapse of `per` before current time. */
   case class SlidingWindow(rate: Int, per: FiniteDuration) extends RateLimiterAlgorithm:
-    // stores the timestamp and the number of permits acquired after calling acquire or tryAcquire succesfully
+    // stores the timestamp and the number of permits acquired after calling acquire or tryAcquire successfully
     private val log = new AtomicReference[Queue[(Long, Int)]](Queue[(Long, Int)]())
     private val semaphore = new Semaphore(rate)
 

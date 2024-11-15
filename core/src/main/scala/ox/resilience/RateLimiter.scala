@@ -49,7 +49,7 @@ object RateLimiter:
     *   Interval of time to pass before reset of the rate limiter
     */
   def fixedRate(maxRequests: Int, windowSize: FiniteDuration)(using Ox): RateLimiter =
-    apply(RateLimiterAlgorithm.FixedRate(maxRequests, windowSize))
+    apply(RateLimiterAlgorithm.FixedWindow(maxRequests, windowSize))
 
   /** Rate limiter with sliding window algorithm with possibility to drop or block an operation if not allowed to run.
     *
