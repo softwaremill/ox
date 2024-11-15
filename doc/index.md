@@ -68,6 +68,7 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
    
    utils/oxapp
    utils/retries
+   utils/rate-limiter
    utils/repeat
    utils/scheduled
    utils/resources
