@@ -119,7 +119,7 @@ object RateLimiterAlgorithm:
       q.dequeueOption match
         case None => q
         case Some((head, tail)) =>
-          if semaphore.availablePermits() < rate && head._1 + per.toNanos < now then
+          if head._1 + per.toNanos < now then
             val (_, permits) = head
             semaphore.release(permits)
             removeRecords(tail, now)
