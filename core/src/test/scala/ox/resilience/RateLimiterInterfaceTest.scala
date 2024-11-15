@@ -98,22 +98,22 @@ class RateLimiterInterfaceTest extends AnyFlatSpec with Matchers with EitherValu
       var result6: Int = -1
 
       // run two operations to block the rate limiter
-      rateLimiter.runOrDrop(operation)
-      rateLimiter.runOrDrop(operation)
+      rateLimiter.runOrDrop(operation).discard
+      rateLimiter.runOrDrop(operation).discard
 
       // operations with runOrDrop should be dropped while operations with runBlocking should wait
       supervised:
-        forkUser:
+        forkUserDiscard:
           result1 = rateLimiter.runOrDrop(operation)
-        forkUser:
+        forkUserDiscard:
           result2 = rateLimiter.runOrDrop(operation)
-        forkUser:
+        forkUserDiscard:
           result3 = rateLimiter.runOrDrop(operation)
-        forkUser:
+        forkUserDiscard:
           result4 = rateLimiter.runBlocking(operation)
-        forkUser:
+        forkUserDiscard:
           result5 = rateLimiter.runBlocking(operation)
-        forkUser:
+        forkUserDiscard:
           result6 = rateLimiter.runBlocking(operation)
 
       result1 shouldBe None
