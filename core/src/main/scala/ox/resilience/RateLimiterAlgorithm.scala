@@ -5,26 +5,27 @@ import scala.collection.immutable.Queue
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.Semaphore
+import scala.annotation.tailrec
 
 /** Determines the algorithm to use for the rate limiter */
 trait RateLimiterAlgorithm:
 
   /** Acquires a permit to execute the operation. This method should block until a permit is available. */
-  final def acquire: Unit =
+  final def acquire(): Unit =
     acquire(1)
 
   /** Acquires permits to execute the operation. This method should block until a permit is available. */
   def acquire(permits: Int): Unit
 
   /** Tries to acquire a permit to execute the operation. This method should not block. */
-  final def tryAcquire: Boolean =
+  final def tryAcquire(): Boolean =
     tryAcquire(1)
 
   /** Tries to acquire permits to execute the operation. This method should not block. */
   def tryAcquire(permits: Int): Boolean
 
   /** Updates the internal state of the rate limiter to check whether new operations can be accepted. */
-  def update: Unit
+  def update(): Unit
 
   /** Returns the time in nanoseconds that needs to elapse until the next update. It should not modify internal state. */
   def getNextUpdate: Long
@@ -47,7 +48,7 @@ object RateLimiterAlgorithm:
       val waitTime = lastUpdate.get() + per.toNanos - System.nanoTime()
       if waitTime > 0 then waitTime else 0L
 
-    def update: Unit =
+    def update(): Unit =
       val now = System.nanoTime()
       lastUpdate.set(now)
       semaphore.release(rate - semaphore.availablePermits())
@@ -63,23 +64,20 @@ object RateLimiterAlgorithm:
 
     def acquire(permits: Int): Unit =
       semaphore.acquire(permits)
-      // adds timestamp to log
+      addTimestampToLog(permits)
+
+    def tryAcquire(permits: Int): Boolean =
+      if semaphore.tryAcquire(permits) then
+        addTimestampToLog(permits)
+        true
+      else false
+
+    private def addTimestampToLog(permits: Int): Unit =
       val now = System.nanoTime()
       log.updateAndGet { q =>
         q.enqueue((now, permits))
       }
       ()
-    end acquire
-
-    def tryAcquire(permits: Int): Boolean =
-      if semaphore.tryAcquire(permits) then
-        // adds timestamp to log
-        val now = System.nanoTime()
-        log.updateAndGet { q =>
-          q.enqueue((now, permits))
-        }
-        true
-      else false
 
     def getNextUpdate: Long =
       log.get().headOption match
@@ -92,7 +90,7 @@ object RateLimiterAlgorithm:
           if waitTime > 0 then waitTime else 0L
     end getNextUpdate
 
-    def update: Unit =
+    def update(): Unit =
       val now = System.nanoTime()
       // retrieving current queue to append it later if some elements were added concurrently
       val q = log.getAndUpdate(_ => Queue[(Long, Int)]())
@@ -106,6 +104,7 @@ object RateLimiterAlgorithm:
       )
     end update
 
+    @tailrec
     private def removeRecords(q: Queue[(Long, Int)], now: Long): Queue[(Long, Int)] =
       q.dequeueOption match
         case None => q
@@ -134,7 +133,7 @@ object RateLimiterAlgorithm:
       val waitTime = lastRefillTime.get() + refillInterval - System.nanoTime()
       if waitTime > 0 then waitTime else 0L
 
-    def update: Unit =
+    def update(): Unit =
       val now = System.nanoTime()
       lastRefillTime.set(now)
       if semaphore.availablePermits() < rate then semaphore.release()

@@ -146,30 +146,30 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
 
       val before = System.currentTimeMillis() // 0 seconds
       supervised {
-        forkUser:
+        forkUserDiscard:
           operationN(1)
-        forkUser:
+        forkUserDiscard:
           sleep(50.millis)
           operationN(2)
-        forkUser:
+        forkUserDiscard:
           sleep(100.millis)
           operationN(3)
-        forkUser:
+        forkUserDiscard:
           sleep(150.millis)
           operationN(4)
-        forkUser:
+        forkUserDiscard:
           sleep(200.millis)
           operationN(5)
-        forkUser:
+        forkUserDiscard:
           sleep(250.millis)
           operationN(6)
-        forkUser:
+        forkUserDiscard:
           sleep(300.millis)
           operationN(7)
-        forkUser:
+        forkUserDiscard:
           sleep(350.millis)
           operationN(8)
-        forkUser:
+        forkUserDiscard:
           sleep(400.millis)
           operationN(9)
       }
@@ -218,6 +218,7 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
       val result2 = rateLimiter.runOrDrop(operation)
       val result3 = rateLimiter.runOrDrop(operation)
       ox.sleep(1.second)
+      ox.sleep(100.milliseconds) // make sure the rate limiter is replenished
       val result4 = rateLimiter.runOrDrop(operation)
 
       result1 shouldBe Some(0)
@@ -303,15 +304,15 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
 
       val before = System.currentTimeMillis() // 0 seconds
       supervised {
-        forkUser:
+        forkUserDiscard:
           operationN(1)
-        forkUser:
+        forkUserDiscard:
           sleep(300.millis)
           operationN(2)
-        forkUser:
+        forkUserDiscard:
           sleep(400.millis)
           operationN(3)
-        forkUser:
+        forkUserDiscard:
           sleep(700.millis)
           operationN(4)
       }
@@ -447,15 +448,15 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
 
       val before = System.currentTimeMillis()
       supervised {
-        forkUser:
+        forkUserDiscard:
           operationN(1)
-        forkUser:
+        forkUserDiscard:
           sleep(50.millis)
           operationN(2)
-        forkUser:
+        forkUserDiscard:
           sleep(100.millis)
           operationN(3)
-        forkUser:
+        forkUserDiscard:
           sleep(150.millis)
           operationN(4)
       }

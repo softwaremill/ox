@@ -9,7 +9,7 @@ import scala.annotation.tailrec
 class RateLimiter private (algorithm: RateLimiterAlgorithm):
   /** Runs the operation, blocking if the rate limit is reached, until new permits are available. */
   def runBlocking[T](operation: => T): T =
-    algorithm.acquire
+    algorithm.acquire()
     operation
 
   /** Runs or drops the operation, if the rate limit is reached.
@@ -18,7 +18,7 @@ class RateLimiter private (algorithm: RateLimiterAlgorithm):
     *   `Some` if the operation has been allowed to run, `None` if the operation has been dropped.
     */
   def runOrDrop[T](operation: => T): Option[T] =
-    if algorithm.tryAcquire then Some(operation)
+    if algorithm.tryAcquire() then Some(operation)
     else None
 
 end RateLimiter
@@ -31,7 +31,7 @@ object RateLimiter:
       val millis = waitTime / 1000000
       val nanos = waitTime % 1000000
       Thread.sleep(millis, nanos.toInt)
-      algorithm.update
+      algorithm.update()
       update()
     end update
 
