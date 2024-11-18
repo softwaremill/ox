@@ -1,4 +1,4 @@
-# Kafka sources & drains
+# Kafka flows
 
 Dependency:
 
@@ -17,7 +17,8 @@ To read from a Kafka topic, use:
 import ox.kafka.{ConsumerSettings, KafkaFlow, ReceivedMessage}
 import ox.kafka.ConsumerSettings.AutoOffsetReset
 
-val settings = ConsumerSettings.default("my_group").bootstrapServers("localhost:9092").autoOffsetReset(AutoOffsetReset.Earliest)
+val settings = ConsumerSettings.default("my_group").bootstrapServers("localhost:9092")
+  .autoOffsetReset(AutoOffsetReset.Earliest)
 val topic = "my_topic"
   
 val source = KafkaFlow.subscribe(settings, topic)
@@ -49,7 +50,9 @@ In order to do so, a `Flow[SendPacket]` needs to be created. The definition of `
 import org.apache.kafka.clients.producer.ProducerRecord
 import ox.kafka.ReceivedMessage
 
-case class SendPacket[K, V](send: List[ProducerRecord[K, V]], commit: List[ReceivedMessage[_, _]])
+case class SendPacket[K, V](
+  send: List[ProducerRecord[K, V]], 
+  commit: List[ReceivedMessage[_, _]])
 ```
 
 The `send` list contains the messages to be sent (each message is a Kafka `ProducerRecord`). The `commit` list contains
@@ -63,7 +66,8 @@ import ox.kafka.ConsumerSettings.AutoOffsetReset
 import ox.pipe
 import org.apache.kafka.clients.producer.ProducerRecord
 
-val consumerSettings = ConsumerSettings.default("my_group").bootstrapServers("localhost:9092").autoOffsetReset(AutoOffsetReset.Earliest)
+val consumerSettings = ConsumerSettings.default("my_group")
+  .bootstrapServers("localhost:9092").autoOffsetReset(AutoOffsetReset.Earliest)
 val producerSettings = ProducerSettings.default.bootstrapServers("localhost:9092")
 val sourceTopic = "source_topic"
 val destTopic = "dest_topic"
@@ -71,7 +75,8 @@ val destTopic = "dest_topic"
 KafkaFlow
   .subscribe(consumerSettings, sourceTopic)
   .map(in => (in.value.toLong * 2, in))
-  .map((value, original) => SendPacket(ProducerRecord[String, String](destTopic, value.toString), original))
+  .map((value, original) => 
+    SendPacket(ProducerRecord[String, String](destTopic, value.toString), original))
   .pipe(KafkaDrain.runPublishAndCommit(producerSettings))
 ```
 
