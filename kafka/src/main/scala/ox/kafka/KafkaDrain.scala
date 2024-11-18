@@ -10,9 +10,15 @@ import ox.flow.Flow
 object KafkaDrain:
   private val logger = LoggerFactory.getLogger(classOf[KafkaDrain.type])
 
+  /** @return
+    *   A drain, which sends all records emitted by the provided [[Flow]].
+    */
   def runPublish[K, V](settings: ProducerSettings[K, V])(using BufferCapacity): Flow[ProducerRecord[K, V]] => Unit = flow =>
     runPublish(settings.toProducer, closeWhenComplete = true)(flow)
 
+  /** @return
+    *   A drain, which sends all records emitted by the provided [[Flow]].
+    */
   def runPublish[K, V](producer: KafkaProducer[K, V], closeWhenComplete: Boolean)(using
       BufferCapacity
   ): Flow[ProducerRecord[K, V]] => Unit =
@@ -42,9 +48,11 @@ object KafkaDrain:
         finally
           if closeWhenComplete then uninterruptible(producer.close())
         end try
+  end runPublish
+
   /** @return
-    *   A drain, which consumes all packets from the provided `Source`.. For each packet, first all `send` messages (producer records) are
-    *   sent. Then, all `commit` messages (consumer records) up to their offsets are committed.
+    *   A drain, which consumes all packets emitted by the provided [[Flow]]. For each packet, first all `send` messages (producer records)
+    *   are sent. Then, all `commit` messages (consumer records) up to their offsets are committed.
     */
   def runPublishAndCommit[K, V](producerSettings: ProducerSettings[K, V])(using BufferCapacity): Flow[SendPacket[K, V]] => Unit =
     flow => runPublishAndCommit(producerSettings.toProducer, closeWhenComplete = true)(flow)
@@ -52,8 +60,8 @@ object KafkaDrain:
   /** @param producer
     *   The producer that is used to send messages.
     * @return
-    *   A drain, which consumes all packets from the provided `Source`.. For each packet, first all `send` messages (producer records) are
-    *   sent. Then, all `commit` messages (consumer records) up to their offsets are committed.
+    *   A drain, which consumes all packets emitted by the provided [[Flow]]. For each packet, first all `send` messages (producer records)
+    *   are sent. Then, all `commit` messages (consumer records) up to their offsets are committed.
     */
   def runPublishAndCommit[K, V](producer: KafkaProducer[K, V], closeWhenComplete: Boolean)(using
       BufferCapacity

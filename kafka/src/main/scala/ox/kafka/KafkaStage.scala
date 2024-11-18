@@ -68,7 +68,9 @@ object KafkaStage:
         // possible out-of-order metadata of the records published from `packet.send`
         val metadata = Channel.unlimited[(Long, RecordMetadata)]
         // packets which are fully sent, and should be committed
-        val toCommit = BufferCapacity.newChannel[SendPacket[_, _]]
+        // using an unlimited buffer so that the I/O thread doesn't get blocked in producer.send callbacks; backpressure is provided
+        // by creating a buffered channel in `flow.runToChannel()` below
+        val toCommit = Channel.unlimited[SendPacket[_, _]]
 
         // used to reorder values received from `metadata` using the assigned sequence numbers
         val sendInSequence = SendInSequence(emit)
@@ -129,6 +131,7 @@ object KafkaStage:
     val leftToSend = new AtomicInteger(packet.send.size)
     packet.send.foreach { toSend =>
       val sequenceNo = sendInSequence.nextSequenceNo
+      // this will block if Kafka's buffers are full, thus limting the number of packets that are in-flight (waiting to be sent)
       producer.send(
         toSend,
         (m: RecordMetadata, e: Exception) =>
