@@ -9,7 +9,7 @@ Channel clauses include:
 * `Sink.sendClause(value)` - to send a value to a channel
 * `Default(value)` - to return the given value from the `select`, if no other clause can be immediately satisfied
 
-## Receiving from exactly one channel
+## Receiving exactly one value from multiple channels
 
 The most common use-case for `select` is to receive exactly one value from a number of channels. There's a dedicated
 `select` variant for this use-case, which accepts a number of `Source`s, for which receive clauses are created. The
