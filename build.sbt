@@ -112,5 +112,6 @@ lazy val documentation: Project = (project in file("generated-doc")) // importan
   .dependsOn(
     core,
     kafka,
-    mdcLogback
+    mdcLogback,
+    flowReactiveStreams
   )

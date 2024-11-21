@@ -21,7 +21,8 @@ trait FlowReactiveOps[+T]:
 
   /** Converts this [[Flow]] into a [[Publisher]]. The flow is run every time the publisher is subscribed to.
     *
-    * Must be run within a concurrency scope, as upon subscribing, a fork is created to run the publishing process.
+    * Must be run within a concurrency scope, as upon subscribing, a fork is created to run the publishing process. Hence, the scope should
+    * remain active as long as the publisher is used.
     *
     * Elements emitted by the flow are buffered, using a buffer of capacity given by the [[BufferCapacity]] in scope.
     *
