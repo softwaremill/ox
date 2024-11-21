@@ -16,7 +16,12 @@ import scala.annotation.nowarn
   *
   * Running a flow is possible using one of the `run*` methods, such as [[Flow.runToList]], [[Flow.runToChannel]] or [[Flow.runFold]].
   */
-class Flow[+T](protected val last: FlowStage[T]) extends FlowOps[T] with FlowRunOps[T] with FlowIOOps[T] with FlowTextOps[T]
+class Flow[+T](protected val last: FlowStage[T])
+    extends FlowOps[T]
+    with FlowRunOps[T]
+    with FlowIOOps[T]
+    with FlowTextOps[T]
+    with FlowReactiveOps[T]
 
 object Flow extends FlowCompanionOps with FlowCompanionIOOps
 

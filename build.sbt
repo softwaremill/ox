@@ -29,7 +29,7 @@ compileDocumentation := {
 lazy val rootProject = (project in file("."))
   .settings(commonSettings)
   .settings(publishArtifact := false, name := "ox")
-  .aggregate(core, examples, kafka, mdcLogback)
+  .aggregate(core, examples, kafka, mdcLogback, flowReactiveStreams)
 
 lazy val core: Project = (project in file("core"))
   .settings(commonSettings)
@@ -37,7 +37,9 @@ lazy val core: Project = (project in file("core"))
     name := "core",
     libraryDependencies ++= Seq(
       "com.softwaremill.jox" % "channels" % "0.3.1",
-      scalaTest
+      scalaTest,
+      "org.apache.pekko" %% "pekko-stream" % "1.1.2" % Test,
+      "org.reactivestreams" % "reactive-streams-tck-flow" % "1.0.4" % Test
     ),
     Test / fork := true
   )
@@ -76,6 +78,17 @@ lazy val mdcLogback: Project = (project in file("mdc-logback"))
     name := "mdc-logback",
     libraryDependencies ++= Seq(
       logback,
+      scalaTest
+    )
+  )
+  .dependsOn(core)
+
+lazy val flowReactiveStreams: Project = (project in file("flow-reactive-streams"))
+  .settings(commonSettings)
+  .settings(
+    name := "flow-reactive-streams",
+    libraryDependencies ++= Seq(
+      "org.reactivestreams" % "reactive-streams" % "1.0.4",
       scalaTest
     )
   )
