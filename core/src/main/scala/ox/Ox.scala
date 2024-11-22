@@ -3,6 +3,8 @@ package ox
 import java.util.concurrent.StructuredTaskScope
 import java.util.concurrent.atomic.AtomicReference
 import scala.annotation.implicitNotFound
+import ox.channels.Actor
+import ox.channels.ActorRef
 
 /** Capability granted by an [[unsupervised]] concurrency scope (as well as, via subtyping, by [[supervised]] and [[supervisedError]]).
   *
@@ -39,6 +41,16 @@ end OxUnsupervised
 )
 trait Ox extends OxUnsupervised:
   private[ox] def asNoErrorMode: OxError[Nothing, [T] =>> T]
+
+  // see externalRunner
+  private[ox] lazy val externalSchedulerActor: ActorRef[ExternalScheduler] = Actor.create(
+    new ExternalScheduler:
+      def run(f: Ox ?=> Unit): Unit = f(using Ox.this)
+  )(using this)
+end Ox
+
+private[ox] trait ExternalScheduler:
+  def run(f: Ox ?=> Unit): Unit
 
 /** Capability granted by a [[supervisedError]] concurrency scope.
   *

@@ -15,6 +15,7 @@ import java.util.concurrent.Flow.Publisher
 import java.util.concurrent.Flow.Subscriber
 import java.util.concurrent.Flow.Subscription
 import ox.unsupervised
+import ox.externalRunner
 
 trait FlowReactiveOps[+T]:
   outer: Flow[T] =>
@@ -26,10 +27,13 @@ trait FlowReactiveOps[+T]:
     *
     * Elements emitted by the flow are buffered, using a buffer of capacity given by the [[BufferCapacity]] in scope.
     *
-    * The returned publisher is from the JDK 9+ `Flow.Publisher` API. To obtain a publisher implementing `com.reactivesreams.Publisher`, use
-    * the `flow-reactive-streams` module.
+    * The returned publisher is from the JDK 9+ `Flow.Publisher` API. To obtain a publisher implementing `com.reactivestreams.Publisher`,
+    * use the `flow-reactive-streams` module.
     */
   def toPublisher[U >: T](using Ox, BufferCapacity): Publisher[U] =
+    // we need to obtain the external runner while on a fork managed by Ox
+    val external = externalRunner()
+
     new Publisher[U]:
       // 1.10: subscribe can be called multiple times; each time, the flow is started from scratch
       // 1.11: subscriptions are unicast
@@ -39,9 +43,10 @@ trait FlowReactiveOps[+T]:
         // 3.14: not in this implementation
 
         // `runToSubscriber` blocks as long as data is produced by the flow or until the subscription is cancelled
-        // we cannot block `subscribe` (see https://github.com/reactive-streams/reactive-streams-jvm/issues/393), hence running in a fork
-        // TODO: attach this thread as a resource to be released when Ox scope completes
-        Thread.startVirtualThread(() => runToSubscriber(subscriber)).discard
+        // we cannot block `subscribe` (see https://github.com/reactive-streams/reactive-streams-jvm/issues/393),
+        // hence running in a fork; however, the reactive library might run .subscribe on a different thread, that's
+        // why we need to use the external runner functionality
+        external.runAsync(forkDiscard(runToSubscriber(subscriber)).discard)
       end subscribe
     end new
   end toPublisher
@@ -130,3 +135,6 @@ private class FlowSubscription(signals: Sink[Signal]) extends Subscription:
 
   // 3.10, 3.11: no synchronous calls in this implementation
 end FlowSubscription
+
+private trait ExternalScheduler:
+  def run(f: () => Unit): Unit
