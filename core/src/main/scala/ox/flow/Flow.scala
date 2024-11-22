@@ -23,7 +23,7 @@ class Flow[+T](protected val last: FlowStage[T])
     with FlowTextOps[T]
     with FlowReactiveOps[T]
 
-object Flow extends FlowCompanionOps with FlowCompanionIOOps
+object Flow extends FlowCompanionOps with FlowCompanionIOOps with FlowCompanionReactiveOps
 
 //
 

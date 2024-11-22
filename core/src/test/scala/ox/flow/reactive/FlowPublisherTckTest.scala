@@ -1,12 +1,13 @@
 package ox.flow.reactive
 
-import org.reactivestreams.tck.flow.FlowPublisherVerification
 import org.reactivestreams.tck.TestEnvironment
-import java.util.concurrent.Flow.Publisher
-import ox.flow.Flow
-import ox.supervised
+import org.reactivestreams.tck.flow.FlowPublisherVerification
 import org.scalatest.funsuite.AnyFunSuite
 import ox.Ox
+import ox.flow.Flow
+import ox.supervised
+
+import java.util.concurrent.Flow.Publisher
 
 class FlowPublisherTckTest extends AnyFunSuite:
   var ox: Ox = null

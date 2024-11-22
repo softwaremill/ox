@@ -157,6 +157,8 @@ Flow.fromValues(1, 2, 3)
 
 ## Reactive streams interoperability
 
+### Flow -> Publisher
+
 A `Flow` can be converted to a `java.util.concurrent.Flow.Publisher` using the `.toPublisher` method.
 
 This needs to be run within an `Ox` concurrency scope, as upon subscribing, a fork is created to run the publishing 
@@ -180,3 +182,13 @@ supervised:
   myFlow.toReactiveStreamsPublisher: org.reactivestreams.Publisher[Int]
   // use the publisher
 ```
+
+### Publisher -> Flow
+
+A `java.util.concurrent.Flow.Publisher` can be converted to a `Flow` using `Flow.fromPublisher`.
+
+Internally, elements published to the subscription are buffered, using a buffer of capacity given by the 
+`BufferCapacity` in scope. That's also how many elements will be at most requested from the publisher at a time.
+
+To convert a `org.reactivestreams.Publisher` instance, you'll need the same dependency as above and call the
+`FlowReactiveStreams.fromPublisher` method.

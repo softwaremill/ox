@@ -5,6 +5,8 @@ package ox.channels
   */
 opaque type BufferCapacity = Int
 
+extension (c: BufferCapacity) def toInt: Int = c
+
 object BufferCapacity:
   def apply(c: Int): BufferCapacity = c
   def newChannel[T](using BufferCapacity): Channel[T] = Channel.withCapacity[T](summon[BufferCapacity])

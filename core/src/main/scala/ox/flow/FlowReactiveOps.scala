@@ -28,7 +28,7 @@ trait FlowReactiveOps[+T]:
     *
     * Elements emitted by the flow are buffered, using a buffer of capacity given by the [[BufferCapacity]] in scope.
     *
-    * The returned publisher is from the JDK 9+ `Flow.Publisher` API. To obtain a publisher implementing `com.reactivestreams.Publisher`,
+    * The returned publisher implements the JDK 9+ `Flow.Publisher` API. To obtain a publisher implementing `com.reactivestreams.Publisher`,
     * use the `flow-reactive-streams` module.
     */
   def toPublisher[U >: T](using Ox, BufferCapacity): Publisher[U] =
