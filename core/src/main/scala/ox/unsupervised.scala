@@ -50,15 +50,17 @@ private[ox] def scopedWithCapability[T](capability: Ox)(f: Ox ?=> T): T =
     end if
   end runFinalizers
 
+  // if this is inlined manually (in the program's text), it gets incorrectly indented
+  inline def runFAndJoinScope =
+    try f(using capability)
+    finally
+      scope.shutdown()
+      scope.join().discard
+
   try
     val t =
-      try
-        try f(using capability)
-        finally
-          scope.shutdown()
-          scope.join().discard
-        // join might have been interrupted
-      finally scope.close()
+      try runFAndJoinScope
+      finally scope.close() // join might have been interrupted, hence the finally
 
     // running the finalizers only once we are sure that all child threads have been terminated, so that no new
     // finalizers are added, and none are lost
