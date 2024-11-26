@@ -88,6 +88,20 @@ class FlowOps[+T]:
     f(t); t
   )
 
+  /** Applies the given mapping function `f` to each element emitted by this flow, obtaining a nested flow to run. The elements emitted by
+    * the nested flow are then emitted by the returned flow.
+    *
+    * The nested flows are run in sequence, that is, the next nested flow is started only after the previous one completes.
+    *
+    * @param f
+    *   The mapping function.
+    */
+  def flatMap[U](f: T => Flow[U]): Flow[U] = Flow.usingEmitInline: emit =>
+    last.run(
+      FlowEmit.fromInline: t =>
+        f(t).runToEmit(emit)
+    )
+
   /** Intersperses elements emitted by this flow with `inject` elements. The `inject` element is emitted between each pair of elements. */
   def intersperse[U >: T](inject: U): Flow[U] = intersperse(None, inject, None)
 
