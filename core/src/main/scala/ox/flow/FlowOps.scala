@@ -309,32 +309,51 @@ class FlowOps[+T]:
     */
   def flatten[U](using T <:< Flow[U]): Flow[U] = this.flatMap(identity)
 
-  /** Pipes the elements of child flows into the returned flow. If the this flow or any of the child flows emit an error, the pulling stops
-    * and the output flow propagates the error.
+  /** Pipes the elements of child flows into the returned flow.
     *
-    * All flows are run concurrently in the background. The size of the buffers for the elements emitted by the child flows is determined by
-    * the [[BufferCapacity]] that is in scope.
+    * If the this flow or any of the child flows emit an error, the pulling stops and the output flow propagates the error.
+    *
+    * Up to [[parallelism]] child flows are run concurrently in the background. When the limit is reached, until a child flow completes, no
+    * more child flows are run.
+    *
+    * The size of the buffers for the elements emitted by the child flows is determined by the [[BufferCapacity]] that is in scope.
+    *
+    * @param parallelism
+    *   An upper bound on the number of child flows that run in parallel.
     */
-  def flattenPar[U](using T <:< Flow[U])(using BufferCapacity): Flow[U] = Flow.usingEmitInline: emit =>
+  def flattenPar[U](parallelism: Int)(using T <:< Flow[U])(using BufferCapacity): Flow[U] = Flow.usingEmitInline: emit =>
     case class Nested(child: Flow[U])
 
+    inline def isDone(ch: Source[?]) = ch.isClosedForReceiveDetail.contains(ChannelClosed.Done)
+
     unsupervised:
-      val childStream = outer.map(Nested(_)).runToChannel()
-      var pool = List[Source[Nested] | Source[U]](childStream)
+      val parentChannel = outer.map(Nested(_)).runToChannel()
+      var runningChannelCount = 1 // parent is running
+      var childChannels = List.empty[Source[U]]
+      var parentDone = false
 
       repeatWhile:
+        assert(runningChannelCount <= parallelism + 1)
+        val pool: List[Source[Nested] | Source[U]] =
+          // +1, beacuse of the parent channel
+          if runningChannelCount == parallelism + 1 || parentDone then childChannels else parentChannel :: childChannels
+
         selectOrClosed(pool) match
           case ChannelClosed.Done =>
             // TODO: optimization idea: find a way to remove the specific channel that signalled to be Done
-            pool = pool.filterNot(_.isClosedForReceiveDetail.contains(ChannelClosed.Done))
-            if pool.isEmpty then false
-            else true
+            childChannels = childChannels.filterNot(_.isClosedForReceiveDetail.contains(ChannelClosed.Done))
+            parentDone = isDone(parentChannel)
+
+            runningChannelCount -= 1
+
+            if childChannels.isEmpty && parentDone then false else true
           case e: ChannelClosed.Error => throw e.toThrowable
           case Nested(t) =>
-            pool = t.runToChannel() :: pool
+            childChannels = t.runToChannel() :: childChannels
+            runningChannelCount += 1
             true
           case r: U @unchecked => emit(r); true
-
+        end match
   /** Concatenates this flow with the `other` flow. The resulting flow will emit elements from this flow first, and then from the `other`
     * flow.
     *

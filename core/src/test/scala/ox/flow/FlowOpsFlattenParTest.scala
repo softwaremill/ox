@@ -4,6 +4,7 @@ import org.scalatest.OptionValues
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.*
+import scala.concurrent.duration.DurationInt
 
 import java.util.concurrent.CountDownLatch
 import scala.collection.mutable.ListBuffer
@@ -22,23 +23,34 @@ class FlowOpsFlattenParTest extends AnyFlatSpec with Matchers with OptionValues:
       Flow.fromValues(20, 30),
       Flow.fromValues(40, 50, 60)
     )
-    flow.flattenPar.runToList() should contain theSameElementsAs List(10, 20, 30, 40, 50, 60)
+    flow.flattenPar(10).runToList() should contain theSameElementsAs List(10, 20, 30, 40, 50, 60)
 
   it should "handle empty flow" in:
     val flow = Flow.empty[Flow[Int]]
-    flow.flattenPar.runToList() should contain theSameElementsAs Nil
+    flow.flattenPar(10).runToList() should contain theSameElementsAs Nil
 
   it should "handle singleton flow" in:
     val flow = Flow.fromValues(Flow.fromValues(10))
-    flow.flattenPar.runToList() should contain theSameElementsAs List(10)
+    flow.flattenPar(10).runToList() should contain theSameElementsAs List(10)
 
   it should "not flatten nested flows" in:
     val flow = Flow.fromValues(Flow.fromValues(Flow.fromValues(10)))
-    flow.flattenPar.runToList().map(_.runToList()) should contain theSameElementsAs List(List(10))
+    flow.flattenPar(10).runToList().map(_.runToList()) should contain theSameElementsAs List(List(10))
 
   it should "handle subsequent flatten calls" in:
     val flow = Flow.fromValues(Flow.fromValues(Flow.fromValues(10), Flow.fromValues(20)))
-    flow.flattenPar.runToList().flatMap(_.runToList()) should contain theSameElementsAs List(10, 20)
+    flow.flattenPar(10).runToList().flatMap(_.runToList()) should contain theSameElementsAs List(10, 20)
+
+  it should "run at most parallelism child flows" in:
+    val flow = Flow.fromValues(
+      Flow.timeout(200.millis).concat(Flow.fromValues(10)),
+      Flow.timeout(100.millis).concat(Flow.fromValues(20, 30)),
+      Flow.fromValues(40, 50, 60)
+    )
+    // only one flow can run at a time
+    flow.flattenPar(1).runToList() should contain theSameElementsAs List(10, 20, 30, 40, 50, 60)
+    // when parallelism is increased, all flows are run concurrently
+    flow.flattenPar(3).runToList() should contain theSameElementsAs List(40, 50, 60, 20, 30, 10)
 
   it should "pipe elements realtime" in:
     supervised:
@@ -63,7 +75,7 @@ class FlowOpsFlattenParTest extends AnyFlatSpec with Matchers with OptionValues:
       val collected = ListBuffer[Int]()
       Flow
         .fromSource(source)
-        .flattenPar
+        .flattenPar(10)
         .runForeach: e =>
           collected += e
           if e == 20 then lockA.countDown()
@@ -87,7 +99,7 @@ class FlowOpsFlattenParTest extends AnyFlatSpec with Matchers with OptionValues:
 
       val flattenedFlow =
         implicit val capacity: BufferCapacity = BufferCapacity(0)
-        flow.flattenPar
+        flow.flattenPar(10)
 
       intercept[ChannelClosedException.Error] {
         flattenedFlow.runToList()
@@ -118,7 +130,7 @@ class FlowOpsFlattenParTest extends AnyFlatSpec with Matchers with OptionValues:
 
       val flattenedSource =
         implicit val capacity: BufferCapacity = BufferCapacity(0)
-        flow.flattenPar.runToChannel()
+        flow.flattenPar(10).runToChannel()
 
       end flattenedSource
 
