@@ -302,12 +302,20 @@ class FlowOps[+T]:
             case e: ChannelClosed.Error => throw e.toThrowable
             case r: U @unchecked        => emit(r); true
 
-  /** Pipes the elements of child flows into the output source. If the parent source or any of the child sources emit an error, the pulling
-    * stops and the output source emits the error.
+  /** Given that this flow emits other flows, flattens the nested flows into a single flow. The resulting flow emits elements from the
+    * nested flows in the order they are emitted.
     *
-    * Runs all flows concurrently in the background. The size of the buffers is determined by the [[BufferCapacity]] that is in scope.
+    * The nested flows are run in sequence, that is, the next nested flow is started only after the previous one completes.
     */
-  def flatten[U](using T <:< Flow[U])(using BufferCapacity): Flow[U] = Flow.usingEmitInline: emit =>
+  def flatten[U](using T <:< Flow[U]): Flow[U] = this.flatMap(identity)
+
+  /** Pipes the elements of child flows into the returned flow. If the this flow or any of the child flows emit an error, the pulling stops
+    * and the output flow propagates the error.
+    *
+    * All flows are run concurrently in the background. The size of the buffers for the elements emitted by the child flows is determined by
+    * the [[BufferCapacity]] that is in scope.
+    */
+  def flattenPar[U](using T <:< Flow[U])(using BufferCapacity): Flow[U] = Flow.usingEmitInline: emit =>
     case class Nested(child: Flow[U])
 
     unsupervised:
