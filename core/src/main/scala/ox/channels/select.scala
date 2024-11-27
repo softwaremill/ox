@@ -52,7 +52,7 @@ def selectOrClosed(
   *   The result returned by the selected clause, wrapped with [[SelectResult]], or a [[ChannelClosed]], when any of the channels is closed
   *   (done or in error).
   */
-def selectOrClosed[T](clauses: List[SelectClause[T]]): SelectResult[T] | ChannelClosed =
+def selectOrClosed[T](clauses: Seq[SelectClause[T]]): SelectResult[T] | ChannelClosed =
   ChannelClosed.fromJoxOrT(JSelect.selectOrClosed(clauses.map(_.delegate)*))
 
 //
@@ -105,7 +105,7 @@ def select(
   * @throws ChannelClosedException
   *   When any of the channels is closed (done or in error).
   */
-def select[T](clauses: List[SelectClause[T]]): SelectResult[T] = selectOrClosed(clauses).orThrow
+def select[T](clauses: Seq[SelectClause[T]]): SelectResult[T] = selectOrClosed(clauses).orThrow
 
 //
 
@@ -164,7 +164,7 @@ def selectOrClosed[T1, T2, T3, T4, T5](
   * @return
   *   The value received from the selected source, or a [[ChannelClosed]], when any of the channels is closed (done or in error).
   */
-def selectOrClosed[T](sources: List[Source[T]])(using DummyImplicit): T | ChannelClosed =
+def selectOrClosed[T](sources: Seq[Source[T]])(using DummyImplicit): T | ChannelClosed =
   selectOrClosed(sources.map(_.receiveClause: SelectClause[T])) match
     case r: Source[T]#Received => r.value
     case c: ChannelClosed      => c
@@ -225,5 +225,5 @@ def select[T1, T2, T3, T4, T5](
   * @throws ChannelClosedException
   *   When any of the channels is closed (done or in error).
   */
-def select[T](sources: List[Source[T]])(using DummyImplicit): T | ChannelClosed =
+def select[T](sources: Seq[Source[T]])(using DummyImplicit): T | ChannelClosed =
   selectOrClosed(sources).orThrow

@@ -7,6 +7,7 @@ import ox.channels.BufferCapacity
 import ox.discard
 
 import scala.collection.mutable.ListBuffer
+import scala.util.control.NonFatal
 
 trait FlowRunOps[+T]:
   this: Flow[T] =>
@@ -44,11 +45,17 @@ trait FlowRunOps[+T]:
 
   /** Passes each element emitted by this flow to the given sink. Blocks until the flow completes.
     *
-    * Errors are always propagated. Successful flow completion is propagated when `propagateDone` is set to `true`.
+    * Errors are always propagated to the provided sink. Successful flow completion is propagated when `propagateDone` is set to `true`.
+    *
+    * Fatal errors are rethrown.
     */
   def runPipeToSink(sink: Sink[T], propagateDone: Boolean): Unit =
-    last.run(FlowEmit.fromInline(t => sink.send(t)))
-    if propagateDone then sink.doneOrClosed().discard
+    try
+      last.run(FlowEmit.fromInline(t => sink.send(t)))
+      if propagateDone then sink.doneOrClosed().discard
+    catch
+      case NonFatal(e) => sink.error(e)
+      case t           => sink.error(t); throw t
 
   /** Ignores all elements emitted by the flow. Blocks until the flow completes. */
   def runDrain(): Unit = runForeach(_ => ())

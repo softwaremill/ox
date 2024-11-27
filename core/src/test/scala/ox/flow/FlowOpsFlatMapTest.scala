@@ -15,7 +15,7 @@ class FlowOpsFlatMapTest extends AnyFlatSpec with Matchers:
     the[RuntimeException] thrownBy {
       Flow
         .fromValues(1, 2, 3)
-        .flatMap(v => if v == 2 then Flow.failed(new RuntimeException("boom")) else Flow.fromValues(v + 1, v + 2))
+        .flatMap(v => if v == 2 then Flow.failed(new RuntimeException("boom!")) else Flow.fromValues(v + 1, v + 2))
         .runToList()
-    } should have message "boom"
+    } should have message "boom!"
 end FlowOpsFlatMapTest
