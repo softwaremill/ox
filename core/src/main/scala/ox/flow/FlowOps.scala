@@ -859,8 +859,8 @@ class FlowOps[+T]:
           end match
         end sendToChild_orRunChild_orBuffer
 
-        // Main loop
-        repeatWhile:
+        // Main loop; while there are any values to receive (from parent or children).
+        while !(children.isEmpty && parentDone) do
           assert(children.size <= parallelism) // invariant
 
           // We do not receive from the parent when it's done, or when there's already a pending child flow to create
@@ -873,9 +873,6 @@ class FlowOps[+T]:
             then List(childOutput, childDone)
             else List(childOutput, childDone, parentChannel)
 
-          // Continuing the loop only if there are any values to receive (from parent or children).
-          inline def shouldContinueSelect = !(children.isEmpty && parentDone)
-
           selectOrClosed(pool) match
             case ChannelClosed.Done =>
               // Only the parent can be done; child completion is signalled via a value in `childDone`.
@@ -885,14 +882,11 @@ class FlowOps[+T]:
               // Completing all children as done - there will be no more incoming values.
               List.unfold(0L)(_ => childMostRecentCounters.extractMin()).foreach(v => children(v).done())
 
-              shouldContinueSelect
-
             case e: ChannelClosed.Error => throw e.toThrowable
 
             case FromParent(t) =>
               fromParentCounter += 1
               sendToChild_orRunChild_orBuffer(t, predicate(t), fromParentCounter)
-              true
 
             case ChildDone(v) =>
               children = children.removed(v)
@@ -908,12 +902,10 @@ class FlowOps[+T]:
                 )
 
               runChild_ifPending()
-              shouldContinueSelect
 
-            case u: U @unchecked =>
-              emit(u) // forwarding from `childOutput`
-              true
+            case u: U @unchecked => emit(u) // forwarding from `childOutput`
           end match
+        end while
   end groupBy
 
   /** Discard all elements emitted by this flow. The returned flow completes only when this flow completes (successfully or with an error).
