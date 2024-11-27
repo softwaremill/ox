@@ -13,7 +13,7 @@ import ox.channels.Source
 import ox.channels.forkPropagate
 import ox.channels.selectOrClosed
 import ox.discard
-import ox.flow.internal.WeightedHeap
+import ox.flow.internal.groupByImpl
 import ox.forkCancellable
 import ox.forkUnsupervised
 import ox.forkUser
@@ -788,125 +788,7 @@ class FlowOps[+T]:
     *   flow is created, and a flow of `T` elements in that group (each such element has the same group value `V` returned by `predicated`).
     */
   def groupBy[V, U](parallelism: Int, predicate: T => V)(childFlowTransform: V => Flow[T] => Flow[U])(using BufferCapacity): Flow[U] =
-    Flow.usingEmitInline: emit =>
-      unsupervised:
-        // Channel where all elements emitted by child flows will be sent; we use such a collective channel instead of
-        // enumerating all child channels in the main `select`, as `select`s don't scale well with the number of
-        // clauses. The elements from this channel are then emitted by the returned flow.
-        val childOutput = BufferCapacity.newChannel[U]
-
-        // Channel where completion of children is signalled (because the parent is complete, or the parallelism limit
-        // is reached).
-        case class ChildDone(v: V)
-        val childDone = Channel.unlimited[ChildDone]
-
-        // Parent channel, from which we receive as long as it's not done, and only when a child flow isn't pending
-        // creation (see below). As the receive is conditional, the errors that occur on this channel are also
-        // propagated to `childOutput`, which is always the first (priority) clause in the main `select`.
-        case class FromParent(v: T)
-        val parentChannel = outer.map(FromParent(_)).onError(childOutput.errorOrClosed(_).discard).runToChannel()
-
-        // State, which is updated in the main `repeatWhile`+`select` loop below.
-        var parentDone = false
-        // Child flow which can't be yet started because of parallelism limit.
-        var pendingFromParent: Option[(T, V, Long)] = None
-        var children = Map.empty[V, Channel[T]]
-
-        // Counter of elements received from the parent.
-        var fromParentCounter = 0L
-        // A heap with group value (`V`) elements, weighted by the last parent element, mapped to that value.
-        // Used to complete child flows, which haven't received an element the longest.
-        val childMostRecentCounters = new WeightedHeap[V]()
-
-        // Running a pending child flow, after another has completed as done
-        def runChild_ifPending(): Unit = pendingFromParent.foreach: (t, v, counter) =>
-          pendingFromParent = None
-          sendToChild_orRunChild_orBuffer(t, v, counter)
-
-        def sendToChild_orRunChild_orBuffer(t: T, v: V, counter: Long): Unit =
-          childMostRecentCounters.insert(v, counter) // Bump child counters.
-
-          children.get(v) match
-            case Some(child) => child.send(t)
-
-            case None if children.size < parallelism =>
-              // Starting a new child flow, running in the background; the child flow receives values via a channel,
-              // and feeds its output to `childOutput`. Done signals are forwarded to `childDone`; elements & errors
-              // are propagated to `childOutput`.
-              val childChannel = BufferCapacity.newChannel[T]
-              children += v -> childChannel
-
-              forkUnsupervised:
-                childFlowTransform(v)(Flow.fromSource(childChannel))
-                  .onDone(childDone.sendOrClosed(ChildDone(v)).discard)
-                  // When the child flow is done, making sure that the source channel becomes closed as well
-                  // otherwise, we'd be risking a deadlock, if there are `childChannel.send`-s pending, and the
-                  // buffer is full; if the channel is already closed, this is a no-op.
-                  .onDone(childChannel.doneOrClosed().discard)
-                  .onError(t => childChannel.errorOrClosed(t).discard)
-                  .runPipeToSink(childOutput, propagateDone = false)
-              .discard
-
-              childChannel.send(t)
-
-            case None =>
-              assert(pendingFromParent == None)
-              pendingFromParent = Some((t, v, counter))
-
-              // Completing as done the child flow which didn't receive an element for the longest time. After
-              // the flow completes, it will send `ChildDone` to `childDone`.
-              childMostRecentCounters.extractMin().foreach((v, _) => children(v).done())
-          end match
-        end sendToChild_orRunChild_orBuffer
-
-        // Main loop; while there are any values to receive (from parent or children).
-        while !(children.isEmpty && parentDone) do
-          assert(children.size <= parallelism) // invariant
-
-          // We do not receive from the parent when it's done, or when there's already a pending child flow to create
-          // (but can't be created because of `parallelism` limit); we always receive from child output & child done
-          // signals. In case of parent's error, the error is also propagated above to `childOutput`, so that it's
-          // quickly received. Receiving from child output has priority over child done signals, to receive all child
-          // values before marking a child as done.
-          val pool =
-            if parentDone || pendingFromParent.isDefined
-            then List(childOutput, childDone)
-            else List(childOutput, childDone, parentChannel)
-
-          selectOrClosed(pool) match
-            case ChannelClosed.Done =>
-              // Only the parent can be done; child completion is signalled via a value in `childDone`.
-              parentDone = isSourceDone(parentChannel)
-              assert(parentDone)
-
-              // Completing all children as done - there will be no more incoming values.
-              List.unfold(0L)(_ => childMostRecentCounters.extractMin()).foreach(v => children(v).done())
-
-            case e: ChannelClosed.Error => throw e.toThrowable
-
-            case FromParent(t) =>
-              fromParentCounter += 1
-              sendToChild_orRunChild_orBuffer(t, predicate(t), fromParentCounter)
-
-            case ChildDone(v) =>
-              children = children.removed(v)
-
-              // Children should only be done because their `childChannel` was completed as done by
-              // `sendToChild_orRunChild_orBuffer`, then `childMostRecentCounters` should have `v` removed.
-              // If it's still present, this indicates that the child flow was completed as done while the source
-              // child channel is not, which is invalid usage.
-              if childMostRecentCounters.contains(v) then
-                throw new IllegalStateException(
-                  "Invalid usage of child flows: child flow was completed as done by user code (in " +
-                    "childFlowTransform), while this is not allowed (see documentation for details)"
-                )
-
-              runChild_ifPending()
-
-            case u: U @unchecked => emit(u) // forwarding from `childOutput`
-          end match
-        end while
-  end groupBy
+    groupByImpl(outer, parallelism, predicate)(childFlowTransform)
 
   /** Discard all elements emitted by this flow. The returned flow completes only when this flow completes (successfully or with an error).
     */
@@ -934,6 +816,6 @@ class FlowOps[+T]:
       last.run(FlowEmit.fromInline(t => ch.send(t)))
       ch.done()
     }.discard
-
-  private inline def isSourceDone(ch: Source[?]) = ch.isClosedForReceiveDetail.contains(ChannelClosed.Done)
 end FlowOps
+
+private[flow] inline def isSourceDone(ch: Source[?]) = ch.isClosedForReceiveDetail.contains(ChannelClosed.Done)
