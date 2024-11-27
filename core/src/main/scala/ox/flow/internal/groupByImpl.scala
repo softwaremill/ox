@@ -25,7 +25,16 @@ private[flow] def groupByImpl[T, V, U](parent: Flow[T], parallelism: Int, predic
       // A heap with group value (`V`) elements, weighted by the last parent element, mapped to that value.
       // Used to complete child flows, which haven't received an element the longest. Mutable!
       childMostRecentCounters: WeightedHeap[V]
-  )
+  ):
+    def withChildAdded(v: V, childChannel: Channel[T]): GroupByState = copy(children = children + (v -> childChannel))
+    def withChildRemoved(v: V): GroupByState = copy(children = children.removed(v))
+    def withPendingFromParent(t: T, v: V, counter: Long): GroupByState = copy(pendingFromParent = Some((t, v, counter)))
+    def withParentDone(done: Boolean): GroupByState = copy(parentDone = done)
+    def withFromParentCounterIncremented: GroupByState = copy(fromParentCounter = fromParentCounter + 1)
+
+    def elementsCanBeReceived: Boolean = !(children.isEmpty && parentDone)
+    def shouldReceiveFromParentChannel: Boolean = parentDone || pendingFromParent.isDefined
+  end GroupByState
 
   case class ChildDone(v: V)
 
@@ -50,12 +59,12 @@ private[flow] def groupByImpl[T, V, U](parent: Flow[T], parallelism: Int, predic
     s.children.get(v) match
       case Some(child) => child.send(t)
 
-      case None if state.children.size < parallelism =>
+      case None if s.children.size < parallelism =>
         // Starting a new child flow, running in the background; the child flow receives values via a channel,
         // and feeds its output to `childOutput`. Done signals are forwarded to `childDone`; elements & errors
         // are propagated to `childOutput`.
         val childChannel = BufferCapacity.newChannel[T]
-        s = s.copy(children = s.children + (v -> childChannel))
+        s = s.withChildAdded(v, childChannel)
 
         forkUnsupervised:
           childFlowTransform(v)(Flow.fromSource(childChannel))
@@ -71,8 +80,8 @@ private[flow] def groupByImpl[T, V, U](parent: Flow[T], parallelism: Int, predic
         childChannel.send(t)
 
       case None =>
-        assert(state.pendingFromParent == None)
-        s = s.copy(pendingFromParent = Some((t, v, counter)))
+        assert(s.pendingFromParent == None)
+        s = s.withPendingFromParent(t, v, counter)
 
         // Completing as done the child flow which didn't receive an element for the longest time. After
         // the flow completes, it will send `ChildDone` to `childDone`.
@@ -102,7 +111,7 @@ private[flow] def groupByImpl[T, V, U](parent: Flow[T], parallelism: Int, predic
       var state = GroupByState(parentDone = false, None, Map.empty, 0L, WeightedHeap())
 
       // Main loop; while there are any values to receive (from parent or children).
-      while !(state.children.isEmpty && state.parentDone) do
+      while state.elementsCanBeReceived do
         assert(state.children.size <= parallelism) // invariant
 
         // We do not receive from the parent when it's done, or when there's already a pending child flow to create
@@ -111,14 +120,14 @@ private[flow] def groupByImpl[T, V, U](parent: Flow[T], parallelism: Int, predic
         // quickly received. Receiving from child output has priority over child done signals, to receive all child
         // values before marking a child as done.
         val pool =
-          if state.parentDone || state.pendingFromParent.isDefined
+          if state.shouldReceiveFromParentChannel
           then List(childOutput, childDone)
           else List(childOutput, childDone, parentChannel)
 
         selectOrClosed(pool) match
           case ChannelClosed.Done =>
             // Only the parent can be done; child completion is signalled via a value in `childDone`.
-            state = state.copy(parentDone = isSourceDone(parentChannel))
+            state = state.withParentDone(isSourceDone(parentChannel))
             assert(state.parentDone)
 
             // Completing all children as done - there will be no more incoming values.
@@ -127,11 +136,11 @@ private[flow] def groupByImpl[T, V, U](parent: Flow[T], parallelism: Int, predic
           case e: ChannelClosed.Error => throw e.toThrowable
 
           case FromParent(t) =>
-            state = state.copy(fromParentCounter = state.fromParentCounter + 1)
+            state = state.withFromParentCounterIncremented
             state = sendToChild_orRunChild_orBuffer(state, childDone, childOutput, t, predicate(t), state.fromParentCounter)
 
           case ChildDone(v) =>
-            state = state.copy(children = state.children.removed(v))
+            state = state.withChildRemoved(v)
 
             // Children should only be done because their `childChannel` was completed as done by
             // `sendToChild_orRunChild_orBuffer`, then `childMostRecentCounters` should have `v` removed.
