@@ -324,37 +324,52 @@ class FlowOps[+T]:
     */
   def flattenPar[U](parallelism: Int)(using T <:< Flow[U])(using BufferCapacity): Flow[U] = Flow.usingEmitInline: emit =>
     case class Nested(child: Flow[U])
-
-    inline def isDone(ch: Source[?]) = ch.isClosedForReceiveDetail.contains(ChannelClosed.Done)
+    case object ChildDone
 
     unsupervised:
-      val parentChannel = outer.map(Nested(_)).runToChannel()
+      val childOutputChannel = BufferCapacity.newChannel[U]
+      val childDoneChannel = Channel.unlimited[ChildDone.type]
+
+      // When an error occurs in the parent, propagating it also to `childOutputChannel`, from which we always
+      // `select` in the main loop. That way, even if max parallelism is reached, errors in the parent will
+      // be discovered without delay.
+      val parentChannel = outer.map(Nested(_)).onError(childOutputChannel.error(_).discard).runToChannel()
+
       var runningChannelCount = 1 // parent is running
-      var childChannels = List.empty[Source[U]]
       var parentDone = false
 
-      repeatWhile:
+      while runningChannelCount > 0 do
         assert(runningChannelCount <= parallelism + 1)
-        val pool: List[Source[Nested] | Source[U]] =
-          // +1, beacuse of the parent channel
-          if runningChannelCount == parallelism + 1 || parentDone then childChannels else parentChannel :: childChannels
+
+        val pool: List[Source[Nested] | Source[U] | Source[ChildDone.type]] =
+          // +1, because of the parent channel.
+          if runningChannelCount == parallelism + 1 || parentDone then List(childOutputChannel, childDoneChannel)
+          else List(childOutputChannel, childDoneChannel, parentChannel)
 
         selectOrClosed(pool) match
+          // Only `parentChannel` might be done, child completion is signalled via `childDoneChannel`.
           case ChannelClosed.Done =>
-            // TODO: optimization idea: find a way to remove the specific channel that signalled to be Done
-            childChannels = childChannels.filterNot(isDone)
-            parentDone = isDone(parentChannel)
+            parentDone = isSourceDone(parentChannel)
+            assert(parentDone)
 
             runningChannelCount -= 1
 
-            if childChannels.isEmpty && parentDone then false else true
           case e: ChannelClosed.Error => throw e.toThrowable
+
+          case ChildDone => runningChannelCount -= 1
+
           case Nested(t) =>
-            childChannels = t.runToChannel() :: childChannels
+            forkUnsupervised:
+              t.onDone(childDoneChannel.send(ChildDone)).runPipeToSink(childOutputChannel, propagateDone = false)
+            .discard
+
             runningChannelCount += 1
-            true
-          case r: U @unchecked => emit(r); true
+
+          case u: U @unchecked => emit(u)
         end match
+      end while
+  end flattenPar
+
   /** Concatenates this flow with the `other` flow. The resulting flow will emit elements from this flow first, and then from the `other`
     * flow.
     *
@@ -775,8 +790,6 @@ class FlowOps[+T]:
   def groupBy[V, U](parallelism: Int, predicate: T => V)(childFlowTransform: V => Flow[T] => Flow[U])(using BufferCapacity): Flow[U] =
     Flow.usingEmitInline: emit =>
       unsupervised:
-        inline def isDone(ch: Source[?]) = ch.isClosedForReceiveDetail.contains(ChannelClosed.Done)
-
         // Channel where all elements emitted by child flows will be sent; we use such a collective channel instead of
         // enumerating all child channels in the main `select`, as `select`s don't scale well with the number of
         // clauses. The elements from this channel are then emitted by the returned flow.
@@ -866,7 +879,7 @@ class FlowOps[+T]:
           selectOrClosed(pool) match
             case ChannelClosed.Done =>
               // Only the parent can be done; child completion is signalled via a value in `childDone`.
-              parentDone = isDone(parentChannel)
+              parentDone = isSourceDone(parentChannel)
               assert(parentDone)
 
               // Completing all children as done - there will be no more incoming values.
@@ -929,4 +942,6 @@ class FlowOps[+T]:
       last.run(FlowEmit.fromInline(t => ch.send(t)))
       ch.done()
     }.discard
+
+  private inline def isSourceDone(ch: Source[?]) = ch.isClosedForReceiveDetail.contains(ChannelClosed.Done)
 end FlowOps

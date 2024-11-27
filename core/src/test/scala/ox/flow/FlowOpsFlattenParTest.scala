@@ -103,7 +103,7 @@ class FlowOpsFlattenParTest extends AnyFlatSpec with Matchers with OptionValues:
 
       intercept[ChannelClosedException.Error] {
         flattenedFlow.runToList()
-      }.getCause() shouldBe a[IllegalStateException]
+      }.getCause().getCause() shouldBe a[IllegalStateException]
 
       // no values should be piped by the flattening process after the error
       lock.countDown()
