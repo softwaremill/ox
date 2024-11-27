@@ -1,21 +1,24 @@
 package ox.flow.internal
 
-import ox.flow.Flow
-import ox.flow.isSourceDone
+import ox.OxUnsupervised
 import ox.channels.BufferCapacity
 import ox.channels.Channel
-import ox.channels.Sink
-import ox.OxUnsupervised
-import ox.forkUnsupervised
-import ox.discard
-import ox.unsupervised
-import ox.channels.selectOrClosed
 import ox.channels.ChannelClosed
+import ox.channels.Sink
+import ox.channels.selectOrClosed
+import ox.discard
+import ox.flow.Flow
+import ox.flow.isSourceDone
+import ox.forkUnsupervised
+import ox.pipe
+import ox.unsupervised
+
+import scala.annotation.tailrec
 
 private[flow] def groupByImpl[T, V, U](parent: Flow[T], parallelism: Int, predicate: T => V)(childFlowTransform: V => Flow[T] => Flow[U])(
     using BufferCapacity
 ): Flow[U] =
-  // State, which is updated in the main `repeatWhile`+`select` loop below.
+  // Group by's (immutable) state, which is updated in the main `while`+`select` loop below.
   case class GroupByState(
       parentDone: Boolean,
       pendingFromParent: Option[(T, V, Long)],
@@ -23,7 +26,7 @@ private[flow] def groupByImpl[T, V, U](parent: Flow[T], parallelism: Int, predic
       // Counter of elements received from the parent.
       fromParentCounter: Long,
       // A heap with group value (`V`) elements, weighted by the last parent element, mapped to that value.
-      // Used to complete child flows, which haven't received an element the longest. Mutable!
+      // Used to complete child flows, which haven't received an element the longest.
       childMostRecentCounters: WeightedHeap[V]
   ):
     def withChildAdded(v: V, childChannel: Channel[T]): GroupByState = copy(children = children + (v -> childChannel))
@@ -31,6 +34,11 @@ private[flow] def groupByImpl[T, V, U](parent: Flow[T], parallelism: Int, predic
     def withPendingFromParent(t: T, v: V, counter: Long): GroupByState = copy(pendingFromParent = Some((t, v, counter)))
     def withParentDone(done: Boolean): GroupByState = copy(parentDone = done)
     def withFromParentCounterIncremented: GroupByState = copy(fromParentCounter = fromParentCounter + 1)
+
+    def withChildCounter(v: V, counter: Long) = copy(childMostRecentCounters = childMostRecentCounters.insert(v, counter))
+    def withoutLongestInactiveChild: (Option[V], GroupByState) =
+      val (vw, counters2) = childMostRecentCounters.extractMin()
+      (vw.map(_._1), copy(childMostRecentCounters = counters2))
 
     def elementsCanBeReceived: Boolean = !(children.isEmpty && parentDone)
     def shouldReceiveFromParentChannel: Boolean = parentDone || pendingFromParent.isDefined
@@ -54,7 +62,7 @@ private[flow] def groupByImpl[T, V, U](parent: Flow[T], parallelism: Int, predic
       counter: Long
   )(using OxUnsupervised): GroupByState =
     var s = state
-    s.childMostRecentCounters.insert(v, counter) // Bump child counters.
+    s = s.withChildCounter(v, counter) // Bump child counter.
 
     s.children.get(v) match
       case Some(child) => child.send(t)
@@ -85,7 +93,10 @@ private[flow] def groupByImpl[T, V, U](parent: Flow[T], parallelism: Int, predic
 
         // Completing as done the child flow which didn't receive an element for the longest time. After
         // the flow completes, it will send `ChildDone` to `childDone`.
-        s.childMostRecentCounters.extractMin().foreach((v, _) => s.children(v).done())
+        s = s.withoutLongestInactiveChild.pipe { (vOpt, s2) =>
+          vOpt.foreach(s.children(_).done())
+          s2
+        }
     end match
 
     s
@@ -131,7 +142,12 @@ private[flow] def groupByImpl[T, V, U](parent: Flow[T], parallelism: Int, predic
             assert(state.parentDone)
 
             // Completing all children as done - there will be no more incoming values.
-            List.unfold(0L)(_ => state.childMostRecentCounters.extractMin()).foreach(v => state.children(v).done())
+            @tailrec def doCompleteAll(s: GroupByState): GroupByState =
+              s.withoutLongestInactiveChild match
+                case (Some(v), s2) => s2.children(v).done(); doCompleteAll(s2)
+                case (None, s2)    => s2
+
+            state = doCompleteAll(state)
 
           case e: ChannelClosed.Error => throw e.toThrowable
 

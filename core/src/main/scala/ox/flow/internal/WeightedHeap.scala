@@ -1,81 +1,100 @@
 package ox.flow.internal
 
-import scala.collection.mutable
-import ox.discard
-
-class WeightedHeap[T]:
-  private val heap = mutable.ArrayBuffer[(T, Long)]()
-  private val valueToIndex = mutable.HashMap[T, Int]()
+case class WeightedHeap[T](
+    private val heap: Vector[(T, Long)] = Vector.empty[(T, Long)],
+    private val valueToIndex: Map[T, Int] = Map.empty[T, Int]
+):
 
   private def parentIndex(i: Int): Int = (i - 1) / 2
   private def leftChildIndex(i: Int): Int = 2 * i + 1
   private def rightChildIndex(i: Int): Int = 2 * i + 2
 
-  private def swap(i: Int, j: Int): Unit =
-    val temp = heap(i)
-    heap(i) = heap(j)
-    heap(j) = temp
-    valueToIndex(heap(i)._1) = i
-    valueToIndex(heap(j)._1) = j
+  private def swap(heap: Vector[(T, Long)], valueToIndex: Map[T, Int], i: Int, j: Int): (Vector[(T, Long)], Map[T, Int]) =
+    val updatedHeap = heap.updated(i, heap(j)).updated(j, heap(i))
+    val updatedMap = valueToIndex
+      .updated(heap(i)._1, j)
+      .updated(heap(j)._1, i)
+    (updatedHeap, updatedMap)
 
-  private def bubbleUp(i: Int): Unit =
+  private def bubbleUp(heap: Vector[(T, Long)], valueToIndex: Map[T, Int], i: Int): (Vector[(T, Long)], Map[T, Int]) =
     var currentIndex = i
-    while currentIndex > 0 && heap(currentIndex)._2 < heap(parentIndex(currentIndex))._2 do
-      swap(currentIndex, parentIndex(currentIndex))
+    var currentHeap = heap
+    var currentMap = valueToIndex
+
+    while currentIndex > 0 && currentHeap(currentIndex)._2 < currentHeap(parentIndex(currentIndex))._2 do
+      val (newHeap, newMap) = swap(currentHeap, currentMap, currentIndex, parentIndex(currentIndex))
+      currentHeap = newHeap
+      currentMap = newMap
       currentIndex = parentIndex(currentIndex)
+    (currentHeap, currentMap)
+  end bubbleUp
 
-  private def bubbleDown(i: Int): Unit =
+  private def bubbleDown(heap: Vector[(T, Long)], valueToIndex: Map[T, Int], i: Int): (Vector[(T, Long)], Map[T, Int]) =
     var currentIndex = i
+    var currentHeap = heap
+    var currentMap = valueToIndex
+
     while true do
       val left = leftChildIndex(currentIndex)
       val right = rightChildIndex(currentIndex)
       var smallest = currentIndex
 
-      if left < heap.length && heap(left)._2 < heap(smallest)._2 then smallest = left
-      if right < heap.length && heap(right)._2 < heap(smallest)._2 then smallest = right
+      if left < currentHeap.length && currentHeap(left)._2 < currentHeap(smallest)._2 then smallest = left
+      if right < currentHeap.length && currentHeap(right)._2 < currentHeap(smallest)._2 then smallest = right
 
-      if smallest == currentIndex then return
+      if smallest == currentIndex then return (currentHeap, currentMap)
 
-      swap(currentIndex, smallest)
+      val (newHeap, newMap) = swap(currentHeap, currentMap, currentIndex, smallest)
+      currentHeap = newHeap
+      currentMap = newMap
       currentIndex = smallest
     end while
+    throw new IllegalStateException()
   end bubbleDown
 
-  def insert(value: T, weight: Long): Unit =
-    if valueToIndex.contains(value) then updateWeight(value, weight)
-    else
-      heap.append((value, weight))
-      valueToIndex(value) = heap.length - 1
-      bubbleUp(heap.length - 1)
+  def insert(value: T, weight: Long): WeightedHeap[T] =
+    valueToIndex.get(value) match
+      case Some(_) =>
+        updateWeight(value, weight)
+      case None =>
+        val newHeap = heap :+ (value, weight)
+        val newMap = valueToIndex + (value -> (newHeap.length - 1))
+        val (finalHeap, finalMap) = bubbleUp(newHeap, newMap, newHeap.length - 1)
+        WeightedHeap(finalHeap, finalMap)
 
-  def extractMin(): Option[(T, Long)] =
-    if heap.isEmpty then return None
+  def extractMin(): (Option[(T, Long)], WeightedHeap[T]) =
+    if heap.isEmpty then return (None, this)
+
     val min = heap.head
-    val last = heap.remove(heap.length - 1)
-    valueToIndex.remove(min._1).discard
+    if heap.length == 1 then return (Some(min), WeightedHeap(Vector.empty, Map.empty))
 
-    if heap.nonEmpty then
-      heap(0) = last
-      valueToIndex(last._1) = 0
-      bubbleDown(0)
+    val last = heap.last
+    val updatedHeap = heap.updated(0, last).init
+    val updatedMap = valueToIndex.updated(last._1, 0) - min._1
 
-    Some(min)
+    val (finalHeap, finalMap) = bubbleDown(updatedHeap, updatedMap, 0)
+    (Some(min), WeightedHeap(finalHeap, finalMap))
   end extractMin
 
-  def updateWeight(value: T, newWeight: Long): Unit =
+  def updateWeight(value: T, newWeight: Long): WeightedHeap[T] =
     valueToIndex.get(value) match
       case Some(index) =>
-        val oldWeight = heap(index)._2
-        heap(index) = (value, newWeight)
-        if newWeight < oldWeight then bubbleUp(index)
-        else bubbleDown(index)
+        val currentWeight = heap(index)._2
+        val updatedHeap = heap.updated(index, (value, newWeight))
+        if newWeight < currentWeight then
+          val (finalHeap, finalMap) = bubbleUp(updatedHeap, valueToIndex, index)
+          WeightedHeap(finalHeap, finalMap)
+        else
+          val (finalHeap, finalMap) = bubbleDown(updatedHeap, valueToIndex, index)
+          WeightedHeap(finalHeap, finalMap)
       case None =>
         throw new NoSuchElementException(s"Value $value not found in heap")
 
   def peekMin(): Option[(T, Long)] = heap.headOption
 
-  def isEmpty: Boolean = heap.isEmpty
   def size: Int = heap.size
 
-  def contains(value: T): Boolean = valueToIndex.contains(value)
+  def isEmpty: Boolean = heap.isEmpty
+
+  def contains(t: T): Boolean = valueToIndex.contains(t)
 end WeightedHeap
