@@ -26,7 +26,7 @@ class FlowOpsGroupByTest extends AnyFlatSpec with Matchers:
 
     val result = Flow
       .fromValues(10, 11, 12, 13, 20, 23, 33, 30)
-      .groupBy(10, _ % 10)(v => _.mapStatefulConcat(() => Group(v, Nil))((g, i) => (g.copy(values = i :: g.values), Nil), g => Some(g)))
+      .groupBy(10, _ % 10)(v => _.mapStatefulConcat(Group(v, Nil))((g, i) => (g.copy(values = i :: g.values), Nil), g => Some(g)))
       .runToList()
       .toSet
 
@@ -38,7 +38,7 @@ class FlowOpsGroupByTest extends AnyFlatSpec with Matchers:
     val result = Flow
       .fromValues(10, 11, 12, 13, 20, 23, 33, 30)
       // only one group should be active at any time
-      .groupBy(1, _ % 10)(v => _.mapStatefulConcat(() => Group(v, Nil))((g, i) => (g.copy(values = i :: g.values), Nil), g => Some(g)))
+      .groupBy(1, _ % 10)(v => _.mapStatefulConcat(Group(v, Nil))((g, i) => (g.copy(values = i :: g.values), Nil), g => Some(g)))
       .runToList()
 
     result shouldBe List(
@@ -59,7 +59,7 @@ class FlowOpsGroupByTest extends AnyFlatSpec with Matchers:
     val result = Flow
       .fromValues(10, 11, 12, 22, 21, 20, 32, 13 /* exceeds limit, group 1 should complete */, 42, 30, 23,
         31 /* group 2 completed, group 1 re-created */ )
-      .groupBy(3, _ % 10)(v => _.mapStatefulConcat(() => Group(v, Nil))((g, i) => (g.copy(values = i :: g.values), Nil), g => Some(g)))
+      .groupBy(3, _ % 10)(v => _.mapStatefulConcat(Group(v, Nil))((g, i) => (g.copy(values = i :: g.values), Nil), g => Some(g)))
       .runToList()
       .toSet // the order of emitting the groups might be partially random (due to concurrency)
 
@@ -77,7 +77,7 @@ class FlowOpsGroupByTest extends AnyFlatSpec with Matchers:
     val input = 1 to 100000
     val result = Flow
       .fromIterable(input)
-      .groupBy(100, _ % 100)(v => _.mapStatefulConcat(() => Group(v, Nil))((g, i) => (g.copy(values = i :: g.values), Nil), g => Some(g)))
+      .groupBy(100, _ % 100)(v => _.mapStatefulConcat(Group(v, Nil))((g, i) => (g.copy(values = i :: g.values), Nil), g => Some(g)))
       .runToList()
 
     result.size shouldBe 100
@@ -89,7 +89,7 @@ class FlowOpsGroupByTest extends AnyFlatSpec with Matchers:
     val result = Flow
       .fromValues(10, 11, 12, 13, 20, 23, 33, 30)
       .groupBy(10, v => if v % 2 == 0 then "even" else "odd")(v =>
-        _.mapStatefulConcat(() => Group(v, Nil))((g, i) => (g.copy(values = i :: g.values), Nil), g => Some(g))
+        _.mapStatefulConcat(Group(v, Nil))((g, i) => (g.copy(values = i :: g.values), Nil), g => Some(g))
       )
       .runToList()
       .toSet

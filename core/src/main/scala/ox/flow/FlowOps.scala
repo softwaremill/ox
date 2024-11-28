@@ -477,7 +477,7 @@ class FlowOps[+T]:
     *   A function that transforms the final state into an optional element emitted by the returned flow. By default the final state is
     *   ignored.
     */
-  def mapStateful[S, U](initializeState: () => S)(f: (S, T) => (S, U), onComplete: S => Option[U] = (_: S) => None): Flow[U] =
+  def mapStateful[S, U](initializeState: => S)(f: (S, T) => (S, U), onComplete: S => Option[U] = (_: S) => None): Flow[U] =
     def resultToSome(s: S, t: T) =
       val (newState, result) = f(s, t)
       (newState, Some(result))
@@ -505,9 +505,9 @@ class FlowOps[+T]:
     *   ignored.
     */
   def mapStatefulConcat[S, U](
-      initializeState: () => S
+      initializeState: => S
   )(f: (S, T) => (S, IterableOnce[U]), onComplete: S => Option[U] = (_: S) => None): Flow[U] = Flow.usingEmitInline: emit =>
-    var state = initializeState()
+    var state = initializeState
     last.run(
       FlowEmit.fromInline: t =>
         val (nextState, result) = f(state, t)

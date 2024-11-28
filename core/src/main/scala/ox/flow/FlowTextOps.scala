@@ -22,7 +22,7 @@ trait FlowTextOps[+T]:
   def lines(charset: Charset)(using T <:< Chunk[Byte]): Flow[String] =
     // buffer == null is a special state for handling empty chunks in onComplete, in order to tell them apart from empty lines
     outer
-      .mapStatefulConcat(() => null: Chunk[Byte])(
+      .mapStatefulConcat(null: Chunk[Byte])(
         { case (buffer, nextChunk) =>
           @tailrec
           def splitChunksAtNewLine(buf: Chunk[Byte], chunk: Chunk[Byte], acc: Vector[Chunk[Byte]]): (Chunk[Byte], Vector[Chunk[Byte]]) =

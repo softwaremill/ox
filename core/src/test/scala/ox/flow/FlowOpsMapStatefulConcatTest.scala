@@ -15,7 +15,7 @@ class FlowOpsMapStatefulConcatTest extends AnyFlatSpec with Matchers:
     val c = Flow.fromValues(1, 2, 2, 3, 2, 4, 3, 1, 5)
 
     // when
-    val s = c.mapStatefulConcat(() => Set.empty[Int])((s, e) => (s + e, Option.unless(s.contains(e))(e)))
+    val s = c.mapStatefulConcat(Set.empty[Int])((s, e) => (s + e, Option.unless(s.contains(e))(e)))
 
     // then
     s.runToList() shouldBe List(1, 2, 3, 4, 5)
@@ -25,7 +25,7 @@ class FlowOpsMapStatefulConcatTest extends AnyFlatSpec with Matchers:
     val c = Flow.fromValues("apple", "apple", "apple", "banana", "orange", "orange", "apple")
 
     // when
-    val s = c.mapStatefulConcat(() => (Option.empty[String], 0))(
+    val s = c.mapStatefulConcat((Option.empty[String], 0))(
       { case ((previous, count), e) =>
         previous match
           case None      => ((Some(e), 1), None)
@@ -48,7 +48,7 @@ class FlowOpsMapStatefulConcatTest extends AnyFlatSpec with Matchers:
     val flow = Flow.fromValues("a", "b", "c")
 
     // when
-    val flow2 = flow.mapStatefulConcat(() => 0) { (index, element) =>
+    val flow2 = flow.mapStatefulConcat(0) { (index, element) =>
       if index < 2 then (index + 1, Some(element))
       else throw new RuntimeException("boom")
     }
@@ -67,7 +67,7 @@ class FlowOpsMapStatefulConcatTest extends AnyFlatSpec with Matchers:
     val flow = Flow.fromValues("a", "b", "c")
 
     // when
-    val flow2 = flow.mapStatefulConcat(() => 0)((index, element) => (index + 1, Some(element)), _ => throw new RuntimeException("boom"))
+    val flow2 = flow.mapStatefulConcat(0)((index, element) => (index + 1, Some(element)), _ => throw new RuntimeException("boom"))
 
     // then
     supervised:
