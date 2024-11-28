@@ -37,7 +37,7 @@ class FlowOps[+T]:
     *
     * Any exceptions are propagated by the returned flow.
     */
-  def async()(using BufferCapacity): Flow[T] = Flow.usingEmitInline: emit =>
+  def buffer()(using BufferCapacity): Flow[T] = Flow.usingEmitInline: emit =>
     val ch = BufferCapacity.newChannel[T]
     unsupervised:
       runLastToChannelAsync(ch)
