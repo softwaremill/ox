@@ -115,7 +115,7 @@ Flow.iterate(0)(_ + 1) // natural numbers
   .map(_ + 1)
   .intersperse(5)
   // compute the running total
-  .mapStateful(() => 0) { (state, value) =>
+  .mapStateful(0) { (state, value) =>
     val newState = state + value
     (newState, newState)
   }
