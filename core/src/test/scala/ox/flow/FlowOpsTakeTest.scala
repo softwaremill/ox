@@ -13,7 +13,7 @@ class FlowOpsTakeTest extends AnyFlatSpec with Matchers:
     f.take(5).runToList() shouldBe (1 to 5)
 
   it should "take from an async flow" in:
-    val f = Flow.fromValues(1 to 10*).async()
+    val f = Flow.fromValues(1 to 10*).buffer()
 
     f.take(5).runToList() shouldBe (1 to 5)
 
