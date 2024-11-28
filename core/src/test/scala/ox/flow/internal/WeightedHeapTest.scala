@@ -4,6 +4,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.discard
 import ox.tap
+import ox.pipe
 
 class WeightedHeapTest extends AnyFlatSpec with Matchers:
   behavior of "WeightedHeap"
@@ -212,6 +213,44 @@ class WeightedHeapTest extends AnyFlatSpec with Matchers:
     heap.peekMin() shouldEqual Some((1000, 0L))
 
     for i <- 1000 to 1 by -1 do heap.extractMin().tap(mh => heap = mh._2)._1 shouldEqual Some((i, (1000 - i).toLong))
+
+    heap.isEmpty shouldEqual true
+
+  // randomized tests
+
+  it should "maintain heap property with random insertions and extractions" in:
+    import scala.util.Random
+
+    val random = new Random()
+    var heap = new WeightedHeap[Int]()
+    val elements = (1 to 100).map(_ => (random.nextInt(1000), random.nextLong())).toMap.toList.pipe(random.shuffle)
+
+    elements.foreach((value, weight) => heap = heap.insert(value, weight))
+
+    val sortedElements = elements.sortBy(_._2)
+    sortedElements.foreach: (value, weight) =>
+      heap.peekMin() shouldEqual Some((value, weight))
+      heap.extractMin().tap(mh => heap = mh._2)._1 shouldEqual Some((value, weight))
+
+    heap.isEmpty shouldEqual true
+
+  it should "maintain heap property with random weight updates" in:
+    import scala.util.Random
+
+    val random = new Random()
+    var heap = new WeightedHeap[Int]()
+    val elements = (1 to 100).map(_ => random.nextInt(1000)).toSet.toList.pipe(random.shuffle)
+
+    elements.foreach(element => heap = heap.insert(element, random.nextLong()))
+
+    val updateElementWeights = elements.map: element =>
+      val newWeight = random.nextLong()
+      heap = heap.updateWeight(element, newWeight)
+      (element, newWeight)
+
+    val sortedElements = updateElementWeights.sortBy(_._2)
+    sortedElements.foreach: value =>
+      heap.extractMin().tap(mh => heap = mh._2)._1 shouldEqual Some(value)
 
     heap.isEmpty shouldEqual true
 end WeightedHeapTest

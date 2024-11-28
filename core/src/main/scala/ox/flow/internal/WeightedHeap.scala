@@ -49,13 +49,12 @@ case class WeightedHeap[T](
       currentMap = newMap
       currentIndex = smallest
     end while
-    throw new IllegalStateException()
+    throw new IllegalStateException("Bubble down should terminate before this point")
   end bubbleDown
 
   def insert(value: T, weight: Long): WeightedHeap[T] =
     valueToIndex.get(value) match
-      case Some(_) =>
-        updateWeight(value, weight)
+      case Some(_) => updateWeight(value, weight)
       case None =>
         val newHeap = heap :+ (value, weight)
         val newMap = valueToIndex + (value -> (newHeap.length - 1))
@@ -63,32 +62,31 @@ case class WeightedHeap[T](
         WeightedHeap(finalHeap, finalMap)
 
   def extractMin(): (Option[(T, Long)], WeightedHeap[T]) =
-    if heap.isEmpty then return (None, this)
-
-    val min = heap.head
-    if heap.length == 1 then return (Some(min), WeightedHeap(Vector.empty, Map.empty))
-
-    val last = heap.last
-    val updatedHeap = heap.updated(0, last).init
-    val updatedMap = valueToIndex.updated(last._1, 0) - min._1
-
-    val (finalHeap, finalMap) = bubbleDown(updatedHeap, updatedMap, 0)
-    (Some(min), WeightedHeap(finalHeap, finalMap))
-  end extractMin
+    if heap.isEmpty then (None, this)
+    else if heap.length == 1 then (Some(heap.head), WeightedHeap(Vector.empty, Map.empty))
+    else
+      val min = heap.head
+      val last = heap.last
+      val updatedHeap = heap.updated(0, last).init
+      val updatedMap = valueToIndex.updated(last._1, 0) - min._1
+      val (finalHeap, finalMap) = bubbleDown(updatedHeap, updatedMap, 0)
+      (Some(min), WeightedHeap(finalHeap, finalMap))
 
   def updateWeight(value: T, newWeight: Long): WeightedHeap[T] =
     valueToIndex.get(value) match
       case Some(index) =>
         val currentWeight = heap(index)._2
-        val updatedHeap = heap.updated(index, (value, newWeight))
-        if newWeight < currentWeight then
-          val (finalHeap, finalMap) = bubbleUp(updatedHeap, valueToIndex, index)
-          WeightedHeap(finalHeap, finalMap)
+        if newWeight == currentWeight then this
         else
-          val (finalHeap, finalMap) = bubbleDown(updatedHeap, valueToIndex, index)
-          WeightedHeap(finalHeap, finalMap)
-      case None =>
-        throw new NoSuchElementException(s"Value $value not found in heap")
+          val updatedHeap = heap.updated(index, (value, newWeight))
+          if newWeight < currentWeight then
+            val (finalHeap, finalMap) = bubbleUp(updatedHeap, valueToIndex, index)
+            WeightedHeap(finalHeap, finalMap)
+          else
+            val (finalHeap, finalMap) = bubbleDown(updatedHeap, valueToIndex, index)
+            WeightedHeap(finalHeap, finalMap)
+        end if
+      case None => throw new NoSuchElementException(s"Value $value not found in heap")
 
   def peekMin(): Option[(T, Long)] = heap.headOption
 
