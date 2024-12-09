@@ -1,6 +1,6 @@
 # Rate limiter
 
-The rate limiter mechanism allows controlling the rate at which operations are executed. It ensures that at most a certain number of operations are run concurrently within a specified time frame, preventing system overload and ensuring fair resource usage. Note that the implemented limiting mechanism only takes into account the start of execution and not the whole execution of an operation. 
+The rate limiter mechanism allows controlling the rate at which operations are executed. It ensures that at most a certain number of operations are run concurrently within a specified time frame, preventing system overload and ensuring fair resource usage. Note that you can choose if mechanism takes into account only the start of execution or the whole execution of an operation. 
 
 ## API
 
@@ -33,7 +33,7 @@ The `operation` can be provided directly using a by-name parameter, i.e. `f: => 
 
 ## Configuration
 
-The configuration of a `RateLimiter` depends on an underlying algorithm that controls whether an operation can be executed or not. The following algorithms are available:
+The configuration of a `RateLimiter` depends flag whether to consider execution time and on an underlying algorithm that controls whether an operation can be executed or not. The following algorithms are available:
 - `RateLimiterAlgorithm.FixedWindow(rate: Int, dur: FiniteDuration)` - where `rate` is the maximum number of operations to be executed in fixed windows of `dur` duration.
 - `RateLimiterAlgorithm.SlidingWindow(rate: Int, dur: FiniteDuration)` - where `rate` is the maximum number of operations to be executed in any window of time of duration `dur`.
 - `RateLimiterAlgorithm.Bucket(maximum: Int, dur: FiniteDuration)` - where `maximum` is the maximum capacity of tokens available in the token bucket algorithm and one token is added each `dur`. It can represent both the leaky bucket algorithm or the token bucket algorithm.
@@ -42,10 +42,11 @@ The configuration of a `RateLimiter` depends on an underlying algorithm that con
 
 You can use one of the following shorthands to define a Rate Limiter with the corresponding algorithm:
 
-- `RateLimiter.fixedWindow(rate: Int, dur: FiniteDuration)`,
-- `RateLimiter.slidingWindow(rate: Int, dur: FiniteDuration)`,
-- `RateLimiter.leakyBucket(maximum: Int, dur: FiniteDuration)`,
+- `RateLimiter.fixedWindow(rate: Int, dur: FiniteDuration, considerOperationTime: Boolean = false)`,
+- `RateLimiter.slidingWindow(rate: Int, dur: FiniteDuration, considerOperationTime: Boolean = false)`,
+- `RateLimiter.leakyBucket(maximum: Int, dur: FiniteDuration, considerOperationTime: Boolean = false)`,
 
+These shorthands also allow to define if the whole execution time should be considered.
 See the tests in `ox.resilience.*` for more.
 
 ## Custom rate limiter algorithms

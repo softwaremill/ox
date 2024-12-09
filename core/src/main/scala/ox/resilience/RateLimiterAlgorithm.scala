@@ -30,6 +30,8 @@ trait RateLimiterAlgorithm:
   /** Returns the time in nanoseconds that needs to elapse until the next update. It should not modify internal state. */
   def getNextUpdate: Long
 
+  def rate: Int
+
 end RateLimiterAlgorithm
 
 object RateLimiterAlgorithm:
