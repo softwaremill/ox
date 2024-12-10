@@ -8,6 +8,7 @@ import java.util.concurrent.atomic.AtomicLong
 import org.scalatest.{EitherValues, TryValues}
 import scala.concurrent.duration.*
 import java.util.concurrent.atomic.AtomicReference
+import ox.resilience.RateLimiterMode
 
 class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with TryValues with ElapsedTime:
   behavior of "fixed rate RateLimiter"
@@ -179,6 +180,77 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
       (after - before) should be >= 4000L - 10
       (after - before) should be <= 4200L
     }
+  }
+
+  it should "allow to run more long running operations concurrently than max rate when not considering operation's time" in {
+    supervised:
+      val rateLimiter = RateLimiter.fixedWindow(2, FiniteDuration(1, "second"))
+
+      val operationsRunning = AtomicLong(0L)
+
+      def operation =
+        operationsRunning.updateAndGet(_ + 1)
+        Thread.sleep(3000L)
+        operationsRunning.updateAndGet(_ - 1)
+        0
+      end operation
+
+      var result1: Option[Int] = Some(-1)
+      var result2: Option[Int] = Some(-1)
+      var result3: Int = -1
+      var resultOperations: Long = 0L
+
+      supervised:
+        forkUserDiscard:
+          result1 = rateLimiter.runOrDrop(operation)
+        forkUserDiscard:
+          result2 = rateLimiter.runOrDrop(operation)
+        forkUserDiscard:
+          result3 = rateLimiter.runBlocking(operation)
+        forkUserDiscard:
+          // Wait for next window for 3rd operation to start, take number of operations running
+          Thread.sleep(1500L)
+          resultOperations = operationsRunning.get()
+
+      result1 shouldBe Some(0)
+      result2 shouldBe Some(0)
+      result3 shouldBe 0
+      resultOperations shouldBe 3
+  }
+
+  it should "not allow to run more long running operations concurrently than max rate when considering operation time" in {
+    supervised:
+      val rateLimiter = RateLimiter.fixedWindow(2, FiniteDuration(1, "second"), RateLimiterMode.OperationDuration)
+
+      val operationsRunning = AtomicLong(0L)
+
+      def operation =
+        operationsRunning.updateAndGet(_ + 1)
+        Thread.sleep(3000L)
+        operationsRunning.updateAndGet(_ - 1)
+        0
+
+      var result1: Option[Int] = Some(-1)
+      var result2: Option[Int] = Some(-1)
+      var result3: Int = -1
+      var resultOperations: Long = 0L
+
+      supervised:
+        forkUserDiscard:
+          result1 = rateLimiter.runOrDrop(operation)
+        forkUserDiscard:
+          result2 = rateLimiter.runOrDrop(operation)
+        forkUserDiscard:
+          result3 = rateLimiter.runBlocking(operation)
+        forkUserDiscard:
+          // Wait for next window for 3rd operation to start, take number of operations running
+          Thread.sleep(1500L)
+          resultOperations = operationsRunning.get()
+
+      result1 shouldBe Some(0)
+      result2 shouldBe Some(0)
+      result3 shouldBe 0
+      resultOperations shouldBe 2
   }
 
   behavior of "sliding window RateLimiter"
@@ -466,79 +538,6 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
       (after - before) should be >= 3000L - 10
       (after - before) should be <= 3200L
     }
-  }
-
-  it should "allow to run more long running operations concurrently than max rate when not considering operation's time" in {
-    supervised:
-      val rateLimiter = RateLimiter.fixedWindow(2, FiniteDuration(1, "second"))
-
-      val operationsRunning = AtomicLong(0L)
-
-      def operation =
-        operationsRunning.updateAndGet(_ + 1)
-        Thread.sleep(3000L)
-        operationsRunning.updateAndGet(_ - 1)
-        0
-      end operation
-
-      var result1: Option[Int] = Some(-1)
-      var result2: Option[Int] = Some(-1)
-      var result3: Int = -1
-      var resultOperations: Long = 0L
-
-      // operations with runOrDrop should be dropped while operations with runBlocking should wait
-      supervised:
-        forkUserDiscard:
-          result1 = rateLimiter.runOrDrop(operation)
-        forkUserDiscard:
-          result2 = rateLimiter.runOrDrop(operation)
-        forkUserDiscard:
-          result3 = rateLimiter.runBlocking(operation)
-        forkUserDiscard:
-          // Wait for next window for 3rd operation to start, take number of operations running
-          Thread.sleep(1500L)
-          resultOperations = operationsRunning.get()
-
-      result1 shouldBe Some(0)
-      result2 shouldBe Some(0)
-      result3 shouldBe 0
-      resultOperations shouldBe 3
-  }
-
-  it should "not allow to run more long running operations concurrently than max rate when considering operation time" in {
-    supervised:
-      val rateLimiter = RateLimiter.fixedWindow(2, FiniteDuration(1, "second"), considerOperationTime = true)
-
-      val operationsRunning = AtomicLong(0L)
-
-      def operation =
-        operationsRunning.updateAndGet(_ + 1)
-        Thread.sleep(3000L)
-        operationsRunning.updateAndGet(_ - 1)
-        0
-
-      var result1: Option[Int] = Some(-1)
-      var result2: Option[Int] = Some(-1)
-      var result3: Int = -1
-      var resultOperations: Long = 0L
-
-      // operations with runOrDrop should be dropped while operations with runBlocking should wait
-      supervised:
-        forkUserDiscard:
-          result1 = rateLimiter.runOrDrop(operation)
-        forkUserDiscard:
-          result2 = rateLimiter.runOrDrop(operation)
-        forkUserDiscard:
-          result3 = rateLimiter.runBlocking(operation)
-        forkUserDiscard:
-          // Wait for next window for 3rd operation to start, take number of operations running
-          Thread.sleep(1500L)
-          resultOperations = operationsRunning.get()
-
-      result1 shouldBe Some(0)
-      result2 shouldBe Some(0)
-      result3 shouldBe 0
-      resultOperations shouldBe 2
   }
 
 end RateLimiterTest

@@ -119,7 +119,7 @@ object RateLimiterAlgorithm:
 
   end SlidingWindow
 
-  /** Token/leaky bucket algorithm It adds a token to start an new operation each `per` with a maximum number of tokens of `rate`. */
+  /** Token/leaky bucket algorithm It adds a token to start a new operation each `per` with a maximum number of tokens of `rate`. */
   case class LeakyBucket(rate: Int, per: FiniteDuration) extends RateLimiterAlgorithm:
     private val refillInterval = per.toNanos
     private val lastRefillTime = new AtomicLong(System.nanoTime())
