@@ -36,11 +36,14 @@ class RateLimiter private (algorithm: RateLimiterAlgorithm, operationMode: RateL
         if algorithm.tryAcquire() then Some(operation)
         else None
       case RateLimiterMode.OperationDuration =>
-        if algorithm.tryAcquire() && semaphore.tryAcquire() then
+        val acquired = semaphore.tryAcquire()
+        if acquired && algorithm.tryAcquire() then
           val result = operation
           semaphore.release()
           Some(result)
-        else None
+        else
+          if acquired then semaphore.release()
+          None
 
 end RateLimiter
 
