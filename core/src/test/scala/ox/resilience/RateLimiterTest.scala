@@ -4,11 +4,13 @@ import ox.*
 import ox.util.ElapsedTime
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
+
 import java.util.concurrent.atomic.AtomicLong
 import org.scalatest.{EitherValues, TryValues}
+import ox.resilience.RateLimiterMode.OperationDuration
+
 import scala.concurrent.duration.*
 import java.util.concurrent.atomic.AtomicReference
-import ox.resilience.RateLimiterMode
 
 class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with TryValues with ElapsedTime:
   behavior of "fixed rate RateLimiter"
@@ -190,7 +192,7 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
 
       def operation =
         operationsRunning.updateAndGet(_ + 1)
-        Thread.sleep(3000L)
+        sleep(3.seconds)
         operationsRunning.updateAndGet(_ - 1)
         0
       end operation
@@ -209,7 +211,7 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
           result3 = rateLimiter.runBlocking(operation)
         forkUserDiscard:
           // Wait for next window for 3rd operation to start, take number of operations running
-          Thread.sleep(1500L)
+          sleep(1500.millis)
           resultOperations = operationsRunning.get()
 
       result1 shouldBe Some(0)
@@ -220,20 +222,15 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
 
   it should "not allow to run more long running operations concurrently than max rate when considering operation time" in {
     supervised:
-      val rateLimiter = RateLimiter.fixedWindow(2, FiniteDuration(1, "second"), RateLimiterMode.OperationDuration)
-
-      val operationsRunning = AtomicLong(0L)
+      val rateLimiter = RateLimiter.fixedWindow(2, FiniteDuration(1, "second"), OperationDuration)
 
       def operation =
-        operationsRunning.updateAndGet(_ + 1)
-        Thread.sleep(3000L)
-        operationsRunning.updateAndGet(_ - 1)
+        sleep(3.seconds)
         0
 
       var result1: Option[Int] = Some(-1)
       var result2: Option[Int] = Some(-1)
-      var result3: Int = -1
-      var resultOperations: Long = 0L
+      var result3: Option[Int] = Some(-1)
 
       supervised:
         forkUserDiscard:
@@ -241,16 +238,13 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
         forkUserDiscard:
           result2 = rateLimiter.runOrDrop(operation)
         forkUserDiscard:
-          result3 = rateLimiter.runBlocking(operation)
-        forkUserDiscard:
-          // Wait for next window for 3rd operation to start, take number of operations running
-          Thread.sleep(1500L)
-          resultOperations = operationsRunning.get()
+          // Two operations are running, and we are in the next 'window'
+          sleep(1500.millis)
+          result3 = rateLimiter.runOrDrop(operation)
 
       result1 shouldBe Some(0)
       result2 shouldBe Some(0)
-      result3 shouldBe 0
-      resultOperations shouldBe 2
+      result3 shouldBe None
   }
 
   behavior of "sliding window RateLimiter"
@@ -394,6 +388,43 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
       (after - before) should be >= 1300L - 10
       (after - before) should be <= 1400L
     }
+  }
+
+  it should "not allow to run more long running operations spanning more than window than max rate when considering operation time" in {
+    supervised:
+      val rateLimiter = RateLimiter.slidingWindow(2, FiniteDuration(1, "second"), OperationDuration)
+
+      def operation =
+        sleep(3.seconds)
+        0
+
+      var result1: Option[Int] = Some(-1)
+      var result2: Option[Int] = Some(-1)
+      var result3: Option[Int] = Some(-1)
+      var result4: Option[Int] = Some(-1)
+      var result5: Option[Int] = Some(-1)
+
+      supervised:
+        forkUserDiscard:
+          result1 = rateLimiter.runOrDrop(operation)
+        forkUserDiscard:
+          result2 = rateLimiter.runOrDrop(operation)
+        forkUserDiscard:
+          // Two operations are running, and we are in the next 'window'
+          sleep(1500.millis)
+          result3 = rateLimiter.runOrDrop(operation)
+        forkUserDiscard:
+          sleep(3500.millis)
+          result4 = rateLimiter.runOrDrop(operation)
+        forkUserDiscard:
+          sleep(3500.millis)
+          result5 = rateLimiter.runOrDrop(operation)
+
+      result1 shouldBe Some(0)
+      result2 shouldBe Some(0)
+      result3 shouldBe None
+      result4 shouldBe Some(0)
+      result5 shouldBe Some(0)
   }
 
   behavior of "bucket RateLimiter"

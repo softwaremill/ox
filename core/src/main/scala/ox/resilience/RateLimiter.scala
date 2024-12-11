@@ -9,21 +9,19 @@ import scala.annotation.tailrec
 /** Rate limiter with a customizable algorithm. Operations can be blocked or dropped, when the rate limit is reached. operationMode decides
   * if whole time of execution should be considered or just the start.
   */
-class RateLimiter private (algorithm: RateLimiterAlgorithm, operationMode: RateLimiterMode):
-  private val semaphore = new Semaphore(algorithm.rate)
-
+class RateLimiter private (algorithm: RateLimiterAlgorithm):
   /** Runs the operation, blocking if the rate limit is reached, until the rate limiter is replenished. */
   def runBlocking[T](operation: => T): T =
-    operationMode match
-      case RateLimiterMode.OperationStart =>
-        algorithm.acquire()
-        operation
-      case RateLimiterMode.OperationDuration =>
-        semaphore.acquire()
-        algorithm.acquire()
+    algorithm match
+      case alg: DurationRateLimiterAlgorithm =>
+        alg.acquire()
+        alg.startOperation()
         val result = operation
-        semaphore.release()
+        alg.endOperation()
         result
+      case alg: RateLimiterAlgorithm =>
+        alg.acquire()
+        operation
 
   /** Runs or drops the operation, if the rate limit is reached.
     *
@@ -31,24 +29,22 @@ class RateLimiter private (algorithm: RateLimiterAlgorithm, operationMode: RateL
     *   `Some` if the operation has been allowed to run, `None` if the operation has been dropped.
     */
   def runOrDrop[T](operation: => T): Option[T] =
-    operationMode match
-      case RateLimiterMode.OperationStart =>
-        if algorithm.tryAcquire() then Some(operation)
-        else None
-      case RateLimiterMode.OperationDuration =>
-        val acquired = semaphore.tryAcquire()
-        if acquired && algorithm.tryAcquire() then
+    algorithm match
+      case alg: DurationRateLimiterAlgorithm =>
+        if alg.tryAcquire() then
+          alg.startOperation()
           val result = operation
-          semaphore.release()
+          alg.endOperation()
           Some(result)
-        else
-          if acquired then semaphore.release()
-          None
+        else None
+      case alg: RateLimiterAlgorithm =>
+        if alg.tryAcquire() then Some(operation)
+        else None
 
 end RateLimiter
 
 object RateLimiter:
-  def apply(algorithm: RateLimiterAlgorithm, operationMode: RateLimiterMode = RateLimiterMode.OperationStart)(using Ox): RateLimiter =
+  def apply(algorithm: RateLimiterAlgorithm)(using Ox): RateLimiter =
     @tailrec
     def update(): Unit =
       val waitTime = algorithm.getNextUpdate
@@ -60,7 +56,7 @@ object RateLimiter:
     end update
 
     forkDiscard(update())
-    new RateLimiter(algorithm, operationMode)
+    new RateLimiter(algorithm)
   end apply
 
   /** Creates a rate limiter using a fixed window algorithm.
@@ -72,13 +68,13 @@ object RateLimiter:
     * @param window
     *   Interval of time between replenishing the rate limiter. The rate limiter is replenished to allow up to [[maxOperations]] in the next
     *   time window.
-    * @param operationMode
-    *   Whether to consider whole execution time of operation or just the start.
     */
   def fixedWindow(maxOperations: Int, window: FiniteDuration, operationMode: RateLimiterMode = RateLimiterMode.OperationStart)(using
       Ox
   ): RateLimiter =
-    apply(RateLimiterAlgorithm.FixedWindow(maxOperations, window), operationMode)
+    operationMode match
+      case RateLimiterMode.OperationStart    => apply(RateLimiterAlgorithm.FixedWindow(maxOperations, window))
+      case RateLimiterMode.OperationDuration => apply(DurationRateLimiterAlgorithm.FixedWindow(maxOperations, window))
 
   /** Creates a rate limiter using a sliding window algorithm.
     *
@@ -88,13 +84,13 @@ object RateLimiter:
     *   Maximum number of operations that are allowed to **start** within any [[window]] of time.
     * @param window
     *   Length of the window.
-    * @param operationMode
-    *   Whether to consider whole execution time of operation or just the start.
     */
   def slidingWindow(maxOperations: Int, window: FiniteDuration, operationMode: RateLimiterMode = RateLimiterMode.OperationStart)(using
       Ox
   ): RateLimiter =
-    apply(RateLimiterAlgorithm.SlidingWindow(maxOperations, window), operationMode)
+    operationMode match
+      case RateLimiterMode.OperationStart    => apply(RateLimiterAlgorithm.SlidingWindow(maxOperations, window))
+      case RateLimiterMode.OperationDuration => apply(DurationRateLimiterAlgorithm.SlidingWindow(maxOperations, window))
 
   /** Creates a rate limiter with token/leaky bucket algorithm.
     *
@@ -104,13 +100,14 @@ object RateLimiter:
     *   Max capacity of tokens in the algorithm, limiting the operations that are allowed to **start** concurrently.
     * @param refillInterval
     *   Interval of time between adding a single token to the bucket.
-    * @param operationMode
-    *   Whether to consider whole execution time of operation or just the start.
     */
   def leakyBucket(maxTokens: Int, refillInterval: FiniteDuration, operationMode: RateLimiterMode = RateLimiterMode.OperationStart)(using
       Ox
   ): RateLimiter =
-    apply(RateLimiterAlgorithm.LeakyBucket(maxTokens, refillInterval), operationMode)
+    operationMode match
+      case RateLimiterMode.OperationStart    => apply(RateLimiterAlgorithm.LeakyBucket(maxTokens, refillInterval))
+      case RateLimiterMode.OperationDuration => apply(DurationRateLimiterAlgorithm.LeakyBucket(maxTokens, refillInterval))
+
 end RateLimiter
 
 /** Decides if RateLimiter should consider only start of an operation or whole time of execution.
