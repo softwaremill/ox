@@ -73,6 +73,19 @@ class FlowOps[+T]:
   def filter(f: T => Boolean): Flow[T] = Flow.usingEmitInline: emit =>
     last.run(FlowEmit.fromInline(t => if f(t) then emit.apply(t)))
 
+  /** Emits only every nth element emitted by this flow.
+    *
+    * @param n
+    *   The interval between two emitted elements.
+    */
+  def sample(n: Int): Flow[T] = Flow.usingEmitInline: emit =>
+    var sampleCounter = 0
+    last.run(
+      FlowEmit.fromInline: t =>
+        sampleCounter += 1
+        if n != 0 && sampleCounter % n == 0 then emit(t)
+    )
+
   /** Applies the given mapping function `f` to each element emitted by this flow, for which the function is defined, and emits the result.
     * If `f` is not defined at an element, the element will be skipped.
     *
