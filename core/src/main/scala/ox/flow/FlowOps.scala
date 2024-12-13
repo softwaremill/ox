@@ -454,6 +454,17 @@ class FlowOps[+T]:
                 emit((t, otherDefault)); true
             )
 
+  /** Combines each element from this and the index of the element (starting at 0).
+    */
+  def zipWithIndex: Flow[(T, Long)] = Flow.usingEmitInline: emit =>
+    var index = 0L
+    last.run(
+      FlowEmit.fromInline: t =>
+        val zipped = (t, index)
+        index += 1
+        emit(zipped)
+    )
+
   /** Emits a given number of elements (determined byc `segmentSize`) from this flow to the returned flow, then emits the same number of
     * elements from the `other` flow and repeats. The order of elements in both flows is preserved.
     *
