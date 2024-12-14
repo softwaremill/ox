@@ -98,7 +98,7 @@ class FlowOps[+T]:
   /** Transforms the elements of the flow by applying an accumulation function to each element, producing a new value at each step. The
     * resulting flow contains the accumulated values at each point in the original flow.
     *
-    * @param initial/
+    * @param initial
     *   The initial value to start the accumulation.
     * @param f
     *   The accumulation function that is applied to each element of the flow.
