@@ -5,6 +5,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
 class FlowOpsZipWithIndexTest extends AnyFlatSpec with Matchers with Eventually:
+  behavior of "zipWithIndex"
 
   it should "not zip anything from an empty flow" in:
     val c = Flow.empty[Int]
