@@ -95,6 +95,23 @@ class FlowOps[+T]:
   def collect[U](f: PartialFunction[T, U]): Flow[U] = Flow.usingEmitInline: emit =>
     last.run(FlowEmit.fromInline(t => if f.isDefinedAt(t) then emit.apply(f(t))))
 
+  /** Transforms the elements of the flow by applying an accumulation function to each element, producing a new value at each step. The
+    * resulting flow contains the accumulated values at each point in the original flow.
+    *
+    * @param initial/
+    *   The initial value to start the accumulation.
+    * @param f
+    *   The accumulation function that is applied to each element of the flow.
+    */
+  def scan[V](initial: V)(f: (V, T) => V): Flow[V] = Flow.usingEmitInline: emit =>
+    emit(initial)
+    var accumulator = initial
+    last.run(
+      FlowEmit.fromInline: t =>
+        accumulator = f(accumulator, t)
+        emit(accumulator)
+    )
+
   /** Applies the given effectful function `f` to each element emitted by this flow. The returned flow emits the elements unchanged. If `f`
     * throws an exceptions, the flow fails and propagates the exception.
     */
