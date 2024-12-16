@@ -94,7 +94,7 @@ class FlowOps[+T]:
   /** Remove subsequent, repeating elements matching 'f'
     *
     * @param f
-    *   The function used to compare the previous and current element
+    *   The function used to compare the previous and current elements
     */
   def debounceBy[U](f: T => U): Flow[T] = Flow.usingEmitInline: emit =>
     var previousElement: Option[U] = None
