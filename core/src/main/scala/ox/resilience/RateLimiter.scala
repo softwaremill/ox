@@ -12,16 +12,8 @@ import scala.annotation.tailrec
 class RateLimiter private (algorithm: RateLimiterAlgorithm):
   /** Runs the operation, blocking if the rate limit is reached, until the rate limiter is replenished. */
   def runBlocking[T](operation: => T): T =
-    algorithm match
-      case alg: DurationRateLimiterAlgorithm =>
-        alg.acquire()
-        alg.startOperation()
-        val result = operation
-        alg.endOperation()
-        result
-      case alg: RateLimiterAlgorithm =>
-        alg.acquire()
-        operation
+    algorithm.acquire()
+    algorithm.runOperation(operation)
 
   /** Runs or drops the operation, if the rate limit is reached.
     *
@@ -29,17 +21,8 @@ class RateLimiter private (algorithm: RateLimiterAlgorithm):
     *   `Some` if the operation has been allowed to run, `None` if the operation has been dropped.
     */
   def runOrDrop[T](operation: => T): Option[T] =
-    algorithm match
-      case alg: DurationRateLimiterAlgorithm =>
-        if alg.tryAcquire() then
-          alg.startOperation()
-          val result = operation
-          alg.endOperation()
-          Some(result)
-        else None
-      case alg: RateLimiterAlgorithm =>
-        if alg.tryAcquire() then Some(operation)
-        else None
+    if algorithm.tryAcquire() then Some(algorithm.runOperation(operation))
+    else None
 
 end RateLimiter
 
@@ -101,12 +84,10 @@ object RateLimiter:
     * @param refillInterval
     *   Interval of time between adding a single token to the bucket.
     */
-  def leakyBucket(maxTokens: Int, refillInterval: FiniteDuration, operationMode: RateLimiterMode = RateLimiterMode.OperationStart)(using
+  def leakyBucket(maxTokens: Int, refillInterval: FiniteDuration)(using
       Ox
   ): RateLimiter =
-    operationMode match
-      case RateLimiterMode.OperationStart    => apply(RateLimiterAlgorithm.LeakyBucket(maxTokens, refillInterval))
-      case RateLimiterMode.OperationDuration => apply(DurationRateLimiterAlgorithm.LeakyBucket(maxTokens, refillInterval))
+    apply(RateLimiterAlgorithm.LeakyBucket(maxTokens, refillInterval))
 
 end RateLimiter
 

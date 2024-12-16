@@ -30,7 +30,11 @@ trait RateLimiterAlgorithm:
   /** Returns the time in nanoseconds that needs to elapse until the next update. It should not modify internal state. */
   def getNextUpdate: Long
 
-  def rate: Int
+  /** Runs operation. For cases where execution time is not needed it just returns result */
+  final def runOperation[T](operation: => T): T = runOperation(operation, 1)
+
+  /** Runs operation. For cases where execution time is not needed it just returns result */
+  def runOperation[T](operation: => T, permits: Int): T
 
 end RateLimiterAlgorithm
 
@@ -55,6 +59,8 @@ object RateLimiterAlgorithm:
       lastUpdate.set(now)
       semaphore.release(rate - semaphore.availablePermits())
     end update
+
+    def runOperation[T](operation: => T, permits: Int): T = operation
 
   end FixedWindow
 
@@ -99,11 +105,12 @@ object RateLimiterAlgorithm:
       // remove records older than window size
       val qUpdated = removeRecords(q, now)
       // merge old records with the ones concurrently added
-      val _ = log.updateAndGet(qNew =>
+      log.updateAndGet(qNew =>
         qNew.foldLeft(qUpdated) { case (queue, record) =>
           queue.enqueue(record)
         }
       )
+      ()
     end update
 
     @tailrec
@@ -116,6 +123,8 @@ object RateLimiterAlgorithm:
             semaphore.release(permits)
             removeRecords(tail, now)
           else q
+
+    def runOperation[T](operation: => T, permits: Int): T = operation
 
   end SlidingWindow
 
@@ -139,6 +148,8 @@ object RateLimiterAlgorithm:
       val now = System.nanoTime()
       lastRefillTime.set(now)
       if semaphore.availablePermits() < rate then semaphore.release()
+
+    def runOperation[T](operation: => T, permits: Int): T = operation
 
   end LeakyBucket
 end RateLimiterAlgorithm

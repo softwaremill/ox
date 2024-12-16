@@ -8,20 +8,9 @@ import scala.annotation.tailrec
 import scala.collection.immutable.Queue
 import scala.concurrent.duration.FiniteDuration
 
-trait DurationRateLimiterAlgorithm extends RateLimiterAlgorithm:
-
-  def startOperation(permits: Int): Unit
-
-  def endOperation(permits: Int): Unit
-
-  final def startOperation(): Unit = startOperation(1)
-
-  final def endOperation(): Unit = endOperation(1)
-
-end DurationRateLimiterAlgorithm
-
 object DurationRateLimiterAlgorithm:
-  case class FixedWindow(rate: Int, per: FiniteDuration) extends DurationRateLimiterAlgorithm:
+  /** Fixed window algorithm: allows to run at most `rate` operations in consecutively segments of duration `per`. */
+  case class FixedWindow(rate: Int, per: FiniteDuration) extends RateLimiterAlgorithm:
     private val lastUpdate = new AtomicLong(System.nanoTime())
     private val semaphore = new Semaphore(rate)
     private val runningOperations = new AtomicInteger(0)
@@ -42,32 +31,25 @@ object DurationRateLimiterAlgorithm:
       semaphore.release(rate - semaphore.availablePermits() - runningOperations.get())
     end update
 
-    def startOperation(permits: Int): Unit =
+    def runOperation[T](operation: => T, permits: Int): T =
       runningOperations.updateAndGet(_ + permits)
-      ()
-
-    def endOperation(permits: Int): Unit =
+      val result = operation
       runningOperations.updateAndGet(current => (current - permits).max(0))
-      ()
+      result
 
   end FixedWindow
 
-  /** Sliding window algorithm: allows to start at most `rate` operations in the lapse of `per` before current time. */
-  case class SlidingWindow(rate: Int, per: FiniteDuration) extends DurationRateLimiterAlgorithm:
-    // stores the timestamp and the number of permits acquired after calling acquire or tryAcquire successfully
+  /** Sliding window algorithm: allows to run at most `rate` operations in the lapse of `per` before current time. */
+  case class SlidingWindow(rate: Int, per: FiniteDuration) extends RateLimiterAlgorithm:
+    // stores the timestamp and the number of permits acquired after finishing running operation
     private val log = new AtomicReference[Queue[(Long, Int)]](Queue[(Long, Int)]())
     private val semaphore = new Semaphore(rate)
-    private val runningOperations = new AtomicInteger(0)
 
     def acquire(permits: Int): Unit =
       semaphore.acquire(permits)
-      addTimestampToLog(permits)
 
     def tryAcquire(permits: Int): Boolean =
-      if semaphore.tryAcquire(permits) then
-        addTimestampToLog(permits)
-        true
-      else false
+      semaphore.tryAcquire(permits)
 
     private def addTimestampToLog(permits: Int): Unit =
       val now = System.nanoTime()
@@ -87,14 +69,11 @@ object DurationRateLimiterAlgorithm:
           if waitTime > 0 then waitTime else 0L
     end getNextUpdate
 
-    def startOperation(permits: Int): Unit =
-      runningOperations.updateAndGet(_ + permits)
-      ()
-
-    def endOperation(permits: Int): Unit =
-      runningOperations.updateAndGet(current => (current - permits).max(0))
+    def runOperation[T](operation: => T, permits: Int): T =
+      val result = operation
+      // Consider end of operation as a point to release permit after `per` passes
       addTimestampToLog(permits)
-      ()
+      result
 
     def update(): Unit =
       val now = System.nanoTime()
@@ -103,11 +82,12 @@ object DurationRateLimiterAlgorithm:
       // remove records older than window size
       val qUpdated = removeRecords(q, now)
       // merge old records with the ones concurrently added
-      val _ = log.updateAndGet(qNew =>
+      log.updateAndGet(qNew =>
         qNew.foldLeft(qUpdated) { case (queue, record) =>
           queue.enqueue(record)
         }
       )
+      ()
     end update
 
     @tailrec
@@ -117,42 +97,12 @@ object DurationRateLimiterAlgorithm:
         case Some((head, tail)) =>
           if head._1 + per.toNanos < now then
             val (_, permits) = head
-            semaphore.release(0.max(permits - runningOperations.get()))
+            semaphore.release(permits)
             removeRecords(tail, now)
           else q
+      end match
+    end removeRecords
 
   end SlidingWindow
-
-  /** Token/leaky bucket algorithm It adds a token to start a new operation each `per` with a maximum number of tokens of `rate`. */
-  case class LeakyBucket(rate: Int, per: FiniteDuration) extends DurationRateLimiterAlgorithm:
-    private val refillInterval = per.toNanos
-    private val lastRefillTime = new AtomicLong(System.nanoTime())
-    private val semaphore = new Semaphore(1)
-    private val runningOperations = AtomicInteger(0)
-
-    def acquire(permits: Int): Unit =
-      semaphore.acquire(permits)
-
-    def tryAcquire(permits: Int): Boolean =
-      semaphore.tryAcquire(permits)
-
-    def getNextUpdate: Long =
-      val waitTime = lastRefillTime.get() + refillInterval - System.nanoTime()
-      if waitTime > 0 then waitTime else 0L
-
-    def update(): Unit =
-      val now = System.nanoTime()
-      lastRefillTime.set(now)
-      if (semaphore.availablePermits() + runningOperations.get()) < rate then semaphore.release()
-
-    def startOperation(permits: Int): Unit =
-      runningOperations.updateAndGet(_ + permits)
-      ()
-
-    def endOperation(permits: Int): Unit =
-      runningOperations.updateAndGet(current => (current - permits).max(0))
-      ()
-
-  end LeakyBucket
 
 end DurationRateLimiterAlgorithm

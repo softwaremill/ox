@@ -1,6 +1,6 @@
 # Rate limiter
 
-The rate limiter mechanism allows controlling the rate at which operations are executed. It ensures that at most a certain number of operations are run concurrently within a specified time frame, preventing system overload and ensuring fair resource usage. Note that you can choose if mechanism takes into account only the start of execution or the whole execution of an operation. 
+The rate limiter mechanism allows controlling the rate at which operations are executed. It ensures that at most a certain number of operations are run concurrently within a specified time frame, preventing system overload and ensuring fair resource usage. Note that you can choose if algorithm takes into account only the start of execution or the whole execution of an operation. 
 
 ## API
 
@@ -33,10 +33,12 @@ The `operation` can be provided directly using a by-name parameter, i.e. `f: => 
 
 ## Configuration
 
-The configuration of a `RateLimiter` depends on mode whether to consider execution time and on an underlying algorithm that controls whether an operation can be executed or not. The following algorithms are available:
+The configuration of a `RateLimiter` depends on an underlying algorithm that controls whether an operation can be executed or not. The following algorithms are available:
 - `RateLimiterAlgorithm.FixedWindow(rate: Int, dur: FiniteDuration)` - where `rate` is the maximum number of operations to be executed in fixed windows of `dur` duration.
 - `RateLimiterAlgorithm.SlidingWindow(rate: Int, dur: FiniteDuration)` - where `rate` is the maximum number of operations to be executed in any window of time of duration `dur`.
 - `RateLimiterAlgorithm.Bucket(maximum: Int, dur: FiniteDuration)` - where `maximum` is the maximum capacity of tokens available in the token bucket algorithm and one token is added each `dur`. It can represent both the leaky bucket algorithm or the token bucket algorithm.
+- `DurationRateLimiterAlgorithm.FixedWindow(rate: Int, dur: FiniteDuration)` - where `rate` is the maximum number of operations which execution spans fixed windows of `dur` duration.
+- `DurationRateLimiterAlgorithm.SlidingWindow(rate: Int, dur: FiniteDuration)` - where `rate` is the maximum number of operations which execution spans any window of time of duration `dur`.
 
 ### API shorthands
 
@@ -44,14 +46,14 @@ You can use one of the following shorthands to define a Rate Limiter with the co
 
 - `RateLimiter.fixedWindow(rate: Int, dur: FiniteDuration, operationMode: RateLimiterMode = RateLimiterMode.OperationStart)`,
 - `RateLimiter.slidingWindow(rate: Int, dur: FiniteDuration, operationMode: RateLimiterMode = RateLimiterMode.OperationStart)`,
-- `RateLimiter.leakyBucket(maximum: Int, dur: FiniteDuration, operationMode: RateLimiterMode = RateLimiterMode.OperationStart)`,
+- `RateLimiter.leakyBucket(maximum: Int, dur: FiniteDuration)`
 
 These shorthands also allow to define if the whole execution time of an operation should be considered.
 See the tests in `ox.resilience.*` for more.
 
 ## Custom rate limiter algorithms
 
-The `RateLimiterAlgorithm` employed by `RateLimiter` can be extended to implement new algorithms or modify existing ones. Its interface is modelled like that of a `Semaphore` although the underlying implementation could be different. For best compatibility with the existing interface of `RateLimiter`, methods `acquire` and `tryAcquire` should offer the same guaranties as Java's `Semaphores`.
+The `RateLimiterAlgorithm` employed by `RateLimiter` can be extended to implement new algorithms or modify existing ones. Its interface is modelled like that of a `Semaphore` although the underlying implementation could be different. For best compatibility with the existing interface of `RateLimiter`, methods `acquire` and `tryAcquire` should offer the same guaranties as Java's `Semaphores`. There is also method `def runOperation[T](operation: => T, permits: Int): T` for cases where considering span of execution may be necessary.
 
 Additionally, there are two methods employed by the `GenericRateLimiter` for updating its internal state automatically:
 - `def update(): Unit`: Updates the internal state of the rate limiter to reflect its current situation. Invoked in a background fork repeatedly, when a rate limiter is created.

@@ -390,7 +390,7 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
     }
   }
 
-  it should "not allow to run more long running operations spanning more than window than max rate when considering operation time" in {
+  it should "not allow to run more operations when operations are still running when considering operation time" in {
     supervised:
       val rateLimiter = RateLimiter.slidingWindow(2, FiniteDuration(1, "second"), OperationDuration)
 
@@ -414,10 +414,10 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
           sleep(1500.millis)
           result3 = rateLimiter.runOrDrop(operation)
         forkUserDiscard:
-          sleep(3500.millis)
+          sleep(4200.millis)
           result4 = rateLimiter.runOrDrop(operation)
         forkUserDiscard:
-          sleep(3500.millis)
+          sleep(4200.millis)
           result5 = rateLimiter.runOrDrop(operation)
 
       result1 shouldBe Some(0)
@@ -425,6 +425,48 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
       result3 shouldBe None
       result4 shouldBe Some(0)
       result5 shouldBe Some(0)
+  }
+
+  it should "not allow to run more operations when operations are still running in window span when considering operation time" in {
+    supervised:
+      val rateLimiter = RateLimiter.slidingWindow(3, FiniteDuration(1, "second"), OperationDuration)
+
+      def longOperation =
+        sleep(3.seconds)
+        0
+
+      def shortOperation =
+        sleep(300.millis)
+        0
+
+      def instantOperation = 0
+
+      var result1: Option[Int] = Some(-1)
+      var result2: Option[Int] = Some(-1)
+      var result3: Option[Int] = Some(-1)
+      var result4: Option[Int] = Some(-1)
+      var result5: Option[Int] = Some(-1)
+      var result6: Option[Int] = Some(-1)
+
+      supervised:
+        forkUserDiscard:
+          result1 = rateLimiter.runOrDrop(shortOperation)
+        forkUserDiscard:
+          result2 = rateLimiter.runOrDrop(shortOperation)
+        forkUserDiscard:
+          result3 = rateLimiter.runOrDrop(longOperation)
+        forkUserDiscard:
+          sleep(1500.millis)
+          result4 = rateLimiter.runOrDrop(instantOperation)
+          result5 = rateLimiter.runOrDrop(instantOperation)
+          result6 = rateLimiter.runOrDrop(instantOperation)
+
+      result1 shouldBe Some(0)
+      result2 shouldBe Some(0)
+      result3 shouldBe Some(0)
+      result4 shouldBe Some(0)
+      result5 shouldBe Some(0)
+      result6 shouldBe None
   }
 
   behavior of "bucket RateLimiter"
