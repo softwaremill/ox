@@ -86,6 +86,16 @@ class FlowOps[+T]:
         if n != 0 && sampleCounter % n == 0 then emit(t)
     )
 
+  /** Remove subsequent, repeating elements
+    */
+  def debounce: Flow[T] = Flow.usingEmitInline: emit =>
+    var previousElement: Option[T] = None
+    last.run(
+      FlowEmit.fromInline: t =>
+        if !previousElement.contains(t) then emit(t)
+        previousElement = Some(t)
+    )
+
   /** Applies the given mapping function `f` to each element emitted by this flow, for which the function is defined, and emits the result.
     * If `f` is not defined at an element, the element will be skipped.
     *
