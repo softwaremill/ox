@@ -89,7 +89,7 @@ class FlowOps[+T]:
   /** Remove subsequent, repeating elements
     */
   def debounce: Flow[T] =
-    debounceBy(T => T)
+    debounceBy(identity)
 
   /** Remove subsequent, repeating elements matching 'f'
     *
