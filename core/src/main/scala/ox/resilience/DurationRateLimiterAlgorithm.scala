@@ -7,9 +7,18 @@ import java.util.concurrent.atomic.AtomicReference
 import scala.annotation.tailrec
 import scala.collection.immutable.Queue
 import scala.concurrent.duration.FiniteDuration
+import ox.discard
 
+/** DurationRateLimiterAlgorithm: decides whether permit for operation can be acquired. Unlike RateLimiterAlgorithm it considers whole
+  * execution time for an operation.
+  *
+  * There is no leakyBucket algorithm implemented because effectively it would result in "max number of operations currently running", which
+  * can be achieved with single semaphore.
+  */
 object DurationRateLimiterAlgorithm:
-  /** Fixed window algorithm: allows to run at most `rate` operations in consecutively segments of duration `per`. */
+  /** Fixed window algorithm: allows running at most `rate` operations in consecutively segments of duration `per`. Considers whole
+    * execution time of an operation. Operation spanning more than one window blocks permits in all windows that it spans.
+    */
   case class FixedWindow(rate: Int, per: FiniteDuration) extends RateLimiterAlgorithm:
     private val lastUpdate = new AtomicLong(System.nanoTime())
     private val semaphore = new Semaphore(rate)
@@ -28,18 +37,20 @@ object DurationRateLimiterAlgorithm:
     def update(): Unit =
       val now = System.nanoTime()
       lastUpdate.set(now)
+      // We treat running operation in new window the same as a new operation that started in this window, so we replenish permits to: rate - operationsRunning
       semaphore.release(rate - semaphore.availablePermits() - runningOperations.get())
     end update
 
     def runOperation[T](operation: => T, permits: Int): T =
       runningOperations.updateAndGet(_ + permits)
-      val result = operation
-      runningOperations.updateAndGet(current => (current - permits).max(0))
-      result
+      try operation
+      finally runningOperations.updateAndGet(_ - permits).discard
 
   end FixedWindow
 
-  /** Sliding window algorithm: allows to run at most `rate` operations in the lapse of `per` before current time. */
+  /** Sliding window algorithm: allows to run at most `rate` operations in the lapse of `per` before current time. Considers whole execution
+    * time of an operation. Operation release permit after `per` passed since operation ended.
+    */
   case class SlidingWindow(rate: Int, per: FiniteDuration) extends RateLimiterAlgorithm:
     // stores the timestamp and the number of permits acquired after finishing running operation
     private val log = new AtomicReference[Queue[(Long, Int)]](Queue[(Long, Int)]())
@@ -70,10 +81,9 @@ object DurationRateLimiterAlgorithm:
     end getNextUpdate
 
     def runOperation[T](operation: => T, permits: Int): T =
-      val result = operation
+      try operation
       // Consider end of operation as a point to release permit after `per` passes
-      addTimestampToLog(permits)
-      result
+      finally addTimestampToLog(permits)
 
     def update(): Unit =
       val now = System.nanoTime()

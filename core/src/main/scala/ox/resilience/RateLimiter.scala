@@ -2,8 +2,6 @@ package ox.resilience
 
 import scala.concurrent.duration.FiniteDuration
 import ox.*
-
-import java.util.concurrent.Semaphore
 import scala.annotation.tailrec
 
 /** Rate limiter with a customizable algorithm. Operations can be blocked or dropped, when the rate limit is reached. operationMode decides
@@ -52,12 +50,8 @@ object RateLimiter:
     *   Interval of time between replenishing the rate limiter. The rate limiter is replenished to allow up to [[maxOperations]] in the next
     *   time window.
     */
-  def fixedWindow(maxOperations: Int, window: FiniteDuration, operationMode: RateLimiterMode = RateLimiterMode.OperationStart)(using
-      Ox
-  ): RateLimiter =
-    operationMode match
-      case RateLimiterMode.OperationStart    => apply(RateLimiterAlgorithm.FixedWindow(maxOperations, window))
-      case RateLimiterMode.OperationDuration => apply(DurationRateLimiterAlgorithm.FixedWindow(maxOperations, window))
+  def fixedWindow(maxOperations: Int, window: FiniteDuration)(using Ox): RateLimiter =
+    apply(RateLimiterAlgorithm.FixedWindow(maxOperations, window))
 
   /** Creates a rate limiter using a sliding window algorithm.
     *
@@ -68,12 +62,8 @@ object RateLimiter:
     * @param window
     *   Length of the window.
     */
-  def slidingWindow(maxOperations: Int, window: FiniteDuration, operationMode: RateLimiterMode = RateLimiterMode.OperationStart)(using
-      Ox
-  ): RateLimiter =
-    operationMode match
-      case RateLimiterMode.OperationStart    => apply(RateLimiterAlgorithm.SlidingWindow(maxOperations, window))
-      case RateLimiterMode.OperationDuration => apply(DurationRateLimiterAlgorithm.SlidingWindow(maxOperations, window))
+  def slidingWindow(maxOperations: Int, window: FiniteDuration)(using Ox): RateLimiter =
+    apply(RateLimiterAlgorithm.SlidingWindow(maxOperations, window))
 
   /** Creates a rate limiter with token/leaky bucket algorithm.
     *
@@ -84,15 +74,31 @@ object RateLimiter:
     * @param refillInterval
     *   Interval of time between adding a single token to the bucket.
     */
-  def leakyBucket(maxTokens: Int, refillInterval: FiniteDuration)(using
-      Ox
-  ): RateLimiter =
+  def leakyBucket(maxTokens: Int, refillInterval: FiniteDuration)(using Ox): RateLimiter =
     apply(RateLimiterAlgorithm.LeakyBucket(maxTokens, refillInterval))
 
-end RateLimiter
+  /** Creates a rate limiter with duration fixed window algorithm.
+    *
+    * Must be run within an [[Ox]] concurrency scope, as a background fork is created, to replenish the rate limiter.
+    *
+    * @param maxOperations
+    *   Maximum number of operations that are allowed to **run** (finishing from previous windows or start new) within a time [[window]].
+    * @param window
+    *   Length of the window.
+    */
+  def durationFixedWindow(maxOperations: Int, window: FiniteDuration)(using Ox): RateLimiter =
+    apply(DurationRateLimiterAlgorithm.FixedWindow(maxOperations, window))
 
-/** Decides if RateLimiter should consider only start of an operation or whole time of execution.
-  */
-enum RateLimiterMode:
-  case OperationStart
-  case OperationDuration
+  /** Creates a rate limiter using a duration sliding window algorithm.
+    *
+    * Must be run within an [[Ox]] concurrency scope, as a background fork is created, to replenish the rate limiter.
+    *
+    * @param maxOperations
+    *   Maximum number of operations that are allowed to **run** (start or finishing) within any [[window]] of time.
+    * @param window
+    *   Length of the window.
+    */
+  def durationSlidingWindow(maxOperations: Int, window: FiniteDuration)(using Ox): RateLimiter =
+    apply(DurationRateLimiterAlgorithm.SlidingWindow(maxOperations, window))
+
+end RateLimiter

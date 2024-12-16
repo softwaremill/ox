@@ -38,6 +38,8 @@ trait RateLimiterAlgorithm:
 
 end RateLimiterAlgorithm
 
+/** RateLimiterAlgorithm: decides whether permit for operation can be acquired. Considers only start of an operation.
+  */
 object RateLimiterAlgorithm:
   /** Fixed window algorithm: allows starting at most `rate` operations in consecutively segments of duration `per`. */
   case class FixedWindow(rate: Int, per: FiniteDuration) extends RateLimiterAlgorithm:
