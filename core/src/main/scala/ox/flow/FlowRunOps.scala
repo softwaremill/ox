@@ -23,8 +23,6 @@ trait FlowRunOps[+T]:
     *
     * Must be run within a concurrency scope as a fork is created to run the flow. The size of the buffer is determined by the
     * [[BufferCapacity]] that is in scope.
-    *
-    * Blocks until the flow completes.
     */
   def runToChannel()(using OxUnsupervised, BufferCapacity): Source[T] =
     // if the previous stage is a source, there's no point in creating a new channel & fork, just to copy data
