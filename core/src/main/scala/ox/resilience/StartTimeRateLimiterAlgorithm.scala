@@ -1,27 +1,18 @@
 package ox.resilience
 
-import java.util.concurrent.Semaphore
-import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.atomic.AtomicLong
-import java.util.concurrent.atomic.AtomicReference
-import scala.annotation.tailrec
-import scala.collection.immutable.Queue
 import scala.concurrent.duration.FiniteDuration
-import ox.discard
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.Semaphore
+import scala.collection.immutable.Queue
+import scala.annotation.tailrec
+import java.util.concurrent.atomic.AtomicReference
 
-/** Algorithms, which take into account the entire duration of the operation.
-  *
-  * There is no leakyBucket algorithm implemented, which is present in [[StartTimeRateLimiterAlgorithm]], because effectively it would
-  * result in "max number of operations currently running", which can be achieved with single semaphore.
-  */
-object DurationRateLimiterAlgorithm:
-  /** Fixed window algorithm: allows running at most `rate` operations in consecutively segments of duration `per`. Considers whole
-    * execution time of an operation. Operation spanning more than one window blocks permits in all windows that it spans.
-    */
+/** Algorithms, which take into account the start time of the operation only. */
+object StartTimeRateLimiterAlgorithm:
+  /** Fixed window algorithm: allows starting at most `rate` operations in consecutively segments of duration `per`. */
   case class FixedWindow(rate: Int, per: FiniteDuration) extends RateLimiterAlgorithm:
     private val lastUpdate = new AtomicLong(System.nanoTime())
     private val semaphore = new Semaphore(rate)
-    private val runningOperations = new AtomicInteger(0)
 
     def acquire(permits: Int): Unit =
       semaphore.acquire(permits)
@@ -36,30 +27,28 @@ object DurationRateLimiterAlgorithm:
     def update(): Unit =
       val now = System.nanoTime()
       lastUpdate.set(now)
-      // We treat running operation in new window the same as a new operation that started in this window, so we replenish permits to: rate - operationsRunning
-      semaphore.release(rate - semaphore.availablePermits() - runningOperations.get())
+      semaphore.release(rate - semaphore.availablePermits())
     end update
 
-    def runOperation[T](operation: => T, permits: Int): T =
-      runningOperations.updateAndGet(_ + permits)
-      try operation
-      finally runningOperations.updateAndGet(_ - permits).discard
+    def runOperation[T](operation: => T, permits: Int): T = operation
 
   end FixedWindow
 
-  /** Sliding window algorithm: allows to run at most `rate` operations in the lapse of `per` before current time. Considers whole execution
-    * time of an operation. Operation release permit after `per` passed since operation ended.
-    */
+  /** Sliding window algorithm: allows to start at most `rate` operations in the lapse of `per` before current time. */
   case class SlidingWindow(rate: Int, per: FiniteDuration) extends RateLimiterAlgorithm:
-    // stores the timestamp and the number of permits acquired after finishing running operation
+    // stores the timestamp and the number of permits acquired after calling acquire or tryAcquire successfully
     private val log = new AtomicReference[Queue[(Long, Int)]](Queue[(Long, Int)]())
     private val semaphore = new Semaphore(rate)
 
     def acquire(permits: Int): Unit =
       semaphore.acquire(permits)
+      addTimestampToLog(permits)
 
     def tryAcquire(permits: Int): Boolean =
-      semaphore.tryAcquire(permits)
+      if semaphore.tryAcquire(permits) then
+        addTimestampToLog(permits)
+        true
+      else false
 
     private def addTimestampToLog(permits: Int): Unit =
       val now = System.nanoTime()
@@ -78,11 +67,6 @@ object DurationRateLimiterAlgorithm:
           val waitTime = record._1 + per.toNanos - System.nanoTime()
           if waitTime > 0 then waitTime else 0L
     end getNextUpdate
-
-    def runOperation[T](operation: => T, permits: Int): T =
-      try operation
-      // Consider end of operation as a point to release permit after `per` passes
-      finally addTimestampToLog(permits)
 
     def update(): Unit =
       val now = System.nanoTime()
@@ -109,9 +93,33 @@ object DurationRateLimiterAlgorithm:
             semaphore.release(permits)
             removeRecords(tail, now)
           else q
-      end match
-    end removeRecords
+
+    def runOperation[T](operation: => T, permits: Int): T = operation
 
   end SlidingWindow
 
-end DurationRateLimiterAlgorithm
+  /** Token/leaky bucket algorithm It adds a token to start a new operation each `per` with a maximum number of tokens of `rate`. */
+  case class LeakyBucket(rate: Int, per: FiniteDuration) extends RateLimiterAlgorithm:
+    private val refillInterval = per.toNanos
+    private val lastRefillTime = new AtomicLong(System.nanoTime())
+    private val semaphore = new Semaphore(1)
+
+    def acquire(permits: Int): Unit =
+      semaphore.acquire(permits)
+
+    def tryAcquire(permits: Int): Boolean =
+      semaphore.tryAcquire(permits)
+
+    def getNextUpdate: Long =
+      val waitTime = lastRefillTime.get() + refillInterval - System.nanoTime()
+      if waitTime > 0 then waitTime else 0L
+
+    def update(): Unit =
+      val now = System.nanoTime()
+      lastRefillTime.set(now)
+      if semaphore.availablePermits() < rate then semaphore.release()
+
+    def runOperation[T](operation: => T, permits: Int): T = operation
+
+  end LeakyBucket
+end StartTimeRateLimiterAlgorithm

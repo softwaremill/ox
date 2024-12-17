@@ -53,7 +53,7 @@ object RateLimiter:
     *   [[durationFixedWindow]]
     */
   def fixedWindow(maxOperations: Int, window: FiniteDuration)(using Ox): RateLimiter =
-    apply(RateLimiterAlgorithm.FixedWindow(maxOperations, window))
+    apply(StartTimeRateLimiterAlgorithm.FixedWindow(maxOperations, window))
 
   /** Creates a rate limiter using a sliding window algorithm. Takes into account the start time of the operation only.
     *
@@ -67,7 +67,7 @@ object RateLimiter:
     *   [[durationSlidingWindow]]
     */
   def slidingWindow(maxOperations: Int, window: FiniteDuration)(using Ox): RateLimiter =
-    apply(RateLimiterAlgorithm.SlidingWindow(maxOperations, window))
+    apply(StartTimeRateLimiterAlgorithm.SlidingWindow(maxOperations, window))
 
   /** Creates a rate limiter with token/leaky bucket algorithm. Takes into account the start time of the operation only.
     *
@@ -79,7 +79,7 @@ object RateLimiter:
     *   Interval of time between adding a single token to the bucket.
     */
   def leakyBucket(maxTokens: Int, refillInterval: FiniteDuration)(using Ox): RateLimiter =
-    apply(RateLimiterAlgorithm.LeakyBucket(maxTokens, refillInterval))
+    apply(StartTimeRateLimiterAlgorithm.LeakyBucket(maxTokens, refillInterval))
 
   /** Creates a rate limiter with a fixed window algorithm.
     *
