@@ -77,6 +77,14 @@ def computationR: Int = ???
 repeat(RepeatConfig.fixedRateForever(100.millis))(computationR)
 ```
 
+[Rate limit](utils/rate-limiter.md) computations:
+
+```scala mdoc:compile-only
+supervised:
+  val rateLimiter = RateLimiter.fixedWindowWithStartTime(2, 1.second)
+  rateLimiter.runBlocking({ /* ... */ })
+```
+
 Allocate a [resource](utils/resources.md) in a scope:
 
 ```scala mdoc:compile-only

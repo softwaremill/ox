@@ -4,6 +4,7 @@ import ox.*
 import ox.util.ElapsedTime
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
+import java.util.concurrent.atomic.AtomicLong
 import org.scalatest.{EitherValues, TryValues}
 import scala.concurrent.duration.*
 import java.util.concurrent.atomic.AtomicReference
@@ -14,7 +15,7 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
   it should "drop operation when rate limit is exceeded" in {
     supervised:
       val rateLimiter = RateLimiter(
-        RateLimiterAlgorithm.FixedWindow(2, FiniteDuration(1, "second"))
+        StartTimeRateLimiterAlgorithm.FixedWindow(2, FiniteDuration(1, "second"))
       )
 
       var executions = 0
@@ -35,7 +36,7 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
   it should "restart rate limiter after given duration" in {
     supervised:
       val rateLimiter = RateLimiter(
-        RateLimiterAlgorithm.FixedWindow(2, FiniteDuration(1, "second"))
+        StartTimeRateLimiterAlgorithm.FixedWindow(2, FiniteDuration(1, "second"))
       )
 
       var executions = 0
@@ -60,7 +61,7 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
   it should "block operation when rate limit is exceeded" in {
     supervised {
       val rateLimiter = RateLimiter(
-        RateLimiterAlgorithm.FixedWindow(2, FiniteDuration(1, "second"))
+        StartTimeRateLimiterAlgorithm.FixedWindow(2, FiniteDuration(1, "second"))
       )
 
       var executions = 0
@@ -85,7 +86,7 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
   it should "respect time constraints when blocking" in {
     supervised {
       val rateLimiter = RateLimiter(
-        RateLimiterAlgorithm.FixedWindow(2, FiniteDuration(1, "second"))
+        StartTimeRateLimiterAlgorithm.FixedWindow(2, FiniteDuration(1, "second"))
       )
 
       var order = List.empty[Int]
@@ -134,7 +135,7 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
   it should "respect time constraints when blocking concurrently" in {
     supervised {
       val rateLimiter = RateLimiter(
-        RateLimiterAlgorithm.FixedWindow(2, FiniteDuration(1, "second"))
+        StartTimeRateLimiterAlgorithm.FixedWindow(2, FiniteDuration(1, "second"))
       )
 
       val order = new AtomicReference(List.empty[Int])
@@ -180,11 +181,74 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
     }
   }
 
+  it should "allow to run more long running operations concurrently than max rate when not considering operation's time" in {
+    supervised:
+      val rateLimiter = RateLimiter.fixedWindowWithStartTime(2, FiniteDuration(1, "second"))
+
+      val operationsRunning = AtomicLong(0L)
+
+      def operation =
+        operationsRunning.updateAndGet(_ + 1)
+        sleep(3.seconds)
+        operationsRunning.updateAndGet(_ - 1)
+        0
+      end operation
+
+      var result1: Option[Int] = Some(-1)
+      var result2: Option[Int] = Some(-1)
+      var result3: Int = -1
+      var resultOperations: Long = 0L
+
+      supervised:
+        forkUserDiscard:
+          result1 = rateLimiter.runOrDrop(operation)
+        forkUserDiscard:
+          result2 = rateLimiter.runOrDrop(operation)
+        forkUserDiscard:
+          result3 = rateLimiter.runBlocking(operation)
+        forkUserDiscard:
+          // Wait for next window for 3rd operation to start, take number of operations running
+          sleep(1500.millis)
+          resultOperations = operationsRunning.get()
+
+      result1 shouldBe Some(0)
+      result2 shouldBe Some(0)
+      result3 shouldBe 0
+      resultOperations shouldBe 3
+  }
+
+  it should "not allow to run more long running operations concurrently than max rate when considering operation time" in {
+    supervised:
+      val rateLimiter = RateLimiter.fixedWindowWithDuration(2, FiniteDuration(1, "second"))
+
+      def operation =
+        sleep(3.seconds)
+        0
+
+      var result1: Option[Int] = Some(-1)
+      var result2: Option[Int] = Some(-1)
+      var result3: Option[Int] = Some(-1)
+
+      supervised:
+        forkUserDiscard:
+          result1 = rateLimiter.runOrDrop(operation)
+        forkUserDiscard:
+          result2 = rateLimiter.runOrDrop(operation)
+        forkUserDiscard:
+          // Two operations are running, and we are in the next 'window'
+          sleep(1500.millis)
+          result3 = rateLimiter.runOrDrop(operation)
+
+      result1 shouldBe Some(0)
+      result2 shouldBe Some(0)
+      result3 shouldBe None
+  }
+
   behavior of "sliding window RateLimiter"
   it should "drop operation when rate limit is exceeded" in {
     supervised {
       val rateLimiter = RateLimiter(
-        RateLimiterAlgorithm.SlidingWindow(2, FiniteDuration(1, "second"))
+        StartTimeRateLimiterAlgorithm.SlidingWindow(2, FiniteDuration(1, "second"))
       )
 
       var executions = 0
@@ -206,7 +270,7 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
   it should "restart rate limiter after given duration" in {
     supervised {
       val rateLimiter = RateLimiter(
-        RateLimiterAlgorithm.SlidingWindow(2, FiniteDuration(1, "second"))
+        StartTimeRateLimiterAlgorithm.SlidingWindow(2, FiniteDuration(1, "second"))
       )
 
       var executions = 0
@@ -232,7 +296,7 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
   it should "block operation when rate limit is exceeded" in {
     supervised {
       val rateLimiter = RateLimiter(
-        RateLimiterAlgorithm.SlidingWindow(2, FiniteDuration(1, "second"))
+        StartTimeRateLimiterAlgorithm.SlidingWindow(2, FiniteDuration(1, "second"))
       )
 
       var executions = 0
@@ -258,7 +322,7 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
   it should "respect time constraints when blocking" in {
     supervised {
       val rateLimiter = RateLimiter(
-        RateLimiterAlgorithm.SlidingWindow(2, FiniteDuration(1, "second"))
+        StartTimeRateLimiterAlgorithm.SlidingWindow(2, FiniteDuration(1, "second"))
       )
 
       var order = List.empty[Int]
@@ -292,7 +356,7 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
   it should "respect time constraints when blocking concurrently" in {
     supervised {
       val rateLimiter = RateLimiter(
-        RateLimiterAlgorithm.SlidingWindow(2, FiniteDuration(1, "second"))
+        StartTimeRateLimiterAlgorithm.SlidingWindow(2, FiniteDuration(1, "second"))
       )
 
       val order = new AtomicReference(List.empty[Int])
@@ -323,12 +387,91 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
     }
   }
 
+  it should "not allow to run more operations when operations are still running when considering operation time" in {
+    supervised:
+      val rateLimiter = RateLimiter.slidingWindowWithDuration(2, FiniteDuration(1, "second"))
+
+      def operation =
+        sleep(3.seconds)
+        0
+
+      var result1: Option[Int] = Some(-1)
+      var result2: Option[Int] = Some(-1)
+      var result3: Option[Int] = Some(-1)
+      var result4: Option[Int] = Some(-1)
+      var result5: Option[Int] = Some(-1)
+
+      supervised:
+        forkUserDiscard:
+          result1 = rateLimiter.runOrDrop(operation)
+        forkUserDiscard:
+          result2 = rateLimiter.runOrDrop(operation)
+        forkUserDiscard:
+          // Two operations are running, and we are in the next 'window'
+          sleep(1500.millis)
+          result3 = rateLimiter.runOrDrop(operation)
+        forkUserDiscard:
+          sleep(4200.millis)
+          result4 = rateLimiter.runOrDrop(operation)
+        forkUserDiscard:
+          sleep(4200.millis)
+          result5 = rateLimiter.runOrDrop(operation)
+
+      result1 shouldBe Some(0)
+      result2 shouldBe Some(0)
+      result3 shouldBe None
+      result4 shouldBe Some(0)
+      result5 shouldBe Some(0)
+  }
+
+  it should "not allow to run more operations when operations are still running in window span when considering operation time" in {
+    supervised:
+      val rateLimiter = RateLimiter.slidingWindowWithDuration(3, FiniteDuration(1, "second"))
+
+      def longOperation =
+        sleep(3.seconds)
+        0
+
+      def shortOperation =
+        sleep(300.millis)
+        0
+
+      def instantOperation = 0
+
+      var result1: Option[Int] = Some(-1)
+      var result2: Option[Int] = Some(-1)
+      var result3: Option[Int] = Some(-1)
+      var result4: Option[Int] = Some(-1)
+      var result5: Option[Int] = Some(-1)
+      var result6: Option[Int] = Some(-1)
+
+      supervised:
+        forkUserDiscard:
+          result1 = rateLimiter.runOrDrop(shortOperation)
+        forkUserDiscard:
+          result2 = rateLimiter.runOrDrop(shortOperation)
+        forkUserDiscard:
+          result3 = rateLimiter.runOrDrop(longOperation)
+        forkUserDiscard:
+          sleep(1500.millis)
+          result4 = rateLimiter.runOrDrop(instantOperation)
+          result5 = rateLimiter.runOrDrop(instantOperation)
+          result6 = rateLimiter.runOrDrop(instantOperation)
+
+      result1 shouldBe Some(0)
+      result2 shouldBe Some(0)
+      result3 shouldBe Some(0)
+      result4 shouldBe Some(0)
+      result5 shouldBe Some(0)
+      result6 shouldBe None
+  }
+
   behavior of "bucket RateLimiter"
 
   it should "drop operation when rate limit is exceeded" in {
     supervised {
       val rateLimiter = RateLimiter(
-        RateLimiterAlgorithm.LeakyBucket(2, FiniteDuration(1, "second"))
+        StartTimeRateLimiterAlgorithm.LeakyBucket(2, FiniteDuration(1, "second"))
       )
 
       var executions = 0
@@ -348,7 +491,7 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
   it should "refill token after time elapsed from last refill and not before" in {
     supervised {
       val rateLimiter = RateLimiter(
-        RateLimiterAlgorithm.LeakyBucket(2, FiniteDuration(1, "second"))
+        StartTimeRateLimiterAlgorithm.LeakyBucket(2, FiniteDuration(1, "second"))
       )
 
       var executions = 0
@@ -372,7 +515,7 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
   it should "block operation when rate limit is exceeded" in {
     supervised {
       val rateLimiter = RateLimiter(
-        RateLimiterAlgorithm.LeakyBucket(2, FiniteDuration(1, "second"))
+        StartTimeRateLimiterAlgorithm.LeakyBucket(2, FiniteDuration(1, "second"))
       )
 
       var executions = 0
@@ -397,7 +540,7 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
   it should "respect time constraints when blocking" in {
     supervised {
       val rateLimiter = RateLimiter(
-        RateLimiterAlgorithm.LeakyBucket(2, FiniteDuration(1, "second"))
+        StartTimeRateLimiterAlgorithm.LeakyBucket(2, FiniteDuration(1, "second"))
       )
 
       var order = List.empty[Int]
@@ -436,7 +579,7 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
   it should "respect time constraints when blocking concurrently" in {
     supervised {
       val rateLimiter = RateLimiter(
-        RateLimiterAlgorithm.LeakyBucket(2, FiniteDuration(1, "second"))
+        StartTimeRateLimiterAlgorithm.LeakyBucket(2, FiniteDuration(1, "second"))
       )
 
       val order = new AtomicReference(List.empty[Int])
