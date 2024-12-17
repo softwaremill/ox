@@ -86,6 +86,25 @@ class FlowOps[+T]:
         if n != 0 && sampleCounter % n == 0 then emit(t)
     )
 
+  /** Remove subsequent, repeating elements
+    */
+  def debounce: Flow[T] =
+    debounceBy(identity)
+
+  /** Remove subsequent, repeating elements matching 'f'
+    *
+    * @param f
+    *   The function used to compare the previous and current elements
+    */
+  def debounceBy[U](f: T => U): Flow[T] = Flow.usingEmitInline: emit =>
+    var previousElement: Option[U] = None
+    last.run(
+      FlowEmit.fromInline: t =>
+        val currentElement = f(t)
+        if !previousElement.contains(currentElement) then emit(t)
+        previousElement = Some(currentElement)
+    )
+
   /** Applies the given mapping function `f` to each element emitted by this flow, for which the function is defined, and emits the result.
     * If `f` is not defined at an element, the element will be skipped.
     *
