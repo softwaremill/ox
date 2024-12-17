@@ -30,10 +30,10 @@ trait RateLimiterAlgorithm:
   /** Returns the time in nanoseconds that needs to elapse until the next update. It should not modify internal state. */
   def getNextUpdate: Long
 
-  /** Runs operation. For cases where execution time is not needed it just returns result */
+  /** Runs the operation, allowing the algorithm to take into account its duration, if needed. */
   final def runOperation[T](operation: => T): T = runOperation(operation, 1)
 
-  /** Runs operation. For cases where execution time is not needed it just returns result */
+  /** Runs the operation, allowing the algorithm to take into account its duration, if needed. */
   def runOperation[T](operation: => T, permits: Int): T
 
 end RateLimiterAlgorithm

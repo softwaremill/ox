@@ -4,8 +4,8 @@ import scala.concurrent.duration.FiniteDuration
 import ox.*
 import scala.annotation.tailrec
 
-/** Rate limiter with a customizable algorithm. Operations can be blocked or dropped, when the rate limit is reached. operationMode decides
-  * if whole time of execution should be considered or just the start.
+/** Rate limiter with a customizable algorithm. Operations can be blocked or dropped, when the rate limit is reached. The rate limiter might
+  * take into account the start time of the operation, or its entire duration.
   */
 class RateLimiter private (algorithm: RateLimiterAlgorithm):
   /** Runs the operation, blocking if the rate limit is reached, until the rate limiter is replenished. */
@@ -13,10 +13,10 @@ class RateLimiter private (algorithm: RateLimiterAlgorithm):
     algorithm.acquire()
     algorithm.runOperation(operation)
 
-  /** Runs or drops the operation, if the rate limit is reached.
+  /** Runs the operation or drops it, if the rate limit is reached.
     *
     * @return
-    *   `Some` if the operation has been allowed to run, `None` if the operation has been dropped.
+    *   `Some` if the operation has been run, `None` if the operation has been dropped.
     */
   def runOrDrop[T](operation: => T): Option[T] =
     if algorithm.tryAcquire() then Some(algorithm.runOperation(operation))
@@ -40,7 +40,7 @@ object RateLimiter:
     new RateLimiter(algorithm)
   end apply
 
-  /** Creates a rate limiter using a fixed window algorithm.
+  /** Creates a rate limiter using a fixed window algorithm. Takes into account the start time of the operation only.
     *
     * Must be run within an [[Ox]] concurrency scope, as a background fork is created, to replenish the rate limiter.
     *
@@ -49,11 +49,13 @@ object RateLimiter:
     * @param window
     *   Interval of time between replenishing the rate limiter. The rate limiter is replenished to allow up to [[maxOperations]] in the next
     *   time window.
+    * @see
+    *   [[durationFixedWindow]]
     */
   def fixedWindow(maxOperations: Int, window: FiniteDuration)(using Ox): RateLimiter =
     apply(RateLimiterAlgorithm.FixedWindow(maxOperations, window))
 
-  /** Creates a rate limiter using a sliding window algorithm.
+  /** Creates a rate limiter using a sliding window algorithm. Takes into account the start time of the operation only.
     *
     * Must be run within an [[Ox]] concurrency scope, as a background fork is created, to replenish the rate limiter.
     *
@@ -61,11 +63,13 @@ object RateLimiter:
     *   Maximum number of operations that are allowed to **start** within any [[window]] of time.
     * @param window
     *   Length of the window.
+    * @see
+    *   [[durationSlidingWindow]]
     */
   def slidingWindow(maxOperations: Int, window: FiniteDuration)(using Ox): RateLimiter =
     apply(RateLimiterAlgorithm.SlidingWindow(maxOperations, window))
 
-  /** Creates a rate limiter with token/leaky bucket algorithm.
+  /** Creates a rate limiter with token/leaky bucket algorithm. Takes into account the start time of the operation only.
     *
     * Must be run within an [[Ox]] concurrency scope, as a background fork is created, to replenish the rate limiter.
     *
@@ -77,7 +81,10 @@ object RateLimiter:
   def leakyBucket(maxTokens: Int, refillInterval: FiniteDuration)(using Ox): RateLimiter =
     apply(RateLimiterAlgorithm.LeakyBucket(maxTokens, refillInterval))
 
-  /** Creates a rate limiter with duration fixed window algorithm.
+  /** Creates a rate limiter with a fixed window algorithm.
+    *
+    * Takes into account the entire duration of the operation. That is the instant at which the operation "happens" can be anywhere between
+    * its start and end. This ensures that the rate limit is always respected, although it might make it more restrictive.
     *
     * Must be run within an [[Ox]] concurrency scope, as a background fork is created, to replenish the rate limiter.
     *
@@ -85,11 +92,16 @@ object RateLimiter:
     *   Maximum number of operations that are allowed to **run** (finishing from previous windows or start new) within a time [[window]].
     * @param window
     *   Length of the window.
+    * @see
+    *   [[fixedWindow]]
     */
   def durationFixedWindow(maxOperations: Int, window: FiniteDuration)(using Ox): RateLimiter =
     apply(DurationRateLimiterAlgorithm.FixedWindow(maxOperations, window))
 
-  /** Creates a rate limiter using a duration sliding window algorithm.
+  /** Creates a rate limiter using a sliding window algorithm.
+    *
+    * Takes into account the entire duration of the operation. That is the instant at which the operation "happens" can be anywhere between
+    * its start and end. This ensures that the rate limit is always respected, although it might make it more restrictive.
     *
     * Must be run within an [[Ox]] concurrency scope, as a background fork is created, to replenish the rate limiter.
     *
@@ -97,6 +109,8 @@ object RateLimiter:
     *   Maximum number of operations that are allowed to **run** (start or finishing) within any [[window]] of time.
     * @param window
     *   Length of the window.
+    * @see
+    *   [[slidingWindow]]
     */
   def durationSlidingWindow(maxOperations: Int, window: FiniteDuration)(using Ox): RateLimiter =
     apply(DurationRateLimiterAlgorithm.SlidingWindow(maxOperations, window))
