@@ -50,9 +50,9 @@ object RateLimiter:
     *   Interval of time between replenishing the rate limiter. The rate limiter is replenished to allow up to [[maxOperations]] in the next
     *   time window.
     * @see
-    *   [[durationFixedWindow]]
+    *   [[fixedWindowWithDuration]]
     */
-  def fixedWindow(maxOperations: Int, window: FiniteDuration)(using Ox): RateLimiter =
+  def fixedWindowWithStartTime(maxOperations: Int, window: FiniteDuration)(using Ox): RateLimiter =
     apply(StartTimeRateLimiterAlgorithm.FixedWindow(maxOperations, window))
 
   /** Creates a rate limiter using a sliding window algorithm. Takes into account the start time of the operation only.
@@ -64,9 +64,9 @@ object RateLimiter:
     * @param window
     *   Length of the window.
     * @see
-    *   [[durationSlidingWindow]]
+    *   [[slidingWindowWithDuration]]
     */
-  def slidingWindow(maxOperations: Int, window: FiniteDuration)(using Ox): RateLimiter =
+  def slidingWindowWithStartTime(maxOperations: Int, window: FiniteDuration)(using Ox): RateLimiter =
     apply(StartTimeRateLimiterAlgorithm.SlidingWindow(maxOperations, window))
 
   /** Creates a rate limiter with token/leaky bucket algorithm. Takes into account the start time of the operation only.
@@ -93,9 +93,9 @@ object RateLimiter:
     * @param window
     *   Length of the window.
     * @see
-    *   [[fixedWindow]]
+    *   [[fixedWindowWithStartTime]]
     */
-  def durationFixedWindow(maxOperations: Int, window: FiniteDuration)(using Ox): RateLimiter =
+  def fixedWindowWithDuration(maxOperations: Int, window: FiniteDuration)(using Ox): RateLimiter =
     apply(DurationRateLimiterAlgorithm.FixedWindow(maxOperations, window))
 
   /** Creates a rate limiter using a sliding window algorithm.
@@ -110,9 +110,9 @@ object RateLimiter:
     * @param window
     *   Length of the window.
     * @see
-    *   [[slidingWindow]]
+    *   [[slidingWindowWithStartTime]]
     */
-  def durationSlidingWindow(maxOperations: Int, window: FiniteDuration)(using Ox): RateLimiter =
+  def slidingWindowWithDuration(maxOperations: Int, window: FiniteDuration)(using Ox): RateLimiter =
     apply(DurationRateLimiterAlgorithm.SlidingWindow(maxOperations, window))
 
 end RateLimiter

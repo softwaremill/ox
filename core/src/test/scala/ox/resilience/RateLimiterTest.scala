@@ -183,7 +183,7 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
 
   it should "allow to run more long running operations concurrently than max rate when not considering operation's time" in {
     supervised:
-      val rateLimiter = RateLimiter.fixedWindow(2, FiniteDuration(1, "second"))
+      val rateLimiter = RateLimiter.fixedWindowWithStartTime(2, FiniteDuration(1, "second"))
 
       val operationsRunning = AtomicLong(0L)
 
@@ -219,7 +219,7 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
 
   it should "not allow to run more long running operations concurrently than max rate when considering operation time" in {
     supervised:
-      val rateLimiter = RateLimiter.durationFixedWindow(2, FiniteDuration(1, "second"))
+      val rateLimiter = RateLimiter.fixedWindowWithDuration(2, FiniteDuration(1, "second"))
 
       def operation =
         sleep(3.seconds)
@@ -389,7 +389,7 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
 
   it should "not allow to run more operations when operations are still running when considering operation time" in {
     supervised:
-      val rateLimiter = RateLimiter.durationSlidingWindow(2, FiniteDuration(1, "second"))
+      val rateLimiter = RateLimiter.slidingWindowWithDuration(2, FiniteDuration(1, "second"))
 
       def operation =
         sleep(3.seconds)
@@ -426,7 +426,7 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
 
   it should "not allow to run more operations when operations are still running in window span when considering operation time" in {
     supervised:
-      val rateLimiter = RateLimiter.durationSlidingWindow(3, FiniteDuration(1, "second"))
+      val rateLimiter = RateLimiter.slidingWindowWithDuration(3, FiniteDuration(1, "second"))
 
       def longOperation =
         sleep(3.seconds)
