@@ -7,10 +7,10 @@ import scala.util.Try
 
 /** Retries an operation returning a direct result until it succeeds or the config decides to stop.
   *
-  * [[retry]] is a special case of [[scheduled]] with a given set of defaults. See [[RetryConfig]] for more details.
+  * [[retry]] is a special case of [[scheduled]] with a given set of defaults. See implementations of[[RetryConfig]] for more details.
   *
   * @param config
-  *   The retry config - see [[RetryConfig]].
+  *   The retry config - see implementations of [[RetryConfig]].
   * @param operation
   *   The operation to retry.
   * @return
@@ -26,10 +26,11 @@ def retry[T](config: RetryConfig[Throwable, T])(operation: => T): T =
 /** Retries an operation returning an [[scala.util.Either]] until it succeeds or the config decides to stop. Note that any exceptions thrown
   * by the operation aren't caught and don't cause a retry to happen.
   *
-  * [[retryEither]] is a special case of [[scheduledEither]] with a given set of defaults. See [[RetryConfig]] for more details.
+  * [[retryEither]] is a special case of [[scheduledEither]] with a given set of defaults. See implementations of [[RetryConfig]] for more
+  * details.
   *
   * @param config
-  *   The retry config - see [[RetryConfig]].
+  *   The retry config - see implementations of [[RetryConfig]].
   * @param operation
   *   The operation to retry.
   * @return
@@ -43,13 +44,13 @@ def retryEither[E, T](config: RetryConfig[E, T])(operation: => Either[E, T]): Ei
 /** Retries an operation using the given error mode until it succeeds or the config decides to stop. Note that any exceptions thrown by the
   * operation aren't caught (unless the operation catches them as part of its implementation) and don't cause a retry to happen.
   *
-  * [[retryWithErrorMode]] is a special case of [[scheduledWithErrorMode]] with a given set of defaults. See [[RetryConfig]] for more
-  * details.
+  * [[retryWithErrorMode]] is a special case of [[scheduledWithErrorMode]] with a given set of defaults. See implementations of
+  * [[RetryConfig]] for more details.
   *
   * @param em
   *   The error mode to use, which specifies when a result value is considered success, and when a failure.
   * @param config
-  *   The retry config - see [[RetryConfig]].
+  *   The retry config - See implementations of [[RetryConfig]].
   * @param operation
   *   The operation to retry.
   * @return

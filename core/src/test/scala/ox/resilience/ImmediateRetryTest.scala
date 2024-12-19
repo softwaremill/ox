@@ -20,7 +20,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
       successfulResult
 
     // when
-    val result = retry(RetryConfig.immediate(3))(f)
+    val result = retry(StandardRetryConfig.immediate(3))(f)
 
     // then
     result shouldBe successfulResult
@@ -31,7 +31,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
     // given
     var counter = 0
     val errorMessage = "boom"
-    val policy = RetryConfig[Throwable, Unit](Schedule.Immediate(3), ResultPolicy.retryWhen(_.getMessage != errorMessage))
+    val policy = StandardRetryConfig[Throwable, Unit](Schedule.Immediate(3), ResultPolicy.retryWhen(_.getMessage != errorMessage))
 
     def f =
       counter += 1
@@ -46,7 +46,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
     // given
     var counter = 0
     val unsuccessfulResult = -1
-    val policy = RetryConfig[Throwable, Int](Schedule.Immediate(3), ResultPolicy.successfulWhen(_ > 0))
+    val policy = StandardRetryConfig[Throwable, Int](Schedule.Immediate(3), ResultPolicy.successfulWhen(_ > 0))
 
     def f =
       counter += 1
@@ -70,7 +70,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
       if true then throw new RuntimeException(errorMessage)
 
     // when/then
-    the[RuntimeException] thrownBy retry(RetryConfig.immediate(3))(f) should have message errorMessage
+    the[RuntimeException] thrownBy retry(StandardRetryConfig.immediate(3))(f) should have message errorMessage
     counter shouldBe 4
   }
 
@@ -85,7 +85,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
       if counter <= retriesUntilSuccess then throw new RuntimeException("boom") else successfulResult
 
     // when
-    val result = retry(RetryConfig.immediateForever)(f)
+    val result = retry(StandardRetryConfig.immediateForever)(f)
 
     // then
     result shouldBe successfulResult
@@ -102,7 +102,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
       Right(successfulResult)
 
     // when
-    val result = retryEither(RetryConfig.immediate(3))(f)
+    val result = retryEither(StandardRetryConfig.immediate(3))(f)
 
     // then
     result.value shouldBe successfulResult
@@ -113,7 +113,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
     // given
     var counter = 0
     val errorMessage = "boom"
-    val policy: RetryConfig[String, Int] = RetryConfig(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != errorMessage))
+    val policy: StandardRetryConfig[String, Int] = StandardRetryConfig(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != errorMessage))
 
     def f: Either[String, Int] =
       counter += 1
@@ -131,7 +131,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
     // given
     var counter = 0
     val unsuccessfulResult = -1
-    val policy: RetryConfig[String, Int] = RetryConfig(Schedule.Immediate(3), ResultPolicy.successfulWhen(_ > 0))
+    val policy: StandardRetryConfig[String, Int] = StandardRetryConfig(Schedule.Immediate(3), ResultPolicy.successfulWhen(_ > 0))
 
     def f: Either[String, Int] =
       counter += 1
@@ -155,10 +155,47 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
       Left(errorMessage)
 
     // when
-    val result = retryEither(RetryConfig.immediate(3))(f)
+    val result = retryEither(StandardRetryConfig.immediate(3))(f)
 
     // then
     result.left.value shouldBe errorMessage
     counter shouldBe 4
   }
+
+  it should "retry a failing adaptive" in {
+    // given
+    var counter = 0
+    val errorMessage = "boom"
+
+    def f =
+      counter += 1
+      if counter <= 2 then Left(errorMessage)
+      else Right("Success")
+
+    // when
+    val result = retryEither(AdaptiveRetryConfig.immediate(5, 3))(f)
+
+    // then
+    result.value shouldBe "Success"
+    counter shouldBe 3
+  }
+
+  it should "retry a failing adaptive 2" in {
+    // given
+    var counter = 0
+    val errorMessage = "boom"
+
+    def f =
+      counter += 1
+      Left(errorMessage)
+
+    // when
+    val result = retryEither(AdaptiveRetryConfig.immediate(2, 5))(f)
+
+    // then
+    result.left.value shouldBe errorMessage
+    // One for first try, two for retries with bucket size 2
+    counter shouldBe 3
+  }
+
 end ImmediateRetryTest

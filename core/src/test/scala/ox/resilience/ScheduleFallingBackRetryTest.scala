@@ -24,7 +24,7 @@ class ScheduleFallingBackRetryTest extends AnyFlatSpec with Matchers with Elapse
     val schedule = Schedule.Immediate(immediateRetries).andThen(Schedule.Fixed(delayedRetries, sleep))
 
     // when
-    val (result, elapsedTime) = measure(the[RuntimeException] thrownBy retry(RetryConfig(schedule))(f))
+    val (result, elapsedTime) = measure(the[RuntimeException] thrownBy retry(StandardRetryConfig(schedule))(f))
 
     // then
     result should have message "boom"
@@ -45,7 +45,7 @@ class ScheduleFallingBackRetryTest extends AnyFlatSpec with Matchers with Elapse
     val schedule = Schedule.Immediate(100).andThen(Schedule.Fixed.forever(2.millis))
 
     // when
-    val result = retry(RetryConfig(schedule))(f)
+    val result = retry(StandardRetryConfig(schedule))(f)
 
     // then
     result shouldBe successfulResult
