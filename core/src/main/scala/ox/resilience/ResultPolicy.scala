@@ -14,31 +14,7 @@ package ox.resilience
   * @tparam T
   *   The successful result type for the operation.
   */
-case class ResultPolicy[E, T](isSuccess: T => Boolean = (_: T) => true, isWorthRetrying: E => Boolean = (_: E) => true):
-  /** @param tokenBucket
-    *   [[TokenBucket]] used by this policy. Can be shared by multiple policies. Default token size is 100.
-    * @param onFailureCost
-    *   Cost of tokens for failure. Default is 1
-    * @return
-    *   New adaptive [[ResultPolicy]] backed by [[TokenBucket]]. For every retry we try to acquire [[onFailureCost]] tokens. If we succeed
-    *   we continue, if not we short circuit and stop. For every successful attempt we release [[onFailureCost]] tokens.
-    */
-  def adaptive(tokenBucket: TokenBucket = TokenBucket(100), onFailureCost: Int = 1): ResultPolicy[E, T] =
-    val onError: E => Boolean = (e: E) =>
-      // if we cannot acquire token we short circuit and stop retrying
-      isWorthRetrying(e) && tokenBucket.tryAcquire(onFailureCost)
-
-    val onSuccess: T => Boolean = (result: T) =>
-      // if we consider this result as success token are given back to bucket
-      if isSuccess(result) then
-        tokenBucket.release(onFailureCost)
-        true
-      else false
-    end onSuccess
-    ResultPolicy(isSuccess = onSuccess, isWorthRetrying = onError)
-  end adaptive
-
-end ResultPolicy
+case class ResultPolicy[E, T](isSuccess: T => Boolean = (_: T) => true, isWorthRetrying: E => Boolean = (_: E) => true)
 
 object ResultPolicy:
   /** A policy that considers every non-erroneous result successful and retries on any error. */

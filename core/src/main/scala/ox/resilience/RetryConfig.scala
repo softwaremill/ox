@@ -35,13 +35,6 @@ case class RetryConfig[E, T](
     shouldContinueOnResult = t => !resultPolicy.isSuccess(t),
     sleepMode = SleepMode.Delay
   )
-
-  def adaptive(tokenBucket: TokenBucket, onFailureCost: Int): RetryConfig[E, T] =
-    copy(
-      resultPolicy = resultPolicy.adaptive(tokenBucket: TokenBucket, onFailureCost: Int)
-    )
-
-  end adaptive
 end RetryConfig
 
 object RetryConfig:
