@@ -51,7 +51,7 @@ See [scheduled](scheduled.md) for details on how to create custom schedules.
 ```scala
 import ox.UnionMode
 import ox.scheduling.{Schedule, repeat, repeatEither, repeatWithErrorMode, RepeatConfig}
-import ox.resilience.{retry, StandardRetryConfig}
+import ox.resilience.{retry, RetryConfig}
 import scala.concurrent.duration.*
 
 def directOperation: Int = ???
@@ -75,6 +75,6 @@ repeatWithErrorMode(UnionMode[String])(RepeatConfig.fixedRate(3, 100.millis))(un
 
 // repeat with retry inside
 repeat(RepeatConfig.fixedRate(3, 100.millis)) {
-  retry(StandardRetryConfig.backoff(3, 100.millis))(directOperation)
+  retry(RetryConfig.backoff(3, 100.millis))(directOperation)
 }
 ```
