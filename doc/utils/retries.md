@@ -125,3 +125,57 @@ retryWithErrorMode(UnionMode[String])(RetryConfig(Schedule.Immediate(3), ResultP
 ```
 
 See the tests in `ox.resilience.*` for more.
+
+# Adaptive retries
+This retry mechanism by implementing part of [AdaptiveRetryStrategy](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/retries/AdaptiveRetryStrategy.html) from `aws-sdk-java-v2`. Class `AdaptiveRetry` contains thread safe `TokenBucket` that acts as a circuit breaker for instance of this class. 
+For every retry, tokens are taken from bucket, if there is not enough we stop retrying. For every successful operations tokens are added back to bucket.
+This allows for "normal" retry mechanism in case of transient failures, but does not allow to generate for example 4 times the load in case of systemic failure (if we retry every operation 3 times).
+
+## Configuration
+Instance of `AdaptiveRetry` consists of three parts:
+- `tokenBucket: Tokenbucket` - instance of `TokenBucket`, can be shared across multiple instances of `AdaptiveRetry`.
+- `failureCost: Int` - cost of tokens that are needed for retry in case of failure.
+- `successReward: Int` - number of tokens that are added back to token bucket after successful attempt.
+
+`RetryConfig` and `ResultPolicy` are defined the same as with "normal" retry mechanism, all the information from above apply also here.
+
+## API
+To retry operation on `AdaptiveRetry` instance you can use one of three operations:
+- `def apply[E, T, F[_]](config: RetryConfig[E, T], isFailure: E => Boolean = (_: E) => true, errorMode: ErrorMode[E, F])(operation: => F[T]): F[T]` - where `E` represents error type, `T` result type, and `F[_]` context in which they are returned. This method is similar to `retryWithErrorMode`
+- `def retryEither[E, T](config: RetryConfig[E, T], isFailure: E => Boolean = (_: E) => true)(operation: => Either[E, T]): Either[E, T]` - This method is equivalent of `retryEither`.
+- `def retry[T](config: RetryConfig[Throwable, T], isFailure: Throwable => Boolean = _ => true)(operation: => T): T` - This method is equivalent of `retry`
+
+`retry` and `retryEither` are implemented in terms of `apply` method.
+
+## Examples
+
+If you want to use this mechanism you need to run operation through instance of `AdaptiveRetry`:
+```scala
+import ox.resilience.{AdaptiveRetry, TokenBucket}
+
+val tokenBucket = TokenBucket(bucketSize = 500)
+val adaptive = AdaptiveRetry(tokenBucket, failureCost = 5, successReward = 4)
+
+// various configs with custom schedules and default ResultPolicy
+adaptive.retry(RetryConfig.immediate(sleep))(directOperation)
+adaptive.retry(RetryConfig.delay(3, 100.millis))(directOperation)
+adaptive.retry(RetryConfig.backoff(3, 100.millis))(directOperation) // defaults: maxDelay = 1.minute, jitter = Jitter.None
+adaptive.retry(RetryConfig.backoff(3, 100.millis, 5.minutes, Jitter.Equal))(directOperation)
+
+// result policies
+// custom success
+adaptive.retry(RetryConfig(Schedule.Immediate(3), ResultPolicy.successfulWhen(_ > 0)))(directOperation)
+// fail fast on certain errors
+adaptive.retry(RetryConfig(Schedule.Immediate(3), ResultPolicy.retryWhen(_.getMessage != "fatal error")))(directOperation)
+adaptive.retryEither(RetryConfig(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")))(eitherOperation)
+
+// custom error mode 
+adaptive(RetryConfig(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")), errorMode = UnionMode[String])(unionOperation)
+
+// consider "throttling error" not as a failure that should incur the retry penalty
+adaptive(RetryConfig(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")), isFailure = _ != "throttling error", errorMode = UnionMode[String])(unionOperation)
+```
+
+Instance of `AdaptiveRetry` can be shared for different operation, for example different operations on the same constrained resource.
+
+See the tests in `ox.resilience.*` for more.

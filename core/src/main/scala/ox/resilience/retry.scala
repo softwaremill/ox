@@ -26,8 +26,7 @@ def retry[T](config: RetryConfig[Throwable, T])(operation: => T): T =
 /** Retries an operation returning an [[scala.util.Either]] until it succeeds or the config decides to stop. Note that any exceptions thrown
   * by the operation aren't caught and don't cause a retry to happen.
   *
-  * [[retryEither]] is a special case of [[scheduledEither]] with a given set of defaults. See implementations of [[RetryConfig]] for more
-  * details.
+  * [[retryEither]] is a special case of [[scheduledEither]] with a given set of defaults. See [[RetryConfig]] for more details.
   *
   * @param config
   *   The retry config - see [[RetryConfig]].
