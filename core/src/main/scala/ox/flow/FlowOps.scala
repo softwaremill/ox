@@ -792,7 +792,7 @@ class FlowOps[+T]:
           other.send(t)
       )
       other.done()
-    }.tapException(other.error)
+    }.tapException(other.errorOrClosed(_).discard)
   end alsoTo
 
   private case object NotSent
