@@ -61,7 +61,12 @@ class FlowOpsMapStatefulTest extends AnyFlatSpec with Matchers:
 
       s.receive() shouldBe "a"
       s.receive() shouldBe "b"
-      s.receive() shouldBe "c"
+      // it's possible that the final receive fails as well - when a receiver increments the receive counter
+      // (reserving the cell), but doesn't CAS the cell itself, the sender might buffer the element (knowing
+      // that a receiver is coming), and then proceed to closing the channel
+      s.receiveOrClosed() should (be("c") or matchPattern {
+        case ChannelClosed.Error(reason) if reason.getMessage == "boom" =>
+      })
       s.receiveOrClosed() should matchPattern:
         case ChannelClosed.Error(reason) if reason.getMessage == "boom" =>
 end FlowOpsMapStatefulTest
