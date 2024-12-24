@@ -29,7 +29,7 @@ object ResultPolicy:
 
   /** A policy that customizes which errors are retried, and considers every non-erroneous result successful
     * @param isWorthRetrying
-    *   A predicate that indicates whether an erroneous result should be retried..
+    *   A predicate that indicates whether an erroneous result should be retried.
     */
   def retryWhen[E, T](isWorthRetrying: E => Boolean): ResultPolicy[E, T] = ResultPolicy(isWorthRetrying = isWorthRetrying)
 

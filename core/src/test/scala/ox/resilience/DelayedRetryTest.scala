@@ -7,6 +7,7 @@ import ox.util.ElapsedTime
 import ox.resilience.*
 
 import scala.concurrent.duration.*
+import scala.util.Try
 
 class DelayedRetryTest extends AnyFlatSpec with Matchers with EitherValues with TryValues with ElapsedTime:
 
@@ -68,4 +69,29 @@ class DelayedRetryTest extends AnyFlatSpec with Matchers with EitherValues with 
     elapsedTime.toMillis should be >= maxRetries * sleep.toMillis
     counter shouldBe 4
   }
+
+  behavior of "adaptive retry with delayed config"
+
+  it should "retry a failing function forever or until adaptive retry blocks it" in {
+    // given
+    var counter = 0
+    val sleep = 2.millis
+    val retriesUntilSuccess = 1_000
+    val successfulResult = 42
+    val bucketSize = 500
+    val errorMessage = "boom"
+
+    def f =
+      counter += 1
+      if counter <= retriesUntilSuccess then throw RuntimeException(errorMessage) else successfulResult
+
+    // when
+    val adaptive = AdaptiveRetry(TokenBucket(bucketSize))
+    val result = the[RuntimeException] thrownBy adaptive.retry(RetryConfig.delayForever(sleep))(f)
+
+    // then
+    result should have message errorMessage
+    counter shouldBe bucketSize + 1
+  }
+
 end DelayedRetryTest

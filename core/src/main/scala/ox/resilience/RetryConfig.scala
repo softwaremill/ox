@@ -1,7 +1,6 @@
 package ox.resilience
 
-import ox.scheduling.{SleepMode, Jitter, Schedule, ScheduledConfig}
-
+import ox.scheduling.{Jitter, Schedule, ScheduledConfig, SleepMode}
 import scala.concurrent.duration.*
 
 /** A config that defines how to retry a failed operation.
