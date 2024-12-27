@@ -52,7 +52,7 @@ case class AdaptiveRetry(
     */
   def retryWithErrorMode[E, T, F[_]](
       config: RetryConfig[E, T],
-      isFailure: T => Boolean = (_: T) => true,
+      isFailure: T => Boolean = (_: T) => false,
       errorMode: ErrorMode[E, F]
   )(operation: => F[T]): F[T] =
     val isWorthRetrying: E => Boolean = (error: E) =>
@@ -95,7 +95,7 @@ case class AdaptiveRetry(
     * @see
     *   [[scheduledEither]]
     */
-  def retryEither[E, T](config: RetryConfig[E, T], isFailure: T => Boolean = (_: T) => true)(operation: => Either[E, T]): Either[E, T] =
+  def retryEither[E, T](config: RetryConfig[E, T], isFailure: T => Boolean = (_: T) => false)(operation: => Either[E, T]): Either[E, T] =
     retryWithErrorMode(config, isFailure, EitherMode[E])(operation)
 
   /** Retries an operation returning a direct result until it succeeds or the config decides to stop.
@@ -115,7 +115,7 @@ case class AdaptiveRetry(
     * @see
     *   [[scheduled]]
     */
-  def retry[T](config: RetryConfig[Throwable, T], isFailure: T => Boolean = (_: T) => true)(operation: => T): T =
+  def retry[T](config: RetryConfig[Throwable, T], isFailure: T => Boolean = (_: T) => false)(operation: => T): T =
     retryWithErrorMode(config, isFailure, EitherMode[Throwable])(Try(operation).toEither).fold(throw _, identity)
 
 end AdaptiveRetry
