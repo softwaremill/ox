@@ -202,7 +202,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
     counter shouldBe 3
   }
 
-  it should "not succeed if isFailure returns true" in {
+  it should "not pay exceptionCost if result T is going to be retried and shouldPayPenaltyCost returns false" in {
     // given
     var counter = 0
     val message = "success"
@@ -212,8 +212,9 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
       Right(message)
 
     val adaptive = AdaptiveRetry(TokenBucket(2), 1, 1)
+    val retryConfig = RetryConfig.immediate(5).copy(resultPolicy = ResultPolicy.successfulWhen[String, String](_ => false))
     // when
-    val result = adaptive.retryEither[String, String](RetryConfig.immediate(5), _ => true)(f)
+    val result = adaptive.retryEither(retryConfig, _ => false)(f)
 
     // then
     result.value shouldBe message

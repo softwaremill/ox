@@ -127,7 +127,8 @@ retryWithErrorMode(UnionMode[String])(RetryConfig(Schedule.Immediate(3), ResultP
 See the tests in `ox.resilience.*` for more.
 
 # Adaptive retries
-This retry mechanism is inspired by the talk `AWS re:Invent 2024 - Try again: The tools and techniques behind resilient systems` and [AdaptiveRetryStrategy](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/retries/AdaptiveRetryStrategy.html) from `aws-sdk-java-v2`. Class `AdaptiveRetry` contains thread safe `TokenBucket` that acts as a circuit breaker for instance of this class. 
+This retry mechanism is inspired by the talk `AWS re:Invent 2024 - Try again: The tools and techniques behind resilient systems` and [AdaptiveRetryStrategy](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/retries/AdaptiveRetryStrategy.html) from `aws-sdk-java-v2`. 
+Class `AdaptiveRetry` contains thread-safe `TokenBucket` that acts as a circuit breaker for instance of this class. 
 For every retry, tokens are taken from bucket, if there is not enough we stop retrying. For every successful operations tokens are added back to bucket.
 This allows for "normal" retry mechanism in case of transient failures, but does not allow to generate for example 4 times the load in case of systemic failure (if we retry every operation 3 times).
 
@@ -141,11 +142,14 @@ Instance of `AdaptiveRetry` consists of three parts:
 
 ## API
 To retry operation on `AdaptiveRetry` instance you can use one of three operations:
-- `def apply[E, T, F[_]](config: RetryConfig[E, T], isFailure: E => Boolean = (_: E) => true, errorMode: ErrorMode[E, F])(operation: => F[T]): F[T]` - where `E` represents error type, `T` result type, and `F[_]` context in which they are returned. This method is similar to `retryWithErrorMode`
-- `def retryEither[E, T](config: RetryConfig[E, T], isFailure: E => Boolean = (_: E) => true)(operation: => Either[E, T]): Either[E, T]` - This method is equivalent of `retryEither`.
-- `def retry[T](config: RetryConfig[Throwable, T], isFailure: Throwable => Boolean = _ => true)(operation: => T): T` - This method is equivalent of `retry`
+- `def retryWithErrorMode[E, T, F[_]](config: RetryConfig[E, T], shouldPayPenaltyCost: T => Boolean = (_: T) => true, errorMode: ErrorMode[E, F])(operation: => F[T]): F[T]` - where `E` represents error type, `T` result type, and `F[_]` context in which they are returned. This method is similar to `retryWithErrorMode`
+- `def retryEither[E, T](config: RetryConfig[E, T], shouldPayPenaltyCost: T => Boolean = (_: T) => true)(operation: => Either[E, T]): Either[E, T]` - This method is equivalent of `retryEither`.
+- `def retry[T](config: RetryConfig[Throwable, T], shouldPayPenaltyCost: T => Boolean = (_: T) => true)(operation: => T): T` - This method is equivalent of `retry`
 
-`retry` and `retryEither` are implemented in terms of `apply` method.
+`retry` and `retryEither` are implemented in terms of `retryWithErrorMode` method.
+
+`shouldPayPenaltyCost` determines if result `T` should be considered failure in terms of paying cost for retry. 
+Penalty is paid only if it is decided to retry operation, the penalty will not be paid for successful operation.
 
 ## Examples
 

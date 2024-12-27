@@ -1,7 +1,7 @@
 package ox.resilience
 
 import ox.{EitherMode, ErrorMode}
-import ox.scheduling.scheduledWithErrorMode
+import ox.scheduling.{ScheduledConfig, SleepMode, scheduledWithErrorMode}
 
 import scala.util.Try
 
@@ -31,8 +31,9 @@ case class AdaptiveRetry(
     *
     * @param config
     *   The retry config - See [[RetryConfig]].
-    * @param isFailure
-    *   Function to decide if returned result [[T]] should be considered failure.
+    * @param shouldPayPenaltyCost
+    *   Function to decide if returned result [[T]] should be considered failure in terms of paying cost for retry. Penalty is paid only if
+    *   it is decided to retry operation, the penalty will not be paid for successful operation. Defaults to `true`.
     * @param errorMode
     *   The error mode to use, which specifies when a result value is considered success, and when a failure.
     * @param operation
@@ -52,25 +53,28 @@ case class AdaptiveRetry(
     */
   def retryWithErrorMode[E, T, F[_]](
       config: RetryConfig[E, T],
-      isFailure: T => Boolean = (_: T) => false,
+      shouldPayPenaltyCost: T => Boolean = (_: T) => true,
       errorMode: ErrorMode[E, F]
   )(operation: => F[T]): F[T] =
-    val isWorthRetrying: E => Boolean = (error: E) =>
-      // if we cannot acquire token we short circuit and stop retrying
-      val isWorth = config.resultPolicy.isWorthRetrying(error)
-      if isWorth then tokenBucket.tryAcquire(failureCost)
-      else false
+    val shouldAttempt: Either[E, T] => Boolean = result =>
+      // for result T check if penalty should be paid, in case of E we always pay.
+      // If shouldPayPenaltyCost return false, we always attempt
+      if result.map(shouldPayPenaltyCost).getOrElse(true) then tokenBucket.tryAcquire(failureCost)
+      else true
 
-    val isSuccess: T => Boolean = (result: T) =>
-      // if we consider this result as success token are given back to bucket
-      if config.resultPolicy.isSuccess(result) && !isFailure(result) then
-        tokenBucket.release(successReward)
-        true
-      else false
-    end isSuccess
+    val afterSuccess: T => Unit = _ => tokenBucket.release(successReward)
 
-    val resultPolicy = ResultPolicy(isSuccess, isWorthRetrying)
-    scheduledWithErrorMode(errorMode)(config.copy(resultPolicy = resultPolicy).toScheduledConfig)(operation)
+    val scheduledConfig = ScheduledConfig(
+      config.schedule,
+      config.onRetry,
+      shouldContinueOnError = config.resultPolicy.isWorthRetrying,
+      shouldContinueOnResult = t => !config.resultPolicy.isSuccess(t),
+      shouldAttempt = shouldAttempt,
+      afterSuccess = afterSuccess,
+      sleepMode = SleepMode.Delay
+    )
+
+    scheduledWithErrorMode(errorMode)(scheduledConfig)(operation)
   end retryWithErrorMode
 
   /** Retries an operation returning an [[scala.util.Either]] until it succeeds or the config decides to stop. Note that any exceptions
@@ -81,8 +85,9 @@ case class AdaptiveRetry(
     *
     * @param config
     *   The retry config - see [[RetryConfig]].
-    * @param isFailure
-    *   Function to decide if returned result [[T]] should be considered failure.
+    * @param shouldPayPenaltyCost
+    *   Function to decide if returned result [[T]] should be considered failure in terms of paying cost for retry. Penalty is paid only if
+    *   it is decided to retry operation, the penalty will not be paid for successful operation.
     * @param operation
     *   The operation to retry.
     * @tparam E
@@ -95,8 +100,10 @@ case class AdaptiveRetry(
     * @see
     *   [[scheduledEither]]
     */
-  def retryEither[E, T](config: RetryConfig[E, T], isFailure: T => Boolean = (_: T) => false)(operation: => Either[E, T]): Either[E, T] =
-    retryWithErrorMode(config, isFailure, EitherMode[E])(operation)
+  def retryEither[E, T](config: RetryConfig[E, T], shouldPayPenaltyCost: T => Boolean = (_: T) => false)(
+      operation: => Either[E, T]
+  ): Either[E, T] =
+    retryWithErrorMode(config, shouldPayPenaltyCost, EitherMode[E])(operation)
 
   /** Retries an operation returning a direct result until it succeeds or the config decides to stop.
     *
@@ -104,8 +111,9 @@ case class AdaptiveRetry(
     *
     * @param config
     *   The retry config - see [[RetryConfig]].
-    * @param isFailure
-    *   Function to decide if returned result [[T]] should be considered failure.
+    * @param shouldPayPenaltyCost
+    *   Function to decide if returned result [[T]] should be considered failure in terms of paying cost for retry. Penalty is paid only if
+    *   it is decided to retry operation, the penalty will not be paid for successful operation.
     * @param operation
     *   The operation to retry.
     * @return
@@ -115,8 +123,8 @@ case class AdaptiveRetry(
     * @see
     *   [[scheduled]]
     */
-  def retry[T](config: RetryConfig[Throwable, T], isFailure: T => Boolean = (_: T) => false)(operation: => T): T =
-    retryWithErrorMode(config, isFailure, EitherMode[Throwable])(Try(operation).toEither).fold(throw _, identity)
+  def retry[T](config: RetryConfig[Throwable, T], shouldPayPenaltyCost: T => Boolean = (_: T) => false)(operation: => T): T =
+    retryWithErrorMode(config, shouldPayPenaltyCost, EitherMode[Throwable])(Try(operation).toEither).fold(throw _, identity)
 
 end AdaptiveRetry
 

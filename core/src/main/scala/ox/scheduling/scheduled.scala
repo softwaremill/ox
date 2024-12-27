@@ -33,6 +33,12 @@ end SleepMode
   * @param shouldContinueOnResult
   *   A function that determines whether to continue the loop after a success. The function receives the value that was emitted by the last
   *   invocation. Defaults to [[_ => true]].
+  *
+  * @param shouldAttempt
+  *   A function that determines whether to attempt a retry. This function is called after shouldContinueOnError or shouldContinueOnResult
+  *   returns true and the result is considered for retry, it may perform side effects to determine if attempt should be made.
+  * @param afterSuccess
+  *   A function that is invoked after every successful attempt. Performs side effects.
   * @param sleepMode
   *   The mode that specifies how to interpret the duration provided by the schedule. See [[SleepMode]] for more details.
   * @tparam E
@@ -46,6 +52,8 @@ case class ScheduledConfig[E, T](
     onOperationResult: (Int, Either[E, T]) => Unit = (_: Int, _: Either[E, T]) => (),
     shouldContinueOnError: E => Boolean = (_: E) => false,
     shouldContinueOnResult: T => Boolean = (_: T) => true,
+    shouldAttempt: Either[E, T] => Boolean = (_: Either[E, T]) => true,
+    afterSuccess: T => Unit = (_: T) => (),
     sleepMode: SleepMode = SleepMode.Interval
 )
 
@@ -109,7 +117,7 @@ def scheduledWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(config: ScheduledCon
         val error = em.getError(v)
         config.onOperationResult(invocation, Left(error))
 
-        if config.shouldContinueOnError(error) && remainingInvocations.forall(_ > 0) then
+        if config.shouldContinueOnError(error) && remainingInvocations.forall(_ > 0) && config.shouldAttempt(Left(error)) then
           val delay = sleepIfNeeded(startTimestamp)
           loop(invocation + 1, remainingInvocations.map(_ - 1), Some(delay))
         else v
@@ -117,10 +125,12 @@ def scheduledWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(config: ScheduledCon
         val result = em.getT(v)
         config.onOperationResult(invocation, Right(result))
 
-        if config.shouldContinueOnResult(result) && remainingInvocations.forall(_ > 0) then
+        if config.shouldContinueOnResult(result) && remainingInvocations.forall(_ > 0) && config.shouldAttempt(Right(result)) then
           val delay = sleepIfNeeded(startTimestamp)
           loop(invocation + 1, remainingInvocations.map(_ - 1), Some(delay))
-        else v
+        else
+          config.afterSuccess(result)
+          v
     end match
   end loop
 
