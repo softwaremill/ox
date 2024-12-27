@@ -174,7 +174,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
       if counter <= 2 then Left(errorMessage)
       else Right("Success")
 
-    val adaptive = AdaptiveRetry(TokenBucket(5))
+    val adaptive = AdaptiveRetry(TokenBucket(5), 1, 1)
     // when
     val result = adaptive.retryEither(RetryConfig.immediate(5))(f)
 
@@ -192,7 +192,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
       counter += 1
       Left(errorMessage)
 
-    val adaptive = AdaptiveRetry(TokenBucket(2))
+    val adaptive = AdaptiveRetry(TokenBucket(2), 1, 1)
     // when
     val result = adaptive.retryEither(RetryConfig.immediate[String, String](5))(f)
 
@@ -202,21 +202,21 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
     counter shouldBe 3
   }
 
-  it should "not take tokens if isFailure returns false" in {
+  it should "not succeed if isFailure returns true" in {
     // given
     var counter = 0
-    val errorMessage = "boom"
+    val message = "success"
 
     def f =
       counter += 1
-      Left(errorMessage)
+      Right(message)
 
-    val adaptive = AdaptiveRetry(TokenBucket(2))
+    val adaptive = AdaptiveRetry(TokenBucket(2), 1, 1)
     // when
-    val result = adaptive.retryEither[String, String](RetryConfig.immediate(5), _ => false)(f)
+    val result = adaptive.retryEither[String, String](RetryConfig.immediate(5), _ => true)(f)
 
     // then
-    result.left.value shouldBe errorMessage
+    result.value shouldBe message
     counter shouldBe 6
   }
 

@@ -86,7 +86,7 @@ class DelayedRetryTest extends AnyFlatSpec with Matchers with EitherValues with 
       if counter <= retriesUntilSuccess then throw RuntimeException(errorMessage) else successfulResult
 
     // when
-    val adaptive = AdaptiveRetry(TokenBucket(bucketSize))
+    val adaptive = AdaptiveRetry(TokenBucket(bucketSize), 1, 1)
     val result = the[RuntimeException] thrownBy adaptive.retry(RetryConfig.delayForever(sleep))(f)
 
     // then

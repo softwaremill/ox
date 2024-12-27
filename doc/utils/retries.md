@@ -127,7 +127,7 @@ retryWithErrorMode(UnionMode[String])(RetryConfig(Schedule.Immediate(3), ResultP
 See the tests in `ox.resilience.*` for more.
 
 # Adaptive retries
-This retry mechanism by implementing part of [AdaptiveRetryStrategy](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/retries/AdaptiveRetryStrategy.html) from `aws-sdk-java-v2`. Class `AdaptiveRetry` contains thread safe `TokenBucket` that acts as a circuit breaker for instance of this class. 
+This retry mechanism is inspired by the talk `AWS re:Invent 2024 - Try again: The tools and techniques behind resilient systems` and [AdaptiveRetryStrategy](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/retries/AdaptiveRetryStrategy.html) from `aws-sdk-java-v2`. Class `AdaptiveRetry` contains thread safe `TokenBucket` that acts as a circuit breaker for instance of this class. 
 For every retry, tokens are taken from bucket, if there is not enough we stop retrying. For every successful operations tokens are added back to bucket.
 This allows for "normal" retry mechanism in case of transient failures, but does not allow to generate for example 4 times the load in case of systemic failure (if we retry every operation 3 times).
 
@@ -170,10 +170,10 @@ adaptive.retry(RetryConfig(Schedule.Immediate(3), ResultPolicy.retryWhen(_.getMe
 adaptive.retryEither(RetryConfig(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")))(eitherOperation)
 
 // custom error mode 
-adaptive(RetryConfig(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")), errorMode = UnionMode[String])(unionOperation)
+adaptive.retryWithErrorMode(RetryConfig(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")), errorMode = UnionMode[String])(unionOperation)
 
 // consider "throttling error" not as a failure that should incur the retry penalty
-adaptive(RetryConfig(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")), isFailure = _ != "throttling error", errorMode = UnionMode[String])(unionOperation)
+adaptive.retryWithErrorMode(RetryConfig(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")), isFailure = _ != "throttling error", errorMode = UnionMode[String])(unionOperation)
 ```
 
 Instance of `AdaptiveRetry` can be shared for different operation, for example different operations on the same constrained resource.
