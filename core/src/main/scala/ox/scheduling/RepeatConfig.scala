@@ -28,11 +28,15 @@ case class RepeatConfig[E, T](
     schedule: Schedule,
     shouldContinueOnResult: T => Boolean = (_: T) => true
 ):
-  def toScheduledConfig: ScheduledConfig[E, T] = ScheduledConfig(
-    schedule,
-    shouldContinueOnResult = shouldContinueOnResult,
-    sleepMode = SleepMode.Interval
-  )
+  def toScheduledConfig: ScheduledConfig[E, T] =
+    val afterAttempt: (Int, Either[E, T]) => ScheduleContinue = (_, attempt) =>
+      attempt match
+        case Left(_)      => ScheduleContinue.Yes
+        case Right(value) => ScheduleContinue.fromBool(shouldContinueOnResult(value))
+    end afterAttempt
+
+    ScheduledConfig(schedule, afterAttempt, SleepMode.Interval)
+  end toScheduledConfig
 end RepeatConfig
 
 object RepeatConfig:

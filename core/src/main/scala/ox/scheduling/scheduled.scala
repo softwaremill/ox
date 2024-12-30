@@ -19,26 +19,26 @@ enum SleepMode:
   case Delay
 end SleepMode
 
+enum ScheduleContinue(val continue: Boolean):
+  case Yes extends ScheduleContinue(true)
+  case No extends ScheduleContinue(false)
+
+end ScheduleContinue
+
+object ScheduleContinue:
+  def fromBool(predicate: Boolean): ScheduleContinue =
+    if predicate then Yes
+    else No
+end ScheduleContinue
+
 /** A config that defines how to schedule an operation.
   *
   * @param schedule
   *   The schedule which determines the maximum number of invocations and the duration between subsequent invocations. See [[Schedule]] for
   *   more details.
-  * @param onOperationResult
-  *   A function that is invoked after each invocation. The callback receives the number of the current invocations number (starting from 1)
-  *   and the result of the operation. The result is either a successful value or an error.
-  * @param shouldContinueOnError
-  *   A function that determines whether to continue the loop after an error. The function receives the error that was emitted by the last
-  *   invocation. Defaults to [[_ => false]].
-  * @param shouldContinueOnResult
-  *   A function that determines whether to continue the loop after a success. The function receives the value that was emitted by the last
-  *   invocation. Defaults to [[_ => true]].
-  *
-  * @param shouldAttempt
-  *   A function that determines whether to attempt a retry. This function is called after shouldContinueOnError or shouldContinueOnResult
-  *   returns true and the result is considered for retry, it may perform side effects to determine if attempt should be made.
-  * @param afterSuccess
-  *   A function that is invoked after every successful attempt. Performs side effects.
+  * @param afterAttempt
+  *   A function that determines if schedule should continue. It is invoked after every attempt with current invocations number (starting
+  *   from 1) and the result of an operation. It can contain side effects.
   * @param sleepMode
   *   The mode that specifies how to interpret the duration provided by the schedule. See [[SleepMode]] for more details.
   * @tparam E
@@ -49,11 +49,8 @@ end SleepMode
   */
 case class ScheduledConfig[E, T](
     schedule: Schedule,
-    onOperationResult: (Int, Either[E, T]) => Unit = (_: Int, _: Either[E, T]) => (),
-    shouldContinueOnError: E => Boolean = (_: E) => false,
-    shouldContinueOnResult: T => Boolean = (_: T) => true,
-    shouldAttempt: Either[E, T] => Boolean = (_: Either[E, T]) => true,
-    afterSuccess: T => Unit = (_: T) => (),
+    afterAttempt: (Int, Either[E, T]) => ScheduleContinue = (_, attempt: Either[E, T]) =>
+      attempt.map(_ => ScheduleContinue.Yes).getOrElse(ScheduleContinue.No),
     sleepMode: SleepMode = SleepMode.Interval
 )
 
@@ -115,22 +112,20 @@ def scheduledWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(config: ScheduledCon
     operation match
       case v if em.isError(v) =>
         val error = em.getError(v)
-        config.onOperationResult(invocation, Left(error))
+        val shouldContinue = config.afterAttempt(invocation, Left(error))
 
-        if config.shouldContinueOnError(error) && remainingInvocations.forall(_ > 0) && config.shouldAttempt(Left(error)) then
+        if remainingInvocations.forall(_ > 0) && shouldContinue.continue then
           val delay = sleepIfNeeded(startTimestamp)
           loop(invocation + 1, remainingInvocations.map(_ - 1), Some(delay))
         else v
       case v =>
         val result = em.getT(v)
-        config.onOperationResult(invocation, Right(result))
+        val shouldContinue = config.afterAttempt(invocation, Right(result))
 
-        if config.shouldContinueOnResult(result) && remainingInvocations.forall(_ > 0) && config.shouldAttempt(Right(result)) then
+        if remainingInvocations.forall(_ > 0) && shouldContinue.continue then
           val delay = sleepIfNeeded(startTimestamp)
           loop(invocation + 1, remainingInvocations.map(_ - 1), Some(delay))
-        else
-          config.afterSuccess(result)
-          v
+        else v
     end match
   end loop
 

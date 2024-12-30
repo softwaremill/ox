@@ -1,6 +1,7 @@
 package ox.resilience
 
-import ox.scheduling.{Jitter, Schedule, ScheduledConfig, SleepMode}
+import ox.scheduling.{Jitter, Schedule, ScheduleContinue, ScheduledConfig, SleepMode}
+
 import scala.concurrent.duration.*
 
 /** A config that defines how to retry a failed operation.
@@ -28,13 +29,16 @@ case class RetryConfig[E, T](
     resultPolicy: ResultPolicy[E, T] = ResultPolicy.default[E, T],
     onRetry: (Int, Either[E, T]) => Unit = (_: Int, _: Either[E, T]) => ()
 ):
-  def toScheduledConfig: ScheduledConfig[E, T] = ScheduledConfig(
-    schedule,
-    onRetry,
-    shouldContinueOnError = resultPolicy.isWorthRetrying,
-    shouldContinueOnResult = t => !resultPolicy.isSuccess(t),
-    sleepMode = SleepMode.Delay
-  )
+  def toScheduledConfig: ScheduledConfig[E, T] =
+    val afterAttempt: (Int, Either[E, T]) => ScheduleContinue = (attemptNum, attempt) =>
+      onRetry(attemptNum, attempt)
+      attempt match
+        case Left(value)  => ScheduleContinue.fromBool(resultPolicy.isWorthRetrying(value))
+        case Right(value) => ScheduleContinue.fromBool(!resultPolicy.isSuccess(value))
+    end afterAttempt
+
+    ScheduledConfig(schedule, afterAttempt, SleepMode.Delay)
+  end toScheduledConfig
 end RetryConfig
 
 object RetryConfig:

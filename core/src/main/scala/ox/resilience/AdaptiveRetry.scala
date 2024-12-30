@@ -1,7 +1,7 @@
 package ox.resilience
 
-import ox.{EitherMode, ErrorMode}
-import ox.scheduling.{ScheduledConfig, SleepMode, scheduledWithErrorMode}
+import ox.scheduling.{ScheduleContinue, ScheduledConfig, SleepMode, scheduledWithErrorMode}
+import ox.*
 
 import scala.util.Try
 
@@ -56,21 +56,28 @@ case class AdaptiveRetry(
       shouldPayPenaltyCost: T => Boolean = (_: T) => true,
       errorMode: ErrorMode[E, F]
   )(operation: => F[T]): F[T] =
-    val shouldAttempt: Either[E, T] => Boolean = result =>
-      // for result T check if penalty should be paid, in case of E we always pay.
-      // If shouldPayPenaltyCost return false, we always attempt
-      if result.map(shouldPayPenaltyCost).getOrElse(true) then tokenBucket.tryAcquire(failureCost)
-      else true
 
-    val afterSuccess: T => Unit = _ => tokenBucket.release(successReward)
+    val afterAttempt: (Int, Either[E, T]) => ScheduleContinue = (attemptNum, attempt) =>
+      config.onRetry(attemptNum, attempt)
+      attempt match
+        case Left(value) =>
+          // If we want to retry we try to acquire tokens from bucket
+          if config.resultPolicy.isWorthRetrying(value) then ScheduleContinue.fromBool(tokenBucket.tryAcquire(failureCost))
+          else ScheduleContinue.No
+        case Right(value) =>
+          // If we are successful, we release tokens to bucket and end schedule
+          if config.resultPolicy.isSuccess(value) then
+            tokenBucket.release(successReward)
+            ScheduleContinue.No
+            // If it is not success we check if we need to acquire tokens, then we check bucket, otherwise we continue
+          else if shouldPayPenaltyCost(value) then ScheduleContinue.fromBool(tokenBucket.tryAcquire(failureCost))
+          else ScheduleContinue.Yes
+      end match
+    end afterAttempt
 
     val scheduledConfig = ScheduledConfig(
       config.schedule,
-      config.onRetry,
-      shouldContinueOnError = config.resultPolicy.isWorthRetrying,
-      shouldContinueOnResult = t => !config.resultPolicy.isSuccess(t),
-      shouldAttempt = shouldAttempt,
-      afterSuccess = afterSuccess,
+      afterAttempt,
       sleepMode = SleepMode.Delay
     )
 
