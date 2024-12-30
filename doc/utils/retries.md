@@ -140,6 +140,8 @@ Instance of `AdaptiveRetry` consists of three parts:
 
 `RetryConfig` and `ResultPolicy` are defined the same as with "normal" retry mechanism, all the information from above apply also here.
 
+Instance with default configuration can be obtained with `AdaptiveRetry.default` with bucket size = 500, cost for failure = 5 and reward for success = 1.
+
 ## API
 To retry operation on `AdaptiveRetry` instance you can use one of three operations:
 - `def retryWithErrorMode[E, T, F[_]](config: RetryConfig[E, T], shouldPayPenaltyCost: T => Boolean = (_: T) => true, errorMode: ErrorMode[E, F])(operation: => F[T]): F[T]` - where `E` represents error type, `T` result type, and `F[_]` context in which they are returned. This method is similar to `retryWithErrorMode`
