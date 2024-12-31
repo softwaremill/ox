@@ -3,18 +3,18 @@ package ox.scheduling
 import scala.concurrent.duration.*
 import scala.util.Random
 
-sealed trait Schedule:
+trait Schedule:
   def nextDuration(invocation: Int, lastDuration: Option[FiniteDuration]): FiniteDuration
   def initialDelay: FiniteDuration = Duration.Zero
 
 object Schedule:
 
-  private[scheduling] sealed trait Finite extends Schedule:
+  private[scheduling] trait Finite extends Schedule:
     def maxRepeats: Int
     def andThen(nextSchedule: Finite): Finite = FiniteAndFiniteSchedules(this, nextSchedule)
     def andThen(nextSchedule: Infinite): Infinite = FiniteAndInfiniteSchedules(this, nextSchedule)
 
-  private[scheduling] sealed trait Infinite extends Schedule
+  private[scheduling] trait Infinite extends Schedule
 
   /** A schedule that represents an initial delay applied before the first invocation of operation being scheduled. Usually used in
     * combination with other schedules using [[andThen]]

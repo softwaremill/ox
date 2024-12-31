@@ -29,7 +29,7 @@ compileDocumentation := {
 lazy val rootProject = (project in file("."))
   .settings(commonSettings)
   .settings(publishArtifact := false, name := "ox")
-  .aggregate(core, examples, kafka, mdcLogback, flowReactiveStreams)
+  .aggregate(core, examples, kafka, mdcLogback, flowReactiveStreams, cron)
 
 lazy val core: Project = (project in file("core"))
   .settings(commonSettings)
@@ -94,6 +94,17 @@ lazy val flowReactiveStreams: Project = (project in file("flow-reactive-streams"
   )
   .dependsOn(core)
 
+lazy val cron: Project = (project in file("cron"))
+  .settings(commonSettings)
+  .settings(
+    name := "cron",
+    libraryDependencies ++= Seq(
+      "com.github.alonsodomin.cron4s" %% "cron4s-core" % "0.7.0",
+      scalaTest
+    )
+  )
+  .dependsOn(core)
+
 lazy val documentation: Project = (project in file("generated-doc")) // important: it must not be doc/
   .enablePlugins(MdocPlugin)
   .settings(commonSettings)
@@ -113,5 +124,6 @@ lazy val documentation: Project = (project in file("generated-doc")) // importan
     core,
     kafka,
     mdcLogback,
-    flowReactiveStreams
+    flowReactiveStreams,
+    cron
   )
