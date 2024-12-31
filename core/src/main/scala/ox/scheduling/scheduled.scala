@@ -19,12 +19,12 @@ enum SleepMode:
 end SleepMode
 
 /** @see [[ScheduleConfig.afterAttempt]] */
-enum ScheduleContinue(val continue: Boolean):
-  case Yes extends ScheduleContinue(true)
-  case No extends ScheduleContinue(false)
+enum ScheduleStop(val stop: Boolean):
+  case Yes extends ScheduleStop(true)
+  case No extends ScheduleStop(false)
 
-object ScheduleContinue:
-  def apply(predicate: Boolean): ScheduleContinue = if predicate then Yes else No
+object ScheduleStop:
+  def apply(stop: Boolean): ScheduleStop = if stop then Yes else No
 
 /** A config that defines how to schedule an operation.
   *
@@ -32,8 +32,9 @@ object ScheduleContinue:
   *   The schedule which determines the maximum number of invocations and the duration between subsequent invocations. See [[Schedule]] for
   *   more details.
   * @param afterAttempt
-  *   A function that determines if schedule should continue. It is invoked after every attempt with current invocation number (starting
-  *   from 1) and the result of the operation.
+  *   A callback invoked after every attempt, with the current invocation number (starting from 1) and the result of the operation. Might
+  *   decide to short-curcuit further attempts, and stop the schedule. Schedule configuration (e.g. max number of attempts) takes
+  *   precedence.
   * @param sleepMode
   *   The mode that specifies how to interpret the duration provided by the schedule. See [[SleepMode]] for more details.
   * @tparam E
@@ -44,8 +45,7 @@ object ScheduleContinue:
   */
 case class ScheduledConfig[E, T](
     schedule: Schedule,
-    afterAttempt: (Int, Either[E, T]) => ScheduleContinue = (_, attempt: Either[E, T]) =>
-      attempt.map(_ => ScheduleContinue.Yes).getOrElse(ScheduleContinue.No),
+    afterAttempt: (Int, Either[E, T]) => ScheduleStop = (_, _: Either[E, T]) => ScheduleStop.No,
     sleepMode: SleepMode = SleepMode.Interval
 )
 
@@ -107,17 +107,17 @@ def scheduledWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(config: ScheduledCon
     operation match
       case v if em.isError(v) =>
         val error = em.getError(v)
-        val shouldContinue = config.afterAttempt(invocation, Left(error))
+        val shouldStop = config.afterAttempt(invocation, Left(error))
 
-        if remainingInvocations.forall(_ > 0) && shouldContinue.continue then
+        if remainingInvocations.forall(_ > 0) && !shouldStop.stop then
           val delay = sleepIfNeeded(startTimestamp)
           loop(invocation + 1, remainingInvocations.map(_ - 1), Some(delay))
         else v
       case v =>
         val result = em.getT(v)
-        val shouldContinue = config.afterAttempt(invocation, Right(result))
+        val shouldStop = config.afterAttempt(invocation, Right(result))
 
-        if remainingInvocations.forall(_ > 0) && shouldContinue.continue then
+        if remainingInvocations.forall(_ > 0) && !shouldStop.stop then
           val delay = sleepIfNeeded(startTimestamp)
           loop(invocation + 1, remainingInvocations.map(_ - 1), Some(delay))
         else v

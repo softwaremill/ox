@@ -1,6 +1,6 @@
 package ox.resilience
 
-import ox.scheduling.{Jitter, Schedule, ScheduleContinue, ScheduledConfig, SleepMode}
+import ox.scheduling.{Jitter, Schedule, ScheduleStop, ScheduledConfig, SleepMode}
 
 import scala.concurrent.duration.*
 
@@ -30,12 +30,11 @@ case class RetryConfig[E, T](
     onRetry: (Int, Either[E, T]) => Unit = (_: Int, _: Either[E, T]) => ()
 ):
   def toScheduledConfig: ScheduledConfig[E, T] =
-    val afterAttempt: (Int, Either[E, T]) => ScheduleContinue = (attemptNum, attempt) =>
+    val afterAttempt: (Int, Either[E, T]) => ScheduleStop = (attemptNum, attempt) =>
       onRetry(attemptNum, attempt)
       attempt match
-        case Left(value)  => ScheduleContinue(resultPolicy.isWorthRetrying(value))
-        case Right(value) => ScheduleContinue(!resultPolicy.isSuccess(value))
-    end afterAttempt
+        case Left(value)  => ScheduleStop(!resultPolicy.isWorthRetrying(value))
+        case Right(value) => ScheduleStop(resultPolicy.isSuccess(value))
 
     ScheduledConfig(schedule, afterAttempt, SleepMode.Delay)
   end toScheduledConfig

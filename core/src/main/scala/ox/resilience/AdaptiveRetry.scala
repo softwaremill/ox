@@ -1,6 +1,6 @@
 package ox.resilience
 
-import ox.scheduling.{ScheduleContinue, ScheduledConfig, SleepMode, scheduledWithErrorMode}
+import ox.scheduling.{ScheduleStop, ScheduledConfig, SleepMode, scheduledWithErrorMode}
 import ox.*
 
 import scala.util.Try
@@ -39,8 +39,6 @@ case class AdaptiveRetry(
   /** Retries an operation using the given error mode until it succeeds or the config decides to stop. Note that any exceptions thrown by
     * the operation aren't caught (unless the operation catches them as part of its implementation) and don't cause a retry to happen.
     *
-    * This is a special case of [[scheduledWithErrorMode]] with a given set of defaults. See [[RetryConfig]] for more details.
-    *
     * @param config
     *   The retry config - See [[RetryConfig]].
     * @param shouldPayPenaltyCost
@@ -68,21 +66,21 @@ case class AdaptiveRetry(
       shouldPayPenaltyCost: T => Boolean = (_: T) => true
   )(operation: => F[T]): F[T] =
 
-    val afterAttempt: (Int, Either[E, T]) => ScheduleContinue = (attemptNum, attempt) =>
+    val afterAttempt: (Int, Either[E, T]) => ScheduleStop = (attemptNum, attempt) =>
       config.onRetry(attemptNum, attempt)
       attempt match
         case Left(value) =>
           // If we want to retry we try to acquire tokens from bucket
-          if config.resultPolicy.isWorthRetrying(value) then ScheduleContinue(tokenBucket.tryAcquire(failureCost))
-          else ScheduleContinue.No
+          if config.resultPolicy.isWorthRetrying(value) then ScheduleStop(!tokenBucket.tryAcquire(failureCost))
+          else ScheduleStop.Yes
         case Right(value) =>
           // If we are successful, we release tokens to bucket and end schedule
           if config.resultPolicy.isSuccess(value) then
             tokenBucket.release(successReward)
-            ScheduleContinue.No
+            ScheduleStop.Yes
             // If it is not success we check if we need to acquire tokens, then we check bucket, otherwise we continue
-          else if shouldPayPenaltyCost(value) then ScheduleContinue(tokenBucket.tryAcquire(failureCost))
-          else ScheduleContinue.Yes
+          else if shouldPayPenaltyCost(value) then ScheduleStop(!tokenBucket.tryAcquire(failureCost))
+          else ScheduleStop.No
       end match
     end afterAttempt
 
@@ -97,9 +95,6 @@ case class AdaptiveRetry(
 
   /** Retries an operation returning an [[scala.util.Either]] until it succeeds or the config decides to stop. Note that any exceptions
     * thrown by the operation aren't caught and don't cause a retry to happen.
-    *
-    * [[retryEither]] is a special case of [[scheduledWithErrorMode]] with a given set of defaults. See implementations of [[RetryConfig]]
-    * for more details.
     *
     * @param config
     *   The retry config - see [[RetryConfig]].
@@ -124,8 +119,6 @@ case class AdaptiveRetry(
     retryWithErrorMode(EitherMode[E])(config, shouldPayPenaltyCost)(operation)
 
   /** Retries an operation returning a direct result until it succeeds or the config decides to stop.
-    *
-    * [[retry]] is a special case of [[scheduledWithErrorMode]] with a given set of defaults. See [[RetryConfig]].
     *
     * @param config
     *   The retry config - see [[RetryConfig]].
