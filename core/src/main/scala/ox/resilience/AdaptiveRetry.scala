@@ -6,10 +6,10 @@ import ox.*
 import scala.util.Try
 
 /** Implements "adaptive" retries: every retry costs [[failureCost]] tokens from the bucket, and every success causes [[successReward]]
-  * tokens to be added to the bucket. If there are not enought tokens, retry is not attempted.
+  * tokens to be added to the bucket. If there are not enough tokens, retry is not attempted.
   *
   * This way retries don't overload a system that is down due to a systemic failure (such as a bug in the code, excessive load etc.):
-  * retries will be attempted only as long as there are enought tokens in the bucket, then the load on the downstream system will be reduced
+  * retries will be attempted only as long as there are enough tokens in the bucket, then the load on the downstream system will be reduced
   * so that it can recover. For transient failures (component failure, infrastructure issues etc.), retries still work as expected, as the
   * bucket has enough tokens to cover the cost of multiple retries.
   *
@@ -41,9 +41,9 @@ case class AdaptiveRetry(
     *
     * @param config
     *   The retry config - See [[RetryConfig]].
-    * @param shouldPayPenaltyCost
-    *   Function to decide if returned result [[T]] should be considered failure in terms of paying cost for retry. Penalty is paid only if
-    *   it is decided to retry operation, the penalty will not be paid for successful operation. Defaults to `true`.
+    * @param shouldPayFailureCost
+    *   Function to decide if returned result Either[E, T] should be considered failure in terms of paying cost for retry. Penalty is paid
+    *   only if it is decided to retry operation, the penalty will not be paid for successful operation. Defaults to `true`.
     * @param errorMode
     *   The error mode to use, which specifies when a result value is considered success, and when a failure.
     * @param operation
@@ -63,7 +63,7 @@ case class AdaptiveRetry(
     */
   def retryWithErrorMode[E, T, F[_]](errorMode: ErrorMode[E, F])(
       config: RetryConfig[E, T],
-      shouldPayPenaltyCost: T => Boolean = (_: T) => true
+      shouldPayFailureCost: Either[E, T] => Boolean = (_: Either[E, T]) => true
   )(operation: => F[T]): F[T] =
 
     val afterAttempt: (Int, Either[E, T]) => ScheduleStop = (attemptNum, attempt) =>
@@ -71,7 +71,9 @@ case class AdaptiveRetry(
       attempt match
         case Left(value) =>
           // If we want to retry we try to acquire tokens from bucket
-          if config.resultPolicy.isWorthRetrying(value) then ScheduleStop(!tokenBucket.tryAcquire(failureCost))
+          if config.resultPolicy.isWorthRetrying(value) then
+            if shouldPayFailureCost(Left(value)) then ScheduleStop(!tokenBucket.tryAcquire(failureCost))
+            else ScheduleStop.Yes
           else ScheduleStop.Yes
         case Right(value) =>
           // If we are successful, we release tokens to bucket and end schedule
@@ -79,7 +81,7 @@ case class AdaptiveRetry(
             tokenBucket.release(successReward)
             ScheduleStop.Yes
             // If it is not success we check if we need to acquire tokens, then we check bucket, otherwise we continue
-          else if shouldPayPenaltyCost(value) then ScheduleStop(!tokenBucket.tryAcquire(failureCost))
+          else if shouldPayFailureCost(Right(value)) then ScheduleStop(!tokenBucket.tryAcquire(failureCost))
           else ScheduleStop.No
       end match
     end afterAttempt
@@ -98,9 +100,9 @@ case class AdaptiveRetry(
     *
     * @param config
     *   The retry config - see [[RetryConfig]].
-    * @param shouldPayPenaltyCost
-    *   Function to decide if returned result [[T]] should be considered failure in terms of paying cost for retry. Penalty is paid only if
-    *   it is decided to retry operation, the penalty will not be paid for successful operation.
+    * @param shouldPayFailureCost
+    *   Function to decide if returned result Either[E, T] should be considered failure in terms of paying cost for retry. Penalty is paid
+    *   only if it is decided to retry operation, the penalty will not be paid for successful operation. Defaults to `true`.
     * @param operation
     *   The operation to retry.
     * @tparam E
@@ -113,18 +115,18 @@ case class AdaptiveRetry(
     * @see
     *   [[scheduledEither]]
     */
-  def retryEither[E, T](config: RetryConfig[E, T], shouldPayPenaltyCost: T => Boolean = (_: T) => false)(
+  def retryEither[E, T](config: RetryConfig[E, T], shouldPayFailureCost: Either[E, T] => Boolean = (_: Either[E, T]) => true)(
       operation: => Either[E, T]
   ): Either[E, T] =
-    retryWithErrorMode(EitherMode[E])(config, shouldPayPenaltyCost)(operation)
+    retryWithErrorMode(EitherMode[E])(config, shouldPayFailureCost)(operation)
 
   /** Retries an operation returning a direct result until it succeeds or the config decides to stop.
     *
     * @param config
     *   The retry config - see [[RetryConfig]].
-    * @param shouldPayPenaltyCost
-    *   Function to decide if returned result [[T]] should be considered failure in terms of paying cost for retry. Penalty is paid only if
-    *   it is decided to retry operation, the penalty will not be paid for successful operation.
+    * @param shouldPayFailureCost
+    *   Function to decide if returned result Either[E, T] should be considered failure in terms of paying cost for retry. Penalty is paid
+    *   only if it is decided to retry operation, the penalty will not be paid for successful operation. Defaults to `true`.
     * @param operation
     *   The operation to retry.
     * @return
@@ -134,8 +136,11 @@ case class AdaptiveRetry(
     * @see
     *   [[scheduled]]
     */
-  def retry[T](config: RetryConfig[Throwable, T], shouldPayPenaltyCost: T => Boolean = (_: T) => false)(operation: => T): T =
-    retryWithErrorMode(EitherMode[Throwable])(config, shouldPayPenaltyCost)(Try(operation).toEither).fold(throw _, identity)
+  def retry[T](
+      config: RetryConfig[Throwable, T],
+      shouldPayFailureCost: Either[Throwable, T] => Boolean = (_: Either[Throwable, T]) => true
+  )(operation: => T): T =
+    retryWithErrorMode(EitherMode[Throwable])(config, shouldPayFailureCost)(Try(operation).toEither).fold(throw _, identity)
 
 end AdaptiveRetry
 

@@ -201,6 +201,6 @@ adaptive.retryWithErrorMode(UnionMode[String])(
 
 // consider "throttling error" not as a failure that should incur the retry penalty
 adaptive.retryWithErrorMode(UnionMode[String])(
-  RetryConfig(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")), 
-  shouldPayPenaltyCost = _ != "throttling error")(unionOperation)
+  RetryConfig(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")),
+  shouldPayFailureCost = _.fold(_ != "throttling error", _ => true))(unionOperation)
 ```
