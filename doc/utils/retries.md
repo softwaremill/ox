@@ -121,67 +121,86 @@ retry(RetryConfig(Schedule.Immediate(3), ResultPolicy.retryWhen(_.getMessage != 
 retryEither(RetryConfig(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")))(eitherOperation)
 
 // custom error mode
-retryWithErrorMode(UnionMode[String])(RetryConfig(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")))(unionOperation)
+retryWithErrorMode(UnionMode[String])(
+  RetryConfig(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")))(unionOperation)
 ```
 
 See the tests in `ox.resilience.*` for more.
 
-# Adaptive retries
-This retry mechanism is inspired by the talk `AWS re:Invent 2024 - Try again: The tools and techniques behind resilient systems` and [AdaptiveRetryStrategy](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/retries/AdaptiveRetryStrategy.html) from `aws-sdk-java-v2`. 
-Class `AdaptiveRetry` contains thread-safe `TokenBucket` that acts as a circuit breaker for instance of this class. 
-For every retry, tokens are taken from bucket, if there is not enough we stop retrying. For every successful operations tokens are added back to bucket.
-This allows for "normal" retry mechanism in case of transient failures, but does not allow to generate for example 4 times the load in case of systemic failure (if we retry every operation 3 times).
+## Adaptive retries
 
-## Configuration
-Instance of `AdaptiveRetry` consists of three parts:
-- `tokenBucket: Tokenbucket` - instance of `TokenBucket`, can be shared across multiple instances of `AdaptiveRetry`.
-- `failureCost: Int` - cost of tokens that are needed for retry in case of failure.
-- `successReward: Int` - number of tokens that are added back to token bucket after successful attempt.
+A retry strategy, backed by a token bucket. Every retry costs a certain amount of tokens from the bucket, and every success causes some tokens to be added back to the bucket. If there are not enought tokens, retry is not attempted.
+  
+This way retries don't overload a system that is down due to a systemic failure (such as a bug in the code, excessive load etc.): retries will be attempted only as long as there are enought tokens in the bucket, then the load on the downstream system will be reduced so that it can recover. In contrast, using a "normal" retry strategy, where every operation is retries up to 3 times, a failure causes the load on the system to increas 4 times.
 
-`RetryConfig` and `ResultPolicy` are defined the same as with "normal" retry mechanism, all the information from above apply also here.
+For transient failures (component failure, infrastructure issues etc.), retries still work "normally", as the bucket has enough tokens to cover the cost of multiple retries.
 
-Instance with default configuration can be obtained with `AdaptiveRetry.default` with bucket size = 500, cost for failure = 5 and reward for success = 1.
+### Inspiration
 
-## API
-To retry operation on `AdaptiveRetry` instance you can use one of three operations:
-- `def retryWithErrorMode[E, T, F[_]](config: RetryConfig[E, T], shouldPayPenaltyCost: T => Boolean = (_: T) => true, errorMode: ErrorMode[E, F])(operation: => F[T]): F[T]` - where `E` represents error type, `T` result type, and `F[_]` context in which they are returned. This method is similar to `retryWithErrorMode`
-- `def retryEither[E, T](config: RetryConfig[E, T], shouldPayPenaltyCost: T => Boolean = (_: T) => true)(operation: => Either[E, T]): Either[E, T]` - This method is equivalent of `retryEither`.
-- `def retry[T](config: RetryConfig[Throwable, T], shouldPayPenaltyCost: T => Boolean = (_: T) => true)(operation: => T): T` - This method is equivalent of `retry`
+* [`AdaptiveRetryStrategy`](https://github.com/aws/aws-sdk-java-v2/blob/master/core/retries/src/main/java/software/amazon/awssdk/retries/AdaptiveRetryStrategy.java) from `aws-sdk-java-v2`
+* *["Try again: The tools and techniques behind resilient systems" from re:Invent 2024](https://www.youtube.com/watch?v=rvHd4Y76-fs)
 
-`retry` and `retryEither` are implemented in terms of `retryWithErrorMode` method.
+### Configuration
 
-`shouldPayPenaltyCost` determines if result `T` should be considered failure in terms of paying cost for retry. 
-Penalty is paid only if it is decided to retry operation, the penalty will not be paid for successful operation.
+To use adaptive retries, create an instance of `AdaptiveRetry`. These instances are thread-safe and are designed to be shared. Typically, a single instance should be used to proxy access to a single constrained resource.
 
-## Examples
+`AdaptiveRetry` is parametrized with:
+
+* `tokenBucket: Tokenbucket`: instances of `TokenBucket` can be shared across multiple instances of `AdaptiveRetry`
+* `failureCost: Int`: number of tokens that are needed for retry in case of failure
+* `successReward: Int`: number of tokens that are added back to token bucket after success
+
+`RetryConfig` and `ResultPolicy` are defined the same as with "normal" retry mechanism, all the configuration from above also applies here.
+
+Instance with default configuration can be obtained with `AdaptiveRetry.default` (bucket size = 500, cost for failure = 5 and reward for success = 1).
+
+### API
+
+`AdaptiveRetry` exposes three variants of retrying, which correspond to the three variants discussed above: `retry`, `retryEither` and `retryWithErrorMode`.
+
+`retry` will attempt to retry an operation if it throws an exception; `retryEither` will additionally retry, if the result is a `Left`. Finally `retryWithErrorMode` is the most flexible, and allows retrying operations using custom failure modes (such as union types).
+
+The methods have an additional parameter, `shouldPayPenaltyCost`, which determines if result `T` should be considered failure in terms of paying cost for retry. Penalty is paid only if it is decided to retry operation, the penalty will not be paid for successful operation.
+
+### Examples
 
 If you want to use this mechanism you need to run operation through instance of `AdaptiveRetry`:
-```scala
-import ox.resilience.{AdaptiveRetry, TokenBucket}
 
-val tokenBucket = TokenBucket(bucketSize = 500)
-val adaptive = AdaptiveRetry(tokenBucket, failureCost = 5, successReward = 4)
+```scala mdoc:compile-only
+import ox.UnionMode
+import ox.resilience.AdaptiveRetry
+import ox.resilience.{ResultPolicy, RetryConfig}
+import ox.scheduling.{Jitter, Schedule}
+import scala.concurrent.duration.*
+
+def directOperation: Int = ???
+def eitherOperation: Either[String, Int] = ???
+def unionOperation: String | Int = ???
+
+val adaptive = AdaptiveRetry.default
 
 // various configs with custom schedules and default ResultPolicy
-adaptive.retry(RetryConfig.immediate(sleep))(directOperation)
+adaptive.retry(RetryConfig.immediate(3))(directOperation)
 adaptive.retry(RetryConfig.delay(3, 100.millis))(directOperation)
 adaptive.retry(RetryConfig.backoff(3, 100.millis))(directOperation) // defaults: maxDelay = 1.minute, jitter = Jitter.None
 adaptive.retry(RetryConfig.backoff(3, 100.millis, 5.minutes, Jitter.Equal))(directOperation)
 
 // result policies
 // custom success
-adaptive.retry(RetryConfig(Schedule.Immediate(3), ResultPolicy.successfulWhen(_ > 0)))(directOperation)
+adaptive.retry[Int](
+  RetryConfig(Schedule.Immediate(3), ResultPolicy.successfulWhen(_ > 0)))(directOperation)
 // fail fast on certain errors
-adaptive.retry(RetryConfig(Schedule.Immediate(3), ResultPolicy.retryWhen(_.getMessage != "fatal error")))(directOperation)
-adaptive.retryEither(RetryConfig(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")))(eitherOperation)
+adaptive.retry(
+  RetryConfig(Schedule.Immediate(3), ResultPolicy.retryWhen(_.getMessage != "fatal error")))(directOperation)
+adaptive.retryEither(
+  RetryConfig(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")))(eitherOperation)
 
 // custom error mode 
-adaptive.retryWithErrorMode(RetryConfig(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")), errorMode = UnionMode[String])(unionOperation)
+adaptive.retryWithErrorMode(UnionMode[String])(
+  RetryConfig(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")))(unionOperation)
 
 // consider "throttling error" not as a failure that should incur the retry penalty
-adaptive.retryWithErrorMode(RetryConfig(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")), isFailure = _ != "throttling error", errorMode = UnionMode[String])(unionOperation)
+adaptive.retryWithErrorMode(UnionMode[String])(
+  RetryConfig(Schedule.Immediate(3), ResultPolicy.retryWhen(_ != "fatal error")), 
+  shouldPayPenaltyCost = _ != "throttling error")(unionOperation)
 ```
-
-Instance of `AdaptiveRetry` can be shared for different operation, for example different operations on the same constrained resource.
-
-See the tests in `ox.resilience.*` for more.

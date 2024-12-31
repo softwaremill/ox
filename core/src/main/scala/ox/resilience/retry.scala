@@ -49,7 +49,7 @@ def retryEither[E, T](config: RetryConfig[E, T])(operation: => Either[E, T]): Ei
   * @param em
   *   The error mode to use, which specifies when a result value is considered success, and when a failure.
   * @param config
-  *   The retry config - See [[RetryConfig]].
+  *   The retry config - see [[RetryConfig]].
   * @param operation
   *   The operation to retry.
   * @return

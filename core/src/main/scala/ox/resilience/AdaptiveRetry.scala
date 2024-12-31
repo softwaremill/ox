@@ -5,19 +5,31 @@ import ox.*
 
 import scala.util.Try
 
-/** Provides mechanism of "adaptive" retries. Inspired by `AdaptiveRetryStrategy` from `aws-sdk-java-v2` and the talk "AWS re:Invent 2024 -
-  * Try again: The tools and techniques behind resilient systems". For every retry we take [[failureCost]] from token bucket and for every
-  * success we add back to the bucket [[successReward]] tokens. Instance of this class is thread-safe and can be "shared" across multiple
-  * operations against constrained resource. This allows to retry in case of transient failures and at the same time doesn't produce more
-  * load on systemic failure of a resource.
+/** Implements "adaptive" retries: every retry costs [[failureCost]] tokens from the bucket, and every success causes [[successReward]]
+  * tokens to be added to the bucket. If there are not enought tokens, retry is not attempted.
+  *
+  * This way retries don't overload a system that is down due to a systemic failure (such as a bug in the code, excessive load etc.):
+  * retries will be attempted only as long as there are enought tokens in the bucket, then the load on the downstream system will be reduced
+  * so that it can recover. For transient failures (component failure, infrastructure issues etc.), retries still work as expected, as the
+  * bucket has enough tokens to cover the cost of multiple retries.
+  *
+  * Instances of this class are thread-safe and are designed to be shared. Typically, a single instance should be used to proxy access to a
+  * single constrained resource.
+  *
+  * An instance with default parameters can be created using [[AdaptiveRetry.default]].
+  *
+  * Inspired by:
+  *   - [`AdaptiveRetryStrategy`](https://github.com/aws/aws-sdk-java-v2/blob/master/core/retries/src/main/java/software/amazon/awssdk/retries/AdaptiveRetryStrategy.java)
+  *     from `aws-sdk-java-v2`
+  *   - ["Try again: The tools and techniques behind resilient systems" from re:Invent 2024](https://www.youtube.com/watch?v=rvHd4Y76-fs)
   *
   * @param tokenBucket
-  *   instance of [[TokenBucket]]. Provided instance is thread safe and can be "shared" between different instances of [[AdaptiveRetry]]
-  *   with different [[failureCost]] for example.
+  *   Instance of [[TokenBucket]]. As a token bucket is thread-safe, it can be shared between different instances of [[AdaptiveRetry]], e.g.
+  *   with a different [[failureCost]].
   * @param failureCost
   *   Number of tokens to take from [[tokenBucket]] when retrying.
   * @param successReward
-  *   Number of tokens to add back to [[tokenBucket]] after successful operation.
+  *   Number of tokens to add back to [[tokenBucket]] after a successful operation.
   */
 case class AdaptiveRetry(
     tokenBucket: TokenBucket,
@@ -51,10 +63,9 @@ case class AdaptiveRetry(
     * @see
     *   [[scheduledWithErrorMode]]
     */
-  def retryWithErrorMode[E, T, F[_]](
+  def retryWithErrorMode[E, T, F[_]](errorMode: ErrorMode[E, F])(
       config: RetryConfig[E, T],
-      shouldPayPenaltyCost: T => Boolean = (_: T) => true,
-      errorMode: ErrorMode[E, F]
+      shouldPayPenaltyCost: T => Boolean = (_: T) => true
   )(operation: => F[T]): F[T] =
 
     val afterAttempt: (Int, Either[E, T]) => ScheduleContinue = (attemptNum, attempt) =>
@@ -110,7 +121,7 @@ case class AdaptiveRetry(
   def retryEither[E, T](config: RetryConfig[E, T], shouldPayPenaltyCost: T => Boolean = (_: T) => false)(
       operation: => Either[E, T]
   ): Either[E, T] =
-    retryWithErrorMode(config, shouldPayPenaltyCost, EitherMode[E])(operation)
+    retryWithErrorMode(EitherMode[E])(config, shouldPayPenaltyCost)(operation)
 
   /** Retries an operation returning a direct result until it succeeds or the config decides to stop.
     *
@@ -131,7 +142,7 @@ case class AdaptiveRetry(
     *   [[scheduled]]
     */
   def retry[T](config: RetryConfig[Throwable, T], shouldPayPenaltyCost: T => Boolean = (_: T) => false)(operation: => T): T =
-    retryWithErrorMode(config, shouldPayPenaltyCost, EitherMode[Throwable])(Try(operation).toEither).fold(throw _, identity)
+    retryWithErrorMode(EitherMode[Throwable])(config, shouldPayPenaltyCost)(Try(operation).toEither).fold(throw _, identity)
 
 end AdaptiveRetry
 

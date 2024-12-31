@@ -7,7 +7,6 @@ import ox.util.ElapsedTime
 import ox.resilience.*
 
 import scala.concurrent.duration.*
-import scala.util.Try
 
 class DelayedRetryTest extends AnyFlatSpec with Matchers with EitherValues with TryValues with ElapsedTime:
 
