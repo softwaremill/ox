@@ -27,7 +27,7 @@ Similarly to the `retry` API, the `operation` can be defined:
 The `repeat` config requires a `Schedule`, which indicates how many times and with what interval should the `operation` 
 be repeated.
 
-In addition, it is possible to define a custom `shouldContinueOnSuccess` strategy for deciding if the operation
+In addition, it is possible to define a custom `shouldContinueOnResult` strategy for deciding if the operation
 should continue to be repeated after a successful result returned by the previous operation (defaults to `_: T => true`).
 
 If an operation returns an error, the repeat loop will always be stopped. If an error handling within the operation
