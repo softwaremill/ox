@@ -95,7 +95,7 @@ class FlowIOOpsTest extends AnyWordSpec with Matchers:
 
   "toFile" should:
 
-    "create a file and write a single chunk with bytes" in supervised:
+    "open existing file and write a single chunk with bytes" in supervised:
       val path = useInScope(Files.createTempFile("ox", "test-writefile1"))(Files.deleteIfExists(_).discard)
       val sourceContent = "source.toFile test1 content"
       val source = Flow.fromValues(Chunk.fromArray(sourceContent.getBytes))
@@ -103,13 +103,26 @@ class FlowIOOpsTest extends AnyWordSpec with Matchers:
 
       fileContent(path) shouldBe List(sourceContent)
 
-    "create a file and write multiple chunks with bytes" in supervised:
+    "open existing file and write multiple chunks with bytes" in supervised:
       val path = useInScope(Files.createTempFile("ox", "test-writefile2"))(Files.deleteIfExists(_).discard)
       val sourceContent = "source.toFile test2 content"
       val source = Flow.fromIterable(sourceContent.grouped(4).toList.map(chunkStr => Chunk.fromArray(chunkStr.getBytes)))
       source.runToFile(path)
 
       fileContent(path) shouldBe List(sourceContent)
+
+    "create file and write multiple chunks with bytes" in supervised:
+      var filePath = null: Path
+      val folderPath = useInScope(Files.createTempDirectory("ox")) { path =>
+        Files.deleteIfExists(filePath)
+        Files.deleteIfExists(path).discard
+      }
+      val sourceContent = "source.toFile test3 content"
+      filePath = folderPath.resolve("test-writefile3")
+      Flow.fromIterable(sourceContent.grouped(4).toList.map(chunkStr => Chunk.fromArray(chunkStr.getBytes)))
+        .runToFile(filePath)
+
+      fileContent(filePath) shouldBe List(sourceContent)
 
     "use an existing file and overwrite it a single chunk with bytes" in supervised:
       val path = useInScope(Files.createTempFile("ox", "test-writefile3"))(Files.deleteIfExists(_).discard)
@@ -142,7 +155,7 @@ class FlowIOOpsTest extends AnyWordSpec with Matchers:
       exception.getMessage should endWith("is a directory")
 
     "throw an exception if file cannot be opened" in:
-      val path = Paths.get("/").resolve("/not-existing-directory/not-existing-file.txt")
+      val path = Paths.get("/").resolve("/directory-without-permissions/file-without-access.txt")
       val source = Flow.fromValues(Chunk.empty[Byte])
       assertThrows[NoSuchFileException](source.runToFile(path))
 
