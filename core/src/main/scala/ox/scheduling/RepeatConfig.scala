@@ -32,7 +32,7 @@ case class RepeatConfig[E, T](
     val afterAttempt: (Int, Either[E, T]) => ScheduleContinue = (_, attempt) =>
       attempt match
         case Left(_)      => ScheduleContinue.No
-        case Right(value) => ScheduleContinue.fromBool(shouldContinueOnResult(value))
+        case Right(value) => ScheduleContinue(shouldContinueOnResult(value))
     end afterAttempt
 
     ScheduledConfig(schedule, afterAttempt, SleepMode.Interval)

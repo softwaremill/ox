@@ -14,22 +14,17 @@ enum SleepMode:
     */
   case Interval
 
-  /** Delay (since the end of the last operation), i.e. sleeps the duration provided by the schedule before the next operation starts.
-    */
+  /** Delay (since the end of the last operation), i.e. sleeps the duration provided by the schedule before the next operation starts. */
   case Delay
 end SleepMode
 
+/** @see [[ScheduleConfig.afterAttempt]] */
 enum ScheduleContinue(val continue: Boolean):
   case Yes extends ScheduleContinue(true)
   case No extends ScheduleContinue(false)
 
-end ScheduleContinue
-
 object ScheduleContinue:
-  def fromBool(predicate: Boolean): ScheduleContinue =
-    if predicate then Yes
-    else No
-end ScheduleContinue
+  def apply(predicate: Boolean): ScheduleContinue = if predicate then Yes else No
 
 /** A config that defines how to schedule an operation.
   *
@@ -37,8 +32,8 @@ end ScheduleContinue
   *   The schedule which determines the maximum number of invocations and the duration between subsequent invocations. See [[Schedule]] for
   *   more details.
   * @param afterAttempt
-  *   A function that determines if schedule should continue. It is invoked after every attempt with current invocations number (starting
-  *   from 1) and the result of an operation. It can contain side effects.
+  *   A function that determines if schedule should continue. It is invoked after every attempt with current invocation number (starting
+  *   from 1) and the result of the operation.
   * @param sleepMode
   *   The mode that specifies how to interpret the duration provided by the schedule. See [[SleepMode]] for more details.
   * @tparam E

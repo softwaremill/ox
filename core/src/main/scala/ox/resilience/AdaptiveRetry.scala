@@ -73,7 +73,7 @@ case class AdaptiveRetry(
       attempt match
         case Left(value) =>
           // If we want to retry we try to acquire tokens from bucket
-          if config.resultPolicy.isWorthRetrying(value) then ScheduleContinue.fromBool(tokenBucket.tryAcquire(failureCost))
+          if config.resultPolicy.isWorthRetrying(value) then ScheduleContinue(tokenBucket.tryAcquire(failureCost))
           else ScheduleContinue.No
         case Right(value) =>
           // If we are successful, we release tokens to bucket and end schedule
@@ -81,7 +81,7 @@ case class AdaptiveRetry(
             tokenBucket.release(successReward)
             ScheduleContinue.No
             // If it is not success we check if we need to acquire tokens, then we check bucket, otherwise we continue
-          else if shouldPayPenaltyCost(value) then ScheduleContinue.fromBool(tokenBucket.tryAcquire(failureCost))
+          else if shouldPayPenaltyCost(value) then ScheduleContinue(tokenBucket.tryAcquire(failureCost))
           else ScheduleContinue.Yes
       end match
     end afterAttempt

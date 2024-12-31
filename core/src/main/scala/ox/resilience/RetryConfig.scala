@@ -33,8 +33,8 @@ case class RetryConfig[E, T](
     val afterAttempt: (Int, Either[E, T]) => ScheduleContinue = (attemptNum, attempt) =>
       onRetry(attemptNum, attempt)
       attempt match
-        case Left(value)  => ScheduleContinue.fromBool(resultPolicy.isWorthRetrying(value))
-        case Right(value) => ScheduleContinue.fromBool(!resultPolicy.isSuccess(value))
+        case Left(value)  => ScheduleContinue(resultPolicy.isWorthRetrying(value))
+        case Right(value) => ScheduleContinue(!resultPolicy.isSuccess(value))
     end afterAttempt
 
     ScheduledConfig(schedule, afterAttempt, SleepMode.Delay)
