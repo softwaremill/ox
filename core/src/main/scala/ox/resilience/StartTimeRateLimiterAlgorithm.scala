@@ -102,13 +102,13 @@ object StartTimeRateLimiterAlgorithm:
   case class LeakyBucket(rate: Int, per: FiniteDuration) extends RateLimiterAlgorithm:
     private val refillInterval = per.toNanos
     private val lastRefillTime = new AtomicLong(System.nanoTime())
-    private val semaphore = new Semaphore(1)
+    private val bucket = TokenBucket(rate, Some(1))
 
     def acquire(permits: Int): Unit =
-      semaphore.acquire(permits)
+      bucket.acquire(permits)
 
     def tryAcquire(permits: Int): Boolean =
-      semaphore.tryAcquire(permits)
+      bucket.tryAcquire(permits)
 
     def getNextUpdate: Long =
       val waitTime = lastRefillTime.get() + refillInterval - System.nanoTime()
@@ -117,7 +117,7 @@ object StartTimeRateLimiterAlgorithm:
     def update(): Unit =
       val now = System.nanoTime()
       lastRefillTime.set(now)
-      if semaphore.availablePermits() < rate then semaphore.release()
+      bucket.release(1)
 
     def runOperation[T](operation: => T, permits: Int): T = operation
 
