@@ -9,26 +9,32 @@ import java.time.temporal.ChronoUnit
 import java.util.concurrent.TimeUnit
 import scala.concurrent.duration.{Duration, FiniteDuration}
 
-case class CronSchedule(cron: CronExpr) extends Schedule.Infinite:
-  override def initialDelay: FiniteDuration =
-    val now = LocalDateTime.now()
-    val next = cron.next(now)
-    val duration = next.map(n => ChronoUnit.MILLIS.between(now, n))
-    duration.map(FiniteDuration.apply(_, TimeUnit.MILLISECONDS)).getOrElse(Duration.Zero)
-  end initialDelay
-
-  def nextDuration(invocation: Int, lastDuration: Option[FiniteDuration]): FiniteDuration =
-    initialDelay
-end CronSchedule
-
+/** Methods in this object provide
+  */
 object CronSchedule:
   /** @param expression
     *   cron expression to parse
     * @return
     *   [[CronSchedule]] from cron expression
     * @throws cron4s.Error
-    *   in case the cron expression is invalid
+    *   in case of invalid expression
     */
-  def unsafeFromString(expression: String): CronSchedule =
-    CronSchedule(Cron.unsafeParse(expression))
+  def unsafeFromString(expression: String): Schedule =
+    fromCronExpr(Cron.unsafeParse(expression))
+
+  /** @param cron
+    *   expression to base [[Schedule]] on.
+    * @return
+    *   [[Schedule]] from cron expression
+    */
+  def fromCronExpr(cron: CronExpr): Schedule =
+    def computeNext(invocation: Int, lastDuration: Option[FiniteDuration]): FiniteDuration =
+      val now = LocalDateTime.now()
+      val next = cron.next(now)
+      val duration = next.map(n => ChronoUnit.MILLIS.between(now, n))
+      duration.map(FiniteDuration.apply(_, TimeUnit.MILLISECONDS)).getOrElse(Duration.Zero)
+    end computeNext
+
+    Schedule.ExternalInfinite(computeNext)
+  end fromCronExpr
 end CronSchedule

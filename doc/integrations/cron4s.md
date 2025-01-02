@@ -14,33 +14,26 @@ For defining `CronExpr` see [cron4s documentation](https://www.alonsodomin.me/cr
 
 ## Api
 
-The basic syntax for `cron.repeat` is similar to `repeat`:
+The cron module exposes methods for creating `Schedule` based on `CronExpr`. That `Schedule` can be plugged 
 
 ```scala
-import ox.scheduling.cron.repeat
+import ox.scheduling.cron.*
+import cron4s.*
 
-repeat(cronExpr)(operation)
+repeat(RepeatConfig(CronSchedule.unsafeFromString("10-35 2,4,6 * ? * *")))(operation)
 ```
 
-The `repeat` API uses `CronSchedule` underneath, but since it does not provide any configuration beyond `CronExpr` there is no need to provide instance of `CronSchedule` directly.
+The API uses `Schedule` underneath, so it can be plugged wherever `Schedule` is needed.
 
 ## Operation definition
 
-Similarly to the `repeat` API, the `operation` can be defined:
-* directly using a by-name parameter, i.e. `f: => T`
-* using a by-name `Either[E, T]`
-* or using an arbitrary [error mode](../basics/error-handling.md), accepting the computation in an `F` context: `f: => F[T]`.
+Methods from `ox.scheduling.cron.CronSchedule` define `Schedule`, so they can be plugged into `RepeatConfig` and used with `repeat` API.
 
 
 ## Configuration
 
-The `cron.repeat` requires a `CronExpr`, which defines cron expression on which the schedule will run.
-
-In addition, it is possible to define a custom `shouldContinueOnResult` strategy for deciding if the operation
-should continue to be repeated after a successful result returned by the previous operation (defaults to `_: T => true`).
-
-If an operation returns an error, the repeat loop will always be stopped. If an error handling within the operation
-is needed, you can use a `retry` inside it (see an example below) or use `scheduled` with `CronSchedule` instead of `cron.repeat`, which allows
+All configuration beyond `CronExpr` is provided by the `repeat` API. If an error handling within the operation
+is needed, you can use a `retry` inside it (see an example below) or use `scheduled` with `CronSchedule` instead of `repeat`, which allows
 full customization.
 
 
@@ -48,9 +41,10 @@ full customization.
 
 ```scala mdoc:compile-only
 import ox.UnionMode
-import ox.scheduling.cron.{repeat, repeatEither, repeatWithErrorMode}
+import ox.scheduling.cron.CronSchedule
 import scala.concurrent.duration.*
 import ox.resilience.{RetryConfig, retry}
+import ox.scheduling.*
 import cron4s.*
 
 def directOperation: Int = ???
@@ -60,18 +54,18 @@ def unionOperation: String | Int = ???
 val cronExpr: CronExpr = Cron.unsafeParse("10-35 2,4,6 * ? * *")
 
 // various operation definitions - same syntax
-repeat(cronExpr)(directOperation)
-repeatEither(cronExpr)(eitherOperation)
+repeat(RepeatConfig(CronSchedule.fromCronExpr(cronExpr)))(directOperation)
+repeatEither(RepeatConfig(CronSchedule.fromCronExpr(cronExpr)))(eitherOperation)
 
 // infinite repeats with a custom strategy
 def customStopStrategy: Int => Boolean = ???
-repeat(cronExpr, shouldContinueOnResult = customStopStrategy)(directOperation)
+repeat(RepeatConfig(CronSchedule.fromCronExpr(cronExpr), customStopStrategy))(directOperation)
 
 // custom error mode
-repeatWithErrorMode(UnionMode[String])(cronExpr)(unionOperation)
+repeatWithErrorMode(UnionMode[String])(RepeatConfig(CronSchedule.fromCronExpr(cronExpr)))(unionOperation)
 
 // repeat with retry inside
-repeat(cronExpr) {
+repeat(RepeatConfig(CronSchedule.fromCronExpr(cronExpr))) {
   retry(RetryConfig.backoff(3, 100.millis))(directOperation)
 }
 ```

@@ -103,7 +103,7 @@ lazy val cron: Project = (project in file("cron"))
       scalaTest
     )
   )
-  .dependsOn(core)
+  .dependsOn(core % "test->test;compile->compile")
 
 lazy val documentation: Project = (project in file("generated-doc")) // important: it must not be doc/
   .enablePlugins(MdocPlugin)
