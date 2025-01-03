@@ -27,13 +27,11 @@ repeat(RepeatConfig(CronSchedule.unsafeFromString("10-35 2,4,6 * ? * *")))(opera
 
 Methods from `ox.scheduling.cron.CronSchedule` define `Schedule`, so they can be plugged into `RepeatConfig` and used with `repeat` API.
 
-
 ## Configuration
 
 All configuration beyond `CronExpr` is provided by the `repeat` API. If an error handling within the operation
 is needed, you can use a `retry` inside it (see an example below) or use `scheduled` with `CronSchedule` instead of `repeat`, which allows
 full customization.
-
 
 ## Examples
 
