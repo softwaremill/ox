@@ -43,7 +43,7 @@ class CronScheduleTest extends AnyFlatSpec with Matchers with ElapsedTime:
 
     // then
     ex.getMessage shouldBe "boom"
-    elapsedTime.toMillis should be < 1200L // Run 1 times, so at most 1 sec - 200ms for tolerance
+    elapsedTime.toMillis should be < 1200L // Run 1 time, so at most 1 sec - 200ms for tolerance
     elapsedTime.toMillis should be > 0L
   }
 end CronScheduleTest

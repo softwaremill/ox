@@ -9,7 +9,7 @@ import java.time.temporal.ChronoUnit
 import java.util.concurrent.TimeUnit
 import scala.concurrent.duration.{Duration, FiniteDuration}
 
-/** Methods in this object provide
+/** Methods in this object provide [[Schedule]] based on supplied cron expression.
   */
 object CronSchedule:
   /** @param expression
@@ -23,7 +23,7 @@ object CronSchedule:
     fromCronExpr(Cron.unsafeParse(expression))
 
   /** @param cron
-    *   expression to base [[Schedule]] on.
+    *   [[CronExpr]] to base [[Schedule]] on.
     * @return
     *   [[Schedule]] from cron expression
     */
@@ -35,6 +35,6 @@ object CronSchedule:
       duration.map(FiniteDuration.apply(_, TimeUnit.MILLISECONDS)).getOrElse(Duration.Zero)
     end computeNext
 
-    Schedule.ExternalInfinite(computeNext)
+    Schedule.ComputedInfinite(computeNext)
   end fromCronExpr
 end CronSchedule
