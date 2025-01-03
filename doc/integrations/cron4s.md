@@ -14,7 +14,7 @@ For defining `CronExpr` see [cron4s documentation](https://www.alonsodomin.me/cr
 
 ## Api
 
-The cron module exposes methods for creating `Schedule` based on `CronExpr`. That `Schedule` can be plugged 
+The cron module exposes methods for creating `Schedule` based on `CronExpr`.
 
 ```scala
 import ox.scheduling.cron.*
@@ -22,8 +22,6 @@ import cron4s.*
 
 repeat(RepeatConfig(CronSchedule.unsafeFromString("10-35 2,4,6 * ? * *")))(operation)
 ```
-
-The API uses `Schedule` underneath, so it can be plugged wherever `Schedule` is needed.
 
 ## Operation definition
 
