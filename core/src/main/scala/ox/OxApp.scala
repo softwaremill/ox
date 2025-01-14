@@ -11,7 +11,7 @@ enum ExitCode(val code: Int):
   *
   *   - [[OxApp.Simple]] for applications which don't use command-line arguments
   *   - [[OxApp]] for applications which use command-line arguments
-  *   - [[OxApp.WithEitherErrors]] to be able to unwrap `Either`s (see [[either.apply()]]) in the entry point's body. If case of failure,
+  *   - [[OxApp.WithEitherErrors]] to be able to unwrap `Either` s (see [[either.apply()]]) in the entry point's body. If case of failure,
   *     the applications ends with an error
   *   - [[OxApp.WithErrorMode]] to report errors (which end the application) using other [[ErrorMode]]s
   *

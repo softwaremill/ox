@@ -50,8 +50,7 @@ trait FlowCompanionReactiveOps:
 
             def onNext(t: T): Unit = channel.send(t)
             def onError(t: Throwable): Unit = channel.error(t)
-            def onComplete(): Unit = channel.done()
-          )
+            def onComplete(): Unit = channel.done())
         }.discard
 
         repeatWhile:

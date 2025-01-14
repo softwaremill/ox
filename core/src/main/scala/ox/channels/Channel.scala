@@ -234,7 +234,7 @@ end Sink
   * There are three channel flavors:
   *
   *   - rendezvous channels, where senders and receivers must meet to exchange values
-  *   - buffered channels, where a given number of sent values might be buffered, before subsequent `send`s block
+  *   - buffered channels, where a given number of sent values might be buffered, before subsequent `send` s block
   *   - unlimited channels, where an unlimited number of values might be buffered, hence `send` never blocks
   *
   * Channels can be created using the channel's companion object. A rendezvous channel is created using [[Channel.rendezvous]]. A buffered

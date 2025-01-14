@@ -27,7 +27,7 @@ object Flow extends FlowCompanionOps with FlowCompanionIOOps with FlowCompanionR
 
 //
 
-/** Contains the logic for running a single flow stage. As part of `run`s implementation, previous flow stages might be run, either
+/** Contains the logic for running a single flow stage. As part of `run` s implementation, previous flow stages might be run, either
   * synchronously or asynchronously.
   */
 trait FlowStage[+T]:

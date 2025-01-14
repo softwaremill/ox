@@ -29,7 +29,7 @@ def parLimit[T](parallelism: Int)(ts: Seq[() => T]): Seq[T] = parLimit(NoErrorMo
 
 /** Runs the given computations in parallel. If any fails because of an exception, or if any returns an application error, other
   * computations are interrupted. Then, the exception is re-thrown, or the error value returned. Application errors must be of type `E` in
-  * context `F`, and each computation must return an `F`-wrapped value.
+  * context `F`, and each computation must return an `F` -wrapped value.
   */
 def par[E, F[_], T1, T2](em: ErrorMode[E, F])(t1: => F[T1], t2: => F[T2]): F[(T1, T2)] =
   val r = par(em)(Vector(() => t1.asInstanceOf[F[Any]], () => t2.asInstanceOf[F[Any]]))
@@ -40,7 +40,7 @@ def par[E, F[_], T1, T2](em: ErrorMode[E, F])(t1: => F[T1], t2: => F[T2]): F[(T1
 
 /** Runs the given computations in parallel. If any fails because of an exception, or if any returns an application error, other
   * computations are interrupted. Then, the exception is re-thrown, or the error value returned. Application errors must be of type `E` in
-  * context `F`, and each computation must return an `F`-wrapped value.
+  * context `F`, and each computation must return an `F` -wrapped value.
   */
 def par[E, F[_], T1, T2, T3](em: ErrorMode[E, F])(t1: => F[T1], t2: => F[T2], t3: => F[T3]): F[(T1, T2, T3)] =
   val r = par(em)(Vector(() => t1.asInstanceOf[F[Any]], () => t2.asInstanceOf[F[Any]], () => t3.asInstanceOf[F[Any]]))
@@ -51,7 +51,7 @@ def par[E, F[_], T1, T2, T3](em: ErrorMode[E, F])(t1: => F[T1], t2: => F[T2], t3
 
 /** Runs the given computations in parallel. If any fails because of an exception, or if any returns an application error, other
   * computations are interrupted. Then, the exception is re-thrown, or the error value returned. Application errors must be of type `E` in
-  * context `F`, and each computation must return an `F`-wrapped value.
+  * context `F`, and each computation must return an `F` -wrapped value.
   */
 def par[E, F[_], T1, T2, T3, T4](em: ErrorMode[E, F])(t1: => F[T1], t2: => F[T2], t3: => F[T3], t4: => F[T4]): F[(T1, T2, T3, T4)] =
   val r = par(em)(
@@ -65,7 +65,7 @@ end par
 
 /** Runs the given computations in parallel. If any fails because of an exception, or if any returns an application error, other
   * computations are interrupted. Then, the exception is re-thrown, or the error value returned. Application errors must be of type `E` in
-  * context `F`, and each computation must return an `F`-wrapped value.
+  * context `F`, and each computation must return an `F` -wrapped value.
   */
 def par[E, F[_], T](em: ErrorMode[E, F])(ts: Seq[() => F[T]]): F[Seq[T]] =
   supervisedError(em) {
@@ -75,7 +75,7 @@ def par[E, F[_], T](em: ErrorMode[E, F])(ts: Seq[() => F[T]]): F[Seq[T]] =
 
 /** Runs the given computations in parallel, with at most `parallelism` running in parallel at the same time. If any computation fails
   * because of an exception, or if any returns an application error, other computations are interrupted. Then, the exception is re-thrown,
-  * or the error value returned. Application errors must be of type `E` in context `F`, and each computation must return an `F`-wrapped
+  * or the error value returned. Application errors must be of type `E` in context `F`, and each computation must return an `F` -wrapped
   * value.
   */
 def parLimit[E, F[_], T](em: ErrorMode[E, F])(parallelism: Int)(ts: Seq[() => F[T]]): F[Seq[T]] =

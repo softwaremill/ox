@@ -34,7 +34,7 @@ def raceSuccess[T](fs: Seq[() => T]): T = raceSuccess(NoErrorMode)(fs)
 
 /** Returns the result of the first computation to complete successfully, or if all fail / return an application error - throws the first
   * exception / returns the first application error. Application errors must be of type `E` in context `F`, and each computation must return
-  * an `F`-wrapped value.
+  * an `F` -wrapped value.
   */
 def raceSuccess[E, F[_], T](em: ErrorMode[E, F])(fs: Seq[() => F[T]]): F[T] =
   unsupervised {
@@ -92,20 +92,20 @@ def raceSuccess[T](f1: => T, f2: => T, f3: => T, f4: => T): T = raceSuccess(List
 
 /** Returns the result of the first computation to complete successfully, or if all fail / return an application error - throws the first
   * exception / returns the first application error. Application errors must be of type `E` in context `F`, and each computation must return
-  * an `F`-wrapped value.
+  * an `F` -wrapped value.
   */
 def raceSuccess[E, F[_], T](em: ErrorMode[E, F])(f1: => F[T], f2: => F[T]): F[T] = raceSuccess(em)(List(() => f1, () => f2))
 
 /** Returns the result of the first computation to complete successfully, or if all fail / return an application error - throws the first
   * exception / returns the first application error. Application errors must be of type `E` in context `F`, and each computation must return
-  * an `F`-wrapped value.
+  * an `F` -wrapped value.
   */
 def raceSuccess[E, F[_], T](em: ErrorMode[E, F])(f1: => F[T], f2: => F[T], f3: => F[T]): F[T] =
   raceSuccess(em)(List(() => f1, () => f2, () => f3))
 
 /** Returns the result of the first computation to complete successfully, or if all fail / return an application error - throws the first
   * exception / returns the first application error. Application errors must be of type `E` in context `F`, and each computation must return
-  * an `F`-wrapped value.
+  * an `F` -wrapped value.
   */
 def raceSuccess[E, F[_], T](em: ErrorMode[E, F])(f1: => F[T], f2: => F[T], f3: => F[T], f4: => F[T]): F[T] =
   raceSuccess(em)(List(() => f1, () => f2, () => f3, () => f4))

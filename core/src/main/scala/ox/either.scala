@@ -59,6 +59,7 @@ object either:
           error("The enclosing `either` call uses a different error type.\nIf it's explicitly typed, is the error type correct?")
         case _ => error("`.ok()` can only be used within an `either` call.\nIs it present?")
       }
+  end extension
 
   /** Specialized extensions for Right & Left are necessary to prevent compile-time warning about unreachable cases in inlined pattern
     * matches when call site has a specific type.
@@ -77,6 +78,7 @@ object either:
           error("The enclosing `either` call uses a different error type.\nIf it's explicitly typed, is the error type correct?")
         case _ => error("`.ok()` can only be used within an `either` call.\nIs it present?")
       }
+  end extension
 
   extension [A](inline t: Option[A])
     /** Unwrap the value of the `Option`, short-circuiting the computation to the enclosing [[either]], in case this is a `None`. */
@@ -92,6 +94,7 @@ object either:
           )
         case _ => error("`.ok()` can only be used within an `either` call.\nIs it present?")
       }
+  end extension
 
   /** Specialized extensions for Some & None are necessary to prevent compile-time warning about unreachable cases in inlined pattern
     * matches when call site has a specific type.
@@ -111,6 +114,7 @@ object either:
           )
         case _ => error("`.ok()` can only be used within an `either` call.\nIs it present?")
       }
+  end extension
 
   extension [E, A](inline f: Fork[Either[E, A]])
     /** Join the fork and unwrap the value of its `Either` result, short-circuiting the computation to the enclosing [[either]], in case
@@ -120,6 +124,7 @@ object either:
       * this method only when the fork is started using [[forkUnsupervised]] or [[forkCancellable]].
       */
     transparent inline def ok(): A = f.join().ok()
+  end extension
 
   extension [E](e: E)
     /** Fail the computation, short-circuiting to the enclosing [[either]] block. */
@@ -129,10 +134,11 @@ object either:
         case given boundary.Label[Either[Nothing, Nothing]] =>
           error("The enclosing `either` call uses a different error type.\nIf it's explicitly typed, is the error type correct?")
       }
+  end extension
 
   extension [E <: Throwable, T](e: Either[E, T])
     /** Unwrap the right-value of the `Either`, throwing the contained exception if this is a lef-value. For a variant which allows
-      * unwrapping `Either`s, propagates errors and doesn't throw exceptions, see [[apply]].
+      * unwrapping `Either` s, propagates errors and doesn't throw exceptions, see [[apply]].
       */
     def orThrow: T = e match
       case Right(value)    => value
