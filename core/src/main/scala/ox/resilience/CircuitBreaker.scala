@@ -1,7 +1,6 @@
 package ox.resilience
 
 import scala.concurrent.duration.*
-import java.util.concurrent.atomic.AtomicReference
 import ox.*
 import java.util.concurrent.TimeUnit
 import ox.scheduling.scheduled
@@ -10,7 +9,6 @@ import java.util.concurrent.Semaphore
 import ox.channels.Actor
 import ox.channels.BufferCapacity
 import ox.channels.ActorRef
-import ox.channels.Channel.withCapacity
 
 enum CircuitBreakerState:
   case Open(since: Long)
@@ -32,7 +30,6 @@ enum SlidingWindow:
   case CountBased(windowSize: Int)
   case TimeBased(duration: FiniteDuration)
 
-// TODO -- missing params maxWaitDurationInHalfOpenState - timeout to complete enough operations in HalfOpen state, otherwise go back to open
 case class CircuitBreakerConfig(
     failureRateThreshold: Int = 50,
     slowCallThreshold: Int = 0,
@@ -77,7 +74,6 @@ class CircuitBreaker(val config: CircuitBreakerConfig)(using Ox):
     case currState @ CircuitBreakerState.Open(_)                   => AcquireResult(false, currState)
     case currState @ CircuitBreakerState.HalfOpen(_, semaphore, _) => AcquireResult(semaphore.tryAcquire(1), currState)
 
-    // TODO - register schedule for timeouts
   def runOrDrop[E, F[_], T](em: ErrorMode[E, F], resultPolicy: ResultPolicy[E, T] = ResultPolicy.default[E, T])(op: => F[T]): Option[F[T]] =
     val acquiredResult = tryAcquire
     if acquiredResult.acquired then
