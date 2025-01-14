@@ -10,6 +10,7 @@ import java.util.concurrent.Semaphore
 import ox.channels.Actor
 import ox.channels.BufferCapacity
 import ox.channels.ActorRef
+import ox.channels.Channel.withCapacity
 
 enum CircuitBreakerState:
   case Open(since: Long)
@@ -38,7 +39,7 @@ case class CircuitBreakerConfig(
     slowCallDurationThreshold: FiniteDuration = 60.seconds,
     slidingWindow: SlidingWindow = SlidingWindow.CountBased(100),
     minimumNumberOfCalls: Int = 100,
-    waitDurationOpenState: FiniteDuration = FiniteDuration(0, TimeUnit.MILLISECONDS),
+    waitDurationOpenState: FiniteDuration = FiniteDuration(10, TimeUnit.SECONDS),
     halfOpenTimeoutDuration: FiniteDuration = FiniteDuration(0, TimeUnit.MILLISECONDS),
     numberOfCallsInHalfOpenState: Int = 10
 )
@@ -52,11 +53,10 @@ private case class CircuitBreakerStateMachineConfig(
     minimumNumberOfCalls: Int,
     numberOfCallsInHalfOpenState: Int,
     waitDurationOpenState: FiniteDuration,
-    halfOpenTimeoutDuration: FiniteDuration,
-    state: AtomicReference[CircuitBreakerState]
+    halfOpenTimeoutDuration: FiniteDuration
 )
 private object CircuitBreakerStateMachineConfig:
-  def fromConfig(c: CircuitBreakerConfig, state: AtomicReference[CircuitBreakerState]): CircuitBreakerStateMachineConfig =
+  def fromConfig(c: CircuitBreakerConfig): CircuitBreakerStateMachineConfig =
     CircuitBreakerStateMachineConfig(
       failureRateThreshold = c.failureRateThreshold,
       slowCallThreshold = c.slowCallThreshold,
@@ -64,16 +64,15 @@ private object CircuitBreakerStateMachineConfig:
       minimumNumberOfCalls = c.minimumNumberOfCalls,
       numberOfCallsInHalfOpenState = c.numberOfCallsInHalfOpenState,
       waitDurationOpenState = c.waitDurationOpenState,
-      halfOpenTimeoutDuration = c.halfOpenTimeoutDuration,
-      state = state
+      halfOpenTimeoutDuration = c.halfOpenTimeoutDuration
     )
 end CircuitBreakerStateMachineConfig
 
 class CircuitBreaker(val config: CircuitBreakerConfig)(using Ox):
-  private val state = AtomicReference[CircuitBreakerState](CircuitBreakerState.Closed)
-  private val actorRef: ActorRef[CircuitBreakerStateMachine] = Actor.create(CircuitBreakerStateMachine(config, state))
+  val stateMachine = CircuitBreakerStateMachine(config)
+  private val actorRef: ActorRef[CircuitBreakerStateMachine] = Actor.create(stateMachine)(using sc = BufferCapacity.apply(100))
 
-  private def tryAcquire: AcquireResult = state.get match
+  private def tryAcquire: AcquireResult = stateMachine.state match
     case CircuitBreakerState.Closed                                => AcquireResult(true, CircuitBreakerState.Closed)
     case currState @ CircuitBreakerState.Open(_)                   => AcquireResult(false, currState)
     case currState @ CircuitBreakerState.HalfOpen(_, semaphore, _) => AcquireResult(semaphore.tryAcquire(1), currState)
@@ -132,22 +131,23 @@ end CircuitBreaker
 private sealed trait CircuitBreakerStateMachine:
   def registerResult(result: CircuitBreakerResult, acquired: AcquireResult): Unit
   def updateState(): Unit
-  def calculateMetrics(results: Array[CircuitBreakerResult]): Metrics
+  def calculateMetrics: Metrics
+  def state: CircuitBreakerState
 //  def selfRef: ActorRef[CircuitBreakerStateMachine]
 
 private[resilience] object CircuitBreakerStateMachine:
-  def apply(config: CircuitBreakerConfig, state: AtomicReference[CircuitBreakerState])(using
+  def apply(config: CircuitBreakerConfig)(using
       Ox
   ): CircuitBreakerStateMachine =
     config.slidingWindow match
       case SlidingWindow.CountBased(size) =>
         CircuitBreakerCountStateMachine(
-          CircuitBreakerStateMachineConfig.fromConfig(config, state),
+          CircuitBreakerStateMachineConfig.fromConfig(config),
           size
         )
       case SlidingWindow.TimeBased(duration) =>
         CircuitBreakerTimeStateMachine(
-          CircuitBreakerStateMachineConfig.fromConfig(config, state),
+          CircuitBreakerStateMachineConfig.fromConfig(config),
           duration
         )
   end apply
@@ -166,25 +166,32 @@ private[resilience] object CircuitBreakerStateMachine:
       s"slowCallThreshold must be between 0 and 100, value: ${config.slowCallThreshold}"
     )
 
-    private val callResults: AtomicCircularBuffer[CircuitBreakerResult] = AtomicCircularBuffer[CircuitBreakerResult](windowSize)
+    private val callResults: Array[Option[CircuitBreakerResult]] = Array.fill[Option[CircuitBreakerResult]](windowSize)(None)
+    private var writeIndex = 0
+
+    private var _state: CircuitBreakerState = CircuitBreakerState.Closed
+
+    def state: CircuitBreakerState = _state
 
     def registerResult(result: CircuitBreakerResult, acquired: AcquireResult): Unit =
-      callResults.push(result)
+      callResults(writeIndex) = Some(result)
+      writeIndex = (writeIndex + 1) % windowSize
       // In case of result coming from halfOpen state we update num of completed operation in this state if it didn't change
       if acquired.circuitState == CircuitBreakerState.HalfOpen then
-        config.state.updateAndGet {
+        val newState = _state match
           case CircuitBreakerState.HalfOpen(since, semaphore, completedOperations) =>
             CircuitBreakerState.HalfOpen(since, semaphore, completedOperations + 1)
           case state => state
-        }.discard
+        _state = newState
 
-      config.state.set(nextState)
+      _state = nextState
     end registerResult
 
     def updateState(): Unit =
-      config.state.set(nextState)
+      _state = nextState
 
-    def calculateMetrics(results: Array[CircuitBreakerResult]): Metrics =
+    def calculateMetrics: Metrics =
+      val results = callResults.flatMap(identity)
       val numOfOperations = results.length
       val failuresRate = ((results.count(_ == CircuitBreakerResult.Failure) / windowSize.toFloat) * 100).toInt
       val slowRate = ((results.count(_ == CircuitBreakerResult.Slow) / windowSize.toFloat) * 100).toInt
@@ -196,10 +203,10 @@ private[resilience] object CircuitBreakerStateMachine:
     end calculateMetrics
 
     private def nextState: CircuitBreakerState =
-      val metrics = calculateMetrics(callResults.snapshot)
+      val metrics = calculateMetrics
       val exceededThreshold = (metrics.failureRate >= config.failureRateThreshold || metrics.slowCallsRate >= config.slowCallThreshold)
       val minCallsRecorder = metrics.operationsInWindow >= config.minimumNumberOfCalls
-      config.state.get match
+      _state match
         case CircuitBreakerState.Closed =>
           if minCallsRecorder && exceededThreshold then
             // schedule switch to halfOpen after timeout
@@ -238,6 +245,7 @@ private[resilience] object CircuitBreakerStateMachine:
       extends CircuitBreakerStateMachine:
     def registerResult(result: CircuitBreakerResult, acquired: AcquireResult): Unit = ???
     def updateState(): Unit = ???
-    def calculateMetrics(results: Array[CircuitBreakerResult]): Metrics = ???
+    def calculateMetrics: Metrics = ???
+    def state: CircuitBreakerState = ???
   end CircuitBreakerTimeStateMachine
 end CircuitBreakerStateMachine
