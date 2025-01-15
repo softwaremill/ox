@@ -23,9 +23,9 @@ class CircuitBreakerTest extends AnyFlatSpec with Matchers:
     def f(): Either[String, String] =
       Left("boom")
     // when
-    val result1 = circuitBreaker.runEitherOrDrop(ResultPolicy.default)(f())
+    val result1 = circuitBreaker.runOrDropEither(ResultPolicy.default)(f())
     sleep(100.millis) // wait for state to register
-    val result2 = circuitBreaker.runEitherOrDrop(ResultPolicy.default)(f())
+    val result2 = circuitBreaker.runOrDropEither(ResultPolicy.default)(f())
 
     // then
     result1 shouldBe defined
@@ -50,7 +50,7 @@ class CircuitBreakerTest extends AnyFlatSpec with Matchers:
 
     // when
     0 to 50 foreach: _ =>
-      circuitBreaker.runEitherOrDrop(ResultPolicy.default)(f())
+      circuitBreaker.runOrDropEither(ResultPolicy.default)(f())
 
     // then
     println(counter)
