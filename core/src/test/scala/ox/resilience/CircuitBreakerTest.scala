@@ -16,7 +16,8 @@ class CircuitBreakerTest extends AnyFlatSpec with Matchers:
       CircuitBreakerConfig(
         failureRateThreshold = thresholdRate,
         minimumNumberOfCalls = numberOfOperations,
-        slidingWindow = SlidingWindow.CountBased(numberOfOperations)
+        slidingWindow = SlidingWindow.CountBased(numberOfOperations),
+        numberOfCallsInHalfOpenState = 0
       )
     )
 
@@ -45,6 +46,7 @@ class CircuitBreakerTest extends AnyFlatSpec with Matchers:
     )
     var counter = 0
     def f(): Either[String, String] =
+      sleep(100.millis)
       counter += 1
       Left("boom")
 
