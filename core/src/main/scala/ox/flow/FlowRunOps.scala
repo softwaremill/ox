@@ -109,8 +109,7 @@ trait FlowRunOps[+T]:
     last.run(FlowEmit.fromInline: t =>
       current match
         case None    => current = Some(t)
-        case Some(c) => current = Some(f(c, t))
-    )
+        case Some(c) => current = Some(f(c, t)))
 
     current.getOrElse(throw new NoSuchElementException("cannot reduce an empty flow"))
   end runReduce

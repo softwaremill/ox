@@ -35,6 +35,7 @@ trait FlowIOOps[+T]:
             case chunk: T @unchecked =>
               currentChunk = chunk.iterator
         currentChunk.next() & 0xff // Convert to unsigned
+      end read
 
       override def available: Int =
         currentChunk.length
