@@ -54,7 +54,7 @@ end CircuitBreakerStateMachineConfig
   * Breaker might calculate different metrics based on [[SlidingWindow]] provided in config. See [[SlidingWindow]] for more details.
   */
 class CircuitBreaker(val config: CircuitBreakerConfig)(using Ox):
-  val stateMachine = CircuitBreakerStateMachine(config)
+  private val stateMachine = CircuitBreakerStateMachine(config)
   private val actorRef: ActorRef[CircuitBreakerStateMachine] = Actor.create(stateMachine)(using sc = BufferCapacity.apply(100))
 
   private def tryAcquire: AcquireResult = stateMachine.state match
@@ -75,10 +75,7 @@ class CircuitBreaker(val config: CircuitBreakerConfig)(using Ox):
   ): Option[F[T]] =
     val acquiredResult = tryAcquire
     if acquiredResult.acquired then
-      val before = System.nanoTime()
-      val result = operation
-      val after = System.nanoTime()
-      val duration = (after - before).nanos
+      val (duration, result) = timed(operation)
       if em.isError(result) then
         actorRef.tell(_.registerResult(CircuitBreakerResult.Failure, acquiredResult, actorRef))
         Some(result)

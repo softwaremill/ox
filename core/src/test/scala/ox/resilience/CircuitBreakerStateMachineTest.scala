@@ -20,7 +20,7 @@ class CircuitBreakerStateMachineTest extends AnyFlatSpec with Matchers:
       Metrics(hundredPercentSuccessRate, hundredPercentSuccessRate, config.minimumNumberOfCalls, lastResult, System.currentTimeMillis())
 
     // when
-    val resultingState = stateMachine.nextState(metrics, CircuitBreakerState.Closed)
+    val resultingState = CircuitBreakerStateMachine.nextState(metrics, CircuitBreakerState.Closed, stateMachine.config)
 
     resultingState shouldBe CircuitBreakerState.Closed
   }
@@ -33,7 +33,7 @@ class CircuitBreakerStateMachineTest extends AnyFlatSpec with Matchers:
     val metrics = Metrics(badFailureRate, hundredPercentSuccessRate, config.minimumNumberOfCalls, lastResult, System.currentTimeMillis())
 
     // when
-    val resultingState = stateMachine.nextState(metrics, CircuitBreakerState.Closed)
+    val resultingState = CircuitBreakerStateMachine.nextState(metrics, CircuitBreakerState.Closed, stateMachine.config)
 
     // then
     resultingState shouldBe a[CircuitBreakerState.Open]
@@ -47,7 +47,7 @@ class CircuitBreakerStateMachineTest extends AnyFlatSpec with Matchers:
     val metrics = Metrics(badFailureRate, hundredPercentSuccessRate, config.minimumNumberOfCalls, lastResult, System.currentTimeMillis())
 
     // when
-    val resultingState = stateMachine.nextState(metrics, CircuitBreakerState.Closed)
+    val resultingState = CircuitBreakerStateMachine.nextState(metrics, CircuitBreakerState.Closed, stateMachine.config)
 
     // then
     resultingState shouldBe a[CircuitBreakerState.HalfOpen]
@@ -69,7 +69,7 @@ class CircuitBreakerStateMachineTest extends AnyFlatSpec with Matchers:
 
     // when
     val resultingState =
-      stateMachine.nextState(metrics, CircuitBreakerState.HalfOpen(timestamp, Semaphore(10), 0))
+      CircuitBreakerStateMachine.nextState(metrics, CircuitBreakerState.HalfOpen(timestamp, Semaphore(10), 0), stateMachine.config)
 
     // then
     resultingState shouldBe a[CircuitBreakerState.Open]
@@ -86,7 +86,7 @@ class CircuitBreakerStateMachineTest extends AnyFlatSpec with Matchers:
     val metrics = Metrics(badFailureRate, hundredPercentSuccessRate, config.minimumNumberOfCalls, lastResult, timestamp)
 
     // when
-    val resultingState = stateMachine.nextState(metrics, state)
+    val resultingState = CircuitBreakerStateMachine.nextState(metrics, state, stateMachine.config)
 
     // then
     resultingState shouldBe a[CircuitBreakerState.HalfOpen]
@@ -104,7 +104,7 @@ class CircuitBreakerStateMachineTest extends AnyFlatSpec with Matchers:
     val metrics = Metrics(hundredPercentSuccessRate, hundredPercentSuccessRate, config.numberOfCallsInHalfOpenState, lastResult, timestamp)
 
     // when
-    val resultingState = stateMachine.nextState(metrics, state)
+    val resultingState = CircuitBreakerStateMachine.nextState(metrics, state, stateMachine.config)
 
     // then
     resultingState shouldBe CircuitBreakerState.Closed
@@ -121,7 +121,7 @@ class CircuitBreakerStateMachineTest extends AnyFlatSpec with Matchers:
     val metrics = Metrics(badFailureRate, hundredPercentSuccessRate, config.numberOfCallsInHalfOpenState, lastResult, timestamp)
 
     // when
-    val resultingState = stateMachine.nextState(metrics, state)
+    val resultingState = CircuitBreakerStateMachine.nextState(metrics, state, stateMachine.config)
 
     // then
     resultingState shouldBe a[CircuitBreakerState.Open]
@@ -144,7 +144,7 @@ class CircuitBreakerStateMachineTest extends AnyFlatSpec with Matchers:
       )
 
     // when
-    val resultingState = stateMachine.nextState(metrics, state)
+    val resultingState = CircuitBreakerStateMachine.nextState(metrics, state, stateMachine.config)
 
     // then
     resultingState shouldBe a[CircuitBreakerState.HalfOpen]
