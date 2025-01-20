@@ -5,7 +5,6 @@ import ox.*
 import java.util.concurrent.Semaphore
 import ox.channels.ActorRef
 import ox.resilience.CircuitBreakerStateMachine.nextState
-import scala.compiletime.ops.double
 
 private[resilience] case class CircuitBreakerStateMachine(
     config: CircuitBreakerStateMachineConfig,

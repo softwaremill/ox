@@ -152,8 +152,8 @@ class CircuitBreakerStateMachineTest extends AnyFlatSpec with Matchers:
 
   private val defaultConfig: CircuitBreakerConfig =
     CircuitBreakerConfig(
-      failureRateThreshold = 50,
-      slowCallThreshold = 50,
+      failureRateThreshold = PercentageThreshold(50),
+      slowCallThreshold = PercentageThreshold(50),
       slowCallDurationThreshold = 60.seconds,
       slidingWindow = SlidingWindow.CountBased(100),
       minimumNumberOfCalls = 20,

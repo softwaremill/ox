@@ -12,7 +12,7 @@ class CircuitBreakerTest extends AnyFlatSpec with Matchers with OptionValues wit
 
   it should "run operation when metrics are not exceeded" in supervised {
     // given
-    val thresholdRate = 100
+    val thresholdRate = PercentageThreshold(100)
     val numberOfOperations = 2
     val circuitBreaker = CircuitBreaker(
       CircuitBreakerConfig.default.copy(
@@ -42,7 +42,7 @@ class CircuitBreakerTest extends AnyFlatSpec with Matchers with OptionValues wit
 
   it should "drop operation after exceeding fauilure threshold" in supervised {
     // given
-    val thresholdRate = 100
+    val thresholdRate = PercentageThreshold(100)
     val numberOfOperations = 1
     val circuitBreaker = CircuitBreaker(
       CircuitBreakerConfig.default.copy(
@@ -67,7 +67,7 @@ class CircuitBreakerTest extends AnyFlatSpec with Matchers with OptionValues wit
 
   it should "drop operation after exceeding slow call threshold" in supervised {
     // given
-    val thresholdRate = 100
+    val thresholdRate = PercentageThreshold(100)
     val numberOfOperations = 1
     val circuitBreaker = CircuitBreaker(
       CircuitBreakerConfig.default.copy(
@@ -96,7 +96,7 @@ class CircuitBreakerTest extends AnyFlatSpec with Matchers with OptionValues wit
 
   it should "switch to halfopen after configured time" in supervised {
     // given
-    val thresholdRate = 100
+    val thresholdRate = PercentageThreshold(100)
     val numberOfOperations = 1
     val circuitBreaker = CircuitBreaker(
       CircuitBreakerConfig.default.copy(
@@ -125,7 +125,7 @@ class CircuitBreakerTest extends AnyFlatSpec with Matchers with OptionValues wit
 
   it should "switch back to open after configured timeout in half open state" in supervised {
     // given
-    val thresholdRate = 100
+    val thresholdRate = PercentageThreshold(100)
     val numberOfOperations = 1
     val circuitBreaker = CircuitBreaker(
       CircuitBreakerConfig.default.copy(

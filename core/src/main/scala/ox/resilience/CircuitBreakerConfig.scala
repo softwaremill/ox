@@ -19,6 +19,16 @@ enum SlidingWindow:
   case TimeBased(duration: FiniteDuration)
 end SlidingWindow
 
+/** Type representing percentage threshold between 0 and 100 */
+opaque type PercentageThreshold = Int
+
+extension (c: PercentageThreshold) def toInt: Int = c
+
+object PercentageThreshold:
+  def apply(c: Int): PercentageThreshold =
+    assert(c >= 0 && c <= 100, s"PercentageThreshold must be between 0 and 100, value: $c")
+    c
+
 /** @param failureRateThreshold
   *   threshold, as percentage of operations that ended in failure
   * @param slowCallThreshold
@@ -38,8 +48,8 @@ end SlidingWindow
   *   also maximum number of operations that can be started in half open state.
   */
 case class CircuitBreakerConfig(
-    failureRateThreshold: Int,
-    slowCallThreshold: Int,
+    failureRateThreshold: PercentageThreshold,
+    slowCallThreshold: PercentageThreshold,
     slowCallDurationThreshold: FiniteDuration,
     slidingWindow: SlidingWindow,
     minimumNumberOfCalls: Int,
@@ -47,14 +57,7 @@ case class CircuitBreakerConfig(
     halfOpenTimeoutDuration: FiniteDuration,
     numberOfCallsInHalfOpenState: Int
 ):
-  assert(
-    failureRateThreshold >= 0 && failureRateThreshold <= 100,
-    s"failureRateThreshold must be between 0 and 100, value: $failureRateThreshold"
-  )
-  assert(
-    slowCallThreshold >= 0 && slowCallThreshold <= 100,
-    s"slowCallThreshold must be between 0 and 100, value: $slowCallThreshold"
-  )
+
   assert(
     numberOfCallsInHalfOpenState > 0,
     s"numberOfCallsInHalfOpenState must be greater than 0, value: $numberOfCallsInHalfOpenState"
@@ -63,8 +66,8 @@ end CircuitBreakerConfig
 
 object CircuitBreakerConfig:
   def default: CircuitBreakerConfig = CircuitBreakerConfig(
-    failureRateThreshold = 50,
-    slowCallThreshold = 50,
+    failureRateThreshold = PercentageThreshold(50),
+    slowCallThreshold = PercentageThreshold(50),
     slowCallDurationThreshold = 60.seconds,
     slidingWindow = SlidingWindow.CountBased(100),
     minimumNumberOfCalls = 20,

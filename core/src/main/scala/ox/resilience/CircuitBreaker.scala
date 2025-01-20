@@ -40,8 +40,8 @@ private case class CircuitBreakerStateMachineConfig(
 private object CircuitBreakerStateMachineConfig:
   def fromConfig(c: CircuitBreakerConfig): CircuitBreakerStateMachineConfig =
     CircuitBreakerStateMachineConfig(
-      failureRateThreshold = c.failureRateThreshold,
-      slowCallThreshold = c.slowCallThreshold,
+      failureRateThreshold = c.failureRateThreshold.toInt,
+      slowCallThreshold = c.slowCallThreshold.toInt,
       slowCallDurationThreshold = c.slowCallDurationThreshold,
       minimumNumberOfCalls = c.minimumNumberOfCalls,
       numberOfCallsInHalfOpenState = c.numberOfCallsInHalfOpenState,
