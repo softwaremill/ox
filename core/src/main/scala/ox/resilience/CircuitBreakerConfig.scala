@@ -38,14 +38,14 @@ end SlidingWindow
   *   also maximum number of operations that can be started in half open state.
   */
 case class CircuitBreakerConfig(
-    failureRateThreshold: Int = 50,
-    slowCallThreshold: Int = 0,
-    slowCallDurationThreshold: FiniteDuration = 60.seconds,
-    slidingWindow: SlidingWindow = SlidingWindow.CountBased(100),
-    minimumNumberOfCalls: Int = 20,
-    waitDurationOpenState: FiniteDuration = FiniteDuration(10, TimeUnit.SECONDS),
-    halfOpenTimeoutDuration: FiniteDuration = FiniteDuration(0, TimeUnit.MILLISECONDS),
-    numberOfCallsInHalfOpenState: Int = 10
+    failureRateThreshold: Int,
+    slowCallThreshold: Int,
+    slowCallDurationThreshold: FiniteDuration,
+    slidingWindow: SlidingWindow,
+    minimumNumberOfCalls: Int,
+    waitDurationOpenState: FiniteDuration,
+    halfOpenTimeoutDuration: FiniteDuration,
+    numberOfCallsInHalfOpenState: Int
 ):
   assert(
     failureRateThreshold >= 0 && failureRateThreshold <= 100,
@@ -58,5 +58,18 @@ case class CircuitBreakerConfig(
   assert(
     numberOfCallsInHalfOpenState > 0,
     s"numberOfCallsInHalfOpenState must be greater than 0, value: $numberOfCallsInHalfOpenState"
+  )
+end CircuitBreakerConfig
+
+object CircuitBreakerConfig:
+  def default: CircuitBreakerConfig = CircuitBreakerConfig(
+    failureRateThreshold = 50,
+    slowCallThreshold = 50,
+    slowCallDurationThreshold = 60.seconds,
+    slidingWindow = SlidingWindow.CountBased(100),
+    minimumNumberOfCalls = 20,
+    waitDurationOpenState = FiniteDuration(10, TimeUnit.SECONDS),
+    halfOpenTimeoutDuration = FiniteDuration(0, TimeUnit.MILLISECONDS),
+    numberOfCallsInHalfOpenState = 10
   )
 end CircuitBreakerConfig
