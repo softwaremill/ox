@@ -179,16 +179,14 @@ private[resilience] object CircuitBreakerResults:
 
     def calculateMetrics(lastAcquisitionResult: Option[AcquireResult], timestamp: Long): Metrics =
       // filter all entries that happend outside sliding window
-      val res = results.filterInPlace { (time, result) =>
-        val isOlder = timestamp > time + windowDuration.toMillis
-        if isOlder then
-          result match
-            case CircuitBreakerResult.Success => successCalls -= 1
-            case CircuitBreakerResult.Failure => failedCalls -= 1
-            case CircuitBreakerResult.Slow    => slowCalls -= 1
-        isOlder
+      val removed = results.removeHeadWhile((time, _) => timestamp > time + windowDuration.toMillis)
+      removed.foreach { (_, result) =>
+        result match
+          case CircuitBreakerResult.Success => successCalls -= 1
+          case CircuitBreakerResult.Failure => failedCalls -= 1
+          case CircuitBreakerResult.Slow    => slowCalls -= 1
       }
-      val numOfOperations = res.length
+      val numOfOperations = results.length
       val failuresRate = ((failedCalls / numOfOperations.toFloat) * 100).toInt
       val slowRate = ((slowCalls / numOfOperations.toFloat) * 100).toInt
       Metrics(

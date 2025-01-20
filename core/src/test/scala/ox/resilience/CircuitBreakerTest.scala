@@ -141,7 +141,7 @@ class CircuitBreakerTest extends AnyFlatSpec with Matchers with OptionValues wit
       Left("boom")
 
     // when
-    val result1 = circuitBreaker.runOrDropEither(f()) // trigger swithc to open
+    val result1 = circuitBreaker.runOrDropEither(f()) // trigger switch to open
     sleep(1500.millis) // wait for state to register, and for switch to half open
     val state = circuitBreaker.stateMachine.state
     sleep(2500.millis) // wait longer than half open timeout
