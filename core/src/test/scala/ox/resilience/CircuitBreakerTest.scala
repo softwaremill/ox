@@ -133,8 +133,8 @@ class CircuitBreakerTest extends AnyFlatSpec with Matchers with OptionValues wit
         minimumNumberOfCalls = numberOfOperations,
         slidingWindow = SlidingWindow.CountBased(numberOfOperations),
         numberOfCallsInHalfOpenState = 1,
-        waitDurationOpenState = 10.millis,
-        halfOpenTimeoutDuration = 1.second
+        waitDurationOpenState = 1.seconds,
+        halfOpenTimeoutDuration = 2.seconds
       )
     )
     def f(): Either[String, String] =
@@ -142,9 +142,9 @@ class CircuitBreakerTest extends AnyFlatSpec with Matchers with OptionValues wit
 
     // when
     val result1 = circuitBreaker.runOrDropEither(f()) // trigger swithc to open
-    sleep(100.millis) // wait for state to register, and for switch to half open
+    sleep(1500.millis) // wait for state to register, and for switch to half open
     val state = circuitBreaker.stateMachine.state
-    sleep(1500.millis) // wait longer than half open timeout
+    sleep(2500.millis) // wait longer than half open timeout
     val stateAfterWait = circuitBreaker.stateMachine.state
 
     // then
