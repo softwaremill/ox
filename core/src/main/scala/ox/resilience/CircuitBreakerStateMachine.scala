@@ -70,35 +70,43 @@ private[resilience] object CircuitBreakerStateMachine:
     def calculateMetrics(lastAcquisitionResult: Option[AcquireResult], timestamp: Long): Metrics
 
   case class CountBased(windowSize: Int)(using ox: Ox) extends CircuitBreakerResults(using ox):
-    private val callResults: Array[Option[CircuitBreakerResult]] = Array.fill[Option[CircuitBreakerResult]](windowSize)(None)
-    private var writeIndex = 0
+    private val results = new collection.mutable.ArrayDeque[CircuitBreakerResult](windowSize)
+    private var slowCalls = 0
+    private var failedCalls = 0
+    private var successCalls = 0
 
     def onStateChange(oldState: CircuitBreakerState, newState: CircuitBreakerState): Unit =
       import CircuitBreakerState.*
       // we have to match so we don't reset result when for example incrementing completed calls in halfopen state
       (oldState, newState) match
         case (Closed, Open(_) | HalfOpen(_, _, _)) =>
-          callResults.mapInPlace(_ => None).discard
-          writeIndex = 0
+          results.clear()
         case (HalfOpen(_, _, _), Open(_) | Closed) =>
-          callResults.mapInPlace(_ => None).discard
-          writeIndex = 0
+          results.clear()
         case (Open(_), Closed | HalfOpen(_, _, _)) =>
-          callResults.mapInPlace(_ => None).discard
-          writeIndex = 0
+          results.clear()
         case (_, _) => ()
       end match
     end onStateChange
 
     def updateResults(result: CircuitBreakerResult): Unit =
-      callResults(writeIndex) = Some(result)
-      writeIndex = (writeIndex + 1) % windowSize
+      result match
+        case CircuitBreakerResult.Success => successCalls += 1
+        case CircuitBreakerResult.Failure => failedCalls += 1
+        case CircuitBreakerResult.Slow    => slowCalls += 1
+      val resultingQueue = results.addOne(result)
+      if resultingQueue.length > windowSize then
+        resultingQueue.removeHeadOption(false) match
+          case Some(CircuitBreakerResult.Success) => successCalls -= 1
+          case Some(CircuitBreakerResult.Failure) => failedCalls -= 1
+          case Some(CircuitBreakerResult.Slow)    => slowCalls -= 1
+          case None                               => ()
+    end updateResults
 
     def calculateMetrics(lastAcquisitionResult: Option[AcquireResult], timestamp: Long): Metrics =
-      val results = callResults.flatMap(identity)
       val numOfOperations = results.length
-      val failuresRate = ((results.count(_ == CircuitBreakerResult.Failure) / windowSize.toFloat) * 100).toInt
-      val slowRate = ((results.count(_ == CircuitBreakerResult.Slow) / windowSize.toFloat) * 100).toInt
+      val failuresRate = ((failedCalls / numOfOperations.toFloat) * 100).toInt
+      val slowRate = ((slowCalls / numOfOperations.toFloat) * 100).toInt
       Metrics(
         failuresRate,
         slowRate,
@@ -115,10 +123,10 @@ private[resilience] object CircuitBreakerStateMachine:
 
     def calculateMetrics(lastAcquisitionResult: Option[AcquireResult], timestamp: Long): Metrics =
       // filter all entries that happend outside sliding window
-      val results = queue.filter((time, _) => timestamp > time + windowDuration.toMillis)
+      val results = queue.filterInPlace((time, _) => timestamp > time + windowDuration.toMillis)
       val numOfOperations = results.length
-      val failuresRate = ((results.count(_ == CircuitBreakerResult.Failure) / results.length.toFloat) * 100).toInt
-      val slowRate = ((results.count(_ == CircuitBreakerResult.Slow) / results.length.toFloat) * 100).toInt
+      val failuresRate = ((results.count(_ == CircuitBreakerResult.Failure) / numOfOperations.toFloat) * 100).toInt
+      val slowRate = ((results.count(_ == CircuitBreakerResult.Slow) / numOfOperations.toFloat) * 100).toInt
       Metrics(
         failuresRate,
         slowRate,
