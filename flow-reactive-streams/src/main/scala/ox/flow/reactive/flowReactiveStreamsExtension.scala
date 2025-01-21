@@ -15,6 +15,7 @@ extension [A](flow: Flow[A])
     */
   def toReactiveStreamsPublisher(using Ox, BufferCapacity): Publisher[A] =
     FlowAdapters.toPublisher(flow.toPublisher)
+end extension
 
 object FlowReactiveStreams:
   /** This variant returns accepts an implementation of `org.reactivestreams.Publisher`, as opposed to `java.util.concurrent.Flow.Publisher`

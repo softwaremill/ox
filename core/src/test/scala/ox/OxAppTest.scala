@@ -91,8 +91,7 @@ class OxAppTest extends AnyFlatSpec with Matchers:
         val sw = StringWriter()
         val pw = PrintWriter(sw)
         t.printStackTrace(pw)
-        stackTrace = sw.toString
-      )
+        stackTrace = sw.toString)
     end Main31
 
     Main31.main(Array.empty)
@@ -114,8 +113,7 @@ class OxAppTest extends AnyFlatSpec with Matchers:
         val sw = StringWriter()
         val pw = PrintWriter(sw)
         t.printStackTrace(pw)
-        stackTrace = sw.toString
-      )
+        stackTrace = sw.toString)
     end Main32
 
     Main32.main(Array.empty)
@@ -224,8 +222,7 @@ class OxAppTest extends AnyFlatSpec with Matchers:
         val sw = StringWriter()
         val pw = PrintWriter(sw)
         t.printStackTrace(pw)
-        stackTrace = sw.toString
-      )
+        stackTrace = sw.toString)
     end Main70
 
     Main70.main(Array.empty)
@@ -325,10 +322,10 @@ class OxAppTest extends AnyFlatSpec with Matchers:
         val sw = StringWriter()
         val pw = PrintWriter(sw)
         t.printStackTrace(pw)
-        stackTrace = sw.toString
-      )
+        stackTrace = sw.toString)
 
       override def handleError(e: FunException): ExitCode = ??? // should not get called!
+    end Main101
 
     Main101.main(Array.empty)
 

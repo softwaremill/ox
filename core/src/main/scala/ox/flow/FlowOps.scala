@@ -286,6 +286,7 @@ class FlowOps[+T]:
           if taken == n then throw abortTake
       )
     catch case `abortTake` => () // done
+    end try
 
   /** Transform the flow so that it emits elements as long as predicate `f` is satisfied (returns `true`). If `includeFirstFailing` is
     * `true`, the flow will additionally emit the first element that failed the predicate. After that, the flow will complete as done.
@@ -764,8 +765,8 @@ class FlowOps[+T]:
             // in special case when step == 1, we have to send the buffer immediately
             if buffer.size == n then emit(buffer)
           else
-          // step > n -  we drop `step` elements and continue appending until buffer size is n
-          if buffer.size == step then buffer = buffer.drop(step)
+            // step > n -  we drop `step` elements and continue appending until buffer size is n
+            if buffer.size == step then buffer = buffer.drop(step)
           end if
       )
       // send the remaining elements, only if these elements were not yet sent
