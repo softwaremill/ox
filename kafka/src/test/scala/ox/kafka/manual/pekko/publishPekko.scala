@@ -7,14 +7,14 @@ import org.apache.pekko.kafka.ProducerSettings
 import org.apache.pekko.kafka.scaladsl.Producer
 import org.apache.pekko.stream.scaladsl.Source
 import ox.{discard, get}
-import ox.kafka.manual.{randomString, timed}
+import ox.kafka.manual.{randomString, timedAndLogged}
 
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 
 @main def publishPekko(): Unit =
   val topic = "t2"
-  timed("publish-pekko") {
+  timedAndLogged("publish-pekko") {
     given system: ActorSystem = ActorSystem("publish")
 
     val producerSettings = ProducerSettings(system, new StringSerializer, new StringSerializer).withBootstrapServers("localhost:29092")
