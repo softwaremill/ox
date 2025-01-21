@@ -77,13 +77,13 @@ private[resilience] object CircuitBreakerStateMachine:
           else CircuitBreakerState.Open(currentTimestamp)
         else CircuitBreakerState.Closed
       case CircuitBreakerState.Open(since) =>
-        val timePassed = (currentTimestamp - since) > config.waitDurationOpenState.toMillis
+        val timePassed = (currentTimestamp - since) >= config.waitDurationOpenState.toMillis
         if timePassed || config.waitDurationOpenState.toMillis == 0 then
           CircuitBreakerState.HalfOpen(currentTimestamp, Semaphore(config.numberOfCallsInHalfOpenState))
         else CircuitBreakerState.Open(since)
       case CircuitBreakerState.HalfOpen(since, semaphore, completedCalls) =>
         lazy val allCallsInHalfOpenCompleted = completedCalls >= config.numberOfCallsInHalfOpenState
-        lazy val timePassed = (currentTimestamp - since) > config.halfOpenTimeoutDuration.toMillis
+        lazy val timePassed = (currentTimestamp - since) >= config.halfOpenTimeoutDuration.toMillis
         // if we didn't complete all half open calls but timeout is reached go back to open
         if !allCallsInHalfOpenCompleted && config.halfOpenTimeoutDuration.toMillis != 0 && timePassed then
           CircuitBreakerState.Open(currentTimestamp)
