@@ -186,7 +186,7 @@ class CircuitBreakerTest extends AnyFlatSpec with Matchers with OptionValues wit
 
     // 250ms: no operations complete yet, should be closed
     sleep(250.millis)
-    circuitBreaker.stateMachine.state shouldBe CircuitBreakerState.Closed
+    circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.Closed]
 
     // 750ms: the first operation failed, should be open
     sleep(500.millis)
@@ -242,7 +242,7 @@ class CircuitBreakerTest extends AnyFlatSpec with Matchers with OptionValues wit
 
     // 250ms: no operations complete yet, should be closed
     sleep(250.millis)
-    circuitBreaker.stateMachine.state shouldBe CircuitBreakerState.Closed
+    circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.Closed]
 
     // 750ms: the first operation failed, should be open
     sleep(500.millis)
@@ -256,7 +256,8 @@ class CircuitBreakerTest extends AnyFlatSpec with Matchers with OptionValues wit
     sleep(500.millis)
     circuitBreaker.runOrDropEither(Right("c")).discard
     sleep(100.millis) // wait for state to register
-    circuitBreaker.stateMachine.state shouldBe CircuitBreakerState.Closed // Should go back to closed, we have one succesful operation
+    // Should go back to closed, we have one succesful operation
+    circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.Closed]
   }
 
 end CircuitBreakerTest

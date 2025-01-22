@@ -15,25 +15,27 @@ class CircuitBreakerStateMachineTest extends AnyFlatSpec with Matchers:
     // given
     val config = defaultConfig
     val stateMachine = CircuitBreakerStateMachine(config)
+    val currentTimstamp = System.currentTimeMillis()
     val lastResult: Option[AcquireResult] = None
     val metrics =
-      Metrics(hundredPercentSuccessRate, hundredPercentSuccessRate, config.minimumNumberOfCalls, lastResult, System.currentTimeMillis())
+      Metrics(hundredPercentSuccessRate, hundredPercentSuccessRate, config.minimumNumberOfCalls, lastResult, currentTimstamp)
 
     // when
-    val resultingState = CircuitBreakerStateMachine.nextState(metrics, CircuitBreakerState.Closed, stateMachine.config)
+    val resultingState = CircuitBreakerStateMachine.nextState(metrics, CircuitBreakerState.Closed(currentTimstamp), stateMachine.config)
 
-    resultingState shouldBe CircuitBreakerState.Closed
+    resultingState shouldBe a[CircuitBreakerState.Closed]
   }
 
   it should "go to open after surpasing failure threshold" in supervised {
     // given
     val config = defaultConfig
     val stateMachine = CircuitBreakerStateMachine(config)
+    val currentTimstamp = System.currentTimeMillis()
     val lastResult: Option[AcquireResult] = None
-    val metrics = Metrics(badFailureRate, hundredPercentSuccessRate, config.minimumNumberOfCalls, lastResult, System.currentTimeMillis())
+    val metrics = Metrics(badFailureRate, hundredPercentSuccessRate, config.minimumNumberOfCalls, lastResult, currentTimstamp)
 
     // when
-    val resultingState = CircuitBreakerStateMachine.nextState(metrics, CircuitBreakerState.Closed, stateMachine.config)
+    val resultingState = CircuitBreakerStateMachine.nextState(metrics, CircuitBreakerState.Closed(currentTimstamp), stateMachine.config)
 
     // then
     resultingState shouldBe a[CircuitBreakerState.Open]
@@ -43,11 +45,12 @@ class CircuitBreakerStateMachineTest extends AnyFlatSpec with Matchers:
     // given
     val config = defaultConfig.copy(waitDurationOpenState = FiniteDuration(0, TimeUnit.MILLISECONDS))
     val stateMachine = CircuitBreakerStateMachine(config)
+    val currentTimeStamp = System.currentTimeMillis()
     val lastResult: Option[AcquireResult] = None
-    val metrics = Metrics(badFailureRate, hundredPercentSuccessRate, config.minimumNumberOfCalls, lastResult, System.currentTimeMillis())
+    val metrics = Metrics(badFailureRate, hundredPercentSuccessRate, config.minimumNumberOfCalls, lastResult, currentTimeStamp)
 
     // when
-    val resultingState = CircuitBreakerStateMachine.nextState(metrics, CircuitBreakerState.Closed, stateMachine.config)
+    val resultingState = CircuitBreakerStateMachine.nextState(metrics, CircuitBreakerState.Closed(currentTimeStamp), stateMachine.config)
 
     // then
     resultingState shouldBe a[CircuitBreakerState.HalfOpen]
@@ -107,7 +110,7 @@ class CircuitBreakerStateMachineTest extends AnyFlatSpec with Matchers:
     val resultingState = CircuitBreakerStateMachine.nextState(metrics, state, stateMachine.config)
 
     // then
-    resultingState shouldBe CircuitBreakerState.Closed
+    resultingState shouldBe a[CircuitBreakerState.Closed]
   }
 
   it should "go to open after enough calls with bad metrics are recorded in halfOpen state" in supervised {
@@ -141,7 +144,7 @@ class CircuitBreakerStateMachineTest extends AnyFlatSpec with Matchers:
     val resultingState = CircuitBreakerStateMachine.nextState(metrics, state, stateMachine.config)
 
     // then
-    resultingState shouldBe CircuitBreakerState.Closed
+    resultingState shouldBe a[CircuitBreakerState.Closed]
   }
 
   it should "go to half open after waitDurationOpenState passes" in supervised {

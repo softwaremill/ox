@@ -10,12 +10,19 @@ private[resilience] case class CircuitBreakerStateMachine(
     config: CircuitBreakerStateMachineConfig,
     private val results: CircuitBreakerResults
 )(using val ox: Ox):
-  @volatile private var _state: CircuitBreakerState = CircuitBreakerState.Closed
+  @volatile private var _state: CircuitBreakerState = CircuitBreakerState.Closed(System.currentTimeMillis())
 
   def state: CircuitBreakerState = _state
 
   def registerResult(result: CircuitBreakerResult, acquired: AcquireResult, selfRef: ActorRef[CircuitBreakerStateMachine]): Unit =
-    results.updateResults(result)
+    // We check that result was acquired in the same state that we are currently in
+    val isResultFromCurrentState = (acquired.circuitState, _state) match
+      case (CircuitBreakerState.Open(sinceOpen), CircuitBreakerState.Open(since)) if since == sinceOpen                             => true
+      case (CircuitBreakerState.HalfOpen(sinceHalfOpen, _, _), CircuitBreakerState.HalfOpen(since, _, _)) if sinceHalfOpen == since => true
+      case (CircuitBreakerState.Closed(sinceClosed), CircuitBreakerState.Closed(since)) if sinceClosed == since                     => true
+      case _                                                                                                                        => false
+    // If acquired in different state we don't update results
+    if isResultFromCurrentState then results.updateResults(result)
     updateState(selfRef, Some(acquired))
   end registerResult
 
@@ -36,7 +43,7 @@ private[resilience] case class CircuitBreakerStateMachine(
         // schedule switch to halfOpen after timeout
         updateAfter(config.waitDurationOpenState, selfRef)
       case (
-            CircuitBreakerState.Open(_) | CircuitBreakerState.Closed,
+            CircuitBreakerState.Open(_) | CircuitBreakerState.Closed(_),
             CircuitBreakerState.HalfOpen(since, semaphore, completedOperations)
           ) =>
         // schedule timeout for halfOpen state if is not 0
@@ -76,12 +83,12 @@ private[resilience] object CircuitBreakerStateMachine:
     val exceededThreshold = (metrics.failureRate >= config.failureRateThreshold || metrics.slowCallsRate >= config.slowCallThreshold)
     val minCallsRecorder = metrics.operationsInWindow >= config.minimumNumberOfCalls
     currentState match
-      case CircuitBreakerState.Closed =>
+      case CircuitBreakerState.Closed(since) =>
         if minCallsRecorder && exceededThreshold then
           if config.waitDurationOpenState.toMillis == 0 then
             CircuitBreakerState.HalfOpen(currentTimestamp, Semaphore(config.numberOfCallsInHalfOpenState))
           else CircuitBreakerState.Open(currentTimestamp)
-        else CircuitBreakerState.Closed
+        else CircuitBreakerState.Closed(since)
       case CircuitBreakerState.Open(since) =>
         val timePassed = (currentTimestamp - since) >= config.waitDurationOpenState.toMillis
         if timePassed || config.waitDurationOpenState.toMillis == 0 then
@@ -94,7 +101,7 @@ private[resilience] object CircuitBreakerStateMachine:
         if !allCallsInHalfOpenCompleted && config.halfOpenTimeoutDuration.toMillis != 0 && timePassed then
           CircuitBreakerState.Open(currentTimestamp)
         // If halfOpen calls were completed && rates are below we close breaker
-        else if allCallsInHalfOpenCompleted && !exceededThreshold then CircuitBreakerState.Closed
+        else if allCallsInHalfOpenCompleted && !exceededThreshold then CircuitBreakerState.Closed(currentTimestamp)
         // If halfOpen calls completed, but rates are still above go back to open
         else if allCallsInHalfOpenCompleted && exceededThreshold then CircuitBreakerState.Open(currentTimestamp)
         // We didn't complete all half open calls, keep halfOpen
@@ -132,11 +139,11 @@ private[resilience] object CircuitBreakerResults:
       import CircuitBreakerState.*
       // we have to match so we don't reset result when for example incrementing completed calls in halfopen state
       (oldState, newState) match
-        case (Closed, Open(_) | HalfOpen(_, _, _)) =>
+        case (Closed(_), Open(_) | HalfOpen(_, _, _)) =>
           clearResults
-        case (HalfOpen(_, _, _), Open(_) | Closed) =>
+        case (HalfOpen(_, _, _), Open(_) | Closed(_)) =>
           clearResults
-        case (Open(_), Closed | HalfOpen(_, _, _)) =>
+        case (Open(_), Closed(_) | HalfOpen(_, _, _)) =>
           clearResults
         case (_, _) => ()
       end match
@@ -215,11 +222,11 @@ private[resilience] object CircuitBreakerResults:
       import CircuitBreakerState.*
       // we have to match so we don't reset result when for example incrementing completed calls in halfopen state
       (oldState, newState) match
-        case (Closed, Open(_) | HalfOpen(_, _, _)) =>
+        case (Closed(_), Open(_) | HalfOpen(_, _, _)) =>
           clearResults()
-        case (HalfOpen(_, _, _), Open(_) | Closed) =>
+        case (HalfOpen(_, _, _), Open(_) | Closed(_)) =>
           clearResults()
-        case (Open(_), Closed | HalfOpen(_, _, _)) =>
+        case (Open(_), Closed(_) | HalfOpen(_, _, _)) =>
           clearResults()
         case (_, _) => ()
       end match

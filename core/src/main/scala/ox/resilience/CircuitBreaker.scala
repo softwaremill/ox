@@ -10,7 +10,7 @@ import scala.util.Try
 
 private[resilience] enum CircuitBreakerState:
   case Open(since: Long)
-  case Closed
+  case Closed(since: Long)
   case HalfOpen(since: Long, semaphore: Semaphore, completedOperations: Int = 0)
 
 private[resilience] enum CircuitBreakerResult:
@@ -58,7 +58,7 @@ case class CircuitBreaker(config: CircuitBreakerConfig)(using Ox):
   private val actorRef: ActorRef[CircuitBreakerStateMachine] = Actor.create(stateMachine)(using sc = BufferCapacity.apply(100))
 
   private def tryAcquire: AcquireResult = stateMachine.state match
-    case CircuitBreakerState.Closed                                => AcquireResult(true, CircuitBreakerState.Closed)
+    case currState @ CircuitBreakerState.Closed(_)                 => AcquireResult(true, currState)
     case currState @ CircuitBreakerState.Open(_)                   => AcquireResult(false, currState)
     case currState @ CircuitBreakerState.HalfOpen(_, semaphore, _) => AcquireResult(semaphore.tryAcquire(1), currState)
 
