@@ -42,16 +42,40 @@ Those metrics are considered only when number of recorder calls is greater or eq
 
 ### Parameters
 
-- `failureRateThreshold: Int = 50` - percentage of recorder calls marked as failed required to switch to open state
-- `slowCallThreshold: Int = 50` - percentage of recorder calls marked as slow required to switch to open state
-- `slowCallDurationThreshold: FiniteDuration = 60.seconds` - duration that call has to exceed to be marked as slow
-- `slidingWindow: SlidingWindow = SlidingWindow.CountBased(100)` - mechanism to determine how many calls are recorded
-- `minimumNumberOfCalls: Int = 20` - minium number of calls recored for breaker to be able to swtich to open state based on thresholds
-- `waitDurationOpenState: FiniteDuration = FiniteDuration(10, TimeUnit.SECONDS)` - duration that CircuitBreaker will wait before switching from `Open` state to `HalfOpen`
-- `halfOpenTimeoutDuration: FiniteDuration = FiniteDuration(0, TimeUnit.MILLISECONDS)` - timeout for `HalfOpen` state after which, if not enough calls were recorder, breaker will go back to `Open` state
-- `numberOfCallsInHalfOpenState: Int = 10` - number of calls recorded in `HalfOpen` state needed to calculate metrics to decide if breaker should go back to `Open` state or `Closed`
+- `failureRateThreshold: PercentageThreshold` - percentage of recorder calls marked as failed required to switch to open state
+- `slowCallThreshold: PercentageThreshold` - percentage of recorder calls marked as slow required to switch to open state
+- `slowCallDurationThreshold: FiniteDuration` - duration that call has to exceed to be marked as slow
+- `slidingWindow: SlidingWindow` - mechanism to determine how many calls are recorded
+- `minimumNumberOfCalls: Int` - minium number of calls recored for breaker to be able to swtich to open state based on thresholds
+- `waitDurationOpenState: FiniteDuration` - duration that CircuitBreaker will wait before switching from `Open` state to `HalfOpen`
+- `halfOpenTimeoutDuration: FiniteDuration` - timeout for `HalfOpen` state after which, if not enough calls were recorder, breaker will go back to `Open` state
+- `numberOfCallsInHalfOpenState: Int` - number of calls recorded in `HalfOpen` state needed to calculate metrics to decide if breaker should go back to `Open` state or `Closed`
 
-## Examples 
+Values defined in `CircuitBreakerConfig.default`:
+```
+failureRateThreshold = PercentageThreshold(50)
+slowCallThreshold = PercentageThreshold(50)
+slowCallDurationThreshold = 60.seconds
+slidingWindow = SlidingWindow.CountBased(100)
+minimumNumberOfCalls = 20
+waitDurationOpenState = FiniteDuration(10, TimeUnit.SECONDS)
+halfOpenTimeoutDuration = FiniteDuration(0, TimeUnit.MILLISECONDS)
+numberOfCallsInHalfOpenState = 10
+```
+
+## Conditions for state change
+
+![state diagram](/_static/state-diagram-cb.svg)
+
+
+1. State changes from `Closed` to `Open` after any threshold was exceeded (failureThreshold or slowThreshold) and number of recorder calls is equal or greater than minimumNumberOfCalls.
+2. State changes from `Closed` to `HalfOpen` if any threshold was exceeded, number of recorder calls is equal or greater than `minimumNumberOfCalls` and `waitDurationOpenState` is zero.
+3. State changes from `Open` to `HalfOpen` when `waitDurationOpenState` passes.
+4. State changes from `HalfOpen` to `Open` if `halfOpenTimeoutDuration` passes without enough calls recorded or number of recorder calls is equal to `numberOfCallsInHalfOpenState` and any threshold was exceeded.
+5. State changes from `HalfOpen` to `Closed` if `numberOfCallsInHalfOpenState` where completed before timeout and there wasn't any threshold exceeded.
+
+
+## Examples
 
 ```scala mdoc:compile-only
 import ox.UnionMode
@@ -65,14 +89,14 @@ def unionOperation: String | Int = ???
 
 supervised:
   val ciruictBreaker = CircuitBreaker(CircuitBreakerConfig.default)
-  
+
   // various operation definitions
   ciruictBreaker.runOrDrop(directOperation)
   ciruictBreaker.runOrDropEither(eitherOperation)
-  
+
   // custom error mode
   ciruictBreaker.runOrDropWithErrorMode(UnionMode[String])(unionOperation)
-  
+
   // retry with circuit breaker inside
   retry(RetryConfig.backoff(3, 100.millis)){
     ciruictBreaker.runOrDrop(directOperation).get
