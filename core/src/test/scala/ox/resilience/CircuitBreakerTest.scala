@@ -153,4 +153,56 @@ class CircuitBreakerTest extends AnyFlatSpec with Matchers with OptionValues wit
     stateAfterWait shouldBe a[CircuitBreakerState.Open]
   }
 
+  it should "correctly transitions through states when there are concurrently running operations" in supervised {
+    // given
+    val circuitBreaker = CircuitBreaker(
+      CircuitBreakerConfig.default.copy(
+        failureRateThreshold = PercentageThreshold(100),
+        minimumNumberOfCalls = 1,
+        slidingWindow = SlidingWindow.TimeBased(2.seconds),
+        numberOfCallsInHalfOpenState = 1,
+        waitDurationOpenState = 1.second,
+        halfOpenTimeoutDuration = 1.second
+      )
+    )
+
+    // when
+
+    // concurrently, run two failing operations
+    forkDiscard {
+      circuitBreaker.runOrDropEither {
+        sleep(500.millis)
+        Left("a")
+      }
+    }
+    forkDiscard {
+      circuitBreaker.runOrDropEither {
+        sleep(1.second)
+        Left("b")
+      }
+    }
+
+    // then
+
+    // 250ms: no operations complete yet, should be closed
+    sleep(250.millis)
+    circuitBreaker.stateMachine.state shouldBe CircuitBreakerState.Closed
+
+    // 750ms: the first operation failed, should be open
+    sleep(500.millis)
+    circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.Open]
+
+    // 1750ms: first operation failed more than 1s ago, second operation failed less than 1s ago; should we now go to half-open or stay at open?
+    sleep(1.second)
+    circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.HalfOpen]
+
+    // 2250ms: more than 1s after the last failing operation, should be now half-open
+    sleep(500.millis)
+    circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.HalfOpen]
+
+    // 3250ms: more than 2s after the last failing operation, should be closed
+    sleep(1.second)
+    circuitBreaker.stateMachine.state shouldBe CircuitBreakerState.Closed
+  }
+
 end CircuitBreakerTest
