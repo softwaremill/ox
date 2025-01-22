@@ -110,7 +110,7 @@ class CircuitBreakerStateMachineTest extends AnyFlatSpec with Matchers:
     resultingState shouldBe CircuitBreakerState.Closed
   }
 
-  it should "go to open after enough calls with bad metrics are recorded" in supervised {
+  it should "go to open after enough calls with bad metrics are recorded in halfOpen state" in supervised {
     // given
     val config = defaultConfig
     val stateMachine = CircuitBreakerStateMachine(config)
@@ -125,6 +125,23 @@ class CircuitBreakerStateMachineTest extends AnyFlatSpec with Matchers:
 
     // then
     resultingState shouldBe a[CircuitBreakerState.Open]
+  }
+
+  it should "go to closed after enough calls with good metrics are recorded in halfOpen state" in supervised {
+    // given
+    val config = defaultConfig
+    val stateMachine = CircuitBreakerStateMachine(config)
+    val completedCalls = config.numberOfCallsInHalfOpenState - 1
+    val timestamp = System.currentTimeMillis()
+    val state = CircuitBreakerState.HalfOpen(timestamp, Semaphore(0), completedCalls)
+    val lastResult: Option[AcquireResult] = Some(AcquireResult(true, state))
+    val metrics = Metrics(hundredPercentSuccessRate, hundredPercentSuccessRate, config.numberOfCallsInHalfOpenState, lastResult, timestamp)
+
+    // when
+    val resultingState = CircuitBreakerStateMachine.nextState(metrics, state, stateMachine.config)
+
+    // then
+    resultingState shouldBe CircuitBreakerState.Closed
   }
 
   it should "go to half open after waitDurationOpenState passes" in supervised {

@@ -15,14 +15,16 @@ private[resilience] case class CircuitBreakerStateMachine(
   def state: CircuitBreakerState = _state
 
   def registerResult(result: CircuitBreakerResult, acquired: AcquireResult, selfRef: ActorRef[CircuitBreakerStateMachine]): Unit =
+    println(s"Result: $result, $acquired, $_state, ${System.currentTimeMillis()}")
     results.updateResults(result)
     updateState(selfRef, Some(acquired))
   end registerResult
 
   def updateState(selfRef: ActorRef[CircuitBreakerStateMachine], acquiredResult: Option[AcquireResult] = None): Unit =
     val oldState = _state
-    val newState = nextState(results.calculateMetrics(None, System.currentTimeMillis()), oldState, config)
+    val newState = nextState(results.calculateMetrics(acquiredResult, System.currentTimeMillis()), oldState, config)
     _state = newState
+    println(s"${(oldState, newState)}, ${System.currentTimeMillis()}")
     scheduleCallback(oldState, newState, selfRef)
     results.onStateChange(oldState, newState)
 
@@ -32,10 +34,13 @@ private[resilience] case class CircuitBreakerStateMachine(
       selfRef: ActorRef[CircuitBreakerStateMachine]
   ): Unit =
     (oldState, newState) match
-      case (CircuitBreakerState.Closed, CircuitBreakerState.Open(_)) =>
+      case (_, CircuitBreakerState.Open(_)) =>
         // schedule switch to halfOpen after timeout
         updateAfter(config.waitDurationOpenState, selfRef)
-      case (CircuitBreakerState.Open(_), CircuitBreakerState.HalfOpen(since, semaphore, completedOperations)) =>
+      case (
+            CircuitBreakerState.Open(_) | CircuitBreakerState.Closed,
+            CircuitBreakerState.HalfOpen(since, semaphore, completedOperations)
+          ) =>
         // schedule timeout for halfOpen state if is not 0
         if config.halfOpenTimeoutDuration.toMillis != 0 then updateAfter(config.halfOpenTimeoutDuration, selfRef)
       case _ => ()
@@ -43,6 +48,7 @@ private[resilience] case class CircuitBreakerStateMachine(
   private def updateAfter(after: FiniteDuration, actorRef: ActorRef[CircuitBreakerStateMachine]): Unit =
     forkDiscard:
       sleep(after)
+      println(s"Scheduled - ${System.currentTimeMillis()}")
       actorRef.tell(_.updateState(actorRef))
 
 end CircuitBreakerStateMachine
@@ -66,7 +72,10 @@ private[resilience] object CircuitBreakerStateMachine:
 
   def nextState(metrics: Metrics, currentState: CircuitBreakerState, config: CircuitBreakerStateMachineConfig): CircuitBreakerState =
     val currentTimestamp = metrics.timestamp
-    val lastAcquireResult = metrics.lastAcquisitionResult.filter(_.acquired)
+    // We want to know if last result should be added to completed calls in halfOpen state
+    val lastCompletedCall = metrics.lastAcquisitionResult match
+      case Some(AcquireResult(true, CircuitBreakerState.HalfOpen(s, sem, completed))) => 1
+      case _                                                                          => 0
     val exceededThreshold = (metrics.failureRate >= config.failureRateThreshold || metrics.slowCallsRate >= config.slowCallThreshold)
     val minCallsRecorder = metrics.operationsInWindow >= config.minimumNumberOfCalls
     currentState match
@@ -82,7 +91,7 @@ private[resilience] object CircuitBreakerStateMachine:
           CircuitBreakerState.HalfOpen(currentTimestamp, Semaphore(config.numberOfCallsInHalfOpenState))
         else CircuitBreakerState.Open(since)
       case CircuitBreakerState.HalfOpen(since, semaphore, completedCalls) =>
-        lazy val allCallsInHalfOpenCompleted = completedCalls >= config.numberOfCallsInHalfOpenState
+        lazy val allCallsInHalfOpenCompleted = (completedCalls + lastCompletedCall) >= config.numberOfCallsInHalfOpenState
         lazy val timePassed = (currentTimestamp - since) >= config.halfOpenTimeoutDuration.toMillis
         // if we didn't complete all half open calls but timeout is reached go back to open
         if !allCallsInHalfOpenCompleted && config.halfOpenTimeoutDuration.toMillis != 0 && timePassed then
@@ -93,9 +102,10 @@ private[resilience] object CircuitBreakerStateMachine:
         else if allCallsInHalfOpenCompleted && exceededThreshold then CircuitBreakerState.Open(currentTimestamp)
         // We didn't complete all half open calls, keep halfOpen
         else
-          lastAcquireResult match
-            case Some(AcquireResult(true, CircuitBreakerState.HalfOpen(s, sem, completed))) =>
-              CircuitBreakerState.HalfOpen(s, sem, completed + 1)
+          metrics.lastAcquisitionResult match
+            case Some(AcquireResult(true, CircuitBreakerState.HalfOpen(s, _, _)))
+                if s == since => // Check if this is the same HalfOpen state
+              CircuitBreakerState.HalfOpen(since, semaphore, completedCalls + 1)
             case _ => CircuitBreakerState.HalfOpen(since, semaphore, completedCalls)
         end if
     end match
