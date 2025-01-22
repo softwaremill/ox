@@ -15,7 +15,6 @@ private[resilience] case class CircuitBreakerStateMachine(
   def state: CircuitBreakerState = _state
 
   def registerResult(result: CircuitBreakerResult, acquired: AcquireResult, selfRef: ActorRef[CircuitBreakerStateMachine]): Unit =
-    println(s"Result: $result, $acquired, $_state, ${System.currentTimeMillis()}")
     results.updateResults(result)
     updateState(selfRef, Some(acquired))
   end registerResult
@@ -24,7 +23,6 @@ private[resilience] case class CircuitBreakerStateMachine(
     val oldState = _state
     val newState = nextState(results.calculateMetrics(acquiredResult, System.currentTimeMillis()), oldState, config)
     _state = newState
-    println(s"${(oldState, newState)}, ${System.currentTimeMillis()}")
     scheduleCallback(oldState, newState, selfRef)
     results.onStateChange(oldState, newState)
 
@@ -48,7 +46,6 @@ private[resilience] case class CircuitBreakerStateMachine(
   private def updateAfter(after: FiniteDuration, actorRef: ActorRef[CircuitBreakerStateMachine]): Unit =
     forkDiscard:
       sleep(after)
-      println(s"Scheduled - ${System.currentTimeMillis()}")
       actorRef.tell(_.updateState(actorRef))
 
 end CircuitBreakerStateMachine

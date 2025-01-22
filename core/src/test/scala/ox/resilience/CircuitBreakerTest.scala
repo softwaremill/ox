@@ -192,7 +192,7 @@ class CircuitBreakerTest extends AnyFlatSpec with Matchers with OptionValues wit
     sleep(500.millis)
     circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.Open]
 
-    // 1750ms: first operation failed more than 1s ago, second operation failed less than 1s ago; should we now go to half-open or stay at open?
+    // 1750ms: first operation failed more than 1s ago, second operation failed less than 1s ago and was ignored
     sleep(1.second)
     circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.HalfOpen]
 
@@ -200,9 +200,63 @@ class CircuitBreakerTest extends AnyFlatSpec with Matchers with OptionValues wit
     sleep(500.millis)
     circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.HalfOpen]
 
-    // 3250ms: more than 2s after the last failing operation, should be closed
+    // 3250ms: at 2500ms 1 sec timeout on halfOpen state passes, we go back to open
     sleep(1.second)
+    circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.Open]
+
+    // 3750ms: at 3500ms we go to halfOpen again
+    sleep(1000.millis)
+    circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.HalfOpen]
+  }
+
+  it should "correctly calculate metrics when results come in after state change" in supervised {
+    // given
+    val circuitBreaker = CircuitBreaker(
+      CircuitBreakerConfig.default.copy(
+        failureRateThreshold = PercentageThreshold(50),
+        minimumNumberOfCalls = 1,
+        slidingWindow = SlidingWindow.TimeBased(4.seconds),
+        numberOfCallsInHalfOpenState = 1,
+        waitDurationOpenState = 1.second,
+        halfOpenTimeoutDuration = 1.second
+      )
+    )
+
+    // when
+
+    // concurrently, run two failing operations
+    forkDiscard {
+      circuitBreaker.runOrDropEither {
+        sleep(500.millis)
+        Left("a")
+      }
+    }
+    forkDiscard {
+      circuitBreaker.runOrDropEither {
+        sleep(2.second)
+        Left("b")
+      }
+    }
+
+    // then
+
+    // 250ms: no operations complete yet, should be closed
+    sleep(250.millis)
     circuitBreaker.stateMachine.state shouldBe CircuitBreakerState.Closed
+
+    // 750ms: the first operation failed, should be open
+    sleep(500.millis)
+    circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.Open]
+
+    // 1750ms: first operation failed more than 1s ago, second operation failed less than 1s ago and was ignored
+    sleep(1.second)
+    circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.HalfOpen]
+
+    // 2250ms: complete enough operations for halfOpen state - since success should switch back to Closed
+    sleep(500.millis)
+    circuitBreaker.runOrDropEither(Right("c")).discard
+    sleep(100.millis) // wait for state to register
+    circuitBreaker.stateMachine.state shouldBe CircuitBreakerState.Closed // Should go back to closed, we have one succesful operation
   }
 
 end CircuitBreakerTest
