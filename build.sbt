@@ -99,7 +99,7 @@ lazy val cron: Project = (project in file("cron"))
   .settings(
     name := "cron",
     libraryDependencies ++= Seq(
-      "com.github.alonsodomin.cron4s" %% "cron4s-core" % "0.7.0",
+      "com.github.alonsodomin.cron4s" %% "cron4s-core" % "0.8.0",
       scalaTest
     )
   )
