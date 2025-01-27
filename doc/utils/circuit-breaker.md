@@ -1,11 +1,6 @@
 # Circuit Breaker
 
-The circuit breaker allows controlling execution of operations and stops if certain condition are met. CircuitBreaker is thread-safe and uses [actor](./actors.md) underneath to change breaker state.
-
-```{note}
-Since actor executes on one thread this may be bottleneck. That means that calculating state change can be deleyad and breaker can let few more operations to complete before openning.
-This can be the case with many very fast operations.
-```
+The circuit breaker allows controlling execution of operations and stops if certain condition are met. CircuitBreaker is thread-safe and can be used in concurrent scenarios.
 
 ## API
 
@@ -24,6 +19,9 @@ supervised:
 
 ## Configuration
 
+Many config parameters relate to calculated metrics. Those metrics are percentage of calls that failed and percentage of calls that exceeded `slowCallDurationThreshold`. 
+Which calls are included during calculation of these metrics are determined by `SlidingWindow` configuration.
+
 ### Sliding window
 
 There are two ways that metrics are calculated.
@@ -34,19 +32,19 @@ There are two ways that metrics are calculated.
 ### Failure rate and slow call rate thresholds
 
 The state of the CircuitBreaker changes from `Closed` to `Open` when the `failureRate` is greater or equal to configurable threshold. For example when 80% of recorded call results failed.
-Failures are counted based on provided `ErrorMode`.
+Failures are counted based on provided `ErrorMode`. For example any exception that is thrown by the operation, when using the direct, "unwrapped" API or any `Left` variant when using `runOrDropEither`.
 
-The same state change also happen when percentage of slow calls (exceeding `slowCallDurationThreshold`) is equal or greater than configured threshold. For examaple 80% of calls took longer then 10 seconds.
+The same state change also happen when percentage of slow calls (exceeding configurable `slowCallDurationThreshold`) is equal or greater than configured threshold. For example 80% of calls took longer then 10 seconds.
 
 Those metrics are considered only when number of recorder calls is greater or equal to `minimumNumberOfCalls`, otherwise we don't change state even if `failureRate` is 100%.
 
 ### Parameters
 
-- `failureRateThreshold: PercentageThreshold` - percentage of recorder calls marked as failed required to switch to open state.
+- `failureRateThreshold: PercentageThreshold` - percentage of recorded calls marked as failed required to switch to open state.
 - `slowCallThreshold: PercentageThreshold` - percentage of recorder calls marked as slow required to switch to open state.
 - `slowCallDurationThreshold: FiniteDuration` - duration that call has to exceed to be marked as slow.
 - `slidingWindow: SlidingWindow` - mechanism to determine how calls are recorded.
-- `minimumNumberOfCalls: Int` - minium number of calls recorded needed for breaker to be able to swtich to open state based on thresholds.
+- `minimumNumberOfCalls: Int` - minimum number of calls recorded needed for breaker to be able to switch to open state based on thresholds.
 - `waitDurationOpenState: FiniteDuration` - duration that CircuitBreaker will wait before switching from `Open` state to `HalfOpen`.
 - `halfOpenTimeoutDuration: FiniteDuration` - timeout for `HalfOpen` state after which, if not enough calls were recorder, breaker will go back to `Open` state. Zero means there is no timeout.
 - `numberOfCallsInHalfOpenState: Int` - number of calls recorded in `HalfOpen` state needed to calculate metrics to decide if breaker should go back to `Open` state or `Closed`. It is also maximum number of operations that can be started in this state.
@@ -79,6 +77,12 @@ numberOfCallsInHalfOpenState = 10
 4. State changes from `HalfOpen` to `Open` if `halfOpenTimeoutDuration` passes without enough calls recorded or number of recorder calls is equal to `numberOfCallsInHalfOpenState` and any threshold was exceeded.
 5. State changes from `HalfOpen` to `Closed` if `numberOfCallsInHalfOpenState` where completed before timeout and there wasn't any threshold exceeded.
 
+
+```{note}
+CircuitBreaker uses actor internally and since actor executes on one thread this may be bottleneck. That means that calculating state change can be deleyad and breaker can let few more operations to complete before openning.
+This can be the case with many very fast operations.
+```
+
 ## Examples
 
 ```scala mdoc:compile-only
@@ -92,18 +96,18 @@ def eitherOperation: Either[String, Int] = ???
 def unionOperation: String | Int = ???
 
 supervised:
-  val ciruictBreaker = CircuitBreaker(CircuitBreakerConfig.default)
+  val circuitBreaker = CircuitBreaker(CircuitBreakerConfig.default)
 
   // various operation definitions
-  ciruictBreaker.runOrDrop(directOperation)
-  ciruictBreaker.runOrDropEither(eitherOperation)
+  circuitBreaker.runOrDrop(directOperation)
+  circuitBreaker.runOrDropEither(eitherOperation)
 
   // custom error mode
-  ciruictBreaker.runOrDropWithErrorMode(UnionMode[String])(unionOperation)
+  circuitBreaker.runOrDropWithErrorMode(UnionMode[String])(unionOperation)
 
   // retry with circuit breaker inside
   retryEither(RetryConfig.backoff(3, 100.millis)){
-    ciruictBreaker.runOrDrop(directOperation) match
+    circuitBreaker.runOrDrop(directOperation) match
       case Some(value) => Right(value)
       case None => Left("Operation dropped")
   }

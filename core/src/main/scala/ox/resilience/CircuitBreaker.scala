@@ -12,6 +12,13 @@ private[resilience] enum CircuitBreakerState:
   case Open(since: Long)
   case Closed(since: Long)
   case HalfOpen(since: Long, semaphore: Semaphore, completedOperations: Int = 0)
+  def isSameState(other: CircuitBreakerState): Boolean =
+    (this, other) match
+      case (Open(sinceOpen), Open(since)) if since == sinceOpen                             => true
+      case (HalfOpen(sinceHalfOpen, _, _), HalfOpen(since, _, _)) if sinceHalfOpen == since => true
+      case (Closed(sinceClosed), Closed(since)) if sinceClosed == since                     => true
+      case _                                                                                => false
+end CircuitBreakerState
 
 private[resilience] enum CircuitBreakerResult:
   case Success
@@ -53,11 +60,11 @@ end CircuitBreakerStateMachineConfig
 /** Circuit Breaker. Operations can be dropped, when the breaker is open or if it doesn't take more operation in halfOpen state. The Circuit
   * Breaker might calculate different metrics based on [[SlidingWindow]] provided in config. See [[SlidingWindow]] for more details.
   */
-case class CircuitBreaker(config: CircuitBreakerConfig)(using Ox):
+case class CircuitBreaker(config: CircuitBreakerConfig)(using ox: Ox, bufferCapacity: BufferCapacity):
   private[resilience] val stateMachine = CircuitBreakerStateMachine(config)
-  private val actorRef: ActorRef[CircuitBreakerStateMachine] = Actor.create(stateMachine)(using sc = BufferCapacity.apply(100))
+  private val actorRef: ActorRef[CircuitBreakerStateMachine] = Actor.create(stateMachine)
 
-  private def tryAcquire: AcquireResult = stateMachine.state match
+  private def tryAcquire(): AcquireResult = stateMachine.state match
     case currState @ CircuitBreakerState.Closed(_)                 => AcquireResult(true, currState)
     case currState @ CircuitBreakerState.Open(_)                   => AcquireResult(false, currState)
     case currState @ CircuitBreakerState.HalfOpen(_, semaphore, _) => AcquireResult(semaphore.tryAcquire(1), currState)
@@ -73,7 +80,7 @@ case class CircuitBreaker(config: CircuitBreakerConfig)(using Ox):
   def runOrDropWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(
       operation: => F[T]
   ): Option[F[T]] =
-    val acquiredResult = tryAcquire
+    val acquiredResult = tryAcquire()
     if acquiredResult.acquired then
       val (duration, result) = timed(operation)
       if em.isError(result) then
@@ -116,3 +123,6 @@ case class CircuitBreaker(config: CircuitBreakerConfig)(using Ox):
   def runOrDrop[T](operation: => T): Option[T] =
     runOrDropEither(Try(operation).toEither).map(_.fold(throw _, identity))
 end CircuitBreaker
+
+object CircuitBreaker:
+  given default: BufferCapacity = BufferCapacity.apply(100)
