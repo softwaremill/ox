@@ -1,5 +1,9 @@
 # Circuit Breaker
 
+A circuit breaker is used to provide stability and prevent cascading failures in distributed systems. 
+These should be used with other mechanisms (such as timeouts or rate limiters) to prevent the failure of a single component from bringing down all components.
+The Circuit Breaker can proactively identify unresponsive services and prevent repeated attempts.
+
 The circuit breaker allows controlling execution of operations and stops if certain condition are met. CircuitBreaker is thread-safe and can be used in concurrent scenarios.
 
 ## API
@@ -17,6 +21,12 @@ supervised:
   val operationResult: Option[T] = circuitBreaker.runOrDrop(operation)
 ```
 
+The CircuitBreaker is a finite state machine with three states: `Closed`, `Open` and `HalfOpen`.
+- While in `Open` state - all calls are dropped.
+- In `Closed` state - calls are accepted.
+- In `HalfOpen` state - only configured number of call can be started and depending on their results state can go back to `Open` or `Closed`. See [conditions for state change](#conditions-for-state-change).
+
+
 ## Configuration
 
 Many config parameters relate to calculated metrics. Those metrics are percentage of calls that failed and percentage of calls that exceeded `slowCallDurationThreshold`. 
@@ -31,12 +41,12 @@ There are two ways that metrics are calculated.
 
 ### Failure rate and slow call rate thresholds
 
-The state of the CircuitBreaker changes from `Closed` to `Open` when the `failureRate` is greater or equal to configurable threshold. For example when 80% of recorded call results failed.
+The state of the CircuitBreaker changes from `Closed` to `Open` when the failure rate is greater or equal to configurable threshold. For example when 80% of recorded call results failed.
 Failures are counted based on provided `ErrorMode`. For example any exception that is thrown by the operation, when using the direct, "unwrapped" API or any `Left` variant when using `runOrDropEither`.
 
 The same state change also happen when percentage of slow calls (exceeding configurable `slowCallDurationThreshold`) is equal or greater than configured threshold. For example 80% of calls took longer then 10 seconds.
 
-Those metrics are considered only when number of recorder calls is greater or equal to `minimumNumberOfCalls`, otherwise we don't change state even if `failureRate` is 100%.
+Those metrics are considered only when number of recorder calls is greater or equal to `minimumNumberOfCalls`, otherwise we don't change state even if failure rate is 100%.
 
 ### Parameters
 
@@ -52,18 +62,47 @@ Those metrics are considered only when number of recorder calls is greater or eq
 `SlidingWindow` variants:
 
 - `CountBased(windowSize: Int)` - This variant calculates metrics based on last n results of calls recorded. These statistics are cleared on every state change.
-- `TimeBased(duration: FiniteDuration)` - This variant calculates metrics of operations in the lapse of `duraiton` before current time. These statistics are cleared on every state change.
+- `TimeBased(duration: FiniteDuration)` - This variant calculates metrics of operations in the lapse of `duration` before current time. These statistics are cleared on every state change.
+
+### Providing configuration
+
+CircuitBreaker can be configured during instantiation by providing `CircuitBreakerConfig`.
+
+```scala mdoc:compile-only
+import ox.supervised
+import ox.resilience.*
+import scala.concurrent.duration.*
+
+supervised:
+  // using default config
+  CircuitBreaker(CircuitBreakerConfig.default)
+  
+  // custom config
+  val config = CircuitBreakerConfig(
+    failureRateThreshold = PercentageThreshold(50),
+    slowCallThreshold = PercentageThreshold(50),
+    slowCallDurationThreshold = 10.seconds,
+    slidingWindow = SlidingWindow.CountBased(100),
+    minimumNumberOfCalls = 20,
+    waitDurationOpenState = 10.seconds,
+    halfOpenTimeoutDuration = 0.millis,
+    numberOfCallsInHalfOpenState = 10
+  )
+  
+  // providing config for CircuitBreaker instance
+  CircuitBreaker(config)
+```
 
 Values defined in `CircuitBreakerConfig.default`:
 
 ```
 failureRateThreshold = PercentageThreshold(50)
 slowCallThreshold = PercentageThreshold(50)
-slowCallDurationThreshold = 60.seconds
+slowCallDurationThreshold = 10.seconds
 slidingWindow = SlidingWindow.CountBased(100)
 minimumNumberOfCalls = 20
-waitDurationOpenState = FiniteDuration(10, TimeUnit.SECONDS)
-halfOpenTimeoutDuration = FiniteDuration(0, TimeUnit.MILLISECONDS)
+waitDurationOpenState = 10.seconds,
+halfOpenTimeoutDuration = 0.millis,
 numberOfCallsInHalfOpenState = 10
 ```
 
@@ -79,7 +118,7 @@ numberOfCallsInHalfOpenState = 10
 
 
 ```{note}
-CircuitBreaker uses actor internally and since actor executes on one thread this may be bottleneck. That means that calculating state change can be deleyad and breaker can let few more operations to complete before openning.
+CircuitBreaker uses actor internally and since actor executes on one thread this may be bottleneck. That means that calculating state change can be delayed and breaker can let few more operations to complete before opening.
 This can be the case with many very fast operations.
 ```
 

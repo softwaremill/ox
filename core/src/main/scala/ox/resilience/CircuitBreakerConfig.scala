@@ -1,20 +1,19 @@
 package ox.resilience
 
 import scala.concurrent.duration.*
-import java.util.concurrent.TimeUnit
 
 /** Allows to configure how [[Metrics]] will be calculated
   */
 enum SlidingWindow:
   /** Window counting last n operations when calculating metrics.
     * @param windowSize
-    *   number of last n results recored.
+    *   number of last n results recorded.
     */
   case CountBased(windowSize: Int)
 
-  /** Window counting operations in the lapse of `duraiton` before current time.
+  /** Window counting operations in the lapse of `duration` before current time.
     * @param duration
-    *   span of time where results are considered for including in metrics.
+    *   span of time in which results are included in metrics.
     */
   case TimeBased(duration: FiniteDuration)
 end SlidingWindow
@@ -22,7 +21,9 @@ end SlidingWindow
 /** Type representing percentage threshold between 0 and 100 */
 opaque type PercentageThreshold = Int
 
-extension (c: PercentageThreshold) def toInt: Int = c
+extension (c: PercentageThreshold)
+  def toInt: Int = c
+  def isExceeded(by: Int): Boolean = by >= c
 
 object PercentageThreshold:
   def apply(c: Int): PercentageThreshold =
@@ -68,11 +69,11 @@ object CircuitBreakerConfig:
   def default: CircuitBreakerConfig = CircuitBreakerConfig(
     failureRateThreshold = PercentageThreshold(50),
     slowCallThreshold = PercentageThreshold(50),
-    slowCallDurationThreshold = 60.seconds,
+    slowCallDurationThreshold = 10.seconds,
     slidingWindow = SlidingWindow.CountBased(100),
     minimumNumberOfCalls = 20,
-    waitDurationOpenState = FiniteDuration(10, TimeUnit.SECONDS),
-    halfOpenTimeoutDuration = FiniteDuration(0, TimeUnit.MILLISECONDS),
+    waitDurationOpenState = 10.seconds,
+    halfOpenTimeoutDuration = 0.millis,
     numberOfCallsInHalfOpenState = 10
   )
 end CircuitBreakerConfig

@@ -40,7 +40,7 @@ class CircuitBreakerTest extends AnyFlatSpec with Matchers with OptionValues wit
     result2.value.value shouldBe "success"
   }
 
-  it should "drop operation after exceeding fauilure threshold" in supervised {
+  it should "drop operation after exceeding failure threshold" in supervised {
     // given
     val thresholdRate = PercentageThreshold(100)
     val numberOfOperations = 1
@@ -94,7 +94,7 @@ class CircuitBreakerTest extends AnyFlatSpec with Matchers with OptionValues wit
 
   behavior of "Circuit Breaker scheduled state changes"
 
-  it should "switch to halfopen after configured time" in supervised {
+  it should "switch to halfOpen after configured time" in supervised {
     // given
     val thresholdRate = PercentageThreshold(100)
     val numberOfOperations = 1
@@ -256,7 +256,7 @@ class CircuitBreakerTest extends AnyFlatSpec with Matchers with OptionValues wit
     sleep(500.millis)
     circuitBreaker.runOrDropEither(Right("c")).discard
     sleep(100.millis) // wait for state to register
-    // Should go back to closed, we have one succesful operation
+    // Should go back to closed, we have one successful operation
     circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.Closed]
   }
 

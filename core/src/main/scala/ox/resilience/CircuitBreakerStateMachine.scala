@@ -39,7 +39,7 @@ private[resilience] case class CircuitBreakerStateMachine(
         updateAfter(config.waitDurationOpenState, selfRef)
       case (
             CircuitBreakerState.Open(_) | CircuitBreakerState.Closed(_),
-            CircuitBreakerState.HalfOpen(since, semaphore, completedOperations)
+            CircuitBreakerState.HalfOpen(_, _, _)
           ) =>
         // schedule timeout for halfOpen state if is not 0
         if config.halfOpenTimeoutDuration.toMillis != 0 then updateAfter(config.halfOpenTimeoutDuration, selfRef)
@@ -71,10 +71,11 @@ private[resilience] object CircuitBreakerStateMachine:
 
   def nextState(metrics: Metrics, currentState: CircuitBreakerState, config: CircuitBreakerStateMachineConfig): CircuitBreakerState =
     val currentTimestamp = metrics.timestamp
-    val exceededThreshold = (metrics.failureRate >= config.failureRateThreshold || metrics.slowCallsRate >= config.slowCallThreshold)
+    val exceededThreshold =
+      config.failureRateThreshold.isExceeded(metrics.failureRate) || config.slowCallThreshold.isExceeded(metrics.slowCallsRate)
     val minCallsRecorder = metrics.operationsInWindow >= config.minimumNumberOfCalls
     currentState match
-      case self @ CircuitBreakerState.Closed(since) =>
+      case self @ CircuitBreakerState.Closed(_) =>
         if minCallsRecorder && exceededThreshold then
           if config.waitDurationOpenState.toMillis == 0 then
             CircuitBreakerState.HalfOpen(currentTimestamp, Semaphore(config.numberOfCallsInHalfOpenState))
@@ -110,6 +111,9 @@ private[resilience] sealed trait CircuitBreakerResults(using val ox: Ox):
   def calculateMetrics(lastAcquisitionResult: Option[AcquireResult], timestamp: Long): Metrics
 
 private[resilience] object CircuitBreakerResults:
+  private object Percentage:
+    def of(observed: Int, size: Int): Int = ((observed / size.toFloat) * 100).toInt
+
   case class CountBased(windowSize: Int)(using ox: Ox) extends CircuitBreakerResults(using ox):
     private val results = new collection.mutable.ArrayDeque[CircuitBreakerResult](windowSize + 1)
     private var slowCalls = 0
@@ -141,8 +145,8 @@ private[resilience] object CircuitBreakerResults:
 
     def calculateMetrics(lastAcquisitionResult: Option[AcquireResult], timestamp: Long): Metrics =
       val numOfOperations = results.length
-      val failuresRate = ((failedCalls / numOfOperations.toFloat) * 100).toInt
-      val slowRate = ((slowCalls / numOfOperations.toFloat) * 100).toInt
+      val failuresRate = Percentage.of(failedCalls, numOfOperations)
+      val slowRate = Percentage.of(slowCalls, numOfOperations)
       Metrics(
         failuresRate,
         slowRate,
@@ -176,8 +180,8 @@ private[resilience] object CircuitBreakerResults:
           case CircuitBreakerResult.Slow    => slowCalls -= 1
       }
       val numOfOperations = results.length
-      val failuresRate = ((failedCalls / numOfOperations.toFloat) * 100).toInt
-      val slowRate = ((slowCalls / numOfOperations.toFloat) * 100).toInt
+      val failuresRate = Percentage.of(failedCalls, numOfOperations)
+      val slowRate = Percentage.of(slowCalls, numOfOperations)
       Metrics(
         failuresRate,
         slowRate,

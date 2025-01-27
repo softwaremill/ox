@@ -36,8 +36,8 @@ private[resilience] case class Metrics(
 private[resilience] case class AcquireResult(acquired: Boolean, circuitState: CircuitBreakerState)
 
 private case class CircuitBreakerStateMachineConfig(
-    failureRateThreshold: Int,
-    slowCallThreshold: Int,
+    failureRateThreshold: PercentageThreshold,
+    slowCallThreshold: PercentageThreshold,
     slowCallDurationThreshold: FiniteDuration,
     minimumNumberOfCalls: Int,
     numberOfCallsInHalfOpenState: Int,
@@ -47,8 +47,8 @@ private case class CircuitBreakerStateMachineConfig(
 private object CircuitBreakerStateMachineConfig:
   def fromConfig(c: CircuitBreakerConfig): CircuitBreakerStateMachineConfig =
     CircuitBreakerStateMachineConfig(
-      failureRateThreshold = c.failureRateThreshold.toInt,
-      slowCallThreshold = c.slowCallThreshold.toInt,
+      failureRateThreshold = c.failureRateThreshold,
+      slowCallThreshold = c.slowCallThreshold,
       slowCallDurationThreshold = c.slowCallDurationThreshold,
       minimumNumberOfCalls = c.minimumNumberOfCalls,
       numberOfCallsInHalfOpenState = c.numberOfCallsInHalfOpenState,
