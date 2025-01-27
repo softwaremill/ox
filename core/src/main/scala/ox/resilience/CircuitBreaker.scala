@@ -60,7 +60,7 @@ end CircuitBreakerStateMachineConfig
 /** Circuit Breaker. Operations can be dropped, when the breaker is open or if it doesn't take more operation in halfOpen state. The Circuit
   * Breaker might calculate different metrics based on [[SlidingWindow]] provided in config. See [[SlidingWindow]] for more details.
   */
-case class CircuitBreaker(config: CircuitBreakerConfig)(using ox: Ox, bufferCapacity: BufferCapacity):
+case class CircuitBreaker(config: CircuitBreakerConfig = CircuitBreakerConfig.default)(using ox: Ox, bufferCapacity: BufferCapacity):
   private[resilience] val stateMachine = CircuitBreakerStateMachine(config)
   private val actorRef: ActorRef[CircuitBreakerStateMachine] = Actor.create(stateMachine)
 
