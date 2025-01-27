@@ -13,7 +13,7 @@ import ox.supervised
 import ox.resilience.*
 
 supervised:
-  val circuitBreaker = CircuitBreaker(CircuitBreakerConfig.default)
+  val circuitBreaker = CircuitBreaker()
 
   type T
   def operation: T = ???
@@ -75,6 +75,8 @@ import scala.concurrent.duration.*
 
 supervised:
   // using default config
+  CircuitBreaker()
+  // or
   CircuitBreaker(CircuitBreakerConfig.default)
   
   // custom config
@@ -135,7 +137,7 @@ def eitherOperation: Either[String, Int] = ???
 def unionOperation: String | Int = ???
 
 supervised:
-  val circuitBreaker = CircuitBreaker(CircuitBreakerConfig.default)
+  val circuitBreaker = CircuitBreaker()
 
   // various operation definitions
   circuitBreaker.runOrDrop(directOperation)
