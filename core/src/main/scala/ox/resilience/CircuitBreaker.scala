@@ -26,8 +26,8 @@ private[resilience] enum CircuitBreakerResult:
   case Slow
 
 private[resilience] case class Metrics(
-    failureRate: Int,
-    slowCallsRate: Int,
+    failurePercentage: Int,
+    slowCallsPercentage: Int,
     operationsInWindow: Int,
     lastAcquisitionResult: Option[AcquireResult],
     timestamp: Long

@@ -25,8 +25,9 @@ private[resilience] case class CircuitBreakerStateMachine(
     val oldState = _state
     val newState = nextState(results.calculateMetrics(acquiredResult, System.currentTimeMillis()), oldState, config)
     _state = newState
-    scheduleCallback(oldState, newState, selfRef)
-    results.onStateChange(oldState, newState)
+    if !oldState.isSameState(newState) then
+      scheduleCallback(oldState, newState, selfRef)
+      results.onStateChange(oldState, newState)
 
   private def scheduleCallback(
       oldState: CircuitBreakerState,
@@ -41,7 +42,8 @@ private[resilience] case class CircuitBreakerStateMachine(
             CircuitBreakerState.Open(_) | CircuitBreakerState.Closed(_),
             CircuitBreakerState.HalfOpen(_, _, _)
           ) =>
-        // schedule timeout for halfOpen state if is not 0
+        // schedule timeout for halfOpen state if halfOpenTimeoutDuration is not 0
+        // if halfOpenTimeoutDuration is 0, to leave HalfOpen state all required calls must complete (as success or failure)
         if config.halfOpenTimeoutDuration.toMillis != 0 then updateAfter(config.halfOpenTimeoutDuration, selfRef)
       case _ => ()
 
@@ -72,11 +74,11 @@ private[resilience] object CircuitBreakerStateMachine:
   def nextState(metrics: Metrics, currentState: CircuitBreakerState, config: CircuitBreakerStateMachineConfig): CircuitBreakerState =
     val currentTimestamp = metrics.timestamp
     val exceededThreshold =
-      config.failureRateThreshold.isExceeded(metrics.failureRate) || config.slowCallThreshold.isExceeded(metrics.slowCallsRate)
-    val minCallsRecorder = metrics.operationsInWindow >= config.minimumNumberOfCalls
+      config.failureRateThreshold.isExceeded(metrics.failurePercentage) || config.slowCallThreshold.isExceeded(metrics.slowCallsPercentage)
+    val minCallsRecorded = metrics.operationsInWindow >= config.minimumNumberOfCalls
     currentState match
       case self @ CircuitBreakerState.Closed(_) =>
-        if minCallsRecorder && exceededThreshold then
+        if minCallsRecorded && exceededThreshold then
           if config.waitDurationOpenState.toMillis == 0 then
             CircuitBreakerState.HalfOpen(currentTimestamp, Semaphore(config.numberOfCallsInHalfOpenState))
           else CircuitBreakerState.Open(currentTimestamp)
