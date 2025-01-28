@@ -11,7 +11,7 @@ import ox.kafka.ConsumerSettings.AutoOffsetReset
   val destTopic = "t1mapped"
   val group = "group1"
 
-  timed("transfer") {
+  timedAndLogged("transfer") {
     import KafkaStage.*
 
     val bootstrapServer = "localhost:29092"
