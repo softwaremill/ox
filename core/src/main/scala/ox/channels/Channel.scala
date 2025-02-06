@@ -263,7 +263,11 @@ end Sink
   *   The type of the values processed by the channel.
   */
 class Channel[T] private (capacity: Int) extends Source[T] with Sink[T]:
-  protected override val delegate: JChannel[Any] = new JChannel(capacity)
+  protected override val delegate: JChannel[Any] = capacity match
+    case 0  => JChannel.newRendezvousChannel()
+    case -1 => JChannel.newUnlimitedChannel()
+    case _  => JChannel.newBufferedChannel(capacity)
+
   override def toString: String = delegate.toString
 
 object Channel:
