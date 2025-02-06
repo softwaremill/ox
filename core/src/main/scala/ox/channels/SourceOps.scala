@@ -94,11 +94,11 @@ trait SourceOps[+T]:
     forkPropagate(c2) {
       repeatWhile {
         receiveOrClosed() match
-          case ChannelClosed.Done     => c2.doneOrClosed(); false
-          case ChannelClosed.Error(r) => c2.errorOrClosed(r); false
+          case ChannelClosed.Done     => c2.doneOrClosed().discard; false
+          case ChannelClosed.Error(r) => c2.errorOrClosed(r).discard; false
           case t: T @unchecked        => c2.send(f(t)); true
       }
-    }
+    }.discard
     c2
   end map
 
@@ -142,12 +142,12 @@ trait SourceOps[+T]:
     forkPropagate(c2) {
       repeatWhile {
         receiveOrClosed() match
-          case ChannelClosed.Done                  => c2.doneOrClosed(); false
-          case ChannelClosed.Error(r)              => c2.errorOrClosed(r); false
+          case ChannelClosed.Done                  => c2.doneOrClosed().discard; false
+          case ChannelClosed.Error(r)              => c2.errorOrClosed(r).discard; false
           case t: T @unchecked if f.isDefinedAt(t) => c2.send(f(t)); true
           case _                                   => true // f is not defined at t, skipping
       }
-    }
+    }.discard
     c2
   end collect
 

@@ -34,7 +34,7 @@ class FlowOpsAlsoToTapTest extends AnyFlatSpec with Matchers:
           case t: Int                 => vec = vec :+ t; true
       vec
     val main = Channel.rendezvous[Int]
-    fork:
+    forkDiscard:
       for i <- 1 to 20 do
         main.send(i)
         sleep(10.millis)

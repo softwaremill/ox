@@ -66,6 +66,14 @@ def computationR: Int = ???
 repeat(RepeatConfig.fixedRateForever(100.millis))(computationR)
 ```
 
+[Rate limit](utils/rate-limiter.md) computations:
+
+```scala
+supervised:
+  val rateLimiter = RateLimiter.fixedWindowWithStartTime(2, 1.second)
+  rateLimiter.runBlocking({ /* ... */ })
+```
+
 Allocate a [resource](utils/resources.md) in a scope:
 
 ```scala
@@ -104,7 +112,7 @@ Flow.iterate(0)(_ + 1) // natural numbers
   .map(_ + 1)
   .intersperse(5)
   // compute the running total
-  .mapStateful(() => 0) { (state, value) =>
+  .mapStateful(0) { (state, value) =>
     val newState = state + value
     (newState, newState)
   }

@@ -20,13 +20,7 @@ The `scheduled` config consists of:
   - `Interval` - default for `repeat` operations, where the sleep is calculated as the duration provided by schedule 
     minus the duration of the last operation (can be negative, in which case the next operation occurs immediately).
   - `Delay` - default for `retry` operations, where the sleep is just the duration provided by schedule.
-- `onOperationResult` - a callback function that is invoked after each operation. Used primarily for `onRetry` in `retry` API.
-
-In addition, it is possible to define strategies for handling the results and errors returned by the `operation`:
-- `shouldContinueOnError` - defaults to `_: E => false`, which allows to decide if the scheduler loop should continue 
-  after an error returned by the previous operation.
-- `shouldContinueOnSuccess` - defaults to `_: T => true`, which allows to decide if the scheduler loop should continue
-  after a successful result returned by the previous operation.
+- `afterAttempt` - a callback function that is invoked after each operation and determines if the scheduler loop should continue. Used for `onRetry`, `shouldContinueOnError`, `shouldContinueOnResult` and adaptive retries in `retry` API. Defaults to always continuing.
 
 ## Schedule
 

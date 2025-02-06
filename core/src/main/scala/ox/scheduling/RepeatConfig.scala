@@ -9,8 +9,8 @@ import scala.concurrent.duration.DurationInt
   * the specified duration after the previous operations has finished. If the previous operation takes longer than the interval, the next
   * operation will start immediately after the previous one has finished.
   *
-  * It is a special case of [[ScheduledConfig]] with [[ScheduledConfig.sleepMode]] always set to [[SleepMode.Interval]] and
-  * [[ScheduledConfig.shouldContinueOnError]] always returning `false`.
+  * It is a special case of [[ScheduledConfig]] with [[ScheduledConfig.sleepMode]] always set to [[SleepMode.Interval]] and a
+  * [[ScheduledConfig.afterAttempt]] callback which checks if the result was successful.
   *
   * @param schedule
   *   The repeat schedule which determines the maximum number of invocations and the interval between subsequent invocations. See
@@ -28,11 +28,14 @@ case class RepeatConfig[E, T](
     schedule: Schedule,
     shouldContinueOnResult: T => Boolean = (_: T) => true
 ):
-  def toScheduledConfig: ScheduledConfig[E, T] = ScheduledConfig(
-    schedule,
-    shouldContinueOnResult = shouldContinueOnResult,
-    sleepMode = SleepMode.Interval
-  )
+  def toScheduledConfig: ScheduledConfig[E, T] =
+    val afterAttempt: (Int, Either[E, T]) => ScheduleStop = (_, attempt) =>
+      attempt match
+        case Left(_)      => ScheduleStop.Yes
+        case Right(value) => ScheduleStop(!shouldContinueOnResult(value))
+
+    ScheduledConfig(schedule, afterAttempt, SleepMode.Interval)
+  end toScheduledConfig
 end RepeatConfig
 
 object RepeatConfig:

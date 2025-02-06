@@ -9,7 +9,7 @@ import ox.flow.Flow
 @main def publish(): Unit =
   val topic = "t1"
 
-  timed("publish") {
+  timedAndLogged("publish") {
     import KafkaStage.*
 
     val bootstrapServer = "localhost:29092"

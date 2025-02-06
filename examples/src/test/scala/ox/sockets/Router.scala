@@ -32,8 +32,8 @@ object Router:
           socketSendQueues.get(connectedSocket) match
             case None => ()
             case Some(ConnectedSocketData(sendFork, receiveFork, _)) =>
-              sendFork.cancel()
-              receiveFork.cancel()
+              sendFork.cancel().discard
+              receiveFork.cancel().discard
 
           handleMessage(queue, socketSendQueues - connectedSocket)
 
@@ -44,7 +44,7 @@ object Router:
           handleMessage(queue, socketSendQueues)
 
     val queue = new ArrayBlockingQueue[RouterMessage](32)
-    socketAccept(socket, queue)
+    socketAccept(socket, queue).discard
     handleMessage(queue, Map())
   }
 

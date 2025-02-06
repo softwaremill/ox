@@ -4,17 +4,19 @@ import ox.CancellableFork
 import ox.Fork
 import ox.Ox
 import ox.OxUnsupervised
+import ox.channels.BufferCapacity
 import ox.channels.Channel
 import ox.channels.ChannelClosed
 import ox.channels.Default
 import ox.channels.Sink
 import ox.channels.Source
-import ox.channels.BufferCapacity
 import ox.channels.forkPropagate
 import ox.channels.selectOrClosed
 import ox.discard
+import ox.flow.internal.groupByImpl
 import ox.forkCancellable
 import ox.forkUnsupervised
+import ox.forkUser
 import ox.repeatWhile
 import ox.sleep
 import ox.supervised
@@ -24,7 +26,6 @@ import ox.unsupervised
 import java.util.concurrent.Semaphore
 import scala.concurrent.duration.DurationLong
 import scala.concurrent.duration.FiniteDuration
-import ox.forkUser
 
 class FlowOps[+T]:
   outer: Flow[T] =>
@@ -36,7 +37,7 @@ class FlowOps[+T]:
     *
     * Any exceptions are propagated by the returned flow.
     */
-  def async()(using BufferCapacity): Flow[T] = Flow.usingEmitInline: emit =>
+  def buffer()(using BufferCapacity): Flow[T] = Flow.usingEmitInline: emit =>
     val ch = BufferCapacity.newChannel[T]
     unsupervised:
       runLastToChannelAsync(ch)
@@ -72,6 +73,38 @@ class FlowOps[+T]:
   def filter(f: T => Boolean): Flow[T] = Flow.usingEmitInline: emit =>
     last.run(FlowEmit.fromInline(t => if f(t) then emit.apply(t)))
 
+  /** Emits only every nth element emitted by this flow.
+    *
+    * @param n
+    *   The interval between two emitted elements.
+    */
+  def sample(n: Int): Flow[T] = Flow.usingEmitInline: emit =>
+    var sampleCounter = 0
+    last.run(
+      FlowEmit.fromInline: t =>
+        sampleCounter += 1
+        if n != 0 && sampleCounter % n == 0 then emit(t)
+    )
+
+  /** Remove subsequent, repeating elements
+    */
+  def debounce: Flow[T] =
+    debounceBy(identity)
+
+  /** Remove subsequent, repeating elements matching 'f'
+    *
+    * @param f
+    *   The function used to compare the previous and current elements
+    */
+  def debounceBy[U](f: T => U): Flow[T] = Flow.usingEmitInline: emit =>
+    var previousElement: Option[U] = None
+    last.run(
+      FlowEmit.fromInline: t =>
+        val currentElement = f(t)
+        if !previousElement.contains(currentElement) then emit(t)
+        previousElement = Some(currentElement)
+    )
+
   /** Applies the given mapping function `f` to each element emitted by this flow, for which the function is defined, and emits the result.
     * If `f` is not defined at an element, the element will be skipped.
     *
@@ -81,12 +114,43 @@ class FlowOps[+T]:
   def collect[U](f: PartialFunction[T, U]): Flow[U] = Flow.usingEmitInline: emit =>
     last.run(FlowEmit.fromInline(t => if f.isDefinedAt(t) then emit.apply(f(t))))
 
+  /** Transforms the elements of the flow by applying an accumulation function to each element, producing a new value at each step. The
+    * resulting flow contains the accumulated values at each point in the original flow.
+    *
+    * @param initial
+    *   The initial value to start the accumulation.
+    * @param f
+    *   The accumulation function that is applied to each element of the flow.
+    */
+  def scan[V](initial: V)(f: (V, T) => V): Flow[V] = Flow.usingEmitInline: emit =>
+    emit(initial)
+    var accumulator = initial
+    last.run(
+      FlowEmit.fromInline: t =>
+        accumulator = f(accumulator, t)
+        emit(accumulator)
+    )
+
   /** Applies the given effectful function `f` to each element emitted by this flow. The returned flow emits the elements unchanged. If `f`
     * throws an exceptions, the flow fails and propagates the exception.
     */
   def tap(f: T => Unit): Flow[T] = map(t =>
     f(t); t
   )
+
+  /** Applies the given mapping function `f` to each element emitted by this flow, obtaining a nested flow to run. The elements emitted by
+    * the nested flow are then emitted by the returned flow.
+    *
+    * The nested flows are run in sequence, that is, the next nested flow is started only after the previous one completes.
+    *
+    * @param f
+    *   The mapping function.
+    */
+  def flatMap[U](f: T => Flow[U]): Flow[U] = Flow.usingEmitInline: emit =>
+    last.run(
+      FlowEmit.fromInline: t =>
+        f(t).runToEmit(emit)
+    )
 
   /** Intersperses elements emitted by this flow with `inject` elements. The `inject` element is emitted between each pair of elements. */
   def intersperse[U >: T](inject: U): Flow[U] = intersperse(None, inject, None)
@@ -137,7 +201,7 @@ class FlowOps[+T]:
           Some(u)
         catch
           case t: Throwable => // same as in `forkPropagate`, catching all exceptions
-            results.errorOrClosed(t)
+            results.errorOrClosed(t).discard
             None
 
     // creating a nested scope, so that in case of errors, we can clean up any mapping forks in a "local" fashion,
@@ -165,6 +229,7 @@ class FlowOps[+T]:
             case f: Fork[Option[U]] @unchecked => f.join().map(results.sendOrClosed).isDefined
             case ChannelClosed.Done            => results.done(); false
             case ChannelClosed.Error(e)        => throw new IllegalStateException("inProgress should never be closed with an error", e)
+      .discard
 
       // in the main body, we call the `emit` methods using the (sequentially received) results; when an error occurs,
       // the scope ends, interrupting any forks that are still running
@@ -193,7 +258,7 @@ class FlowOps[+T]:
                 s.acquire()
                 forkUser:
                   try
-                    results.sendOrClosed(f(t))
+                    results.sendOrClosed(f(t)).discard
                     s.release()
                   catch case t: Throwable => results.errorOrClosed(t).discard
                 .discard
@@ -221,6 +286,7 @@ class FlowOps[+T]:
           if taken == n then throw abortTake
       )
     catch case `abortTake` => () // done
+    end try
 
   /** Transform the flow so that it emits elements as long as predicate `f` is satisfied (returns `true`). If `includeFirstFailing` is
     * `true`, the flow will additionally emit the first element that failed the predicate. After that, the flow will complete as done.
@@ -287,30 +353,72 @@ class FlowOps[+T]:
             case e: ChannelClosed.Error => throw e.toThrowable
             case r: U @unchecked        => emit(r); true
 
-  /** Pipes the elements of child flows into the output source. If the parent source or any of the child sources emit an error, the pulling
-    * stops and the output source emits the error.
+  /** Given that this flow emits other flows, flattens the nested flows into a single flow. The resulting flow emits elements from the
+    * nested flows in the order they are emitted.
     *
-    * Runs all flows concurrently in the background. The size of the buffers is determined by the [[BufferCapacity]] that is in scope.
+    * The nested flows are run in sequence, that is, the next nested flow is started only after the previous one completes.
     */
-  def flatten[U](using T <:< Flow[U])(using BufferCapacity): Flow[U] = Flow.usingEmitInline: emit =>
+  def flatten[U](using T <:< Flow[U]): Flow[U] = this.flatMap(identity)
+
+  /** Pipes the elements of child flows into the returned flow.
+    *
+    * If the this flow or any of the child flows emit an error, the pulling stops and the output flow propagates the error.
+    *
+    * Up to [[parallelism]] child flows are run concurrently in the background. When the limit is reached, until a child flow completes, no
+    * more child flows are run.
+    *
+    * The size of the buffers for the elements emitted by the child flows is determined by the [[BufferCapacity]] that is in scope.
+    *
+    * @param parallelism
+    *   An upper bound on the number of child flows that run in parallel.
+    */
+  def flattenPar[U](parallelism: Int)(using T <:< Flow[U])(using BufferCapacity): Flow[U] = Flow.usingEmitInline: emit =>
     case class Nested(child: Flow[U])
+    case object ChildDone
 
     unsupervised:
-      val childStream = outer.map(Nested(_)).runToChannel()
-      var pool = List[Source[Nested] | Source[U]](childStream)
+      val childOutputChannel = BufferCapacity.newChannel[U]
+      val childDoneChannel = Channel.unlimited[ChildDone.type]
 
-      repeatWhile:
+      // When an error occurs in the parent, propagating it also to `childOutputChannel`, from which we always
+      // `select` in the main loop. That way, even if max parallelism is reached, errors in the parent will
+      // be discovered without delay.
+      val parentChannel = outer.map(Nested(_)).onError(childOutputChannel.error(_).discard).runToChannel()
+
+      var runningChannelCount = 1 // parent is running
+      var parentDone = false
+
+      while runningChannelCount > 0 do
+        assert(runningChannelCount <= parallelism + 1)
+
+        val pool: List[Source[Nested] | Source[U] | Source[ChildDone.type]] =
+          // +1, because of the parent channel.
+          if runningChannelCount == parallelism + 1 || parentDone then List(childOutputChannel, childDoneChannel)
+          else List(childOutputChannel, childDoneChannel, parentChannel)
+
         selectOrClosed(pool) match
+          // Only `parentChannel` might be done, child completion is signalled via `childDoneChannel`.
           case ChannelClosed.Done =>
-            // TODO: optimization idea: find a way to remove the specific channel that signalled to be Done
-            pool = pool.filterNot(_.isClosedForReceiveDetail.contains(ChannelClosed.Done))
-            if pool.isEmpty then false
-            else true
+            parentDone = isSourceDone(parentChannel)
+            assert(parentDone)
+
+            runningChannelCount -= 1
+
           case e: ChannelClosed.Error => throw e.toThrowable
+
+          case ChildDone => runningChannelCount -= 1
+
           case Nested(t) =>
-            pool = t.runToChannel() :: pool
-            true
-          case r: U @unchecked => emit(r); true
+            forkUnsupervised:
+              t.onDone(childDoneChannel.send(ChildDone)).runPipeToSink(childOutputChannel, propagateDone = false)
+            .discard
+
+            runningChannelCount += 1
+
+          case u: U @unchecked => emit(u)
+        end match
+      end while
+  end flattenPar
 
   /** Concatenates this flow with the `other` flow. The resulting flow will emit elements from this flow first, and then from the `other`
     * flow.
@@ -383,6 +491,17 @@ class FlowOps[+T]:
                 emit((t, otherDefault)); true
             )
 
+  /** Combines each element from this and the index of the element (starting at 0).
+    */
+  def zipWithIndex: Flow[(T, Long)] = Flow.usingEmitInline: emit =>
+    var index = 0L
+    last.run(
+      FlowEmit.fromInline: t =>
+        val zipped = (t, index)
+        index += 1
+        emit(zipped)
+    )
+
   /** Emits a given number of elements (determined byc `segmentSize`) from this flow to the returned flow, then emits the same number of
     * elements from the `other` flow and repeats. The order of elements in both flows is preserved.
     *
@@ -419,7 +538,7 @@ class FlowOps[+T]:
     *   A function that transforms the final state into an optional element emitted by the returned flow. By default the final state is
     *   ignored.
     */
-  def mapStateful[S, U](initializeState: () => S)(f: (S, T) => (S, U), onComplete: S => Option[U] = (_: S) => None): Flow[U] =
+  def mapStateful[S, U](initializeState: => S)(f: (S, T) => (S, U), onComplete: S => Option[U] = (_: S) => None): Flow[U] =
     def resultToSome(s: S, t: T) =
       val (newState, result) = f(s, t)
       (newState, Some(result))
@@ -447,9 +566,9 @@ class FlowOps[+T]:
     *   ignored.
     */
   def mapStatefulConcat[S, U](
-      initializeState: () => S
+      initializeState: => S
   )(f: (S, T) => (S, IterableOnce[U]), onComplete: S => Option[U] = (_: S) => None): Flow[U] = Flow.usingEmitInline: emit =>
-    var state = initializeState()
+    var state = initializeState
     last.run(
       FlowEmit.fromInline: t =>
         val (nextState, result) = f(state, t)
@@ -646,8 +765,8 @@ class FlowOps[+T]:
             // in special case when step == 1, we have to send the buffer immediately
             if buffer.size == n then emit(buffer)
           else
-          // step > n -  we drop `step` elements and continue appending until buffer size is n
-          if buffer.size == step then buffer = buffer.drop(step)
+            // step > n -  we drop `step` elements and continue appending until buffer size is n
+            if buffer.size == step then buffer = buffer.drop(step)
           end if
       )
       // send the remaining elements, only if these elements were not yet sent
@@ -674,7 +793,7 @@ class FlowOps[+T]:
           other.send(t)
       )
       other.done()
-    }.tapException(other.error)
+    }.tapException(other.errorOrClosed(_).discard)
   end alsoTo
 
   private case object NotSent
@@ -700,6 +819,37 @@ class FlowOps[+T]:
       other.doneOrClosed().discard
     }.tapException(other.errorOrClosed(_).discard)
   end alsoToTap
+
+  /** Groups elements emitted by this flow into child flows. Elements for which [[predicate]] returns the same value (of type `V`) end up in
+    * the same child flow. [[childFlowTransform]] is applied to each created child flow, and the resulting flow is run in the background.
+    * Finally, the child flows are merged back, that is any elements that they emit are emitted by the returned flow.
+    *
+    * Up to [[parallelism]] child flows are run concurrently in the background. When the limit is reached, the child flow which didn't
+    * receive a new element the longest is completed as done.
+    *
+    * Child flows for `V` values might be created multiple times (if, after completing a child flow because of parallelism limit, new
+    * elements arrive, mapped to a given `V` value). However, it is guaranteed that for a given `V` value, there will be at most one child
+    * flow running at any time.
+    *
+    * Child flows should only complete as done when the flow of received `T` elements completes. Otherwise, the entire stream will fail with
+    * an error.
+    *
+    * Errors that occur in this flow, or in any child flows, become errors of the returned flow (exceptions are wrapped in
+    * [[ChannelClosedException]]).
+    *
+    * The size of the buffers for the elements emitted by this flow (which is also run in the background) and the child flows are determined
+    * by the [[BufferCapacity]] that is in scope.
+    *
+    * @param parallelism
+    *   An upper bound on the number of child flows that run in parallel at any time.
+    * @param predicate
+    *   Function used to determine the group for an element of type `T`. Each group is represented by a value of type `V`.
+    * @param childFlowTransform
+    *   The function that is used to create a child flow, which is later in the background. The arguments are the group value, for which the
+    *   flow is created, and a flow of `T` elements in that group (each such element has the same group value `V` returned by `predicated`).
+    */
+  def groupBy[V, U](parallelism: Int, predicate: T => V)(childFlowTransform: V => Flow[T] => Flow[U])(using BufferCapacity): Flow[U] =
+    groupByImpl(outer, parallelism, predicate)(childFlowTransform)
 
   /** Discard all elements emitted by this flow. The returned flow completes only when this flow completes (successfully or with an error).
     */
@@ -728,3 +878,5 @@ class FlowOps[+T]:
       ch.done()
     }.discard
 end FlowOps
+
+private[flow] inline def isSourceDone(ch: Source[?]) = ch.isClosedForReceiveDetail.contains(ChannelClosed.Done)

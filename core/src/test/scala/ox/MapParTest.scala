@@ -41,11 +41,11 @@ class MapParTest extends AnyFlatSpec with Matchers:
     val maxCounter = new MaxCounter()
 
     def transformation(i: Int) =
-      maxCounter.increment()
+      maxCounter.increment().discard
       sleep(10.millis)
       maxCounter.decrement()
 
-    input.to(Iterable).mapPar(Parallelism)(transformation)
+    input.to(Iterable).mapPar(Parallelism)(transformation).discard
 
     maxCounter.max should be <= Parallelism
   }
@@ -61,11 +61,10 @@ class MapParTest extends AnyFlatSpec with Matchers:
       if i == 4 then
         trail.add("exception")
         throw new Exception("boom")
-      else {
+      else
         sleep(TransformationMillis)
         trail.add("transformation")
         i + 1
-      }
 
     try input.to(Iterable).mapPar(5)(transformation)
     catch case e: Exception if e.getMessage == "boom" => trail.add("catch")

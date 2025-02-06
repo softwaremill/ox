@@ -161,4 +161,64 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
     result.left.value shouldBe errorMessage
     counter shouldBe 4
   }
+
+  behavior of "Adaptive retry with immediate config"
+
+  it should "retry a failing adaptive" in {
+    // given
+    var counter = 0
+    val errorMessage = "boom"
+
+    def f =
+      counter += 1
+      if counter <= 2 then Left(errorMessage)
+      else Right("Success")
+
+    val adaptive = AdaptiveRetry(TokenBucket(5), 1, 1)
+    // when
+    val result = adaptive.retryEither(RetryConfig.immediate(5))(f)
+
+    // then
+    result.value shouldBe "Success"
+    counter shouldBe 3
+  }
+
+  it should "stop retrying after emptying bucket" in {
+    // given
+    var counter = 0
+    val errorMessage = "boom"
+
+    def f =
+      counter += 1
+      Left(errorMessage)
+
+    val adaptive = AdaptiveRetry(TokenBucket(2), 1, 1)
+    // when
+    val result = adaptive.retryEither(RetryConfig.immediate[String, String](5))(f)
+
+    // then
+    result.left.value shouldBe errorMessage
+    // One for first try, two for retries with bucket size 2
+    counter shouldBe 3
+  }
+
+  it should "not pay exceptionCost if result T is going to be retried and shouldPayPenaltyCost returns false" in {
+    // given
+    var counter = 0
+    val message = "success"
+
+    def f =
+      counter += 1
+      Right(message)
+
+    val adaptive = AdaptiveRetry(TokenBucket(2), 1, 1)
+    val retryConfig = RetryConfig.immediate(5).copy(resultPolicy = ResultPolicy.successfulWhen[String, String](_ => false))
+    // when
+    val result = adaptive.retryEither(retryConfig, _ => false)(f)
+
+    // then
+    result.value shouldBe message
+    counter shouldBe 6
+  }
+
 end ImmediateRetryTest

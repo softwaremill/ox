@@ -14,7 +14,7 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually:
     val c: Channel[Int] = Channel.rendezvous
 
     supervised {
-      fork {
+      forkDiscard {
         c.send(10)
         c.send(20)
         c.send(30)
@@ -46,13 +46,13 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually:
     val c2: Channel[Int] = Channel.rendezvous
 
     supervised {
-      fork {
+      forkDiscard {
         c1.send(10)
         c1.send(20)
         c1.send(30)
       }
 
-      fork {
+      forkDiscard {
         c2.send(100)
         c2.send(200)
         c2.send(300)
@@ -71,7 +71,7 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually:
     val c: Channel[Int] = Channel.rendezvous
 
     supervised {
-      fork {
+      forkDiscard {
         c.send(1)
         c.send(2)
         c.send(3)
@@ -91,14 +91,14 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually:
     val c2: Channel[Int] = Channel.rendezvous
 
     supervised {
-      fork {
+      forkDiscard {
         c1.send(1)
         c1.send(2)
         c1.send(3)
         c1.send(4)
       }
 
-      fork {
+      forkDiscard {
         c2.send(11)
         c2.send(12)
         c2.send(13)
@@ -117,7 +117,7 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually:
     val sum = new AtomicInteger()
 
     supervised {
-      fork {
+      forkDiscard {
         c.send(1)
         c.send(2)
         c.send(3)
@@ -137,7 +137,7 @@ class SourceOpsAsViewTest extends AnyFlatSpec with Matchers with Eventually:
     val c: Channel[Int] = Channel.rendezvous
 
     supervised {
-      fork {
+      forkDiscard {
         c.send(1)
         c.send(2)
         c.send(3)

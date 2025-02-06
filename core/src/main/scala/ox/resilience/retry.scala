@@ -7,7 +7,7 @@ import scala.util.Try
 
 /** Retries an operation returning a direct result until it succeeds or the config decides to stop.
   *
-  * [[retry]] is a special case of [[scheduled]] with a given set of defaults. See [[RetryConfig]] for more details.
+  * [[retry]] is a special case of [[scheduled]] with a given set of defaults. See [[RetryConfig]].
   *
   * @param config
   *   The retry config - see [[RetryConfig]].

@@ -52,7 +52,7 @@ class OxAppTest extends AnyFlatSpec with Matchers:
     end Main20
 
     supervised:
-      fork(Main20.main(Array.empty))
+      forkDiscard(Main20.main(Array.empty))
       sleep(10.millis)
       shutdownLatch.countDown()
 
@@ -91,8 +91,7 @@ class OxAppTest extends AnyFlatSpec with Matchers:
         val sw = StringWriter()
         val pw = PrintWriter(sw)
         t.printStackTrace(pw)
-        stackTrace = sw.toString
-      )
+        stackTrace = sw.toString)
     end Main31
 
     Main31.main(Array.empty)
@@ -104,7 +103,7 @@ class OxAppTest extends AnyFlatSpec with Matchers:
 
     object Main32 extends OxApp:
       override def run(args: Vector[String])(using Ox): ExitCode =
-        forkUser(throw Exception("oh no"))
+        forkUser(throw Exception("oh no")).discard
         Success
 
       override private[ox] def exit(exitCode: ExitCode): Unit =
@@ -114,8 +113,7 @@ class OxAppTest extends AnyFlatSpec with Matchers:
         val sw = StringWriter()
         val pw = PrintWriter(sw)
         t.printStackTrace(pw)
-        stackTrace = sw.toString
-      )
+        stackTrace = sw.toString)
     end Main32
 
     Main32.main(Array.empty)
@@ -157,7 +155,7 @@ class OxAppTest extends AnyFlatSpec with Matchers:
     end Main40
 
     supervised:
-      fork(Main40.main(Array.empty))
+      forkDiscard(Main40.main(Array.empty))
       sleep(10.millis)
       shutdownLatch.countDown()
 
@@ -203,7 +201,7 @@ class OxAppTest extends AnyFlatSpec with Matchers:
     end Main60
 
     supervised:
-      fork(Main60.main(Array.empty))
+      forkDiscard(Main60.main(Array.empty))
       sleep(10.millis)
       shutdownLatch.countDown()
 
@@ -224,8 +222,7 @@ class OxAppTest extends AnyFlatSpec with Matchers:
         val sw = StringWriter()
         val pw = PrintWriter(sw)
         t.printStackTrace(pw)
-        stackTrace = sw.toString
-      )
+        stackTrace = sw.toString)
     end Main70
 
     Main70.main(Array.empty)
@@ -286,7 +283,7 @@ class OxAppTest extends AnyFlatSpec with Matchers:
     end Main90
 
     supervised:
-      fork(Main90.main(Array.empty))
+      forkDiscard(Main90.main(Array.empty))
       sleep(10.millis)
       shutdownLatch.countDown()
 
@@ -325,10 +322,10 @@ class OxAppTest extends AnyFlatSpec with Matchers:
         val sw = StringWriter()
         val pw = PrintWriter(sw)
         t.printStackTrace(pw)
-        stackTrace = sw.toString
-      )
+        stackTrace = sw.toString)
 
       override def handleError(e: FunException): ExitCode = ??? // should not get called!
+    end Main101
 
     Main101.main(Array.empty)
 

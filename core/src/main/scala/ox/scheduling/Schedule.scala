@@ -16,6 +16,17 @@ object Schedule:
 
   private[scheduling] sealed trait Infinite extends Schedule
 
+  /** @param computeNextDuration
+    *   computes time between next invocations of operation. Invocation = 0 represents initialDelay before invoking operation for the first
+    *   time.
+    */
+  private[scheduling] final case class ComputedInfinite(
+      computeNextDuration: (Int, Option[FiniteDuration]) => FiniteDuration
+  ) extends Infinite:
+    def nextDuration(invocation: Int, lastDuration: Option[FiniteDuration]): FiniteDuration = computeNextDuration(invocation, lastDuration)
+
+    override def initialDelay: FiniteDuration = computeNextDuration(0, None)
+
   /** A schedule that represents an initial delay applied before the first invocation of operation being scheduled. Usually used in
     * combination with other schedules using [[andThen]]
     *

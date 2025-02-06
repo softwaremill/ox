@@ -165,6 +165,7 @@ class RaceTest extends AnyFlatSpec with Matchers:
     catch
       case e: StackOverflowError => // the expected exception
         flag.get() shouldBe false // because a fatal exception was thrown, the second computation should be interrupted
+    end try
   }
 
   "raceEither" should "return the first successful computation to complete" in {
@@ -184,7 +185,7 @@ class RaceTest extends AnyFlatSpec with Matchers:
         trail.add("very slow")
         Right("also ok")
       }
-    )
+    ).discard
     val end = System.currentTimeMillis()
 
     sleep(1.second)

@@ -19,7 +19,7 @@ object Actor:
   def create[T](logic: T, close: Option[T => Unit] = None)(using ox: Ox, sc: BufferCapacity): ActorRef[T] =
     val c = BufferCapacity.newChannel[T => Unit]
     val ref = ActorRef(c)
-    fork {
+    forkDiscard {
       try
         forever {
           val m = c.receive()

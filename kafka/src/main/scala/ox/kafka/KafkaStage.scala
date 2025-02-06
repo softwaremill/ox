@@ -68,7 +68,9 @@ object KafkaStage:
         // possible out-of-order metadata of the records published from `packet.send`
         val metadata = Channel.unlimited[(Long, RecordMetadata)]
         // packets which are fully sent, and should be committed
-        val toCommit = BufferCapacity.newChannel[SendPacket[_, _]]
+        // using an unlimited buffer so that the I/O thread doesn't get blocked in producer.send callbacks; backpressure is provided
+        // by creating a buffered channel in `flow.runToChannel()` below
+        val toCommit = Channel.unlimited[SendPacket[_, _]]
 
         // used to reorder values received from `metadata` using the assigned sequence numbers
         val sendInSequence = SendInSequence(emit)
@@ -93,7 +95,7 @@ object KafkaStage:
                   // we now know that there won't be any more offsets sent to be committed - we can complete the channel
                   toCommit.done()
                   // waiting until the commit fork is done - this might also return Done if commitOffsets is false, hence the safe variant
-                  commitDoneSource.receiveOrClosed()
+                  commitDoneSource.receiveOrClosed().discard
                   // and finally winding down this scope
                   false
                 case exceptions.Received(e)    => throw e
@@ -129,6 +131,7 @@ object KafkaStage:
     val leftToSend = new AtomicInteger(packet.send.size)
     packet.send.foreach { toSend =>
       val sequenceNo = sendInSequence.nextSequenceNo
+      // this will block if Kafka's buffers are full, thus limting the number of packets that are in-flight (waiting to be sent)
       producer.send(
         toSend,
         (m: RecordMetadata, e: Exception) =>
@@ -155,7 +158,7 @@ private class SendInSequence[T](emit: FlowEmit[T]):
     n
 
   def send(sequenceNo: Long, v: T): Unit =
-    toSend.add((sequenceNo, v))
+    toSend.add((sequenceNo, v)).discard
     trySend()
 
   def allSent: Boolean = sequenceNoNext == sequenceNoToSendNext
@@ -163,7 +166,7 @@ private class SendInSequence[T](emit: FlowEmit[T]):
   @tailrec
   private def trySend(): Unit = toSend.headOption match
     case Some((s, m)) if s == sequenceNoToSendNext =>
-      toSend.remove((s, m))
+      toSend.remove((s, m)).discard
       emit(m)
       sequenceNoToSendNext += 1
       trySend()

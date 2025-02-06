@@ -68,11 +68,13 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
    
    utils/oxapp
    utils/retries
+   utils/rate-limiter
    utils/repeat
    utils/scheduled
    utils/resources
    utils/control-flow
    utils/actors
+   utils/circuit-breaker
    utils/utility
 
 .. toctree::
@@ -81,6 +83,7 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
 
    integrations/kafka
    integrations/mdc-logback
+   integrations/cron4s
 
 .. toctree::
    :maxdepth: 2

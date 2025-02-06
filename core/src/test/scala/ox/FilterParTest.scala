@@ -42,12 +42,12 @@ class FilterParTest extends AnyFlatSpec with Matchers:
     val maxCounter = new MaxCounter()
 
     def predicate(@nowarn i: Int) =
-      maxCounter.increment()
+      maxCounter.increment().discard
       sleep(10.millis)
-      maxCounter.decrement()
+      maxCounter.decrement().discard
       true
 
-    input.to(Iterable).filterPar(Parallelism)(predicate)
+    input.to(Iterable).filterPar(Parallelism)(predicate).discard
 
     maxCounter.max should be <= Parallelism
   }

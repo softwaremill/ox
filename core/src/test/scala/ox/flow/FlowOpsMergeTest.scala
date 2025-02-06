@@ -18,8 +18,8 @@ class FlowOpsMergeTest extends AnyFlatSpec with Matchers:
     s.runToList().sorted shouldBe List(1, 2, 3, 4, 5, 6)
 
   it should "merge two async flows" in:
-    val c1 = Flow.fromValues(1, 2, 3).async()
-    val c2 = Flow.fromValues(4, 5, 6).async()
+    val c1 = Flow.fromValues(1, 2, 3).buffer()
+    val c2 = Flow.fromValues(4, 5, 6).buffer()
 
     val s = c1.merge(c2)
 

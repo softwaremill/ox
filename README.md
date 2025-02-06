@@ -23,13 +23,13 @@ the project!
 To test Ox, use the following dependency, using either [sbt](https://www.scala-sbt.org):
 
 ```scala
-"com.softwaremill.ox" %% "core" % "0.5.2"
+"com.softwaremill.ox" %% "core" % "0.5.10"
 ```
 
 Or [scala-cli](https://scala-cli.virtuslab.org):
 
 ```scala
-//> using dep "com.softwaremill.ox::core:0.5.2"
+//> using dep "com.softwaremill.ox::core:0.5.10"
 ```
 
 Documentation is available at [https://ox.softwaremill.com](https://ox.softwaremill.com), ScalaDocs can be browsed at [https://javadoc.io](https://www.javadoc.io/doc/com.softwaremill.ox).
@@ -103,6 +103,14 @@ def computationR: Int = ???
 repeat(RepeatConfig.fixedRateForever(100.millis))(computationR)
 ```
 
+[Rate limit](https://ox.softwaremill.com/latest/utils/rate-limiter.html) computations:
+
+```scala mdoc:compile-only
+supervised:
+  val rateLimiter = RateLimiter.fixedWindowWithStartTime(2, 1.second)
+  rateLimiter.runBlocking({ /* ... */ })
+```
+
 Allocate a [resource](https://ox.softwaremill.com/latest/utils/resources.html) in a scope:
 
 ```scala mdoc:compile-only
@@ -141,7 +149,7 @@ Flow.iterate(0)(_ + 1) // natural numbers
   .map(_ + 1)
   .intersperse(5)
   // compute the running total
-  .mapStateful(() => 0) { (state, value) =>
+  .mapStateful(0) { (state, value) =>
     val newState = state + value
     (newState, newState)
   }

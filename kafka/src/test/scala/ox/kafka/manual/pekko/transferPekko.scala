@@ -8,7 +8,7 @@ import org.apache.pekko.kafka.scaladsl.Consumer.DrainingControl
 import org.apache.pekko.kafka.scaladsl.{Committer, Consumer, Producer}
 import org.apache.pekko.kafka.{CommitterSettings, ConsumerSettings, ProducerMessage, ProducerSettings, Subscriptions}
 import ox.{discard, get}
-import ox.kafka.manual.timed
+import ox.kafka.manual.timedAndLogged
 
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
@@ -18,7 +18,7 @@ import scala.concurrent.duration.Duration
   val destTopic = "t2mapped"
   val group = "group2"
 
-  timed("transfer-pekko") {
+  timedAndLogged("transfer-pekko") {
     given system: ActorSystem = ActorSystem("transfer")
 
     val producerSettings = ProducerSettings(system, new StringSerializer, new StringSerializer).withBootstrapServers("localhost:29092")
@@ -42,7 +42,7 @@ import scala.concurrent.duration.Duration
       .run()
       .streamCompletion
 
-    stream.get()
+    stream.get().discard
     system.terminate().get().discard
   }
 end transferPekko

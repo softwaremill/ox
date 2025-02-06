@@ -112,7 +112,7 @@ Behind the scenes, an `Ox` concurrency scope is created along with a number of f
 
 Some other stages which introduce concurrency include `.merge`, `.interleave`, `.groupedWithin` and [I/O](io.md) stages. The created channels serve as buffers between the pipeline stages, and their capacity is defined by the `BufferCapacity` in scope (a default instance is available, if not provided explicitly).
 
-Explicit asynchronous boundaries can be inserted using `.async()`. This might be useful if producing the next element to emit, and consuming the previous should run concurrently; or if the processing times of the consumer varies, and the producer should buffer up elements.
+Explicit asynchronous boundaries can be inserted using `.buffer()`. This might be useful if producing the next element to emit, and consuming the previous should run concurrently; or if the processing times of the consumer varies, and the producer should buffer up elements.
 
 ## Interoperability with channels
 
@@ -154,3 +154,41 @@ Flow.fromValues(1, 2, 3)
   .tap(n => println(s"Received: $n"))
   .runToList()
 ```
+
+## Reactive streams interoperability
+
+### Flow -> Publisher
+
+A `Flow` can be converted to a `java.util.concurrent.Flow.Publisher` using the `.toPublisher` method.
+
+This needs to be run within an `Ox` concurrency scope, as upon subscribing, a fork is created to run the publishing 
+process. Hence, the scope should remain active as long as the publisher is used.
+
+Internally, elements emitted by the flow are buffered, using a buffer of capacity given by the `BufferCapacity` in 
+scope.
+
+To obtain a `org.reactivestreams.Publisher` instance, you'll need to add the following dependency and import, to 
+bring the `toReactiveStreamsPublisher` method into scope:
+
+```scala mdoc:compile-only
+// sbt dependency: "com.softwaremill.ox" %% "flow-reactive-streams" % "@VERSION@"
+
+import ox.supervised
+import ox.flow.Flow
+import ox.flow.reactive.*
+
+val myFlow: Flow[Int] = ???
+supervised:
+  myFlow.toReactiveStreamsPublisher: org.reactivestreams.Publisher[Int]
+  // use the publisher
+```
+
+### Publisher -> Flow
+
+A `java.util.concurrent.Flow.Publisher` can be converted to a `Flow` using `Flow.fromPublisher`.
+
+Internally, elements published to the subscription are buffered, using a buffer of capacity given by the 
+`BufferCapacity` in scope. That's also how many elements will be at most requested from the publisher at a time.
+
+To convert a `org.reactivestreams.Publisher` instance, you'll need the same dependency as above and call the
+`FlowReactiveStreams.fromPublisher` method.

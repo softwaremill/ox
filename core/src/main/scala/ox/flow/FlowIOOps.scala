@@ -35,6 +35,7 @@ trait FlowIOOps[+T]:
             case chunk: T @unchecked =>
               currentChunk = chunk.iterator
         currentChunk.next() & 0xff // Convert to unsigned
+      end read
 
       override def available: Int =
         currentChunk.length
@@ -65,11 +66,11 @@ trait FlowIOOps[+T]:
   def runToFile(path: Path)(using T <:< Chunk[Byte]): Unit =
     if Files.isDirectory(path) then throw new IOException(s"Path $path is a directory")
     val jFileChannel =
-      try FileChannel.open(path, StandardOpenOption.WRITE)
+      try FileChannel.open(path, StandardOpenOption.WRITE, StandardOpenOption.CREATE)
       catch
         case _: UnsupportedOperationException =>
           // Some file systems don't support file channels
-          Files.newByteChannel(path, StandardOpenOption.WRITE)
+          Files.newByteChannel(path, StandardOpenOption.WRITE, StandardOpenOption.CREATE)
 
     try
       runForeach(chunk => jFileChannel.write(ByteBuffer.wrap(chunk.toArray)).discard)

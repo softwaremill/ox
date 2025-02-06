@@ -14,25 +14,27 @@ enum SleepMode:
     */
   case Interval
 
-  /** Delay (since the end of the last operation), i.e. sleeps the duration provided by the schedule before the next operation starts.
-    */
+  /** Delay (since the end of the last operation), i.e. sleeps the duration provided by the schedule before the next operation starts. */
   case Delay
 end SleepMode
+
+/** @see [[ScheduleConfig.afterAttempt]] */
+enum ScheduleStop(val stop: Boolean):
+  case Yes extends ScheduleStop(true)
+  case No extends ScheduleStop(false)
+
+object ScheduleStop:
+  def apply(stop: Boolean): ScheduleStop = if stop then Yes else No
 
 /** A config that defines how to schedule an operation.
   *
   * @param schedule
   *   The schedule which determines the maximum number of invocations and the duration between subsequent invocations. See [[Schedule]] for
   *   more details.
-  * @param onOperationResult
-  *   A function that is invoked after each invocation. The callback receives the number of the current invocations number (starting from 1)
-  *   and the result of the operation. The result is either a successful value or an error.
-  * @param shouldContinueOnError
-  *   A function that determines whether to continue the loop after an error. The function receives the error that was emitted by the last
-  *   invocation. Defaults to [[_ => false]].
-  * @param shouldContinueOnResult
-  *   A function that determines whether to continue the loop after a success. The function receives the value that was emitted by the last
-  *   invocation. Defaults to [[_ => true]].
+  * @param afterAttempt
+  *   A callback invoked after every attempt, with the current invocation number (starting from 1) and the result of the operation. Might
+  *   decide to short-curcuit further attempts, and stop the schedule. Schedule configuration (e.g. max number of attempts) takes
+  *   precedence.
   * @param sleepMode
   *   The mode that specifies how to interpret the duration provided by the schedule. See [[SleepMode]] for more details.
   * @tparam E
@@ -43,9 +45,7 @@ end SleepMode
   */
 case class ScheduledConfig[E, T](
     schedule: Schedule,
-    onOperationResult: (Int, Either[E, T]) => Unit = (_: Int, _: Either[E, T]) => (),
-    shouldContinueOnError: E => Boolean = (_: E) => false,
-    shouldContinueOnResult: T => Boolean = (_: T) => true,
+    afterAttempt: (Int, Either[E, T]) => ScheduleStop = (_, _: Either[E, T]) => ScheduleStop.No,
     sleepMode: SleepMode = SleepMode.Interval
 )
 
@@ -107,17 +107,17 @@ def scheduledWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(config: ScheduledCon
     operation match
       case v if em.isError(v) =>
         val error = em.getError(v)
-        config.onOperationResult(invocation, Left(error))
+        val shouldStop = config.afterAttempt(invocation, Left(error))
 
-        if config.shouldContinueOnError(error) && remainingInvocations.forall(_ > 0) then
+        if remainingInvocations.forall(_ > 0) && !shouldStop.stop then
           val delay = sleepIfNeeded(startTimestamp)
           loop(invocation + 1, remainingInvocations.map(_ - 1), Some(delay))
         else v
       case v =>
         val result = em.getT(v)
-        config.onOperationResult(invocation, Right(result))
+        val shouldStop = config.afterAttempt(invocation, Right(result))
 
-        if config.shouldContinueOnResult(result) && remainingInvocations.forall(_ > 0) then
+        if remainingInvocations.forall(_ > 0) && !shouldStop.stop then
           val delay = sleepIfNeeded(startTimestamp)
           loop(invocation + 1, remainingInvocations.map(_ - 1), Some(delay))
         else v

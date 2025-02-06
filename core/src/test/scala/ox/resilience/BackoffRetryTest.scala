@@ -61,7 +61,8 @@ class BackoffRetryTest extends AnyFlatSpec with Matchers with EitherValues with 
       if true then throw new RuntimeException("boom")
 
     // when
-    val (result, elapsedTime) = measure(the[RuntimeException] thrownBy retry(RetryConfig.backoff(maxRetries, initialDelay, maxDelay))(f))
+    val (result, elapsedTime) =
+      measure(the[RuntimeException] thrownBy retry(RetryConfig.backoff(maxRetries, initialDelay, maxDelay))(f))
 
     // then
     result should have message "boom"

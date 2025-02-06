@@ -7,6 +7,7 @@ import ox.channels.BufferCapacity
 import ox.discard
 
 import scala.collection.mutable.ListBuffer
+import scala.util.control.NonFatal
 
 trait FlowRunOps[+T]:
   this: Flow[T] =>
@@ -22,8 +23,6 @@ trait FlowRunOps[+T]:
     *
     * Must be run within a concurrency scope as a fork is created to run the flow. The size of the buffer is determined by the
     * [[BufferCapacity]] that is in scope.
-    *
-    * Blocks until the flow completes.
     */
   def runToChannel()(using OxUnsupervised, BufferCapacity): Source[T] =
     // if the previous stage is a source, there's no point in creating a new channel & fork, just to copy data
@@ -44,11 +43,17 @@ trait FlowRunOps[+T]:
 
   /** Passes each element emitted by this flow to the given sink. Blocks until the flow completes.
     *
-    * Errors are always propagated. Successful flow completion is propagated when `propagateDone` is set to `true`.
+    * Errors are always propagated to the provided sink. Successful flow completion is propagated when `propagateDone` is set to `true`.
+    *
+    * Fatal errors are rethrown.
     */
   def runPipeToSink(sink: Sink[T], propagateDone: Boolean): Unit =
-    last.run(FlowEmit.fromInline(t => sink.send(t)))
-    if propagateDone then sink.doneOrClosed().discard
+    try
+      last.run(FlowEmit.fromInline(t => sink.send(t)))
+      if propagateDone then sink.doneOrClosed().discard
+    catch
+      case NonFatal(e) => sink.error(e)
+      case t           => sink.error(t); throw t
 
   /** Ignores all elements emitted by the flow. Blocks until the flow completes. */
   def runDrain(): Unit = runForeach(_ => ())
@@ -104,8 +109,7 @@ trait FlowRunOps[+T]:
     last.run(FlowEmit.fromInline: t =>
       current match
         case None    => current = Some(t)
-        case Some(c) => current = Some(f(c, t))
-    )
+        case Some(c) => current = Some(f(c, t)))
 
     current.getOrElse(throw new NoSuchElementException("cannot reduce an empty flow"))
   end runReduce

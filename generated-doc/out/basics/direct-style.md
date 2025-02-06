@@ -2,12 +2,18 @@
 
 ## What is direct style?
 
-Direct style is an approach to programming which leverages the built-in control flow constructs of the language as the 
-basic building blocks of effectful code. 
+Direct style is an approach to programming where the results of effectful computations are available directly, without
+a "wrapper" type such as `Future`, `IO` or `Task`.
 
-In direct style, I/O operations and thread synchronisations are executed as if they were blocking operations, that is 
-their result is available as the return value of the appropriate method call. However, specific direct style 
-implementations may contain special syntax that is needed to run such operations.
+That way, direct-style programs can leverage the built-in control flow constructs of the language as the basic building
+blocks of effectful code. 
+
+I/O operations and thread synchronisations are executed as if they were blocking operations, even if under the hood 
+they are run asynchronously, using continuations (which matter for throughput & performance).
+
+The results of I/O operations are available "directly", as the return values of the appropriate method calls. Some 
+implementations may require using special syntax. In others, I/O calls are invoked as any other function or method 
+call, and there's no intermediate library-level runtime that is needed.
 
 ## Compiler/runtime support
 

@@ -49,7 +49,7 @@ class FlowOpsGroupedTest extends AnyFlatSpec with Matchers:
   it should "group first batch of elements due to limit and second batch due to timeout" in supervised:
     val c = BufferCapacity.newChannel[Int]
     val start = System.nanoTime()
-    fork:
+    forkDiscard:
       c.send(1)
       c.send(2)
       c.send(3)
@@ -70,7 +70,7 @@ class FlowOpsGroupedTest extends AnyFlatSpec with Matchers:
   it should "group first batch of elements due to timeout and second batch due to limit" in supervised:
     val c = BufferCapacity.newChannel[Int]
     val start = System.nanoTime()
-    fork:
+    forkDiscard:
       c.send(1)
       c.send(2)
       sleep(150.millis)
@@ -94,7 +94,7 @@ class FlowOpsGroupedTest extends AnyFlatSpec with Matchers:
   it should "wake up on new element and send it immediately after first batch is sent and channel goes to time-out mode" in supervised:
     val c = BufferCapacity.newChannel[Int]
     val start = System.nanoTime()
-    fork:
+    forkDiscard:
       c.send(1)
       c.send(2)
       c.send(3)
@@ -117,7 +117,7 @@ class FlowOpsGroupedTest extends AnyFlatSpec with Matchers:
 
   it should "send the group only once when the channel is closed" in supervised:
     val c = BufferCapacity.newChannel[Int]
-    fork:
+    forkDiscard:
       c.send(1)
       c.send(2)
       c.done()
@@ -134,7 +134,7 @@ class FlowOpsGroupedTest extends AnyFlatSpec with Matchers:
 
   it should "group elements on timeout in the first batch and consider max weight in the remaining batches" in supervised:
     val c = BufferCapacity.newChannel[Int]
-    fork:
+    forkDiscard:
       c.send(1)
       c.send(2)
       sleep(150.millis)

@@ -14,7 +14,7 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually:
       val c1 = Source.fromValues(1, 2, 3)
       val c2 = Channel.rendezvous[Int]
 
-      fork {
+      forkDiscard {
         c1.pipeTo(c2, propagateDone = false)
         c2.done()
       }
@@ -28,7 +28,7 @@ class SourceOpsTest extends AnyFlatSpec with Matchers with Eventually:
       val c1 = Source.fromValues(1, 2, 3)
       val c2 = Channel.rendezvous[Int]
 
-      fork {
+      forkDiscard {
         c1.pipeTo(c2, propagateDone = true)
       }
 

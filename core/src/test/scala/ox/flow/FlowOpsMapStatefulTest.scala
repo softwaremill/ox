@@ -12,17 +12,17 @@ class FlowOpsMapStatefulTest extends AnyFlatSpec with Matchers:
 
   it should "zip with index" in:
     val c = Flow.fromValues("a", "b", "c")
-    val s = c.mapStateful(() => 0)((index, element) => (index + 1, (element, index)))
+    val s = c.mapStateful(0)((index, element) => (index + 1, (element, index)))
     s.runToList() shouldBe List(("a", 0), ("b", 1), ("c", 2))
 
   it should "calculate a running total" in:
     val c = Flow.fromValues(1, 2, 3, 4, 5)
-    val s = c.mapStateful(() => 0)((sum, element) => (sum + element, sum), Some.apply)
+    val s = c.mapStateful(0)((sum, element) => (sum + element, sum), Some.apply)
     s.runToList() shouldBe List(0, 1, 3, 6, 10, 15)
 
   it should "be able to emit different values than incoming ones" in:
     val c = Flow.fromValues(1, 2, 3, 4, 5)
-    val s = c.mapStateful(() => 0)((sum, element) => (sum + element, sum.toString), n => Some(n.toString))
+    val s = c.mapStateful(0)((sum, element) => (sum + element, sum.toString), n => Some(n.toString))
     s.runToList() shouldBe List("0", "1", "3", "6", "10", "15")
 
   it should "propagate errors in the mapping function" in:
@@ -30,7 +30,7 @@ class FlowOpsMapStatefulTest extends AnyFlatSpec with Matchers:
     val flow = Flow.fromValues("a", "b", "c")
 
     // when
-    val flow2 = flow.mapStateful(() => 0) { (index, element) =>
+    val flow2 = flow.mapStateful(0) { (index, element) =>
       if index < 2 then (index + 1, element)
       else throw new RuntimeException("boom")
     }
@@ -51,7 +51,7 @@ class FlowOpsMapStatefulTest extends AnyFlatSpec with Matchers:
     val flow = Flow.fromValues("a", "b", "c")
 
     // when
-    val flow2 = flow.mapStateful(() => 0)((index, element) => (index + 1, element), _ => throw new RuntimeException("boom"))
+    val flow2 = flow.mapStateful(0)((index, element) => (index + 1, element), _ => throw new RuntimeException("boom"))
 
     // then
     supervised:
@@ -61,7 +61,12 @@ class FlowOpsMapStatefulTest extends AnyFlatSpec with Matchers:
 
       s.receive() shouldBe "a"
       s.receive() shouldBe "b"
-      s.receive() shouldBe "c"
+      // it's possible that the final receive fails as well - when a receiver increments the receive counter
+      // (reserving the cell), but doesn't CAS the cell itself, the sender might buffer the element (knowing
+      // that a receiver is coming), and then proceed to closing the channel
+      s.receiveOrClosed() should (be("c") or matchPattern {
+        case ChannelClosed.Error(reason) if reason.getMessage == "boom" =>
+      })
       s.receiveOrClosed() should matchPattern:
         case ChannelClosed.Error(reason) if reason.getMessage == "boom" =>
 end FlowOpsMapStatefulTest

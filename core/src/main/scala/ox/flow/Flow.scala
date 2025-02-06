@@ -11,14 +11,19 @@ import scala.annotation.nowarn
   *
   * Flows can be created using the [[Flow.usingSink]], [[Flow.fromValues]] and other `Flow.from*` methods, [[Flow.tick]] etc.
   *
-  * Transformation stages can be added using the available combinators, such as [[Flow.map]], [[Flow.async]], [[Flow.grouped]], etc. Each
+  * Transformation stages can be added using the available combinators, such as [[Flow.map]], [[Flow.buffer]], [[Flow.grouped]], etc. Each
   * such method returns a new immutable `Flow` instance.
   *
   * Running a flow is possible using one of the `run*` methods, such as [[Flow.runToList]], [[Flow.runToChannel]] or [[Flow.runFold]].
   */
-class Flow[+T](protected val last: FlowStage[T]) extends FlowOps[T] with FlowRunOps[T] with FlowIOOps[T] with FlowTextOps[T]
+class Flow[+T](protected val last: FlowStage[T])
+    extends FlowOps[T]
+    with FlowRunOps[T]
+    with FlowIOOps[T]
+    with FlowTextOps[T]
+    with FlowReactiveOps[T]
 
-object Flow extends FlowCompanionOps with FlowCompanionIOOps
+object Flow extends FlowCompanionOps with FlowCompanionIOOps with FlowCompanionReactiveOps
 
 //
 

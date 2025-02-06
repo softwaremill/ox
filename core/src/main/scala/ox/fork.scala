@@ -184,6 +184,16 @@ def forkCancellable[T](f: => T)(using OxUnsupervised): CancellableFork[T] =
   end new
 end forkCancellable
 
+/** Same as [[fork]], but discards the resulting [[Fork]], to avoid compiler warnings. That is, the fork is run only for its side effects,
+  * it's not possible to join it.
+  */
+inline def forkDiscard[T](inline f: T)(using Ox): Unit = fork(f).discard
+
+/** Same as [[forkUser]], but discards the resulting [[Fork]], to avoid compiler warnings. That is, the fork is run only for its side
+  * effects, it's not possible to join it.
+  */
+inline def forkUserDiscard[T](inline f: T)(using Ox): Unit = forkUser(f).discard
+
 private trait ForkUsingResult[T](result: CompletableFuture[T]) extends Fork[T]:
   override def join(): T = unwrapExecutionException(result.get())
   override private[ox] def wasInterruptedWith(ie: InterruptedException): Boolean =
