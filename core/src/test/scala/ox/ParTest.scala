@@ -42,8 +42,7 @@ class ParTest extends AnyFlatSpec with Matchers:
           throw new Exception("boom")
         }
       )
-    catch
-      case e: Exception if e.getMessage == "boom" => trail.add("catch")
+    catch case e: Exception if e.getMessage == "boom" => trail.add("catch")
 
       // checking if the forks aren't left running
     end try

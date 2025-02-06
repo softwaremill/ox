@@ -1,7 +1,7 @@
 package ox
 
 import scala.concurrent.{Await, Future}
-import scala.concurrent.duration.Duration
+import scala.concurrent.duration.*
 import scala.util.control.NonFatal
 
 extension [T](inline t: T)
@@ -105,3 +105,11 @@ inline def uninterruptible[T](inline f: T): T =
 
 /** Sleep (block the current thread/fork) for the provided amount of time. */
 inline def sleep(inline howLong: Duration): Unit = Thread.sleep(howLong.toMillis)
+
+/** Provide duration and result for operation. */
+inline def timed[T](operation: => T): (FiniteDuration, T) =
+  val before = System.nanoTime()
+  val result = operation
+  val after = System.nanoTime()
+  val duration = (after - before).nanos
+  (duration, result)

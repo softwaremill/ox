@@ -119,7 +119,8 @@ class FlowIOOpsTest extends AnyWordSpec with Matchers:
       }
       val sourceContent = "source.toFile test3 content"
       filePath = folderPath.resolve("test-writefile3")
-      Flow.fromIterable(sourceContent.grouped(4).toList.map(chunkStr => Chunk.fromArray(chunkStr.getBytes)))
+      Flow
+        .fromIterable(sourceContent.grouped(4).toList.map(chunkStr => Chunk.fromArray(chunkStr.getBytes)))
         .runToFile(filePath)
 
       fileContent(filePath) shouldBe List(sourceContent)
