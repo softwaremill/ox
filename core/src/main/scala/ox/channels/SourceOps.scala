@@ -1,67 +1,11 @@
 package ox.channels
 
-import com.softwaremill.jox.Source as JSource
 import ox.*
 
 import java.util
 
 trait SourceOps[+T]:
   outer: Source[T] =>
-  // view ops (lazy)
-
-  /** Lazily-evaluated map: creates a view of this source, where the results of [[receive]] will be transformed on the consumer's thread
-    * using the given function `f`. For an eager, asynchronous version, see [[map]].
-    *
-    * The same logic applies to receive clauses created using this source, which can be used in [[select]].
-    *
-    * @param f
-    *   The mapping function. Results should not be `null`.
-    * @return
-    *   A source which is a view of this source, with the mapping function applied.
-    */
-  def mapAsView[U](f: T => U): Source[U] = new Source[U]:
-    override val delegate: JSource[Any] = outer.delegate.asInstanceOf[JSource[T]].collectAsView(t => f(t))
-
-  /** Lazily-evaluated tap: creates a view of this source, where the results of [[receive]] will be applied to the given function `f` on the
-    * consumer's thread. Useful for side-effects without result values, like logging and debugging. For an eager, asynchronous version, see
-    * [[tap]].
-    *
-    * The same logic applies to receive clauses created using this source, which can be used in [[select]].
-    *
-    * @param f
-    *   The consumer function.
-    * @return
-    *   A source which is a view of this source, with the consumer function applied.
-    */
-  def tapAsView(f: T => Unit): Source[T] = mapAsView(t =>
-    f(t); t
-  )
-
-  /** Lazily-evaluated filter: Creates a view of this source, where the results of [[receive]] will be filtered on the consumer's thread
-    * using the given predicate `p`. For an eager, asynchronous version, see [[filter]].
-    *
-    * The same logic applies to receive clauses created using this source, which can be used in [[select]].
-    *
-    * @param f
-    *   The predicate to use for filtering.
-    * @return
-    *   A source which is a view of this source, with the filtering function applied.
-    */
-  def filterAsView(f: T => Boolean): Source[T] = new Source[T]:
-    override val delegate: JSource[Any] = outer.delegate.filterAsView(t => f(t.asInstanceOf[T]))
-
-  /** Creates a view of this source, where the results of [[receive]] will be transformed on the consumer's thread using the given function
-    * `f`. If the function is not defined at a value, the value will be skipped. For an eager, asynchronous version, see [[collect]].
-    *
-    * The same logic applies to receive clauses created using this source, which can be used in [[select]].
-    *
-    * @param f
-    *   The collecting function. Results should not be `null`.
-    * @return
-    *   A source which is a view of this source, with the collecting function applied.
-    */
-  def collectAsView[U](f: PartialFunction[T, U]): Source[U] = new Source[U]:
-    override val delegate: JSource[Any] = outer.delegate.collectAsView(t => f.applyOrElse(t.asInstanceOf[T], _ => null))
 
   // run ops (eager)
 
@@ -81,8 +25,6 @@ trait SourceOps[+T]:
     *
     * Must be run within a scope, as a child fork is created, which receives from this source and sends the mapped values to the resulting
     * one.
-    *
-    * For a lazily-evaluated version, see [[mapAsView]].
     *
     * @param f
     *   The mapping function.
@@ -110,7 +52,7 @@ trait SourceOps[+T]:
     * Must be run within a scope, as a child fork is created, which receives from this source and sends the mapped values to the resulting
     * one.
     *
-    * Useful for side-effects without result values, like logging and debugging. For a lazily-evaluated version, see [[tapAsView]].
+    * Useful for side-effects without result values, like logging and debugging.
     *
     * @param f
     *   The consumer function.
@@ -129,8 +71,6 @@ trait SourceOps[+T]:
     *
     * Must be run within a scope, as a child fork is created, which receives from this source and sends the mapped values to the resulting
     * one.
-    *
-    * For a lazily-evaluated version, see [[collectAsView]].
     *
     * @param f
     *   The mapping function.
