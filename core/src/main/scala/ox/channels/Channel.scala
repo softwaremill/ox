@@ -89,8 +89,7 @@ trait Source[+T] extends SourceOps[T] with SourceDrainOps[T]:
     *   for receive, sending values is also not possible, [[isClosedForSend]] will return `true`.
     * @return
     *   `false`, if more values **might** be received from the channel, when calling [[Source.receive()]]. However, it's not guaranteed that
-    *   some values will be available. They might be received concurrently, or filtered out if the channel is created using
-    *   [[Source.mapAsView()]], [[Source.filterAsView()]] or [[Source.collectAsView()]].
+    *   some values will be available - they might be received concurrently.
     */
   def isClosedForReceive: Boolean = delegate.isClosedForReceive
 
