@@ -6,102 +6,27 @@ on:
     branches: [ master ]
     tags: [ v* ]
 jobs:
-  ci:
-    runs-on: ubuntu-22.04
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v3
-    - name: Set up JDK
-      uses: actions/setup-java@v3
-      with:
-        distribution: 'zulu'
-        java-version: '21'
-        cache: 'sbt'
-    - name: Compile
-      run: sbt -v compile
-    - name: Compile documentation
-      run: sbt -v compileDocumentation
-    - name: Test
-      run: sbt -v test
-    - uses: actions/upload-artifact@v4  # upload test results
-      if: success() || failure()        # run this step even if previous step failed
-      with:
-        name: 'tests-results-${{ matrix.scala-version }}-${{ matrix.target-platform }}-${{ matrix.java }}'
-        path: '**/test-reports/TEST*.xml'
+  build:
+    uses: softwaremill/github-actions-workflows/.github/workflows/build-scala.yml@main
+    with:
+      java-version: '21'
+      compile-documentation: true
 
   publish:
-    name: Publish release
-    needs: [ci]
+    uses: softwaremill/github-actions-workflows/.github/workflows/publish-release.yml@main
+    needs: [build]
     if: github.event_name != 'pull_request' && (startsWith(github.ref, 'refs/tags/v'))
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-      - name: Set up JDK
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'zulu'
-          java-version: '21'
-      - name: Compile
-        run: sbt compile
-      - name: Publish artifacts
-        run: sbt ci-release
-        env:
-          PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
-          PGP_SECRET: ${{ secrets.PGP_SECRET }}
-          SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
-          SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
-      - name: Extract version from commit message
-        run: |
-          version=${GITHUB_REF/refs\/tags\/v/}
-          echo "VERSION=$version" >> $GITHUB_ENV
-        env:
-          COMMIT_MSG: ${{ github.event.head_commit.message }}
-      - name: Publish release notes
-        uses: release-drafter/release-drafter@v5
-        with:
-          config-name: release-drafter.yml
-          publish: true
-          name: "v${{ env.VERSION }}"
-          tag: "v${{ env.VERSION }}"
-          version: "v${{ env.VERSION }}"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    secrets: inherit
+    with:
+      java-version: '21'
 
-  # `automerge` label is attached iff there is exactly one file changed by steward and this file belongs to a
-  # whitelist specified by `labeler.yml`
   label:
-    name: Attach automerge label
     # only for PRs by softwaremill-ci
     if: github.event.pull_request.user.login == 'softwaremill-ci'
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 2
-      # count number of files changed
-      - name: Count number of files changed
-        id: count-changed-files
-        run: |
-          N=$(git diff --name-only -r HEAD^1 HEAD | wc -w)
-          echo "changed_files_num=$N" >> $GITHUB_OUTPUT
-      - name: Launch labeler
-        # skip if more than one file changed
-        if: steps.count-changed-files.outputs.changed_files_num == 1
-        uses: srvaroa/labeler@master
-        env:
-          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+    uses: softwaremill/github-actions-workflows/.github/workflows/label.yml@main
 
   auto-merge:
-    name: Auto merge
     # only for PRs by softwaremill-ci
     if: github.event.pull_request.user.login == 'softwaremill-ci'
-    needs: [ ci, label ]
-    runs-on: ubuntu-22.04
-    steps:
-      - id: automerge
-        name: automerge
-        uses: "pascalgn/automerge-action@v0.15.6"
-        env:
-          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-          MERGE_METHOD: "squash"
+    needs: [ build, label ]
+    uses: softwaremill/github-actions-workflows/.github/workflows/auto-merge.yml@main
