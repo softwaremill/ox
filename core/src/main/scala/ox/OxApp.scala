@@ -83,7 +83,7 @@ object OxApp:
     * @param handleException
     *   Callback used for exceptions that are thrown by the application's body, causing the application to terminate with a failed
     *   [[ExitCode]]. By default the exception's stack trace is printed to stderr (unless a default uncaught exception handler is set).
-    * @threadFactory
+    * @param threadFactory
     *   The thread factory that is used to create threads in Ox scopes ([[supervised]], [[unsupervised]] etc.). Useful e.g. when integrating
     *   with third-party libraries to propagate context across (virtual) thread boundaries.
     */
