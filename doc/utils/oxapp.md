@@ -94,6 +94,9 @@ All `ox.OxApp` instances can be configured by overriding the `def settings: Sett
 * `handleException` and `handleInterruptedException`: callbacks for exceptions that occur when evaluating the 
   application's body, or that are thrown when the application shuts down due to an interruption (SIGINT/SIGTERM).
   By default, the stack traces are printed to stderr, unless a default uncaught exception handler is defined.
+* `threadFactory`: the thread factory that is used to create threads in Ox scopes ([[supervised]], [[unsupervised]]
+   etc.). Useful e.g. when integrating with third-party libraries to propagate context across (virtual) thread 
+   boundaries.
 
 Settings can be overridden:
 

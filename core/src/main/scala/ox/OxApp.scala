@@ -2,6 +2,7 @@ package ox
 
 import scala.util.boundary.*
 import scala.util.control.NonFatal
+import java.util.concurrent.ThreadFactory
 
 enum ExitCode(val code: Int):
   case Success extends ExitCode(0)
@@ -32,7 +33,7 @@ trait OxApp:
 
   final def main(args: Array[String]): Unit =
     try
-      unsupervised {
+      oxThreadFactory.unsupervisedWhere(settings.threadFactory) {
         val cancellableMainFork = forkCancellable {
           try supervised(run(args.toVector))
           catch
@@ -82,11 +83,15 @@ object OxApp:
     * @param handleException
     *   Callback used for exceptions that are thrown by the application's body, causing the application to terminate with a failed
     *   [[ExitCode]]. By default the exception's stack trace is printed to stderr (unless a default uncaught exception handler is set).
+    * @param threadFactory
+    *   The thread factory that is used to create threads in Ox scopes ([[supervised]], [[unsupervised]] etc.). Useful e.g. when integrating
+    *   with third-party libraries to propagate context across (virtual) thread boundaries.
     */
   case class Settings(
       interruptedExitCode: ExitCode,
       handleInterruptedException: InterruptedException => Unit,
-      handleException: Throwable => Unit
+      handleException: Throwable => Unit,
+      threadFactory: ThreadFactory
   )
 
   object Settings:
@@ -101,7 +106,8 @@ object OxApp:
           case _: InterruptedException => // skip
           case _                       => logException(t2)
 
-    val Default: Settings = Settings(ExitCode.Success, defaultHandleInterruptedException(DefaultLogException), DefaultLogException)
+    val Default: Settings =
+      Settings(ExitCode.Success, defaultHandleInterruptedException(DefaultLogException), DefaultLogException, Thread.ofVirtual().factory())
   end Settings
 
   /** Simple variant of OxApp does not pass command line arguments and exits with exit code 0 if no exceptions were thrown. */

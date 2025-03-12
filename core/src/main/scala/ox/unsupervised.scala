@@ -1,8 +1,9 @@
 package ox
 
 import java.util.concurrent.StructuredTaskScope
+import java.util.concurrent.ThreadFactory
 
-private class DoNothingScope[T] extends StructuredTaskScope[T](null, Thread.ofVirtual().factory()) {}
+private class DoNothingScope[T](threadFactory: ThreadFactory) extends StructuredTaskScope[T](null, threadFactory) {}
 
 /** Starts a new concurrency scope, which allows starting forks in the given code block `f`. Forks can be started using
   * [[forkUnsupervised]], and [[forkCancellable]]. All forks are guaranteed to complete before this scope completes.

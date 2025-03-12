@@ -1,10 +1,12 @@
 package ox
 
-import java.util.concurrent.StructuredTaskScope
-import java.util.concurrent.atomic.AtomicReference
-import scala.annotation.implicitNotFound
 import ox.channels.Actor
 import ox.channels.ActorRef
+
+import java.util.concurrent.StructuredTaskScope
+import java.util.concurrent.ThreadFactory
+import java.util.concurrent.atomic.AtomicReference
+import scala.annotation.implicitNotFound
 
 /** Capability granted by an [[unsupervised]] concurrency scope (as well as, via subtyping, by [[supervised]] and [[supervisedError]]).
   *
@@ -77,4 +79,10 @@ case class OxError[E, F[_]](
 end OxError
 
 object OxError:
-  def apply[E, F[_]](s: Supervisor[E], em: ErrorMode[E, F]): OxError[E, F] = OxError(DoNothingScope[Any](), new AtomicReference(Nil), s, em)
+  def apply[E, F[_]](s: Supervisor[E], em: ErrorMode[E, F]): OxError[E, F] =
+    OxError(DoNothingScope[Any](oxThreadFactory.get()), new AtomicReference(Nil), s, em)
+
+/** The thread factory that is used to create threads in Ox scopes ([[supervised]], [[unsupervised]] etc.). Can be customized in a
+  * structured fashion, that is for the duration of evaluating a block of code.
+  */
+val oxThreadFactory: ForkLocal[ThreadFactory] = ForkLocal(Thread.ofVirtual().factory())
