@@ -21,7 +21,7 @@ object InheritableMDC:
   private val logger: Logger = LoggerFactory.getLogger(getClass.getName)
   private[logback] val currentContext: ForkLocal[Option[MDCAdapter]] = ForkLocal(None)
 
-  /** Initialise inheritable MDCs. Must be called as early in the app's code as possible. */
+  /** Initialize inheritable MDCs. Must be called as early in the app's code as possible. */
   lazy val init: Unit =
     // Obtaining the current provider, to replace it later with our implementation returning the correct MDCAdapter.
     val getProviderMethod = classOf[LoggerFactory].getDeclaredMethod("getProvider")
@@ -40,6 +40,12 @@ object InheritableMDC:
         val providerField = classOf[LoggerFactory].getDeclaredField("PROVIDER")
         providerField.setAccessible(true)
         providerField.set(null, new OverrideMDCAdapterDelegateProvider(currentProvider, scopedValuedMDCAdapter))
+
+        // in Logback 1.5.17+ the MDC class is initialized earlier, which means that the MDC adapter is stored earlier
+        // hence, overwriting it here as well
+        val mdcStaticField = classOf[MDC].getDeclaredField("MDC_ADAPTER")
+        mdcStaticField.setAccessible(true)
+        mdcStaticField.set(null, scopedValuedMDCAdapter)
 
         logger.info(s"Scoped-value based MDC initialized")
       case currentProvider =>
