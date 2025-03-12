@@ -3,7 +3,7 @@
 Dependency:
 
 ```scala
-"com.softwaremill.ox" %% "mdc-logback" % "0.5.11"
+"com.softwaremill.ox" %% "mdc-logback" % "0.5.12"
 ```
 
 Ox provides support for setting inheritable MDC (mapped diagnostic context) values, when using the [Logback](https://logback.qos.ch)
@@ -22,7 +22,7 @@ and variants.
 
 As inheritable MDC values use a [`ForkLocal`](../structured-concurrency/fork-local.md) under the hood, their usage 
 restrictions apply: outer concurrency scopes should not be used to create forks within the scopes. Only newly created
-scopes, or the provided scope can be used to create forks. That's why `supervisedError`, `unsupervisedError` and
+scopes, or the provided scope can be used to create forks. That's why `supervisedWhere`, `unsupervisedWhere` and
 `supervisedErrorWhere` methods are provided.
 
 "Normal" MDC usage is not affected. That is, values set using `MDC.put` are not inherited, and are only available in 

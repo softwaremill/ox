@@ -132,3 +132,8 @@ it involves creating a nested scope and two virtual threads, instead of one.
 The `CancellableFork` trait exposes the `.cancel` method, which interrupts the fork and awaits its completion.
 Alternatively, `.cancelNow` returns immediately. In any case, the enclosing scope will only complete once all forks have
 completed.
+
+## Customizing thread creation
+
+By default, for each fork a new virtual thread is created using `Thread.ofVirtual().factory()`. This can be customized
+using the `oxThreadFactory` [fork local](fork-local.md).
