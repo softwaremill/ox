@@ -29,7 +29,7 @@ compileDocumentation := {
 lazy val rootProject = (project in file("."))
   .settings(commonSettings)
   .settings(publishArtifact := false, name := "ox")
-  .aggregate(core, examples, kafka, mdcLogback, flowReactiveStreams, cron)
+  .aggregate(core, examples, kafka, mdcLogback, flowReactiveStreams, cron, otelContext)
 
 lazy val core: Project = (project in file("core"))
   .settings(commonSettings)
@@ -105,6 +105,17 @@ lazy val cron: Project = (project in file("cron"))
   )
   .dependsOn(core % "test->test;compile->compile")
 
+lazy val otelContext: Project = (project in file("otel-context"))
+  .settings(commonSettings)
+  .settings(
+    name := "otel-context",
+    libraryDependencies ++= Seq(
+      "io.opentelemetry" % "opentelemetry-api" % "1.7.0",
+      scalaTest
+    )
+  )
+  .dependsOn(core % "test->test;compile->compile")
+
 lazy val documentation: Project = (project in file("generated-doc")) // important: it must not be doc/
   .enablePlugins(MdocPlugin)
   .settings(commonSettings)
@@ -125,5 +136,6 @@ lazy val documentation: Project = (project in file("generated-doc")) // importan
     kafka,
     mdcLogback,
     flowReactiveStreams,
-    cron
+    cron,
+    otelContext
   )
