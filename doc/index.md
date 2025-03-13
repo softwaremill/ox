@@ -84,6 +84,7 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
    integrations/kafka
    integrations/mdc-logback
    integrations/cron4s
+   integrations/otel-context
 
 .. toctree::
    :maxdepth: 2
