@@ -13,7 +13,8 @@ class PropagatingVirtualThreadFactory extends ThreadFactory:
   override def newThread(r: Runnable): Thread =
     val parentContext = Context.current()
     delegate.newThread(() =>
-      parentContext.makeCurrent()
-      r.run()
+      val scope = parentContext.makeCurrent()
+      try r.run()
+      finally scope.close()
     )
 end PropagatingVirtualThreadFactory
