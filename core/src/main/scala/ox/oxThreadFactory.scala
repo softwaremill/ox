@@ -7,7 +7,7 @@ private var customThreadFactory: ThreadFactory = _
 /** @see [[oxThreadFactory]] */
 def setOxThreadFactory(tf: ThreadFactory): Unit =
   customThreadFactory = tf
-  if oxThreadFactory != customThreadFactory then
+  if !oxThreadFactory.eq(customThreadFactory) then
     throw new RuntimeException("The thread factory was already used before setting a custom one!")
 
 /** The thread factory that is used to create threads in Ox scopes ([[supervised]], [[unsupervised]] etc.). Should be set once at the start
