@@ -14,7 +14,7 @@ def setOxThreadFactory(tf: ThreadFactory): Unit =
   * of the application, before any scopes or forks are created, using [[setOxThreadFactory]].
   *
   * @see
-  *   [[OxApp]]
+  *   [[OxApp.Settings]]
   */
 lazy val oxThreadFactory: ThreadFactory =
   val custom = customThreadFactory

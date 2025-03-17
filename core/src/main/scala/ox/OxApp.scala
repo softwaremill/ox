@@ -32,7 +32,7 @@ trait OxApp:
   protected def settings: OxApp.Settings = OxApp.Settings.Default
 
   final def main(args: Array[String]): Unit =
-    setOxThreadFactory(settings.threadFactory)
+    settings.threadFactory.foreach(setOxThreadFactory)
     try
       unsupervised {
         val cancellableMainFork = forkCancellable {
@@ -87,14 +87,15 @@ object OxApp:
     *   Callback used for exceptions that are thrown by the application's body, causing the application to terminate with a failed
     *   [[ExitCode]]. By default the exception's stack trace is printed to stderr (unless a default uncaught exception handler is set).
     * @param threadFactory
-    *   The thread factory that is used to create threads in Ox scopes ([[supervised]], [[unsupervised]] etc.). Useful e.g. when integrating
-    *   with third-party libraries to propagate context across (virtual) thread boundaries.
+    *   The thread factory that should be used to create threads in Ox scopes ([[supervised]], [[unsupervised]] etc.). Useful e.g. when
+    *   integrating with third-party libraries to propagate context across (virtual) thread boundaries. If left unspecified, the default
+    *   virtual thread factory is used.
     */
   case class Settings(
       interruptedExitCode: ExitCode,
       handleInterruptedException: InterruptedException => Unit,
       handleException: Throwable => Unit,
-      threadFactory: ThreadFactory
+      threadFactory: Option[ThreadFactory]
   )
 
   object Settings:
@@ -110,7 +111,7 @@ object OxApp:
           case _                       => logException(t2)
 
     val Default: Settings =
-      Settings(ExitCode.Success, defaultHandleInterruptedException(DefaultLogException), DefaultLogException, Thread.ofVirtual().factory())
+      Settings(ExitCode.Success, defaultHandleInterruptedException(DefaultLogException), DefaultLogException, None)
   end Settings
 
   /** Simple variant of OxApp does not pass command line arguments and exits with exit code 0 if no exceptions were thrown. */
