@@ -13,7 +13,7 @@ into traces, or metrics without the appropriate context.
 
 To fix this problem, the context must be propagated whenever a new virtual thread is created. One way to achieve this
 is by using a custom thread factory, provided by this module - `PropagatingVirtualThreadFactory`. It can be set 
-globally using `oxThreadFactory`, or for the whole app when using [`OxApp`](../utils/oxapp.md):
+for the whole app when using [`OxApp`](../utils/oxapp.md), or manually through `oxThreadFactory`:
 
 ```scala mdoc:compile-only
 import ox.*
