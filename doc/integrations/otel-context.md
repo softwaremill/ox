@@ -12,9 +12,8 @@ will not be propagated across virtual thread boundaries, e.g. when creating new 
 into traces, or metrics without the appropriate context.
 
 To fix this problem, the context must be propagated whenever a new virtual thread is created. One way to achieve this
-is by using a custom thread factory, provided by this module - `PropagatingVirtualThreadFactory`. It can be set within
-a scope by using the `oxThreadFactory` [fork local](../structured-concurrency/fork-local.md), or for the whole app
-when using [`OxApp`](../utils/oxapp.md):
+is by using a custom thread factory, provided by this module - `PropagatingVirtualThreadFactory`. It can be set 
+for the whole app when using [`OxApp`](../utils/oxapp.md), or manually through `oxThreadFactory`:
 
 ```scala mdoc:compile-only
 import ox.*
@@ -22,7 +21,7 @@ import ox.otel.context.PropagatingVirtualThreadFactory
 
 object MyApp extends OxApp:
   override def settings: OxApp.Settings = OxApp.Settings.Default.copy(
-    threadFactory = PropagatingVirtualThreadFactory()
+    threadFactory = Some(PropagatingVirtualThreadFactory())
   )
   
   def run(args: Vector[String])(using Ox): ExitCode = ExitCode.Success
