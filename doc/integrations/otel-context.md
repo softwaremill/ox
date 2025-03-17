@@ -21,7 +21,7 @@ import ox.otel.context.PropagatingVirtualThreadFactory
 
 object MyApp extends OxApp:
   override def settings: OxApp.Settings = OxApp.Settings.Default.copy(
-    threadFactory = PropagatingVirtualThreadFactory()
+    threadFactory = Some(PropagatingVirtualThreadFactory())
   )
   
   def run(args: Vector[String])(using Ox): ExitCode = ExitCode.Success
