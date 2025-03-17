@@ -5,7 +5,7 @@ import io.opentelemetry.context.Context
 
 /** A virtual thread factory which propagates the OpenTelemetry [[Context]] when creating new threads.
   *
-  * Should be used in [[ox.OxApp]] settings (as `threadFactory`), or using the [[ox.oxThreadFactory]] fork local.
+  * Should be used in [[ox.OxApp]] settings (as `threadFactory`), or using the [[ox.oxThreadFactory]].
   */
 class PropagatingVirtualThreadFactory extends ThreadFactory:
   private val delegate = Thread.ofVirtual().factory()

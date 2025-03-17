@@ -32,8 +32,9 @@ trait OxApp:
   protected def settings: OxApp.Settings = OxApp.Settings.Default
 
   final def main(args: Array[String]): Unit =
+    setOxThreadFactory(settings.threadFactory)
     try
-      oxThreadFactory.unsupervisedWhere(settings.threadFactory) {
+      unsupervised {
         val cancellableMainFork = forkCancellable {
           try supervised(run(args.toVector))
           catch
@@ -57,6 +58,8 @@ trait OxApp:
     catch
       // if .joinEither is interrupted, the exception will be rethrown, won't be returned as a Left
       case _: InterruptedException => exit(settings.interruptedExitCode)
+    end try
+  end main
 
   /** For testing - trapping System.exit is impossible due to SecurityManager removal so it's just overrideable in tests. */
   private[ox] def exit(exitCode: ExitCode): Unit = System.exit(exitCode.code)
