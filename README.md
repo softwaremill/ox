@@ -23,13 +23,13 @@ the project!
 To test Ox, use the following dependency, using either [sbt](https://www.scala-sbt.org):
 
 ```scala
-"com.softwaremill.ox" %% "core" % "0.5.12"
+"com.softwaremill.ox" %% "core" % "0.5.13"
 ```
 
 Or [scala-cli](https://scala-cli.virtuslab.org):
 
 ```scala
-//> using dep "com.softwaremill.ox::core:0.5.12"
+//> using dep "com.softwaremill.ox::core:0.5.13"
 ```
 
 Documentation is available at [https://ox.softwaremill.com](https://ox.softwaremill.com), ScalaDocs can be browsed at [https://javadoc.io](https://www.javadoc.io/doc/com.softwaremill.ox).
