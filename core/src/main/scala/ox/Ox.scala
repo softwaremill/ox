@@ -6,6 +6,7 @@ import ox.channels.ActorRef
 import java.util.concurrent.StructuredTaskScope
 import java.util.concurrent.atomic.AtomicReference
 import scala.annotation.implicitNotFound
+import ox.channels.BufferCapacity
 
 /** Capability granted by an [[unsupervised]] concurrency scope (as well as, via subtyping, by [[supervised]] and [[supervisedError]]).
   *
@@ -47,7 +48,7 @@ trait Ox extends OxUnsupervised:
   private[ox] lazy val runInScopeActor: ActorRef[RunInScope] = Actor.create(
     new RunInScope:
       def apply(f: Ox ?=> Unit): Unit = f(using Ox.this)
-  )(using this)
+  )(using this, BufferCapacity(-1)) // since the actor is designed to interface with external libraries, we make sure sending never blocks
 end Ox
 
 private[ox] trait RunInScope:
