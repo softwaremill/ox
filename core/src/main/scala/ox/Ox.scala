@@ -43,15 +43,15 @@ end OxUnsupervised
 trait Ox extends OxUnsupervised:
   private[ox] def asNoErrorMode: OxError[Nothing, [T] =>> T]
 
-  // see externalRunner
-  private[ox] lazy val externalSchedulerActor: ActorRef[ExternalScheduler] = Actor.create(
-    new ExternalScheduler:
-      def run(f: Ox ?=> Unit): Unit = f(using Ox.this)
+  /** @see inScopeRunner */
+  private[ox] lazy val runInScopeActor: ActorRef[RunInScope] = Actor.create(
+    new RunInScope:
+      def apply(f: Ox ?=> Unit): Unit = f(using Ox.this)
   )(using this)
 end Ox
 
-private[ox] trait ExternalScheduler:
-  def run(f: Ox ?=> Unit): Unit
+private[ox] trait RunInScope:
+  def apply(f: Ox ?=> Unit): Unit
 
 /** Capability granted by a [[supervisedError]] concurrency scope.
   *

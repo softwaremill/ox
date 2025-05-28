@@ -15,7 +15,7 @@ import java.util.concurrent.Flow.Publisher
 import java.util.concurrent.Flow.Subscriber
 import java.util.concurrent.Flow.Subscription
 import ox.unsupervised
-import ox.externalRunner
+import ox.inScopeRunner
 import ox.tapException
 
 trait FlowReactiveOps[+T]:
@@ -33,7 +33,7 @@ trait FlowReactiveOps[+T]:
     */
   def toPublisher[U >: T](using Ox, BufferCapacity): Publisher[U] =
     // we need to obtain the external runner while on a fork managed by Ox
-    val external = externalRunner()
+    val external = inScopeRunner()
 
     new Publisher[U]:
       // 1.10: subscribe can be called multiple times; each time, the flow is started from scratch
@@ -47,7 +47,7 @@ trait FlowReactiveOps[+T]:
         // we cannot block `subscribe` (see https://github.com/reactive-streams/reactive-streams-jvm/issues/393),
         // hence running in a fork; however, the reactive library might run .subscribe on a different thread, that's
         // why we need to use the external runner functionality
-        external.runAsync(forkDiscard(runToSubscriber(subscriber)).discard)
+        external.async(forkDiscard(runToSubscriber(subscriber)))
       end subscribe
     end new
   end toPublisher
