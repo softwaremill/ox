@@ -32,5 +32,5 @@ class InScopeRunner(runInScope: ActorRef[RunInScope]):
     * `f` should not block and return promptly, not to obstruct execution of other scheduled functions. Typically, it should start a
     * background fork. Any exceptions thrown by `f` will be cause the entire scope to end.
     */
-  def async(f: Ox ?=> Unit): Unit = runInScope.ask(_.apply(f))
+  def async(f: Ox ?=> Unit): Unit = runInScope.tell(_.apply(f))
 end InScopeRunner
