@@ -10,13 +10,13 @@ import ox.channels.selectOrClosed
 import ox.discard
 import ox.fork
 import ox.forkDiscard
+import ox.inScopeRunner
+import ox.tapException
+import ox.unsupervised
 
 import java.util.concurrent.Flow.Publisher
 import java.util.concurrent.Flow.Subscriber
 import java.util.concurrent.Flow.Subscription
-import ox.unsupervised
-import ox.inScopeRunner
-import ox.tapException
 
 trait FlowReactiveOps[+T]:
   outer: Flow[T] =>
