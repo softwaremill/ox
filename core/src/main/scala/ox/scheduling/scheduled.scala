@@ -129,7 +129,7 @@ def scheduledWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(config: ScheduledCon
     end match
   end loop
 
-  config.schedule.initialInterval.foreach(sleep)
+  config.schedule.initialDelay.foreach(sleep)
 
   loop(1, config.schedule.intervals(), None)
 end scheduledWithErrorMode

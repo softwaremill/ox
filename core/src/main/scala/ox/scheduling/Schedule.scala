@@ -12,10 +12,10 @@ import scala.util.Random
   *
   * @param intervals
   *   The intervals to use for the schedule.
-  * @param initialInterval
-  *   The interval to wait before running the operation for the first time - if any.
+  * @param initialDelay
+  *   The delay to wait before running the operation for the first time - if any.
   */
-case class Schedule(intervals: () => LazyList[FiniteDuration], initialInterval: Option[FiniteDuration] = None):
+case class Schedule(intervals: () => LazyList[FiniteDuration], initialDelay: Option[FiniteDuration] = None):
   /** Caps the intervals to the given maximum. */
   def maxInterval(max: FiniteDuration): Schedule = copy(intervals = () => intervals().map(_.min(max)))
 
@@ -56,12 +56,12 @@ case class Schedule(intervals: () => LazyList[FiniteDuration], initialInterval: 
   /** Modifies the schedule so that operations are only run after the initial given delay. Later, the intervals specified by the schedule
     * are used.
     */
-  def withInitialInterval(interval: FiniteDuration): Schedule = copy(initialInterval = Some(interval))
+  def withInitialDelay(interval: FiniteDuration): Schedule = copy(initialDelay = Some(interval))
 
-  /** Modifies the schedule so that the first invocation of the operation is run immediately, with subequent invocations following the
+  /** Modifies the schedule so that the first invocation of the operation is run immediately, with subsequent invocations following the
     * intervals specified by the schedule.
     */
-  def withNoInitialInterval(): Schedule = copy(initialInterval = None)
+  def withNoInitialDelay(): Schedule = copy(initialDelay = None)
 
   /** Combines two schedules. The second schedule will only be used if the first one is finite. */
   def andThen(other: Schedule): Schedule = copy(intervals = () => intervals() ++ other.intervals())

@@ -58,7 +58,7 @@ repeatEither(Schedule.immediate.maxRepeats(3))(eitherOperation)
 
 // various schedules
 repeat(Schedule.fixedInterval(100.millis).maxRepeats(3))(directOperation)
-repeat(Schedule.fixedInterval(100.millis).maxRepeats(3).withInitialInterval(50.millis))(
+repeat(Schedule.fixedInterval(100.millis).maxRepeats(3).withInitialDelay(50.millis))(
   directOperation)
 
 // infinite repeats with a custom strategy

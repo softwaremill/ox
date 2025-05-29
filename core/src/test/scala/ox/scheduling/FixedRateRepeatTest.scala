@@ -44,7 +44,7 @@ class FixedRateRepeatTest extends AnyFlatSpec with Matchers with EitherValues wi
       counter
 
     // when
-    val (result, elapsedTime) = measure(repeat(Schedule.fixedInterval(interval).maxRepeats(repeats).withInitialInterval(initialDelay))(f))
+    val (result, elapsedTime) = measure(repeat(Schedule.fixedInterval(interval).maxRepeats(repeats).withInitialDelay(initialDelay))(f))
 
     // then
     elapsedTime.toMillis should be >= 3 * interval.toMillis + initialDelay.toMillis - 5 // tolerance
@@ -84,7 +84,7 @@ class FixedRateRepeatTest extends AnyFlatSpec with Matchers with EitherValues wi
 
     // when
     val (ex, elapsedTime) =
-      measure(the[RuntimeException] thrownBy repeat(Schedule.fixedInterval(interval).withInitialInterval(initialDelay))(f))
+      measure(the[RuntimeException] thrownBy repeat(Schedule.fixedInterval(interval).withInitialDelay(initialDelay))(f))
 
     // then
     elapsedTime.toMillis should be >= 3 * interval.toMillis + initialDelay.toMillis - 5 // tolerance

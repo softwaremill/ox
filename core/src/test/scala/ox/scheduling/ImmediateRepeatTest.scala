@@ -38,7 +38,7 @@ class ImmediateRepeatTest extends AnyFlatSpec with Matchers with EitherValues wi
       counter
 
     // when
-    val (result, elapsedTime) = measure(repeat(Schedule.immediate.maxRepeats(repeats).withInitialInterval(initialDelay))(f))
+    val (result, elapsedTime) = measure(repeat(Schedule.immediate.maxRepeats(repeats).withInitialDelay(initialDelay))(f))
 
     // then
     elapsedTime.toMillis should be >= initialDelay.toMillis
@@ -74,7 +74,7 @@ class ImmediateRepeatTest extends AnyFlatSpec with Matchers with EitherValues wi
       counter
 
     // when
-    val (ex, elapsedTime) = measure(the[RuntimeException] thrownBy repeat(Schedule.immediate.withInitialInterval(initialDelay))(f))
+    val (ex, elapsedTime) = measure(the[RuntimeException] thrownBy repeat(Schedule.immediate.withInitialDelay(initialDelay))(f))
 
     // then
     elapsedTime.toMillis should be >= initialDelay.toMillis
