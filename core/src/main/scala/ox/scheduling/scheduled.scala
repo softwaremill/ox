@@ -11,14 +11,16 @@ import scala.util.Try
 
 /** The mode that specifies how to interpret the duration provided by the schedule. */
 enum SleepMode:
-  /** Interval (since the start of the last operation), i.e. guarantees that the next operation will start no sooner than the specified
+  /** The interval refers to the beginning of each operation. Guarantees that the next operation will start no sooner than the specified
     * duration after the previous operation has started. If the previous operation takes longer than the interval, the next operation will
     * be started immediately after the previous one has finished.
     */
-  case Interval
+  case StartToStart
 
-  /** Delay (since the end of the last operation), i.e. sleeps the duration provided by the schedule before the next operation starts. */
-  case Delay
+  /** The interval refers to the pause between complete operation invocations. Sleeps the duration provided by the schedule before the next
+    * operation starts.
+    */
+  case EndToStart
 end SleepMode
 
 /** @see [[ScheduleConfig.afterAttempt]] */
@@ -49,7 +51,7 @@ object ScheduleStop:
 case class ScheduledConfig[E, T](
     schedule: Schedule,
     afterAttempt: (Int, Either[E, T]) => ScheduleStop = (_, _: Either[E, T]) => ScheduleStop.No,
-    sleepMode: SleepMode = SleepMode.Interval
+    sleepMode: SleepMode = SleepMode.StartToStart
 )
 
 /** Schedules an operation returning a direct result until it succeeds or the config decides to stop.
@@ -96,11 +98,11 @@ def scheduledWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(config: ScheduledCon
   def loop(invocation: Int, intervals: LazyList[FiniteDuration], lastDuration: Option[FiniteDuration]): F[T] =
     def sleepIfNeeded(startTimestamp: Long, nextDelay: FiniteDuration) =
       val delay = config.sleepMode match
-        case SleepMode.Interval =>
+        case SleepMode.StartToStart =>
           val elapsed = System.nanoTime() - startTimestamp
           val remaining = nextDelay.toNanos - elapsed
           remaining.nanos
-        case SleepMode.Delay => nextDelay
+        case SleepMode.EndToStart => nextDelay
       if delay.toMillis > 0 then sleep(delay)
       delay
     end sleepIfNeeded

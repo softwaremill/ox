@@ -92,7 +92,7 @@ case class AdaptiveRetry(
     val scheduledConfig = ScheduledConfig(
       config.schedule,
       afterAttempt,
-      sleepMode = SleepMode.Delay
+      sleepMode = SleepMode.EndToStart
     )
 
     scheduledWithErrorMode(errorMode)(scheduledConfig)(operation)

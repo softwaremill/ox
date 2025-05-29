@@ -37,6 +37,6 @@ case class RetryConfig[E, T](
         case Left(value)  => ScheduleStop(!resultPolicy.isWorthRetrying(value))
         case Right(value) => ScheduleStop(resultPolicy.isSuccess(value))
 
-    ScheduledConfig(schedule, afterAttempt, SleepMode.Delay)
+    ScheduledConfig(schedule, afterAttempt, SleepMode.EndToStart)
   end toScheduledConfig
 end RetryConfig

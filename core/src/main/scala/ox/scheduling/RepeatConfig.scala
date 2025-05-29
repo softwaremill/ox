@@ -30,6 +30,6 @@ case class RepeatConfig[E, T](
         case Left(_)      => ScheduleStop.Yes
         case Right(value) => ScheduleStop(!shouldContinueOnResult(value))
 
-    ScheduledConfig(schedule, afterAttempt, SleepMode.Interval)
+    ScheduledConfig(schedule, afterAttempt, SleepMode.StartToStart)
   end toScheduledConfig
 end RepeatConfig
