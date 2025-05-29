@@ -48,7 +48,7 @@ Schedules can be created using one of the following methods on the companion obj
 - `Schedule.exponentialBackoff(initialDelay: FiniteDuration)`,
 - `Schedule.fibonacciBackoff(initialDelay: FiniteDuration)`,
 - `Schedule.decorrelatedJitter(min: FiniteDuration)`,
-- `Schedule.computed[S](initialState: S, compute: S => (S, FiniteDuration))`
+- `Schedule.computed[S](initialState: S, compute: S => (S, Option[FiniteDuration]))`
 
 The schedules can be then customized using methods which include the following:
 
