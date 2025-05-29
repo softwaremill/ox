@@ -6,8 +6,7 @@ import ox.scheduling.Schedule
 
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
-import java.util.concurrent.TimeUnit
-import scala.concurrent.duration.{Duration, FiniteDuration}
+import scala.concurrent.duration.*
 
 /** Methods in this object provide [[Schedule]] based on supplied cron expression.
   */
@@ -32,7 +31,8 @@ object CronSchedule:
       val now = LocalDateTime.now()
       val next = cron.next(now)
       val duration = next.map(n => ChronoUnit.MILLIS.between(now, n))
-      duration.map(FiniteDuration.apply(_, TimeUnit.MILLISECONDS)).getOrElse(Duration.Zero)
+      println("COMPUTED " + duration)
+      duration.map(_.millis).getOrElse(Duration.Zero)
 
     Schedule.computed((), _ => ((), computeNext))
   end fromCronExpr
