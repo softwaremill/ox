@@ -1,9 +1,12 @@
 package ox.scheduling
 
-import ox.{EitherMode, ErrorMode, sleep}
+import ox.EitherMode
+import ox.ErrorMode
+import ox.sleep
 
 import scala.annotation.tailrec
-import scala.concurrent.duration.{FiniteDuration, DurationLong}
+import scala.concurrent.duration.DurationLong
+import scala.concurrent.duration.FiniteDuration
 import scala.util.Try
 
 /** The mode that specifies how to interpret the duration provided by the schedule. */
@@ -33,7 +36,7 @@ object ScheduleStop:
   *   more details.
   * @param afterAttempt
   *   A callback invoked after every attempt, with the current invocation number (starting from 1) and the result of the operation. Might
-  *   decide to short-curcuit further attempts, and stop the schedule. Schedule configuration (e.g. max number of attempts) takes
+  *   decide to short-circuit further attempts, and stop the schedule. Schedule configuration (e.g. max number of attempts) takes
   *   precedence.
   * @param sleepMode
   *   The mode that specifies how to interpret the duration provided by the schedule. See [[SleepMode]] for more details.
@@ -90,46 +93,43 @@ def scheduledEither[E, T](config: ScheduledConfig[E, T])(operation: => Either[E,
   */
 def scheduledWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(config: ScheduledConfig[E, T])(operation: => F[T]): F[T] =
   @tailrec
-  def loop(invocation: Int, remainingInvocations: Option[Int], lastDuration: Option[FiniteDuration]): F[T] =
-    def sleepIfNeeded(startTimestamp: Long) =
-      val nextDuration = config.schedule.nextDuration(invocation, lastDuration)
+  def loop(invocation: Int, intervals: LazyList[FiniteDuration], lastDuration: Option[FiniteDuration]): F[T] =
+    def sleepIfNeeded(startTimestamp: Long, nextDelay: FiniteDuration) =
       val delay = config.sleepMode match
         case SleepMode.Interval =>
           val elapsed = System.nanoTime() - startTimestamp
-          val remaining = nextDuration.toNanos - elapsed
+          val remaining = nextDelay.toNanos - elapsed
           remaining.nanos
-        case SleepMode.Delay => nextDuration
+        case SleepMode.Delay => nextDelay
       if delay.toMillis > 0 then sleep(delay)
       delay
     end sleepIfNeeded
 
     val startTimestamp = System.nanoTime()
+    val nextDelay = intervals.headOption
     operation match
       case v if em.isError(v) =>
         val error = em.getError(v)
         val shouldStop = config.afterAttempt(invocation, Left(error))
 
-        if remainingInvocations.forall(_ > 0) && !shouldStop.stop then
-          val delay = sleepIfNeeded(startTimestamp)
-          loop(invocation + 1, remainingInvocations.map(_ - 1), Some(delay))
-        else v
+        nextDelay match
+          case Some(nd) if !shouldStop.stop =>
+            val delay = sleepIfNeeded(startTimestamp, nd)
+            loop(invocation + 1, intervals.tail, Some(delay))
+          case _ => v
       case v =>
         val result = em.getT(v)
         val shouldStop = config.afterAttempt(invocation, Right(result))
 
-        if remainingInvocations.forall(_ > 0) && !shouldStop.stop then
-          val delay = sleepIfNeeded(startTimestamp)
-          loop(invocation + 1, remainingInvocations.map(_ - 1), Some(delay))
-        else v
+        nextDelay match
+          case Some(nd) if !shouldStop.stop =>
+            val delay = sleepIfNeeded(startTimestamp, nd)
+            loop(invocation + 1, intervals.tail, Some(delay))
+          case _ => v
     end match
   end loop
 
-  val remainingInvocations = config.schedule match
-    case finiteSchedule: Schedule.Finite => Some(finiteSchedule.maxRepeats)
-    case _                               => None
+  config.schedule.initialInterval.foreach(sleep)
 
-  val initialDelay = config.schedule.initialDelay
-  if initialDelay.toMillis > 0 then sleep(initialDelay)
-
-  loop(1, remainingInvocations, None)
+  loop(1, config.schedule.intervals(), None)
 end scheduledWithErrorMode
