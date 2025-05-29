@@ -30,7 +30,6 @@ object CronSchedule:
     def computeNext(previous: LocalDateTime): (LocalDateTime, Option[FiniteDuration]) =
       val next = cron.next(previous)
       val duration = next.map(n => ChronoUnit.MILLIS.between(previous, n).millis)
-      println("COMPUTED " + duration)
       (next.getOrElse(previous), duration)
 
     Schedule.computed(LocalDateTime.now(), computeNext)
