@@ -110,10 +110,11 @@ object Schedule:
   )
 
   /** An infinite computed schedule. Each interval is computed using the previously returned state (starting with the initial state). */
-  def computed[S](initialState: S, compute: S => (S, FiniteDuration)): Schedule = Schedule(() =>
+  def computed[S](initialState: S, compute: S => (S, Option[FiniteDuration])): Schedule = Schedule(() =>
     def loop(s: S): LazyList[FiniteDuration] =
-      val (s2, i) = compute(s)
-      i #:: loop(s2)
+      compute(s) match
+        case (s2, Some(i)) => i #:: loop(s2)
+        case (_, None)     => LazyList.empty[FiniteDuration] // no more intervals, stop the schedule
 
     loop(initialState)
   )

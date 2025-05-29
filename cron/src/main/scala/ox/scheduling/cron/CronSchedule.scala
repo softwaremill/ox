@@ -27,13 +27,12 @@ object CronSchedule:
     *   [[Schedule]] from cron expression
     */
   def fromCronExpr(cron: CronExpr): Schedule =
-    def computeNext: FiniteDuration =
-      val now = LocalDateTime.now()
-      val next = cron.next(now)
-      val duration = next.map(n => ChronoUnit.MILLIS.between(now, n))
+    def computeNext(previous: LocalDateTime): (LocalDateTime, Option[FiniteDuration]) =
+      val next = cron.next(previous)
+      val duration = next.map(n => ChronoUnit.MILLIS.between(previous, n).millis)
       println("COMPUTED " + duration)
-      duration.map(_.millis).getOrElse(Duration.Zero)
+      (next.getOrElse(previous), duration)
 
-    Schedule.computed((), _ => ((), computeNext))
+    Schedule.computed(LocalDateTime.now(), computeNext)
   end fromCronExpr
 end CronSchedule
