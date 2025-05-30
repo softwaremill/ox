@@ -52,7 +52,14 @@ case class ScheduledConfig[E, T](
     schedule: Schedule,
     afterAttempt: (Int, Either[E, T]) => ScheduleStop = (_, _: Either[E, T]) => ScheduleStop.No,
     sleepMode: SleepMode = SleepMode.StartToStart
-)
+):
+  def schedule(newSchedule: Schedule): ScheduledConfig[E, T] = copy(schedule = newSchedule)
+
+  def afterAttempt(newAfterAttempt: (Int, Either[E, T]) => ScheduleStop): ScheduledConfig[E, T] =
+    copy(afterAttempt = newAfterAttempt)
+
+  def sleepMode(newSleepMode: SleepMode): ScheduledConfig[E, T] = copy(sleepMode = newSleepMode)
+end ScheduledConfig
 
 /** Schedules an operation returning a direct result until it succeeds or the config decides to stop.
   *
