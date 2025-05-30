@@ -1,10 +1,5 @@
 package ox
 
-import java.util.concurrent.StructuredTaskScope
-import java.util.concurrent.ThreadFactory
-
-private class DoNothingScope[T](threadFactory: ThreadFactory) extends StructuredTaskScope[T](null, threadFactory) {}
-
 /** Starts a new concurrency scope, which allows starting forks in the given code block `f`. Forks can be started using
   * [[forkUnsupervised]], and [[forkCancellable]]. All forks are guaranteed to complete before this scope completes.
   *
@@ -30,7 +25,7 @@ private[ox] def scopedWithCapability[T](capability: Ox)(f: Ox ?=> T): T =
     es.tail.foreach(e.addSuppressed)
     throw e
 
-  val scope = capability.scope
+  val herd = capability.herd
   val finalizers = capability.finalizers
   def runFinalizers(result: Either[Throwable, T]): T =
     val fs = finalizers.get
@@ -51,17 +46,10 @@ private[ox] def scopedWithCapability[T](capability: Ox)(f: Ox ?=> T): T =
     end if
   end runFinalizers
 
-  // if this is inlined manually (in the program's text), it gets incorrectly indented
-  inline def runFAndJoinScope =
-    try f(using capability)
-    finally
-      scope.shutdown()
-      scope.join().discard
-
   try
     val t =
-      try runFAndJoinScope
-      finally scope.close() // join might have been interrupted, hence the finally
+      try f(using capability)
+      finally herd.interruptAllAndJoinUntilCompleted()
 
     // running the finalizers only once we are sure that all child threads have been terminated, so that no new
     // finalizers are added, and none are lost

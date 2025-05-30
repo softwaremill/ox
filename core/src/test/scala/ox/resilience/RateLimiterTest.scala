@@ -205,6 +205,7 @@ class RateLimiterTest extends AnyFlatSpec with Matchers with EitherValues with T
         forkUserDiscard:
           result2 = rateLimiter.runOrDrop(operation)
         forkUserDiscard:
+          sleep(500.millis)
           result3 = rateLimiter.runBlocking(operation)
         forkUserDiscard:
           // Wait for next window for 3rd operation to start, take number of operations running

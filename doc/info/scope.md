@@ -18,7 +18,7 @@ project!
 ## Inspiration & building blocks
 
 * [Project Loom](https://openjdk.org/projects/loom/) (virtual threads)
-* structured concurrency Java APIs ([JEP 428](https://openjdk.org/jeps/428))
-* scoped values ([JEP 429](https://openjdk.org/jeps/429))
+* structured concurrency Java APIs ([JEP 505](https://openjdk.org/jeps/505))
+* scoped values ([JEP 506](https://openjdk.org/jeps/506))
 * fast, scalable [Go](https://golang.org)-like channels using [jox](https://github.com/softwaremill/jox)
 * the [Scala 3](https://www.scala-lang.org) programming language
