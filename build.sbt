@@ -29,7 +29,7 @@ compileDocumentation := {
 lazy val rootProject = (project in file("."))
   .settings(commonSettings)
   .settings(publishArtifact := false, name := "ox")
-  .aggregate(core, kafka, mdcLogback, flowReactiveStreams, cron, otelContext)
+  .aggregate(core, examples, kafka, mdcLogback, flowReactiveStreams, cron, otelContext)
 
 lazy val core: Project = (project in file("core"))
   .settings(commonSettings)
@@ -43,6 +43,18 @@ lazy val core: Project = (project in file("core"))
     ),
     Test / fork := true
   )
+
+lazy val examples: Project = (project in file("examples"))
+  .settings(commonSettings)
+  .settings(
+    name := "examples",
+    libraryDependencies ++= Seq(
+      logback % Test,
+      scalaTest
+    ),
+    publishArtifact := false
+  )
+  .dependsOn(core)
 
 lazy val kafka: Project = (project in file("kafka"))
   .settings(commonSettings)
