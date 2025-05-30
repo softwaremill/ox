@@ -8,7 +8,7 @@ Dependency:
 
 This module allows to run schedules based on cron expressions from [cron4s](https://github.com/alonsodomin/cron4s).
 
-`CronSchedule` can be used in all places that requires `Schedule` especially in repeat scenarios.
+`CronSchedule` can be used in all places that requires `Schedule` especially in [repeat](../utils/repeat.md) scenarios.
 
 For defining `CronExpr` see [cron4s documentation](https://www.alonsodomin.me/cron4s/userguide/index.html).
 
@@ -20,7 +20,7 @@ The cron module exposes methods for creating `Schedule` based on `CronExpr`.
 import ox.scheduling.cron.*
 import cron4s.*
 
-repeat(RepeatConfig(CronSchedule.unsafeFromString("10-35 2,4,6 * ? * *")))(operation)
+repeat(CronSchedule.unsafeFromString("10-35 2,4,6 * ? * *"))(operation)
 ```
 
 ## Operation definition
@@ -50,8 +50,8 @@ def unionOperation: String | Int = ???
 val cronExpr: CronExpr = Cron.unsafeParse("10-35 2,4,6 * ? * *")
 
 // various operation definitions - same syntax
-repeat(RepeatConfig(CronSchedule.fromCronExpr(cronExpr)))(directOperation)
-repeatEither(RepeatConfig(CronSchedule.fromCronExpr(cronExpr)))(eitherOperation)
+repeat(CronSchedule.fromCronExpr(cronExpr))(directOperation)
+repeatEither(CronSchedule.fromCronExpr(cronExpr))(eitherOperation)
 
 // infinite repeats with a custom strategy
 def customStopStrategy: Int => Boolean = ???
@@ -62,6 +62,6 @@ repeatWithErrorMode(UnionMode[String])(RepeatConfig(CronSchedule.fromCronExpr(cr
 
 // repeat with retry inside
 repeat(RepeatConfig(CronSchedule.fromCronExpr(cronExpr))) {
-  retry(RetryConfig.backoff(3, 100.millis))(directOperation)
+  retry(Schedule.exponentialBackoff(100.millis).maxRepeats(3))(directOperation)
 }
 ```

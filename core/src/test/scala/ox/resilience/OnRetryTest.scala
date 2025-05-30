@@ -9,7 +9,7 @@ import ox.scheduling.Schedule
 class OnRetryTest extends AnyFlatSpec with Matchers with EitherValues with TryValues:
   behavior of "RetryPolicy onRetry callback"
 
-  it should "retry a succeeding function with onRetry callback" in {
+  it should "retry a succeeding function with onRetry callback" in:
     // given
     var onRetryInvocationCount = 0
 
@@ -26,7 +26,7 @@ class OnRetryTest extends AnyFlatSpec with Matchers with EitherValues with TryVa
       returnedResult = result
 
     // when
-    val result = retry(RetryConfig(Schedule.Immediate(3), onRetry = onRetry))(f)
+    val result = retry(RetryConfig(Schedule.immediate.maxRepeats(3), onRetry = onRetry))(f)
 
     // then
     result shouldBe successfulResult
@@ -34,9 +34,8 @@ class OnRetryTest extends AnyFlatSpec with Matchers with EitherValues with TryVa
 
     onRetryInvocationCount shouldBe 1
     returnedResult shouldBe Right(successfulResult)
-  }
 
-  it should "retry a failing function with onRetry callback" in {
+  it should "retry a failing function with onRetry callback" in:
     // given
     var onRetryInvocationCount = 0
 
@@ -53,7 +52,7 @@ class OnRetryTest extends AnyFlatSpec with Matchers with EitherValues with TryVa
       returnedResult = result
 
     // when
-    val result = the[RuntimeException] thrownBy retry(RetryConfig(Schedule.Immediate(3), onRetry = onRetry))(f)
+    val result = the[RuntimeException] thrownBy retry(RetryConfig(Schedule.immediate.maxRepeats(3), onRetry = onRetry))(f)
 
     // then
     result shouldBe failedResult
@@ -61,5 +60,4 @@ class OnRetryTest extends AnyFlatSpec with Matchers with EitherValues with TryVa
 
     onRetryInvocationCount shouldBe 4
     returnedResult shouldBe Left(failedResult)
-  }
 end OnRetryTest

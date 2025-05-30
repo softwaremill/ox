@@ -10,59 +10,56 @@ class JitterTest extends AnyFlatSpec with Matchers:
 
   behavior of "Jitter"
 
-  private val baseSchedule = Schedule.Backoff(maxRepeats = 3, firstDuration = 100.millis)
+  private val baseSchedule = Schedule.exponentialBackoff(100.millis)
 
-  it should "use no jitter" in {
+  it should "use no jitter" in:
     // given
     val schedule = baseSchedule
 
     // when
-    val delays = (1 to 5).map(schedule.nextDuration(_, None))
+    val delays = schedule.intervals().take(6).toList
 
     // then
-    delays should contain theSameElementsInOrderAs Seq(200, 400, 800, 1600, 3200).map(_.millis)
-  }
+    delays should contain theSameElementsInOrderAs Seq(100, 200, 400, 800, 1600, 3200).map(_.millis)
 
-  it should "use full jitter" in {
+  it should "use full jitter" in:
     // given
-    val schedule = baseSchedule.copy(jitter = Jitter.Full)
+    val schedule = baseSchedule.jitter(Jitter.Full)
 
     // when
-    val delays = (1 to 5).map(schedule.nextDuration(_, None))
+    val rawDelays = baseSchedule.intervals().take(5).toList
+    val delays = schedule.intervals().take(5).toList
 
     // then
-    Inspectors.forEvery(delays.zipWithIndex) { case (delay, i) =>
-      val backoffDelay = Schedule.Backoff.calculateDuration(i + 1, schedule.firstDuration, schedule.maxDuration)
-      delay should (be >= 0.millis and be <= backoffDelay)
-    }
-  }
+    delays
+      .zip(rawDelays)
+      .foreach: (delay, backoffDelay) =>
+        delay should (be >= 0.millis and be <= backoffDelay)
 
-  it should "use equal jitter" in {
+  it should "use equal jitter" in:
     // given
-    val schedule = baseSchedule.copy(jitter = Jitter.Equal)
+    val schedule = baseSchedule.jitter(Jitter.Equal)
 
     // when
-    val delays = (1 to 5).map(schedule.nextDuration(_, None))
+    val rawDelays = baseSchedule.intervals().take(5).toList
+    val delays = schedule.intervals().take(5).toList
 
     // then
-    Inspectors.forEvery(delays.zipWithIndex) { case (delay, i) =>
-      val backoffDelay = Schedule.Backoff.calculateDuration(i + 1, schedule.firstDuration, schedule.maxDuration)
-      delay should (be >= backoffDelay / 2 and be <= backoffDelay)
-    }
-  }
+    delays
+      .zip(rawDelays)
+      .foreach: (delay, backoffDelay) =>
+        delay should (be >= backoffDelay / 2 and be <= backoffDelay)
 
-  it should "use decorrelated jitter" in {
+  it should "use decorrelated jitter" in:
     // given
-    val schedule = baseSchedule.copy(jitter = Jitter.Decorrelated)
+    val min = 100.millis
+    val schedule = Schedule.decorrelatedJitter(min)
 
     // when
-    val delays = (1 to 5).map(schedule.nextDuration(_, None))
+    val delays = schedule.intervals().take(5).toList
 
     // then
-    Inspectors.forEvery(delays.sliding(2).toList) {
-      case Seq(previousDelay, delay) =>
-        delay should (be >= schedule.firstDuration and be <= previousDelay * 3)
-      case _ => fail("should never happen") // so that the match is exhaustive
-    }
-  }
+    Inspectors.forEvery(delays.sliding(2).toList):
+      case Seq(previousDelay, delay) => delay should (be >= min and be <= previousDelay * 3)
+      case _                         => fail("should never happen") // so that the match is exhaustive
 end JitterTest
