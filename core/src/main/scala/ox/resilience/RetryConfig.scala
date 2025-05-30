@@ -30,6 +30,12 @@ case class RetryConfig[E, T](
     resultPolicy: ResultPolicy[E, T] = ResultPolicy.default[E, T],
     onRetry: (Int, Either[E, T]) => Unit = (_: Int, _: Either[E, T]) => ()
 ):
+  def schedule(newSchedule: Schedule): RetryConfig[E, T] = copy(schedule = newSchedule)
+
+  def resultPolicy(newResultPolicy: ResultPolicy[E, T]): RetryConfig[E, T] = copy(resultPolicy = newResultPolicy)
+
+  def onRetry(newOnRetry: (Int, Either[E, T]) => Unit): RetryConfig[E, T] = copy(onRetry = newOnRetry)
+
   def toScheduledConfig: ScheduledConfig[E, T] =
     val afterAttempt: (Int, Either[E, T]) => ScheduleStop = (attemptNum, attempt) =>
       onRetry(attemptNum, attempt)

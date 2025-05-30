@@ -24,6 +24,11 @@ case class RepeatConfig[E, T](
     schedule: Schedule,
     shouldContinueOnResult: T => Boolean = (_: T) => true
 ):
+  def schedule(newSchedule: Schedule): RepeatConfig[E, T] = copy(schedule = newSchedule)
+
+  def shouldContinueOnResult(newShouldContinueOnResult: T => Boolean): RepeatConfig[E, T] =
+    copy(shouldContinueOnResult = newShouldContinueOnResult)
+
   def toScheduledConfig: ScheduledConfig[E, T] =
     val afterAttempt: (Int, Either[E, T]) => ScheduleStop = (_, attempt) =>
       attempt match
