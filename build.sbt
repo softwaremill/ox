@@ -29,7 +29,7 @@ compileDocumentation := {
 lazy val rootProject = (project in file("."))
   .settings(commonSettings)
   .settings(publishArtifact := false, name := "ox")
-  .aggregate(core, kafka, mdcLogback, flowReactiveStreams, cron, otelContext, forkLocal)
+  .aggregate(core, kafka, mdcLogback, flowReactiveStreams, cron, otelContext)
 
 lazy val core: Project = (project in file("core"))
   .settings(commonSettings)
@@ -99,16 +99,6 @@ lazy val otelContext: Project = (project in file("otel-context"))
     name := "otel-context",
     libraryDependencies ++= Seq(
       "io.opentelemetry" % "opentelemetry-api" % "1.50.0",
-      scalaTest
-    )
-  )
-  .dependsOn(core % "test->test;compile->compile")
-
-lazy val forkLocal: Project = (project in file("fork-local"))
-  .settings(commonSettings)
-  .settings(
-    name := "fork-local",
-    libraryDependencies ++= Seq(
       scalaTest
     )
   )
