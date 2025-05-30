@@ -3,7 +3,6 @@ package ox
 import ox.channels.Actor
 import ox.channels.ActorRef
 
-import java.util.concurrent.StructuredTaskScope
 import java.util.concurrent.atomic.AtomicReference
 import scala.annotation.implicitNotFound
 import ox.channels.BufferCapacity

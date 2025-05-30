@@ -34,8 +34,10 @@ def forkError[E, F[_], T](using OxError[E, F])(f: => F[T]): Fork[T] =
   val oxError = summon[OxError[E, F]]
   // the separate result future is needed to wait for the result, as there's no .join on individual tasks (only whole scopes can be joined)
   val result = new CompletableFuture[T]()
+  val locals = currentForkLocalMap.get()
 
   oxError.herd.startThread:
+    currentForkLocalMap.set(locals) // propagating the locals map
     val supervisor = oxError.supervisor
     try
       val resultOrError = f
@@ -82,8 +84,10 @@ def forkUserError[E, F[_], T](using OxError[E, F])(f: => F[T]): Fork[T] =
   val oxError = summon[OxError[E, F]]
   val result = new CompletableFuture[T]()
   oxError.supervisor.forkStarts()
+  val locals = currentForkLocalMap.get()
 
   oxError.herd.startThread:
+    currentForkLocalMap.set(locals) // propagating the locals map
     val supervisor = oxError.supervisor.asInstanceOf[DefaultSupervisor[E]]
     try
       val resultOrError = f
@@ -114,8 +118,10 @@ end forkUserError
   */
 def forkUnsupervised[T](f: => T)(using OxUnsupervised): UnsupervisedFork[T] =
   val result = new CompletableFuture[T]()
+  val locals = currentForkLocalMap.get()
 
   summon[OxUnsupervised].herd.startThread:
+    currentForkLocalMap.set(locals) // propagating the locals map
     try result.complete(f).discard
     catch case e: Throwable => result.completeExceptionally(e).discard
 
@@ -153,12 +159,14 @@ def forkCancellable[T](f: => T)(using OxUnsupervised): CancellableFork[T] =
   // interrupt signal
   val done = new Semaphore(0)
   val ox = summon[OxUnsupervised]
+  val locals = currentForkLocalMap.get()
 
   ox.herd.startThread:
     try
       val nestedOx = OxError(NoOpSupervisor, NoErrorMode)
       scopedWithCapability(nestedOx) {
         nestedOx.herd.startThread {
+          currentForkLocalMap.set(locals) // propagating the locals map
           // "else" means that the fork is already cancelled, so doing nothing in that case
           if !started.getAndSet(true) then
             try result.complete(f).discard
