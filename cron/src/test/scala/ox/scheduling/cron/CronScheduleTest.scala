@@ -10,7 +10,7 @@ import ox.util.ElapsedTime
 class CronScheduleTest extends AnyFlatSpec with Matchers with ElapsedTime:
   behavior of "repeat with cron schedule"
 
-  it should "repeat a function every second" in {
+  it should "repeat a function every second (once)" in {
     // given
     val cronExpr = Cron.unsafeParse("* * * ? * *") // every second
     val cronSchedule = CronSchedule.fromCronExpr(cronExpr)
@@ -30,6 +30,27 @@ class CronScheduleTest extends AnyFlatSpec with Matchers with ElapsedTime:
     elapsedTime.toMillis should be < 2200L // Run 2 times, so at most 2 secs - 200ms for tolerance
   }
 
+  it should "repeat a function every second (three times)" in {
+    // given
+    val cronExpr = Cron.unsafeParse("* * * ? * *") // every second
+    val cronSchedule = CronSchedule.fromCronExpr(cronExpr)
+
+    var counter = 0
+
+    def f =
+      if counter > 2 then throw new RuntimeException("boom")
+      else counter += 1
+
+    // when
+    val (ex, elapsedTime) = measure(the[RuntimeException] thrownBy repeat(RepeatConfig(cronSchedule))(f))
+
+    // then
+    ex.getMessage shouldBe "boom"
+    counter shouldBe 3
+    elapsedTime.toMillis should be >= 2000L
+    elapsedTime.toMillis should be < 4200L // Run 4 times, so at most 4 secs - 200ms for tolerance
+  }
+
   it should "provide initial delay" in {
     // give
     val cronExpr = Cron.unsafeParse("* * * ? * *") // every second
@@ -44,6 +65,6 @@ class CronScheduleTest extends AnyFlatSpec with Matchers with ElapsedTime:
     // then
     ex.getMessage shouldBe "boom"
     elapsedTime.toMillis should be < 1200L // Run 1 time, so at most 1 sec - 200ms for tolerance
-    elapsedTime.toMillis should be > 0L
+    elapsedTime.toMillis should be >= 0L
   }
 end CronScheduleTest

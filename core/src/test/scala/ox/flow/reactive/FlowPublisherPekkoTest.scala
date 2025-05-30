@@ -9,7 +9,6 @@ import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 import ox.*
 import ox.flow.Flow
-import ox.useInScope
 
 import scala.concurrent.duration.DurationInt
 

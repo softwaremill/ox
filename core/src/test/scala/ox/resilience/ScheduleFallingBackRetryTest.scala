@@ -10,7 +10,7 @@ import scala.concurrent.duration.*
 class ScheduleFallingBackRetryTest extends AnyFlatSpec with Matchers with ElapsedTime:
   behavior of "retry with combination of schedules"
 
-  it should "retry 3 times immediately and then 2 times with delay" in {
+  it should "retry 3 times immediately and then 2 times with delay" in:
     // given
     var counter = 0
     val sleep = 100.millis
@@ -21,7 +21,7 @@ class ScheduleFallingBackRetryTest extends AnyFlatSpec with Matchers with Elapse
       counter += 1
       throw new RuntimeException("boom")
 
-    val schedule = Schedule.Immediate(immediateRetries).andThen(Schedule.Fixed(delayedRetries, sleep))
+    val schedule = Schedule.immediate.maxRepeats(immediateRetries).andThen(Schedule.fixedInterval(sleep).maxRepeats(delayedRetries))
 
     // when
     val (result, elapsedTime) = measure(the[RuntimeException] thrownBy retry(RetryConfig(schedule))(f))
@@ -30,9 +30,8 @@ class ScheduleFallingBackRetryTest extends AnyFlatSpec with Matchers with Elapse
     result should have message "boom"
     counter shouldBe immediateRetries + delayedRetries + 1
     elapsedTime.toMillis should be >= 2 * sleep.toMillis
-  }
 
-  it should "retry forever" in {
+  it should "retry forever" in:
     // given
     var counter = 0
     val retriesUntilSuccess = 1_000
@@ -42,7 +41,7 @@ class ScheduleFallingBackRetryTest extends AnyFlatSpec with Matchers with Elapse
       counter += 1
       if counter <= retriesUntilSuccess then throw new RuntimeException("boom") else successfulResult
 
-    val schedule = Schedule.Immediate(100).andThen(Schedule.Fixed.forever(2.millis))
+    val schedule = Schedule.immediate.maxRepeats(100).andThen(Schedule.fixedInterval(2.millis))
 
     // when
     val result = retry(RetryConfig(schedule))(f)
@@ -50,5 +49,4 @@ class ScheduleFallingBackRetryTest extends AnyFlatSpec with Matchers with Elapse
     // then
     result shouldBe successfulResult
     counter shouldBe retriesUntilSuccess + 1
-  }
 end ScheduleFallingBackRetryTest

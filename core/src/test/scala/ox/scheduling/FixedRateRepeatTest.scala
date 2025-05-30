@@ -12,7 +12,7 @@ class FixedRateRepeatTest extends AnyFlatSpec with Matchers with EitherValues wi
 
   behavior of "repeat"
 
-  it should "repeat a function at fixed rate" in {
+  it should "repeat a function at fixed rate" in:
     // given
     val repeats = 3
     val funcSleepTime = 30.millis
@@ -24,16 +24,15 @@ class FixedRateRepeatTest extends AnyFlatSpec with Matchers with EitherValues wi
       counter
 
     // when
-    val (result, elapsedTime) = measure(repeat(RepeatConfig.fixedRate(repeats, interval))(f))
+    val (result, elapsedTime) = measure(repeat(Schedule.fixedInterval(interval).maxRepeats(repeats))(f))
 
     // then
     elapsedTime.toMillis should be >= 3 * interval.toMillis + funcSleepTime.toMillis - 5 // tolerance
     elapsedTime.toMillis should be < 4 * interval.toMillis
     result shouldBe 4
     counter shouldBe 4
-  }
 
-  it should "repeat a function at fixed rate with initial delay" in {
+  it should "repeat a function at fixed rate with initial delay" in:
     // given
     val repeats = 3
     val initialDelay = 50.millis
@@ -45,16 +44,15 @@ class FixedRateRepeatTest extends AnyFlatSpec with Matchers with EitherValues wi
       counter
 
     // when
-    val (result, elapsedTime) = measure(repeat(RepeatConfig.fixedRate(repeats, interval, Some(initialDelay)))(f))
+    val (result, elapsedTime) = measure(repeat(Schedule.fixedInterval(interval).maxRepeats(repeats).withInitialDelay(initialDelay))(f))
 
     // then
     elapsedTime.toMillis should be >= 3 * interval.toMillis + initialDelay.toMillis - 5 // tolerance
     elapsedTime.toMillis should be < 4 * interval.toMillis
     result shouldBe 4
     counter shouldBe 4
-  }
 
-  it should "repeat a function forever at fixed rate" in {
+  it should "repeat a function forever at fixed rate" in:
     // given
     val interval = 100.millis
     var counter = 0
@@ -65,16 +63,15 @@ class FixedRateRepeatTest extends AnyFlatSpec with Matchers with EitherValues wi
       counter
 
     // when
-    val (ex, elapsedTime) = measure(the[RuntimeException] thrownBy repeat(RepeatConfig.fixedRateForever(interval))(f))
+    val (ex, elapsedTime) = measure(the[RuntimeException] thrownBy repeat(Schedule.fixedInterval(interval))(f))
 
     // then
     elapsedTime.toMillis should be >= 3 * interval.toMillis - 5 // tolerance
     elapsedTime.toMillis should be < 4 * interval.toMillis
     ex.getMessage shouldBe "boom"
     counter shouldBe 4
-  }
 
-  it should "repeat a function forever at fixed rate with initial delay" in {
+  it should "repeat a function forever at fixed rate with initial delay" in:
     // given
     val initialDelay = 50.millis
     val interval = 100.millis
@@ -86,12 +83,12 @@ class FixedRateRepeatTest extends AnyFlatSpec with Matchers with EitherValues wi
       counter
 
     // when
-    val (ex, elapsedTime) = measure(the[RuntimeException] thrownBy repeat(RepeatConfig.fixedRateForever(interval, Some(initialDelay)))(f))
+    val (ex, elapsedTime) =
+      measure(the[RuntimeException] thrownBy repeat(Schedule.fixedInterval(interval).withInitialDelay(initialDelay))(f))
 
     // then
     elapsedTime.toMillis should be >= 3 * interval.toMillis + initialDelay.toMillis - 5 // tolerance
     elapsedTime.toMillis should be < 4 * interval.toMillis
     ex.getMessage shouldBe "boom"
     counter shouldBe 4
-  }
 end FixedRateRepeatTest

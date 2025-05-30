@@ -3,7 +3,7 @@
 Dependency:
 
 ```scala
-"com.softwaremill.ox" %% "mdc-logback" % "0.5.13"
+"com.softwaremill.ox" %% "mdc-logback" % "0.5.15"
 ```
 
 Ox provides support for setting inheritable MDC (mapped diagnostic context) values, when using the [Logback](https://logback.qos.ch)

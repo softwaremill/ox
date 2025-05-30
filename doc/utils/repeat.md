@@ -10,14 +10,15 @@ The basic syntax for `repeat` is:
 ```scala
 import ox.scheduling.repeat
 
-repeat(config)(operation)
+repeat(schedule)(operation)
 ```
 
 The `repeat` API uses `scheduled` underneath with DSL focused on repeats. See [scheduled](scheduled.md) for more details.
 
 ## Operation definition
 
-Similarly to the `retry` API, the `operation` can be defined: 
+Similarly to the [retry](retries.md) API, the `operation` can be defined: 
+
 * directly using a by-name parameter, i.e. `f: => T`
 * using a by-name `Either[E, T]`
 * or using an arbitrary [error mode](../basics/error-handling.md), accepting the computation in an `F` context: `f: => F[T]`.
@@ -34,17 +35,10 @@ If an operation returns an error, the repeat loop will always be stopped. If an 
 is needed, you can use a `retry` inside it (see an example below) or use `scheduled` instead of `repeat`, which allows
 full customization.
 
-### API shorthands
+This is captured as a `RepeatConfig` instance. For convenience, the `repeat` method accepts either a full `RepeatConfig`, 
+or just the `Schedule`. In the latter case, a default `RepeatConfig` is created, using the schedule.
 
-You can use one of the following shorthands to define a `RepeatConfig` with a given schedule with an optional initial delay:
-- `RepeatConfig.immediate(maxInvocations: Int, initialDelay: Option[FiniteDuration] = None)`
-- `RepeatConfig.immediateForever[E, T](initialDelay: Option[FiniteDuration] = None)`
-- `RepeatConfig.fixedRate[E, T](maxInvocations: Int, interval: FiniteDuration, initialDelay: Option[FiniteDuration] = None)`
-- `RepeatConfig.fixedRateForever[E, T](interval: FiniteDuration, initialDelay: Option[FiniteDuration] = None)`
-- `RepeatConfig.backoff[E, T](maxInvocations: Int, firstInterval: FiniteDuration, maxInterval: FiniteDuration = 1.minute, jitter: Jitter = Jitter.None, initialDelay: Option[FiniteDuration] = None)`
-- `RepeatConfig.backoffForever[E, T](firstInterval: FiniteDuration, maxInterval: FiniteDuration = 1.minute, jitter: Jitter = Jitter.None, initialDelay: Option[FiniteDuration] = None)`
-
-See [scheduled](scheduled.md) for details on how to create custom schedules.
+The [retry](retries.md) documentation includes an overview of the available ways to create and modify a `Schedule`.
 
 ## Examples
 
@@ -59,22 +53,25 @@ def eitherOperation: Either[String, Int] = ???
 def unionOperation: String | Int = ???
 
 // various operation definitions - same syntax
-repeat(RepeatConfig.immediate(3))(directOperation)
-repeatEither(RepeatConfig.immediate(3))(eitherOperation)
+repeat(Schedule.immediate.maxRepeats(3))(directOperation)
+repeatEither(Schedule.immediate.maxRepeats(3))(eitherOperation)
 
 // various schedules
-repeat(RepeatConfig.fixedRate(3, 100.millis))(directOperation)
-repeat(RepeatConfig.fixedRate(3, 100.millis, Some(50.millis)))(directOperation)
+repeat(Schedule.fixedInterval(100.millis).maxRepeats(3))(directOperation)
+repeat(Schedule.fixedInterval(100.millis).maxRepeats(3).withInitialDelay(50.millis))(
+  directOperation)
 
 // infinite repeats with a custom strategy
 def customStopStrategy: Int => Boolean = ???
-repeat(RepeatConfig.fixedRateForever(100.millis).copy(shouldContinueOnResult = customStopStrategy))(directOperation)
+repeat(RepeatConfig(Schedule.fixedInterval(100.millis))
+  .copy(shouldContinueOnResult = customStopStrategy))(directOperation)
 
 // custom error mode
-repeatWithErrorMode(UnionMode[String])(RepeatConfig.fixedRate(3, 100.millis))(unionOperation)
+repeatWithErrorMode(UnionMode[String])(Schedule.fixedInterval(100.millis).maxRepeats(3))(
+  unionOperation)
 
 // repeat with retry inside
-repeat(RepeatConfig.fixedRate(3, 100.millis)) {
-  retry(RetryConfig.backoff(3, 100.millis))(directOperation)
+repeat(Schedule.fixedInterval(100.millis).maxRepeats(3)) {
+  retry(Schedule.exponentialBackoff(100.millis).maxRepeats(3))(directOperation)
 }
 ```

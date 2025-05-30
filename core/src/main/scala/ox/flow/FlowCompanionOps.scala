@@ -139,7 +139,7 @@ trait FlowCompanionOps:
     sleep(timeout)
 
   /** Creates a flow which concatenates the given `flows` in order. First elements from the first flow are emitted, then from the second
-    * etc. If any of the flows compeltes with an error, is is propagated.
+    * etc. If any of the flows completes with an error, it is propagated.
     */
   def concat[T](flows: Seq[Flow[T]]): Flow[T] = usingEmitInline: emit =>
     flows.iterator.foreach: currentFlow =>

@@ -137,3 +137,11 @@ completed.
 
 By default, for each fork a new virtual thread is created using `Thread.ofVirtual().factory()`. This can be customized
 globally using `oxThreadFactory`.
+
+## Integrating structured concurrency with other libraries
+
+When integrating with libraries which manage their own threads, e.g. reactive libraries, it is sometimes necessary to
+be able to start forks from such library-managed threads. For this purpose, the `inScopeRunner` method can be used.
+
+A runner obtained from a scope-managed thread can be passed to other threads, and used to start forks within the
+concurrency scope, as long as it's not complete, from arbitrary threads.

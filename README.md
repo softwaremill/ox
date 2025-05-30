@@ -23,13 +23,13 @@ the project!
 To test Ox, use the following dependency, using either [sbt](https://www.scala-sbt.org):
 
 ```scala
-"com.softwaremill.ox" %% "core" % "0.5.13"
+"com.softwaremill.ox" %% "core" % "0.5.15"
 ```
 
 Or [scala-cli](https://scala-cli.virtuslab.org):
 
 ```scala
-//> using dep "com.softwaremill.ox::core:0.5.13"
+//> using dep "com.softwaremill.ox::core:0.5.15"
 ```
 
 Documentation is available at [https://ox.softwaremill.com](https://ox.softwaremill.com), ScalaDocs can be browsed at [https://javadoc.io](https://www.javadoc.io/doc/com.softwaremill.ox).
@@ -93,14 +93,15 @@ supervised {
 
 ```scala mdoc:compile-only
 def computationR: Int = ???
-retry(RetryConfig.backoff(3, 100.millis, 5.minutes, Jitter.Equal))(computationR)
+retry(Schedule.exponentialBackoff(100.millis).maxRepeats(5)
+  .jitter().maxInterval(5.minutes))(computationR)
 ```
 
 [Repeat](https://ox.softwaremill.com/latest/utils/repeat.html) a computation:
 
 ```scala mdoc:compile-only
 def computationR: Int = ???
-repeat(RepeatConfig.fixedRateForever(100.millis))(computationR)
+repeat(Schedule.fixedInterval(100.millis))(computationR)
 ```
 
 [Rate limit](https://ox.softwaremill.com/latest/utils/rate-limiter.html) computations:

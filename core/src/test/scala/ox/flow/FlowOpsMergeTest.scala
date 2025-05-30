@@ -26,12 +26,12 @@ class FlowOpsMergeTest extends AnyFlatSpec with Matchers:
     s.runToList().sorted shouldBe List(1, 2, 3, 4, 5, 6)
 
   it should "merge with a tick flow" in:
-    val c1 = Flow.tick(100.millis, 0).take(3)
-    val c2 = Flow.fromValues(0, 1, 2, 3)
+    val c1 = Flow.tick(200.millis, 0).take(2)
+    val c2 = Flow.tick(75.millis, 1).take(3)
 
-    val r = c1.merge(c2).runToList()
-    r should contain inOrder (0, 1, 2, 3)
-    r.takeRight(2) shouldBe List(0, 0)
+    val r = c1.merge(c2).runToList() // [0/1] - any order, then: 1, 1, 0, 1
+    r should contain inOrder (1, 0)
+    r should contain inOrder (0, 1)
 
   it should "propagate error from the left" in:
     val c1 = Flow.fromValues(1, 2, 3).concat(Flow.failed(new IllegalStateException))
