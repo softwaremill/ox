@@ -14,8 +14,8 @@ import ox.scheduling.SleepMode
   * @param resultPolicy
   *   A policy that allows to customize when a non-erroneous result is considered successful and when an error is worth retrying (which
   *   allows for failing fast on certain errors). See [[ResultPolicy]] for more details.
-  * @param onRetry
-  *   A function that is invoked after each retry attempt The callback receives the number of the current retry attempt (starting from 1)
+  * @param afterAttempt
+  *   A function that is invoked after each retry attempt. The callback receives the number of the current retry attempt (starting from 1)
   *   and the result of the operation that was attempted. The result is either a successful value or an error. The callback can be used to
   *   log information about the retry attempts, or to perform other side effects. It will always be invoked at least once (for a successful
   *   operation run). By default, the callback does nothing.
@@ -28,21 +28,21 @@ import ox.scheduling.SleepMode
 case class RetryConfig[E, T](
     schedule: Schedule,
     resultPolicy: ResultPolicy[E, T] = ResultPolicy.default[E, T],
-    onRetry: (Int, Either[E, T]) => Unit = (_: Int, _: Either[E, T]) => ()
+    afterAttempt: (Int, Either[E, T]) => Unit = (_: Int, _: Either[E, T]) => ()
 ):
   def schedule(newSchedule: Schedule): RetryConfig[E, T] = copy(schedule = newSchedule)
 
   def resultPolicy(newResultPolicy: ResultPolicy[E, T]): RetryConfig[E, T] = copy(resultPolicy = newResultPolicy)
 
-  def onRetry(newOnRetry: (Int, Either[E, T]) => Unit): RetryConfig[E, T] = copy(onRetry = newOnRetry)
+  def afterAttempt(newAfterAttempt: (Int, Either[E, T]) => Unit): RetryConfig[E, T] = copy(afterAttempt = newAfterAttempt)
 
   def toScheduledConfig: ScheduledConfig[E, T] =
-    val afterAttempt: (Int, Either[E, T]) => ScheduleStop = (attemptNum, attempt) =>
-      onRetry(attemptNum, attempt)
+    val _afterAttempt: (Int, Either[E, T]) => ScheduleStop = (attemptNum, attempt) =>
+      afterAttempt(attemptNum, attempt)
       attempt match
         case Left(value)  => ScheduleStop(!resultPolicy.isWorthRetrying(value))
         case Right(value) => ScheduleStop(resultPolicy.isSuccess(value))
 
-    ScheduledConfig(schedule, afterAttempt, SleepMode.EndToStart)
+    ScheduledConfig(schedule, _afterAttempt, SleepMode.EndToStart)
   end toScheduledConfig
 end RetryConfig
