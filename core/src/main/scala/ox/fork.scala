@@ -15,7 +15,7 @@ import scala.util.control.NonFatal
   * [[forkUser]]) complete successfully, the scope will end, cancelling all running forks (including this one, if it's still running). That
   * is, successful completion of this fork isn't required to end the scope.
   *
-  * An exception thrown while evaluating `t` will cause the fork to fail and the enclosing scope to end (cancelling all other running
+  * An exception thrown while evaluating `f` will cause the fork to fail and the enclosing scope to end (cancelling all other running
   * forks).
   *
   * For alternate behaviors regarding ending the scope, see [[forkUser]], [[forkError]], [[forkUserError]], [[forkCancellable]] and
@@ -67,7 +67,7 @@ end forkError
   * The fork behaves as a user-level thread. That is, the scope won't end until the body of the scope, and all other user forks (including
   * this one) complete successfully. That is, successful completion of this fork is required to end the scope.
   *
-  * An exception thrown while evaluating `t` will cause the enclosing scope to end (cancelling all other running forks).
+  * An exception thrown while evaluating `f` will cause the enclosing scope to end (cancelling all other running forks).
   *
   * For alternate behaviors, see [[fork]], [[forkError]], [[forkUserError]], [[forkCancellable]] and [[forkUnsupervised]].
   */
@@ -111,7 +111,7 @@ end forkUserError
 /** Starts a fork (logical thread of execution), which is guaranteed to complete before the enclosing [[supervised]], [[supervisedError]] or
   * [[unsupervised]] block completes.
   *
-  * In case an exception is thrown while evaluating `t`, it will be thrown when calling the returned [[UnsupervisedFork]]'s `.join()`
+  * In case an exception is thrown while evaluating `f`, it will be thrown when calling the returned [[UnsupervisedFork]]'s `.join()`
   * method.
   *
   * Success or failure isn't signalled to the enclosing scope, and doesn't influence the scope's lifecycle.
@@ -144,7 +144,7 @@ def forkAll[T](fs: Seq[() => T])(using Ox): Fork[Seq[T]] =
 /** Starts a fork (logical thread of execution), which is guaranteed to complete before the enclosing [[supervised]], [[supervisedError]] or
   * [[unsupervised]] block completes, and which can be cancelled on-demand.
   *
-  * In case an exception is thrown while evaluating `t`, it will be thrown when calling the returned [[Fork]]'s `.join()` method.
+  * In case an exception is thrown while evaluating `f`, it will be thrown when calling the returned [[Fork]]'s `.join()` method.
   *
   * The fork is unsupervised (similarly to [[forkUnsupervised]]), hence success or failure isn't signalled to the enclosing scope and
   * doesn't influence the scope's lifecycle.

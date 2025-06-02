@@ -23,6 +23,9 @@ import scala.reflect.ClassTag
   * (regardless if the exception was thrown from the main body, or from a fork). Any other exceptions that occur when completing the scope
   * are added as suppressed.
   *
+  * When using a supervised scope, the main thread is used for supervision, and the provided `f` code block is executed on a new fork
+  * (virtual thread).
+  *
   * @see
   *   [[unsupervised]] Starts a scope in unsupervised mode
   * @see
