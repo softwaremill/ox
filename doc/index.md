@@ -54,11 +54,11 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
    :caption: Streaming
 
    streaming/index
+   streaming/flows
+   streaming/io
    streaming/channels
    streaming/transforming-channels
    streaming/selecting-from-channels
-   streaming/flows
-   streaming/io
    streaming/errors
    streaming/backpressure
    
