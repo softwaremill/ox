@@ -73,4 +73,48 @@ class ForkTest extends AnyFlatSpec with Matchers:
 
     trail.get shouldBe Vector("main mid", "f1 complete", "result = 5", "f2 interrupted")
   }
+
+  it should "allow starting forks within a forkCancellable body, using the outer scope" in {
+    val trail = Trail()
+
+    supervised {
+      forkCancellable {
+        fork {
+          trail.add("in fork")
+        }
+      }.discard
+
+      sleep(100.millis)
+      trail.get shouldBe Vector("in fork")
+    }
+  }
+
+  it should "allow starting forks in outer scope, from an inner scope" in {
+    val trail = Trail()
+
+    supervised { ox ?=>
+      supervised {
+        fork {
+          trail.add("in fork")
+        }(using ox).join()
+      }
+    }
+
+    trail.get shouldBe Vector("in fork")
+  }
+
+  it should "not allow starting forks from a thread created not by the scope" in {
+    val trail = Trail()
+
+    supervised {
+      Thread
+        .startVirtualThread { () =>
+          try forkDiscard(trail.add("in fork"))
+          catch case e: Exception => trail.add(e.getClass().getSimpleName())
+        }
+        .join()
+    }
+
+    trail.get shouldBe Vector("IllegalStateException")
+  }
 end ForkTest

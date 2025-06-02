@@ -1,17 +1,20 @@
 package ox.internal
 
+import ox.OxUnsupervised
 import ox.discard
 
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ThreadFactory
 import java.util.concurrent.atomic.AtomicBoolean
+import scala.annotation.tailrec
 
 /** Until the structured concurrency JEP is stable in an LTS release, a replacement for `StructuredTaskScope`. Downside: does not integrate
-  * with scoped values. Upside: works with any Java 21+.
+  * with scoped values (instead, `ForkLocal` is based on a custom implementation as well). Upside: works with any Java 21+.
   *
   * Naming: `ThreadFlock` is part of the Structured Concurrency JEP; `ThreadGroup` is already part of the JDK. Hence, using "herd."
   */
 private[ox] class ThreadHerd(threadFactory: ThreadFactory):
+  // capturing the owner at construction time to later check if forks are started properly
   private val herdOwner = Thread.currentThread()
 
   private val shutdownInProgress = new AtomicBoolean(false)
@@ -19,7 +22,8 @@ private[ox] class ThreadHerd(threadFactory: ThreadFactory):
 
   def startThread(t: => Unit): Unit =
     assertNotShuttingDown()
-    assertOnOwnerOrHerdThread()
+
+    verifyCurrentThreadInScopeTree()
 
     val thread = threadFactory.newThread(() =>
       try t
@@ -65,14 +69,28 @@ private[ox] class ThreadHerd(threadFactory: ThreadFactory):
     if interruptedException != null then throw interruptedException
   end interruptAllAndJoinUntilCompleted
 
+  def isOwnerOrHerdThread(thread: Thread): Boolean = thread == herdOwner || threads.contains(thread)
+
   private def assertNotShuttingDown(): Unit =
     if shutdownInProgress.get() then
       throw new IllegalStateException("Scope is shutting down, cannot start new threads or join existing ones.")
 
-  private def assertOnOwnerOrHerdThread(): Unit =
-    val current = Thread.currentThread()
-    if current != herdOwner && !threads.contains(current) then
-      throw new IllegalStateException("Forks can only be started from threads that are part of the scope.")
+  /** Naming: verify, not assert, as this might be a user error, not a bug in Ox (which is what the other asserts assert). */
+  private def verifyCurrentThreadInScopeTree(): Unit =
+    val currentThread = Thread.currentThread()
+
+    @tailrec
+    def doAssert(scope: OxUnsupervised): Unit =
+      if scope.herd.isOwnerOrHerdThread(currentThread) then return
+      scope.parent match
+        case None              => throw new IllegalStateException("Fork cannot be started outside the tree of concurrency scopes.")
+        case Some(parentScope) => doAssert(parentScope)
+
+    currentScope.get() match
+      case null =>
+        throw new IllegalStateException("Forks can only be started inside a concurrency scope, or from other forks started in the scope.")
+      case scope => doAssert(scope)
+  end verifyCurrentThreadInScopeTree
 
   private def assertOnOwnerThread(): Unit =
     val current = Thread.currentThread()
