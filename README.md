@@ -89,7 +89,7 @@ supervised {
 // the scope ends & re-throws only when all forks complete (no "leftovers")
 ```
 
-[Retry](https://ox.softwaremill.com/latest/utils/retries.html) a computation:
+[Retry](https://ox.softwaremill.com/latest/scheduling/retries.html) a computation:
 
 ```scala mdoc:compile-only
 def computationR: Int = ???
@@ -97,14 +97,14 @@ retry(Schedule.exponentialBackoff(100.millis).maxRepeats(5)
   .jitter().maxInterval(5.minutes))(computationR)
 ```
 
-[Repeat](https://ox.softwaremill.com/latest/utils/repeat.html) a computation:
+[Repeat](https://ox.softwaremill.com/latest/scheduling/repeat.html) a computation:
 
 ```scala mdoc:compile-only
 def computationR: Int = ???
 repeat(Schedule.fixedInterval(100.millis))(computationR)
 ```
 
-[Rate limit](https://ox.softwaremill.com/latest/utils/rate-limiter.html) computations:
+[Rate limit](https://ox.softwaremill.com/latest/scheduling/rate-limiter.html) computations:
 
 ```scala mdoc:compile-only
 supervised:

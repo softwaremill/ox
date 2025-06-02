@@ -8,7 +8,7 @@ Dependency:
 
 This module allows to run schedules based on cron expressions from [cron4s](https://github.com/alonsodomin/cron4s).
 
-`CronSchedule` can be used in all places that requires `Schedule` especially in [repeat](../utils/repeat.md) scenarios.
+`CronSchedule` can be used in all places that requires `Schedule` especially in [repeat](../scheduling/repeat.md) scenarios.
 
 For defining `CronExpr` see [cron4s documentation](https://www.alonsodomin.me/cron4s/userguide/index.html).
 
