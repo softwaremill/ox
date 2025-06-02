@@ -30,3 +30,8 @@ The `scheduled` config consists of:
 ## Schedule
 
 See the [retry](retries.md) documentation for an overview of the available ways to create and modify a `Schedule`.
+
+### Testing schedules
+
+Schedules can be tested by forcing the evaluation of `Schedule.intervals` and inspecting the resulting lazy list
+of intervals.
