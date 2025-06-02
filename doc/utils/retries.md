@@ -32,8 +32,9 @@ Retries can be configured using a `RetryConfig` instance, which consists of thre
     - a non-erroneous outcome of the `operation` should be considered a success (if not, the `operation` would be
       retried),
     - an erroneous outcome of the `operation` should be retried or fail fast.
-- a `onRetry`, which is a callback function that is invoked after each attempt to execute the operation. It is used to
-  perform any necessary actions or checks after each attempt, regardless of whether the attempt was successful or not.
+- a `afterAttempt`, which is a callback function that is invoked after each attempt to execute the operation. It is 
+  used to perform any necessary actions or checks after each attempt, regardless of whether the attempt was successful 
+  or not.
 
 For convenience, the `retry` method accepts either a full `RetryConfig`, or just the `Schedule`. In the latter case, a
 default `RetryConfig` is created, using the schedule.

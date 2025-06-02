@@ -70,7 +70,7 @@ case class AdaptiveRetry(
   )(operation: => F[T]): F[T] =
 
     val afterAttempt: (Int, Either[E, T]) => ScheduleStop = (attemptNum, attempt) =>
-      config.onRetry(attemptNum, attempt)
+      config.afterAttempt(attemptNum, attempt)
       attempt match
         case Left(value) =>
           // If we want to retry we try to acquire tokens from bucket
