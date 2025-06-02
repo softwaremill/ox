@@ -24,9 +24,14 @@ The `scheduled` config consists of:
     minus the duration of the last operation (can be negative, in which case the next operation occurs immediately).
   - `Delay` - default for `retry` operations, where the sleep is just the duration provided by schedule.
 - `afterAttempt` - a callback function that is invoked after each operation and determines if the scheduler loop 
-  should continue. Used for `afterAttempt`, `shouldContinueOnError`, `shouldContinueOnResult` and adaptive retries in 
+  should continue. Used for `onRetry`, `shouldContinueOnError`, `shouldContinueOnResult` and adaptive retries in 
   `retry` API. Defaults to always continuing.
 
 ## Schedule
 
 See the [retry](retries.md) documentation for an overview of the available ways to create and modify a `Schedule`.
+
+### Testing schedules
+
+Schedules can be tested by forcing the evaluation of `Schedule.intervals` and inspecting the resulting lazy list
+of intervals.

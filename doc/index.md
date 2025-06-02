@@ -54,23 +54,28 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
    :caption: Streaming
 
    streaming/index
+   streaming/flows
+   streaming/io
    streaming/channels
    streaming/transforming-channels
    streaming/selecting-from-channels
-   streaming/flows
-   streaming/io
    streaming/errors
    streaming/backpressure
    
 .. toctree::
    :maxdepth: 2   
+   :caption: Scheduling
+
+   scheduling/retries
+   scheduling/repeat
+   scheduling/scheduled
+
+.. toctree::
+   :maxdepth: 2   
    :caption: Resiliency & utilities
    
    utils/oxapp
-   utils/retries
    utils/rate-limiter
-   utils/repeat
-   utils/scheduled
    utils/resources
    utils/control-flow
    utils/actors

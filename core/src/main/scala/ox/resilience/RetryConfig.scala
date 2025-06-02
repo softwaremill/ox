@@ -7,7 +7,10 @@ import ox.scheduling.SleepMode
 
 /** A config that defines how to retry failing operations.
   *
-  * It is a special case of [[ScheduledConfig]] with [[ScheduledConfig.sleepMode]] always set to [[SleepMode.Delay]]
+  * [[Schedule]] provides the interval between subsequent invocations, which guarantees that the next operation will start no sooner than
+  * the specified duration after the previous operations has finished.
+  *
+  * It is a special case of [[ScheduledConfig]] with [[ScheduledConfig.sleepMode]] always set to [[SleepMode.EndToStart]]
   *
   * @param schedule
   *   The schedule which determines the intervals between invocations and number of attempts to execute the operation.
