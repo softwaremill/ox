@@ -6,15 +6,39 @@ on:
     branches: [ master ]
     tags: [ v* ]
 jobs:
-  build:
-    uses: softwaremill/github-actions-workflows/.github/workflows/build-scala.yml@main
-    with:
-      java-version: '21'
-      compile-documentation: true
+  ci:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        java: [ "21", "24" ]
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Set up JDK
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: ${{ matrix.java }}
+        cache: 'sbt'
+    - uses: sbt/setup-sbt@v1
+    - name: Check formatting
+      run: sbt -v scalafmtCheckAll
+    - name: Compile
+      run: sbt -v compile
+    - name: Compile documentation
+      run: sbt -v compileDocumentation
+    - name: Test
+      run: sbt -v test
+    - uses: actions/upload-artifact@v4  # upload test results
+      if: success() || failure()        # run this step even if previous step failed
+      with:
+        name: 'tests-results-java-${{ matrix.java }}'
+        path: '**/test-reports/TEST*.xml'
 
   publish:
     uses: softwaremill/github-actions-workflows/.github/workflows/publish-release.yml@main
-    needs: [build]
+    needs: [ci]
     if: github.event_name != 'pull_request' && (startsWith(github.ref, 'refs/tags/v'))
     secrets: inherit
     with:
@@ -28,5 +52,5 @@ jobs:
   auto-merge:
     # only for PRs by softwaremill-ci
     if: github.event.pull_request.user.login == 'softwaremill-ci'
-    needs: [ build, label ]
+    needs: [ ci, label ]
     uses: softwaremill/github-actions-workflows/.github/workflows/auto-merge.yml@main

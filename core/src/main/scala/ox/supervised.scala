@@ -1,7 +1,11 @@
 package ox
 
+import ox.internal.currentLocals
+import ox.internal.currentScope
+
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.{CompletableFuture, ConcurrentHashMap}
 import scala.reflect.ClassTag
 
 /** Starts a new concurrency scope, which allows starting forks in the given code block `f`. Forks can be started using [[fork]],
@@ -36,9 +40,11 @@ def supervised[T](f: Ox ?=> T): T = supervisedError(NoErrorMode)(f)
   * @see
   *   [[forkError]] On details how to use application errors.
   */
-def supervisedError[E, F[_], T](em: ErrorMode[E, F])(f: OxError[E, F] ?=> F[T]): F[T] =
+def supervisedError[E, F[_], T](em: ErrorMode[E, F])(f: OxError[E, F] ?=> F[T]): F[T] = supervisedError(em, currentLocals)(f)
+
+private[ox] def supervisedError[E, F[_], T](em: ErrorMode[E, F], locals: ForkLocalMap)(f: OxError[E, F] ?=> F[T]): F[T] =
   val s = DefaultSupervisor[E]
-  val capability = OxError(s, em)
+  val capability = OxError(s, em, Option(currentScope.get()), locals)
   try
     val scopeResult = scopedWithCapability(capability) {
       val mainBodyFork = forkUserError(using capability)(f(using capability))

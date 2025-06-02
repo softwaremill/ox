@@ -4,7 +4,7 @@ import ch.qos.logback.classic.LoggerContext
 import ch.qos.logback.classic.spi.LogbackServiceProvider
 import org.slf4j.spi.{MDCAdapter, SLF4JServiceProvider}
 import org.slf4j.{ILoggerFactory, IMarkerFactory, Logger, LoggerFactory, MDC}
-import ox.{ErrorMode, ForkLocal, Ox, OxError, OxUnsupervised, pipe, tap}
+import ox.{ErrorMode, ForkLocal, Ox, OxError, pipe, tap}
 
 /** Provides support for MDC which is inheritable across (virtual) threads. Only MDC values set using the [[where]] method will be
   * inherited; this method also defines the scope, within which the provided MDC values are available.
@@ -53,13 +53,9 @@ object InheritableMDC:
     end match
   end init
 
-  /** Set the given MDC key-value mappings as passed in `kvs`, for the duration of evaluating `f`. The values will be available for any
-    * forks created within `f`.
-    *
-    * @see
-    *   Usage notes on [[ForkLocal.unsupervisedWhere()]].
-    */
-  def unsupervisedWhere[T](kvs: (String, String)*)(f: OxUnsupervised ?=> T): T = currentContext.unsupervisedWhere(adapterWith(kvs*))(f)
+  // No `unsupervisedWhere`: the unsupervised scope doesn't start a new thread, hence we cannot use the thread-local-based propagation
+  // mechanism, as it would change the value in a too wide scope. When the implementation is once again ScopedValue-based, this method
+  // can be re-introduced.
 
   /** Set the given MDC key-value mappings as passed in `kvs`, for the duration of evaluating `f`. The values will be available for any
     * forks created within `f`.

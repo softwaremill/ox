@@ -2,11 +2,11 @@ package ox
 
 import ox.channels.Actor
 import ox.channels.ActorRef
+import ox.channels.BufferCapacity
+import ox.internal.ThreadHerd
 
-import java.util.concurrent.StructuredTaskScope
 import java.util.concurrent.atomic.AtomicReference
 import scala.annotation.implicitNotFound
-import ox.channels.BufferCapacity
 
 /** Capability granted by an [[unsupervised]] concurrency scope (as well as, via subtyping, by [[supervised]] and [[supervisedError]]).
   *
@@ -22,10 +22,12 @@ import ox.channels.BufferCapacity
   "This operation must be run within a `supervised`, `supervisedError` or `unsupervised` block. Alternatively, you must require that the enclosing method is run within a scope, by adding a `using OxUnsupervised` parameter list."
 )
 trait OxUnsupervised:
-  private[ox] def scope: StructuredTaskScope[Any]
+  private[ox] def herd: ThreadHerd
   private[ox] def finalizers: AtomicReference[List[() => Unit]]
   private[ox] def supervisor: Supervisor[Nothing]
   private[ox] def addFinalizer(f: () => Unit): Unit = finalizers.updateAndGet(f :: _).discard
+  private[ox] def parent: Option[OxUnsupervised]
+  private[ox] def locals: ForkLocalMap
 end OxUnsupervised
 
 /** Capability granted by an [[supervised]] or [[supervisedError]] concurrency scope.
@@ -68,16 +70,18 @@ private[ox] trait RunInScope:
   "This operation must be run within a `supervisedError` block. Alternatively, you must require that the enclosing method is run within a scope, by adding a `using OxError[E, F]` parameter list, using the desired error mode type parameters."
 )
 case class OxError[E, F[_]](
-    private[ox] val scope: StructuredTaskScope[Any],
+    private[ox] val herd: ThreadHerd,
     private[ox] val finalizers: AtomicReference[List[() => Unit]],
     private[ox] val supervisor: Supervisor[E],
-    private[ox] val errorMode: ErrorMode[E, F]
+    private[ox] val errorMode: ErrorMode[E, F],
+    private[ox] val parent: Option[OxUnsupervised],
+    private[ox] val locals: ForkLocalMap
 ) extends Ox:
   override private[ox] def asNoErrorMode: OxError[Nothing, [T] =>> T] =
     if errorMode == NoErrorMode then this.asInstanceOf[OxError[Nothing, [T] =>> T]]
-    else OxError(scope, finalizers, supervisor, NoErrorMode)
+    else OxError(herd, finalizers, supervisor, NoErrorMode, parent, locals)
 end OxError
 
 object OxError:
-  def apply[E, F[_]](s: Supervisor[E], em: ErrorMode[E, F]): OxError[E, F] =
-    OxError(DoNothingScope[Any](oxThreadFactory), new AtomicReference(Nil), s, em)
+  def apply[E, F[_]](s: Supervisor[E], em: ErrorMode[E, F], parent: Option[OxUnsupervised], locals: ForkLocalMap): OxError[E, F] =
+    OxError(ThreadHerd(oxThreadFactory), new AtomicReference(Nil), s, em, parent, locals)

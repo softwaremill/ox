@@ -45,7 +45,7 @@ object Broadcast:
     )
   }
 
-  def consume(connector: QueueConnector, inbox: BlockingQueue[BroadcastMessage]): Unit =
+  private def consume(connector: QueueConnector, inbox: BlockingQueue[BroadcastMessage]): Unit =
     val connect: RemoteQueue =
       logger.info("[queue-start] connecting")
       val q = connector.connect
