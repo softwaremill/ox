@@ -52,21 +52,22 @@ supervised {
 }
 ```
 
-[Retry](utils/retries.md) a computation:
+[Retry](scheduling/retries.md) a computation:
 
 ```scala
 def computationR: Int = ???
-retry(RetryConfig.backoff(3, 100.millis, 5.minutes, Jitter.Equal))(computationR)
+retry(Schedule.exponentialBackoff(100.millis).maxRepeats(5)
+  .jitter().maxInterval(5.minutes))(computationR)
 ```
 
-[Repeat](utils/repeat.md) a computation:
+[Repeat](scheduling/repeat.md) a computation:
 
 ```scala
 def computationR: Int = ???
-repeat(RepeatConfig.fixedRateForever(100.millis))(computationR)
+repeat(Schedule.fixedInterval(100.millis))(computationR)
 ```
 
-[Rate limit](utils/rate-limiter.md) computations:
+[Rate limit](scheduling/rate-limiter.md) computations:
 
 ```scala
 supervised:

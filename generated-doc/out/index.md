@@ -2,7 +2,7 @@
 
 Safe direct-style concurrency and resiliency for Scala on the JVM. Requires JDK 21 & Scala 3.
 
-To start using Ox, add the `com.softwaremill.ox::core:0.5.15` [dependency](info/dependency.md) to your project. 
+To start using Ox, add the `com.softwaremill.ox::core:0.6.0` [dependency](info/dependency.md) to your project. 
 Then, take a look at the tour of Ox, or follow one of the topics listed in the menu to get to know Ox's API!
 
 In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.io](https://www.javadoc.io/doc/com.softwaremill.ox).
@@ -55,23 +55,28 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
    :caption: Streaming
 
    streaming/index
+   streaming/flows
+   streaming/io
    streaming/channels
    streaming/transforming-channels
    streaming/selecting-from-channels
-   streaming/flows
-   streaming/io
    streaming/errors
    streaming/backpressure
    
 .. toctree::
    :maxdepth: 2   
+   :caption: Scheduling
+
+   scheduling/retries
+   scheduling/repeat
+   scheduling/scheduled
+
+.. toctree::
+   :maxdepth: 2   
    :caption: Resiliency & utilities
    
    utils/oxapp
-   utils/retries
    utils/rate-limiter
-   utils/repeat
-   utils/scheduled
    utils/resources
    utils/control-flow
    utils/actors
@@ -91,6 +96,7 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
    :maxdepth: 2
    :caption: Other topics
    
+   other/stability
    other/links
    other/dictionary
    other/best-practices

@@ -97,6 +97,9 @@ supervised {
 // doesn't print "Hello", instead throws "boom!"
 ```
 
+When using a supervised scope, the main thread is used for supervision, and the provided code block is executed on
+a new fork (virtual thread).
+
 ## User, daemon and unsupervised forks
 
 Forks created using `fork` behave as daemon threads. That is, their failure ends the scope, but the scope will also end 

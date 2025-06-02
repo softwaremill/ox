@@ -128,8 +128,9 @@ This can be the case with many very fast operations.
 
 ```scala
 import ox.UnionMode
-import ox.supervised
 import ox.resilience.*
+import ox.scheduling.Schedule
+import ox.supervised
 import scala.concurrent.duration.*
 
 def directOperation: Int = ???
@@ -147,7 +148,7 @@ supervised:
   circuitBreaker.runOrDropWithErrorMode(UnionMode[String])(unionOperation)
 
   // retry with circuit breaker inside
-  retryEither(RetryConfig.backoff(3, 100.millis)){
+  retryEither(Schedule.exponentialBackoff(100.millis).maxRepeats(3)){
     circuitBreaker.runOrDrop(directOperation) match
       case Some(value) => Right(value)
       case None => Left("Operation dropped")

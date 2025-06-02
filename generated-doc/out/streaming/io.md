@@ -1,4 +1,4 @@
-# Files and I/O
+# Flows: files and I/O
 
 Ox allows creating a `Flow` which reads from a file or `InputStream`, as well as running a flow into a file or an `OutputStream`. The latter methods are available for `Flow[Chunk[Byte]]`. Ox takes care of closing files/streams after processing and on errors.
 

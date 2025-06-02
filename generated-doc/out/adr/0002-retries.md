@@ -4,7 +4,7 @@ Date: 2023-11-30
 
 ## Context
 
-How should the [retries API](../utils/retries.md) be implemented in terms of:
+How should the [retries API](../scheduling/retries.md) be implemented in terms of:
 - developer friendliness,
 - supported ways of representing the operation under retry,
 - possibly infinite retries.
