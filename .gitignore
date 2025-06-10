@@ -17,6 +17,7 @@ project/plugins/project/
 .metals
 .vscode
 .bloop
+.cursor
 metals.sbt
 
 /notes.md
