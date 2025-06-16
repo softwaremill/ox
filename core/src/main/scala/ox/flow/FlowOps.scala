@@ -813,6 +813,8 @@ class FlowOps[+T]:
       last.run(FlowEmit.fromInline(t => buffer = buffer :+ t))
       if buffer.nonEmpty then emit(buffer)
     else
+      val delimiterAsVector = delimiter.toVector
+
       var buffer = Vector.empty[T]
       var delimiterBuffer = Vector.empty[T] // Buffer to track potential delimiter matches
 
@@ -834,17 +836,9 @@ class FlowOps[+T]:
             case _ => // Should never happen since length > delimiter.length
         // Check if delimiter buffer exactly matches the delimiter
         if delimiterBuffer.length == delimiter.length then
-          val delimiterMatch: List[U] = delimiterBuffer.toList.asInstanceOf[List[U]]
-          if delimiterMatch == delimiter then
+          if delimiterBuffer == delimiterAsVector then
             // Found complete delimiter - emit buffer and reset
             emitBufferAndReset()
-          else
-            // No match - move the head element to buffer and continue
-            delimiterBuffer match
-              case head +: tail =>
-                buffer = buffer :+ head
-                delimiterBuffer = tail
-              case _ => // Should never happen since length == delimiter.length > 0
           end if
         end if
       end processElement
