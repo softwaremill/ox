@@ -798,6 +798,54 @@ class FlowOps[+T]:
     if buffer.nonEmpty then emit(buffer)
   end split
 
+  /** Breaks the input into chunks delimited by the given sequence of elements. The delimiter sequence does not appear in the output. Two
+    * adjacent delimiter sequences in the input result in an empty chunk in the output.
+    *
+    * @param delimiter
+    *   A sequence of elements that serves as a delimiter. If empty, the entire input is returned as a single chunk.
+    * @example
+    *   {{{scala> Flow.fromValues(1, 2, 0, 0, 3, 4, 0, 0, 5).splitOn(List(0, 0)).runToList() res0: List[Seq[Int]] = List(Seq(1, 2), Seq(3, 4), Seq(5))}}}
+    */
+  def splitOn[U >: T](delimiter: List[U]): Flow[Seq[T]] = Flow.usingEmitInline: emit =>
+    if delimiter.isEmpty then
+      // Empty delimiter means no splitting - emit entire input as single chunk
+      var buffer = Vector.empty[T]
+      last.run(FlowEmit.fromInline(t => buffer = buffer :+ t))
+      if buffer.nonEmpty then emit(buffer)
+    else
+      var buffer = Vector.empty[T]
+      var delimiterBuffer = Vector.empty[T] // Buffer to track potential delimiter matches
+
+      def emitBufferAndReset(): Unit =
+        emit(buffer)
+        buffer = Vector.empty
+        delimiterBuffer = Vector.empty
+
+      def processElement(element: T): Unit =
+        // Add element to delimiter buffer
+        delimiterBuffer = delimiterBuffer :+ element
+
+        // Check if we have a complete delimiter match
+        if delimiterBuffer.length >= delimiter.length then
+          val lastN: List[U] = delimiterBuffer.takeRight(delimiter.length).toList.asInstanceOf[List[U]]
+          if lastN == delimiter then
+            // Found complete delimiter - emit buffer and reset
+            emitBufferAndReset()
+          else
+            // No complete match - add the oldest element to buffer and remove it from delimiter buffer
+            buffer = buffer :+ delimiterBuffer.head
+            delimiterBuffer = delimiterBuffer.tail
+        end if
+      end processElement
+
+      last.run(FlowEmit.fromInline(processElement))
+
+      // Handle remaining elements in delimiter buffer
+      buffer = buffer ++ delimiterBuffer
+      if buffer.nonEmpty then emit(buffer)
+    end if
+  end splitOn
+
   /** Attaches the given [[ox.channels.Sink]] to this flow, meaning elements that pass through will also be sent to the sink. If emitting an
     * element, or sending to the `other` sink blocks, no elements will be processed until both are done. The elements are first emitted by
     * the flow and then, only if that was successful, to the `other` sink.
