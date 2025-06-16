@@ -3,6 +3,8 @@ package ox.channels
 import com.softwaremill.jox.Select as JSelect
 
 import ox.channels.ChannelClosedUnion.{map, orThrow}
+import ox.{discard, forkUnsupervised, sleep, unsupervised}
+import scala.concurrent.duration.FiniteDuration
 
 /** @see [[selectOrClosed(List[SelectClause])]]. */
 def selectOrClosed(clause1: SelectClause[?], clause2: SelectClause[?]): clause1.Result | clause2.Result | ChannelClosed =
@@ -227,3 +229,217 @@ def select[T1, T2, T3, T4, T5](
   */
 def select[T](sources: Seq[Source[T]])(using DummyImplicit): T | ChannelClosed =
   selectOrClosed(sources).orThrow
+
+//
+
+/** @see [[selectOrClosedWithin(FiniteDuration, TimeoutValue)(Seq[SelectClause])]]. */
+def selectOrClosedWithin[TV](
+    timeout: FiniteDuration,
+    timeoutValue: TV
+)(clause1: SelectClause[?]): TV | clause1.Result | ChannelClosed =
+  selectOrClosedWithin(timeout, timeoutValue)(List(clause1))
+    .asInstanceOf[TV | clause1.Result | ChannelClosed]
+
+/** @see [[selectOrClosedWithin(FiniteDuration, TimeoutValue)(Seq[SelectClause])]]. */
+def selectOrClosedWithin[TV](
+    timeout: FiniteDuration,
+    timeoutValue: TV
+)(clause1: SelectClause[?], clause2: SelectClause[?]): TV | clause1.Result | clause2.Result | ChannelClosed =
+  selectOrClosedWithin(timeout, timeoutValue)(List(clause1, clause2))
+    .asInstanceOf[TV | clause1.Result | clause2.Result | ChannelClosed]
+
+/** @see [[selectOrClosedWithin(FiniteDuration, TimeoutValue)(Seq[SelectClause])]]. */
+def selectOrClosedWithin[TV](
+    timeout: FiniteDuration,
+    timeoutValue: TV
+)(
+    clause1: SelectClause[?],
+    clause2: SelectClause[?],
+    clause3: SelectClause[?]
+): TV | clause1.Result | clause2.Result | clause3.Result | ChannelClosed =
+  selectOrClosedWithin(timeout, timeoutValue)(List(clause1, clause2, clause3))
+    .asInstanceOf[TV | clause1.Result | clause2.Result | clause3.Result | ChannelClosed]
+
+/** @see [[selectOrClosedWithin(FiniteDuration, TimeoutValue)(Seq[SelectClause])]]. */
+def selectOrClosedWithin[TV](
+    timeout: FiniteDuration,
+    timeoutValue: TV
+)(
+    clause1: SelectClause[?],
+    clause2: SelectClause[?],
+    clause3: SelectClause[?],
+    clause4: SelectClause[?]
+): TV | clause1.Result | clause2.Result | clause3.Result | clause4.Result | ChannelClosed =
+  selectOrClosedWithin(timeout, timeoutValue)(List(clause1, clause2, clause3, clause4))
+    .asInstanceOf[TV | clause1.Result | clause2.Result | clause3.Result | clause4.Result | ChannelClosed]
+
+/** @see [[selectOrClosedWithin(FiniteDuration, TimeoutValue)(Seq[SelectClause])]]. */
+def selectOrClosedWithin[TV](
+    timeout: FiniteDuration,
+    timeoutValue: TV
+)(
+    clause1: SelectClause[?],
+    clause2: SelectClause[?],
+    clause3: SelectClause[?],
+    clause4: SelectClause[?],
+    clause5: SelectClause[?]
+): TV | clause1.Result | clause2.Result | clause3.Result | clause4.Result | clause5.Result | ChannelClosed =
+  selectOrClosedWithin(timeout, timeoutValue)(List(clause1, clause2, clause3, clause4, clause5)).asInstanceOf[
+    TV | clause1.Result | clause2.Result | clause3.Result | clause4.Result | clause5.Result | ChannelClosed
+  ]
+
+/** Select exactly one clause to complete within the given timeout. Each clause should be created for a different channel. Clauses can be
+  * created using [[Source.receiveClause]], [[Sink.sendClause]] and [[Default]].
+  *
+  * If any clause can be completed immediately, it is selected (no timeout is needed). If a couple of the clauses can be completed
+  * immediately, the select is biased towards the clauses that appear first.
+  *
+  * If no clauses are given, returns the timeout value immediately.
+  *
+  * The implementation creates a buffered channel of size 1, an [[unsupervised]] scope, and within that scope starts a fork that sends the
+  * timeout value to the channel after the specified timeout duration. The select then chooses from the provided clauses or the timeout
+  * channel.
+  *
+  * @param timeout
+  *   The maximum time to wait for any clause to complete
+  * @param timeoutValue
+  *   The value to return if the timeout is reached before any clause completes
+  * @param clauses
+  *   The clauses, from which one will be selected (or timeout will occur)
+  * @return
+  *   Either the timeout value, the result returned by the selected clause, or a [[ChannelClosed]] when any of the channels is closed (done
+  *   or in error).
+  */
+def selectOrClosedWithin[TV, T](
+    timeout: FiniteDuration,
+    timeoutValue: TV
+)(clauses: Seq[SelectClause[T]]): TV | SelectResult[T] | ChannelClosed =
+  if clauses.isEmpty then timeoutValue
+  else
+    unsupervised {
+      val timeoutChannel = Channel.withCapacity[Unit](1)
+
+      forkUnsupervised {
+        sleep(timeout)
+        timeoutChannel.sendOrClosed(()).discard
+      }.discard
+
+      val clausesWithTimeout = clauses :+ timeoutChannel.receiveClause
+
+      selectOrClosed(clausesWithTimeout) match
+        case timeoutChannel.Received(_)    => timeoutValue
+        case c: ChannelClosed              => c
+        case r: SelectResult[?] @unchecked => r.asInstanceOf[SelectResult[T]]
+      end match
+    }
+
+//
+
+/** @see [[selectOrClosedWithin(FiniteDuration, TimeoutValue)(Seq[Source])]]. */
+def selectOrClosedWithin[TV, T1](
+    timeout: FiniteDuration,
+    timeoutValue: TV
+)(source1: Source[T1]): TV | T1 | ChannelClosed =
+  selectOrClosedWithin(timeout, timeoutValue)(source1.receiveClause) match
+    case source1.Received(v) => v
+    case c: ChannelClosed    => c
+    case tv                  => timeoutValue
+
+/** @see [[selectOrClosedWithin(FiniteDuration, TimeoutValue)(Seq[Source])]]. */
+def selectOrClosedWithin[TV, T1, T2](
+    timeout: FiniteDuration,
+    timeoutValue: TV
+)(source1: Source[T1], source2: Source[T2]): TV | T1 | T2 | ChannelClosed =
+  selectOrClosedWithin(timeout, timeoutValue)(source1.receiveClause, source2.receiveClause) match
+    case source1.Received(v) => v
+    case source2.Received(v) => v
+    case c: ChannelClosed    => c
+    case tv                  => timeoutValue
+
+/** @see [[selectOrClosedWithin(FiniteDuration, TimeoutValue)(Seq[Source])]]. */
+def selectOrClosedWithin[TimeoutValue, T1, T2, T3](
+    timeout: FiniteDuration,
+    timeoutValue: TimeoutValue
+)(source1: Source[T1], source2: Source[T2], source3: Source[T3]): TimeoutValue | T1 | T2 | T3 | ChannelClosed =
+  selectOrClosedWithin(timeout, timeoutValue)(source1.receiveClause, source2.receiveClause, source3.receiveClause) match
+    case source1.Received(v) => v
+    case source2.Received(v) => v
+    case source3.Received(v) => v
+    case c: ChannelClosed    => c
+    case tv                  => timeoutValue
+
+/** @see [[selectOrClosedWithin(FiniteDuration, TimeoutValue)(Seq[Source])]]. */
+def selectOrClosedWithin[TV, T1, T2, T3, T4](
+    timeout: FiniteDuration,
+    timeoutValue: TV
+)(source1: Source[T1], source2: Source[T2], source3: Source[T3], source4: Source[T4]): TV | T1 | T2 | T3 | T4 | ChannelClosed =
+  selectOrClosedWithin(timeout, timeoutValue)(
+    source1.receiveClause,
+    source2.receiveClause,
+    source3.receiveClause,
+    source4.receiveClause
+  ) match
+    case source1.Received(v) => v
+    case source2.Received(v) => v
+    case source3.Received(v) => v
+    case source4.Received(v) => v
+    case c: ChannelClosed    => c
+    case tv                  => timeoutValue
+
+/** @see [[selectOrClosedWithin(FiniteDuration, TimeoutValue)(Seq[Source])]]. */
+def selectOrClosedWithin[TV, T1, T2, T3, T4, T5](
+    timeout: FiniteDuration,
+    timeoutValue: TV
+)(
+    source1: Source[T1],
+    source2: Source[T2],
+    source3: Source[T3],
+    source4: Source[T4],
+    source5: Source[T5]
+): TV | T1 | T2 | T3 | T4 | T5 | ChannelClosed =
+  selectOrClosedWithin(timeout, timeoutValue)(
+    source1.receiveClause,
+    source2.receiveClause,
+    source3.receiveClause,
+    source4.receiveClause,
+    source5.receiveClause
+  ) match
+    case source1.Received(v) => v
+    case source2.Received(v) => v
+    case source3.Received(v) => v
+    case source4.Received(v) => v
+    case source5.Received(v) => v
+    case c: ChannelClosed    => c
+    case tv                  => timeoutValue
+
+/** Select exactly one source from which to receive a value, within the given timeout. Sources should not repeat.
+  *
+  * If any source has a value that can be received immediately, it is selected (no timeout is needed). If a couple of the sources have
+  * values that can be received immediately, the select is biased towards the source that appears first.
+  *
+  * If no sources are given, returns the timeout value immediately.
+  *
+  * The implementation creates a buffered channel of size 1, an unsupervised scope, and within that scope starts a fork that sends the
+  * timeout value to the channel after the specified timeout duration. The select then chooses from the provided sources or the timeout
+  * channel.
+  *
+  * @param timeout
+  *   The maximum time to wait for any source to have a value available
+  * @param timeoutValue
+  *   The value to return if the timeout is reached before any source has a value available
+  * @param sources
+  *   The sources, from which a value will be received (or timeout will occur)
+  * @return
+  *   Either the timeout value, the value received from the selected source, or a [[ChannelClosed]] when any of the channels is closed (done
+  *   or in error).
+  */
+def selectOrClosedWithin[TV, T](
+    timeout: FiniteDuration,
+    timeoutValue: TV
+)(sources: Seq[Source[T]])(using DummyImplicit): TV | T | ChannelClosed =
+  selectOrClosedWithin(timeout, timeoutValue)(sources.map(_.receiveClause: SelectClause[T])) match
+    case r: Source[T]#Received => r.value
+    case c: ChannelClosed      => c
+    case _: Sink[?]#Sent       => throw new IllegalStateException()
+    case _: DefaultResult[?]   => throw new IllegalStateException()
+    case _: TV @unchecked      => timeoutValue
