@@ -428,6 +428,9 @@ class FlowOps[+T]:
     */
   def concat[U >: T](other: Flow[U]): Flow[U] = Flow.concat(List(this, other))
 
+  /** Alias for [[concat]]. */
+  def ++[U >: T](other: Flow[U]): Flow[U] = concat(other)
+
   /** Prepends `other` flow to this source. The resulting flow will emit elements from `other` flow first, and then from the this flow.
     *
     * @param other
