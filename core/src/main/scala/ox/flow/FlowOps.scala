@@ -773,6 +773,31 @@ class FlowOps[+T]:
       if buffer.nonEmpty && buffer.size < n then emit(buffer)
   end sliding
 
+  /** Breaks the input into chunks where the delimiter matches the predicate. The delimiter does not appear in the output. Two adjacent
+    * delimiters in the input result in an empty chunk in the output.
+    *
+    * @param delimiter
+    *   A predicate function that identifies delimiter elements.
+    * @example
+    *   {{{ scala> Flow.fromIterable(0 to 9).split(_ % 4 == 0).runToList() res0: List[Seq[Int]] = List(Seq(), Seq(1, 2, 3), Seq(5, 6, 7),
+    *   Seq(9)) }}}
+    */
+  def split(delimiter: T => Boolean): Flow[Seq[T]] = Flow.usingEmitInline: emit =>
+    var buffer = Vector.empty[T]
+    last.run(
+      FlowEmit.fromInline: t =>
+        if delimiter(t) then
+          // Delimiter found - emit current buffer and start a new one
+          emit(buffer)
+          buffer = Vector.empty
+        else
+          // Non-delimiter element - add to current buffer
+          buffer = buffer :+ t
+    )
+    // Emit the final buffer if it's not empty
+    if buffer.nonEmpty then emit(buffer)
+  end split
+
   /** Attaches the given [[ox.channels.Sink]] to this flow, meaning elements that pass through will also be sent to the sink. If emitting an
     * element, or sending to the `other` sink blocks, no elements will be processed until both are done. The elements are first emitted by
     * the flow and then, only if that was successful, to the `other` sink.
