@@ -825,16 +825,27 @@ class FlowOps[+T]:
         // Add element to delimiter buffer
         delimiterBuffer = delimiterBuffer :+ element
 
-        // Check if we have a complete delimiter match
-        if delimiterBuffer.length >= delimiter.length then
-          val lastN: List[U] = delimiterBuffer.takeRight(delimiter.length).toList.asInstanceOf[List[U]]
-          if lastN == delimiter then
+        // Move excess elements from delimiter buffer to main buffer
+        while delimiterBuffer.length > delimiter.length do
+          delimiterBuffer match
+            case head +: tail =>
+              buffer = buffer :+ head
+              delimiterBuffer = tail
+            case _ => // Should never happen since length > delimiter.length
+        // Check if delimiter buffer exactly matches the delimiter
+        if delimiterBuffer.length == delimiter.length then
+          val delimiterMatch: List[U] = delimiterBuffer.toList.asInstanceOf[List[U]]
+          if delimiterMatch == delimiter then
             // Found complete delimiter - emit buffer and reset
             emitBufferAndReset()
           else
-            // No complete match - add the oldest element to buffer and remove it from delimiter buffer
-            buffer = buffer :+ delimiterBuffer.head
-            delimiterBuffer = delimiterBuffer.tail
+            // No match - move the head element to buffer and continue
+            delimiterBuffer match
+              case head +: tail =>
+                buffer = buffer :+ head
+                delimiterBuffer = tail
+              case _ => // Should never happen since length == delimiter.length > 0
+          end if
         end if
       end processElement
 
