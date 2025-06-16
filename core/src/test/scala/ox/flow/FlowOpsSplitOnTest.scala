@@ -132,7 +132,6 @@ class FlowOpsSplitOnTest extends AnyFlatSpec with Matchers:
 
     result shouldBe List(Seq(), Seq(), Seq(), Seq("C"))
 
-  // Test given-when-then structure as requested by user rules
   it should "properly split when given a flow with delimiter patterns" in:
     // given
     val input = Flow.fromValues(1, 2, 9, 9, 3, 4, 9, 9, 5, 6, 7)
