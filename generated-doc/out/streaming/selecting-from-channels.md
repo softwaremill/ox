@@ -126,3 +126,104 @@ select(c.receiveClause, Default(5)) match
 ```
 
 There can be at most one default clause in a `select` invocation.
+
+## Select with timeout
+
+For scenarios where you want to wait for a channel operation to complete, but only for a limited time, Ox provides 
+two timeout-enabled select variants: `selectOrClosedWithin` and `selectWithin`.
+
+### selectOrClosedWithin
+
+`selectOrClosedWithin` allows you to specify a timeout value that will be returned if no clauses can complete within 
+the given duration:
+
+```scala
+import ox.channels.*
+import ox.supervised
+import scala.concurrent.duration.*
+
+supervised:
+  val c1 = Channel.rendezvous[Int]
+  val c2 = Channel.rendezvous[String]
+  
+  // Returns "timeout" if no clause completes within 100ms
+  val result = selectOrClosedWithin(100.millis, "timeout")(c1.receiveClause, c2.receiveClause)
+  
+  result match
+    case c1.Received(value) => println(s"Received from c1: $value")
+    case c2.Received(value) => println(s"Received from c2: $value") 
+    case "timeout"          => println("Operation timed out")
+    case closed: ChannelClosed => println(s"Channel closed: $closed")
+```
+
+You can also use `selectOrClosedWithin` directly with sources:
+
+```scala
+import ox.channels.*
+import ox.supervised
+import scala.concurrent.duration.*
+
+supervised:
+  val s1 = Channel.rendezvous[Int] 
+  val s2 = Channel.rendezvous[String]
+  
+  // Returns -1 if no source has a value within 50ms
+  val result = selectOrClosedWithin(50.millis, -1)(s1, s2)
+  
+  result match
+    case value: Int if value == -1 => println("Timeout occurred")
+    case value: Int                => println(s"Received int: $value")
+    case value: String             => println(s"Received string: $value")
+    case closed: ChannelClosed     => println(s"Channel closed: $closed")
+```
+
+### selectWithin
+
+`selectWithin` is similar to `selectOrClosedWithin`, but instead of returning a timeout value, it throws a 
+`TimeoutException` when the timeout is reached:
+
+```scala
+import ox.channels.*
+import ox.supervised
+import scala.concurrent.duration.*
+import scala.concurrent.TimeoutException
+
+supervised:
+  val c1 = Channel.rendezvous[Int]
+  val c2 = Channel.rendezvous[String]
+  
+  try
+    val result = selectWithin(100.millis)(c1.receiveClause, c2.receiveClause)
+    result match
+      case c1.Received(value) => println(s"Received from c1: $value")
+      case c2.Received(value) => println(s"Received from c2: $value")
+  catch
+    case _: TimeoutException => println("Operation timed out")
+```
+
+Similarly with sources:
+
+```scala
+import ox.channels.*
+import ox.supervised
+import scala.concurrent.duration.*
+import scala.concurrent.TimeoutException
+
+supervised:
+  val s1 = Channel.rendezvous[Int]
+  val s2 = Channel.rendezvous[String] 
+  
+  try
+    val result = selectWithin(50.millis)(s1, s2)
+    println(s"Received: $result")
+  catch
+    case _: TimeoutException => println("No data available within timeout")
+```
+
+### When to use which variant
+
+- Use `selectOrClosedWithin` when you want to provide a default value or handle timeouts as part of your normal flow
+- Use `selectWithin` when you want timeout to be treated as an exceptional condition that should interrupt normal flow
+
+Both variants support all the same overloads as regular `select`: single clauses, multiple clauses (up to 5), and 
+sequences of clauses or sources.
