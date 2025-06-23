@@ -20,7 +20,7 @@ trait FlowCompanionIOOps:
     * @param chunkSize
     *   maximum number of bytes to read from the underlying `InputStream` before emitting a new chunk.
     */
-  def fromInputStream(is: InputStream, chunkSize: Int = 1024): Flow[Chunk[Byte]] = usingEmitInline: emit =>
+  def fromInputStream(is: InputStream, chunkSize: Int = 8192): Flow[Chunk[Byte]] = usingEmitInline: emit =>
     try
       repeatWhile:
         val buf = new Array[Byte](chunkSize)
@@ -40,7 +40,7 @@ trait FlowCompanionIOOps:
     *   maximum number of bytes to read from the file before emitting a new chunk.
     */
 
-  def fromFile(path: Path, chunkSize: Int = 1024): Flow[Chunk[Byte]] = usingEmitInline: emit =>
+  def fromFile(path: Path, chunkSize: Int = 8192): Flow[Chunk[Byte]] = usingEmitInline: emit =>
     if Files.isDirectory(path) then throw new IOException(s"Path $path is a directory")
     val jFileChannel =
       try FileChannel.open(path, StandardOpenOption.READ)
