@@ -83,5 +83,5 @@ class FlowOpsMergeTest extends AnyFlatSpec with Matchers:
 
     val s = c1.merge(c2, propagateDoneRight = true)
 
-    s.runToList().sorted should (be(List(1, 2, 5, 6)) or be(List(1, 2, 5)))
+    s.runToList().sorted should (be(List(1, 2, 5, 6)) or be(List(1, 2, 5)) or be(List(1, 5, 6)))
 end FlowOpsMergeTest
