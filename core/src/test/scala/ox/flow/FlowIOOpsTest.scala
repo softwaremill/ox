@@ -67,6 +67,17 @@ class FlowIOOpsTest extends AnyWordSpec with Matchers:
       outputStream.toString shouldBe sourceContent
       assert(outputStream.isClosed)
 
+    "write concatenated chunks to an OutputStream" in:
+      val outputStream = newOutputStream()
+      val sourceContent = "source.toOutputStream concatenated chunks test"
+      // Split the content into chunks of 4 characters each to test multiple chunks
+      val chunks = sourceContent.grouped(4).toList.map(chunkStr => Chunk.fromArray(chunkStr.getBytes))
+      val source = Flow.fromIterable(chunks)
+      assert(!outputStream.isClosed)
+      source.runToOutputStream(outputStream)
+      outputStream.toString shouldBe sourceContent
+      assert(outputStream.isClosed)
+
     "handle an empty Source" in:
       val outputStream = newOutputStream()
       val source = Flow.empty[Chunk[Byte]]

@@ -49,7 +49,7 @@ trait FlowIOOps[+T]:
     */
   def runToOutputStream(outputStream: OutputStream)(using T <:< Chunk[Byte]): Unit =
     try
-      runForeach(chunk => outputStream.write(chunk.toArray))
+      runForeach(chunk => chunk.backingArrays.foreach(arr => outputStream.write(arr.unsafeArray)))
       close(outputStream)
     catch
       case t: Throwable =>
