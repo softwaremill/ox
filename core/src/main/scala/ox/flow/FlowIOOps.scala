@@ -26,6 +26,7 @@ trait FlowIOOps[+T]:
     val ch = this.runToChannel()
     new InputStream:
       private var currentChunk: Iterator[Byte] = Iterator.empty
+      private var availableBytes: Int = 0
 
       override def read(): Int =
         if !currentChunk.hasNext then
@@ -34,11 +35,13 @@ trait FlowIOOps[+T]:
             case e: ChannelClosed.Error => throw e.toThrowable
             case chunk: T @unchecked =>
               currentChunk = chunk.iterator
+              availableBytes = chunk.size
+        availableBytes -= 1
         currentChunk.next() & 0xff // Convert to unsigned
       end read
 
       override def available: Int =
-        currentChunk.length
+        availableBytes
     end new
   end runToInputStream
 
