@@ -25,23 +25,88 @@ trait FlowIOOps[+T]:
   def runToInputStream()(using T <:< Chunk[Byte])(using Ox, BufferCapacity): InputStream =
     val ch = this.runToChannel()
     new InputStream:
-      private var currentChunk: Iterator[Byte] = Iterator.empty
+      // Current state for efficient reading from backing arrays
+      private var currentArrays: List[IArray[Byte]] = Nil
+      private var currentArrayIndex: Int = 0
+      private var currentByteIndex: Int = 0
       private var availableBytes: Int = 0
+      private var isEndOfStream: Boolean = false
+
+      /** Ensure we have data available to read. Returns false if no more data is available. */
+      private def ensureDataAvailable(): Boolean =
+        // Keep trying to find a non-empty array with available data
+        while currentArrays.nonEmpty && currentArrayIndex < currentArrays.length do
+          val currentArray = currentArrays(currentArrayIndex)
+          if currentByteIndex < currentArray.length then return true
+
+          // Current array is exhausted or empty, move to next array
+          currentArrayIndex += 1
+          currentByteIndex = 0
+
+        // No more data in current arrays, try to get next chunk
+        if !isEndOfStream then
+          ch.receiveOrClosed() match
+            case ChannelClosed.Done =>
+              isEndOfStream = true
+              availableBytes = 0 // No more data available
+              false
+            case e: ChannelClosed.Error =>
+              throw e.toThrowable
+            case chunk: T @unchecked =>
+              currentArrays = chunk.backingArrays
+              currentArrayIndex = 0
+              currentByteIndex = 0
+              // Calculate total bytes from all non-empty arrays
+              availableBytes = currentArrays.map(_.length).sum
+              // If this chunk has no actual data, try again recursively
+              ensureDataAvailable()
+        else false
+        end if
+      end ensureDataAvailable
 
       override def read(): Int =
-        if !currentChunk.hasNext then
-          ch.receiveOrClosed() match
-            case ChannelClosed.Done     => return -1
-            case e: ChannelClosed.Error => throw e.toThrowable
-            case chunk: T @unchecked =>
-              currentChunk = chunk.iterator
-              availableBytes = chunk.size
-        availableBytes -= 1
-        currentChunk.next() & 0xff // Convert to unsigned
+        if !ensureDataAvailable() then -1
+        else
+          val currentArray = currentArrays(currentArrayIndex)
+          val byte = currentArray(currentByteIndex) & 0xff // Convert to unsigned
+          currentByteIndex += 1
+          availableBytes -= 1
+          byte
+
+      override def read(b: Array[Byte], off: Int, len: Int): Int =
+        if b == null then throw new NullPointerException
+        if off < 0 || len < 0 || len > b.length - off then throw new IndexOutOfBoundsException
+        if len == 0 then return 0
+
+        var totalBytesRead = 0
+        var remaining = len
+        var offset = off
+
+        while remaining > 0 && ensureDataAvailable() do
+          val currentArray = currentArrays(currentArrayIndex)
+          val availableInCurrentArray = currentArray.length - currentByteIndex
+          val bytesToRead = math.min(remaining, availableInCurrentArray)
+
+          // Copy bytes from current array to target array
+          System.arraycopy(currentArray.unsafeArray, currentByteIndex, b, offset, bytesToRead)
+
+          currentByteIndex += bytesToRead
+          offset += bytesToRead
+          remaining -= bytesToRead
+          totalBytesRead += bytesToRead
+          availableBytes -= bytesToRead
+
+          // If we've exhausted current array, move to next one
+          if currentByteIndex >= currentArray.length then
+            currentArrayIndex += 1
+            currentByteIndex = 0
+        end while
+
+        // Return -1 if no bytes were read and stream is at end-of-file
+        if totalBytesRead == 0 then -1 else totalBytesRead
       end read
 
-      override def available: Int =
-        availableBytes
+      override def available: Int = availableBytes
     end new
   end runToInputStream
 
