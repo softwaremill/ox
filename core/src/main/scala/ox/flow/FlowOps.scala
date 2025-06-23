@@ -428,6 +428,9 @@ class FlowOps[+T]:
     */
   def concat[U >: T](other: Flow[U]): Flow[U] = Flow.concat(List(this, other))
 
+  /** Alias for [[concat]]. */
+  def ++[U >: T](other: Flow[U]): Flow[U] = concat(other)
+
   /** Prepends `other` flow to this source. The resulting flow will emit elements from `other` flow first, and then from the this flow.
     *
     * @param other
@@ -772,6 +775,84 @@ class FlowOps[+T]:
       // send the remaining elements, only if these elements were not yet sent
       if buffer.nonEmpty && buffer.size < n then emit(buffer)
   end sliding
+
+  /** Breaks the input into chunks where the delimiter matches the predicate. The delimiter does not appear in the output. Two adjacent
+    * delimiters in the input result in an empty chunk in the output.
+    *
+    * @param delimiter
+    *   A predicate function that identifies delimiter elements.
+    * @example
+    *   {{{ scala> Flow.fromIterable(0 to 9).split(_ % 4 == 0).runToList() res0: List[Seq[Int]] = List(Seq(), Seq(1, 2, 3), Seq(5, 6, 7),
+    *   Seq(9)) }}}
+    */
+  def split(delimiter: T => Boolean): Flow[Seq[T]] = Flow.usingEmitInline: emit =>
+    var buffer = Vector.empty[T]
+    last.run(
+      FlowEmit.fromInline: t =>
+        if delimiter(t) then
+          // Delimiter found - emit current buffer and start a new one
+          emit(buffer)
+          buffer = Vector.empty
+        else
+          // Non-delimiter element - add to current buffer
+          buffer = buffer :+ t
+    )
+    // Emit the final buffer if it's not empty
+    if buffer.nonEmpty then emit(buffer)
+  end split
+
+  /** Breaks the input into chunks delimited by the given sequence of elements. The delimiter sequence does not appear in the output. Two
+    * adjacent delimiter sequences in the input result in an empty chunk in the output.
+    *
+    * @param delimiter
+    *   A sequence of elements that serves as a delimiter. If empty, the entire input is returned as a single chunk.
+    * @example
+    *   {{{scala> Flow.fromValues(1, 2, 0, 0, 3, 4, 0, 0, 5).splitOn(List(0, 0)).runToList() res0: List[Seq[Int]] = List(Seq(1, 2), Seq(3, 4), Seq(5))}}}
+    */
+  def splitOn[U >: T](delimiter: List[U]): Flow[Seq[T]] = Flow.usingEmitInline: emit =>
+    if delimiter.isEmpty then
+      // Empty delimiter means no splitting - emit entire input as single chunk
+      var buffer = Vector.empty[T]
+      last.run(FlowEmit.fromInline(t => buffer = buffer :+ t))
+      if buffer.nonEmpty then emit(buffer)
+    else
+      val delimiterAsVector = delimiter.toVector
+
+      var buffer = Vector.empty[T]
+      var delimiterBuffer = Vector.empty[T] // Buffer to track potential delimiter matches
+
+      def emitBufferAndReset(): Unit =
+        emit(buffer)
+        buffer = Vector.empty
+        delimiterBuffer = Vector.empty
+
+      def processElement(element: T): Unit =
+        // Add element to delimiter buffer
+        delimiterBuffer = delimiterBuffer :+ element
+
+        // Move excess elements from delimiter buffer to main buffer
+        while delimiterBuffer.length > delimiter.length do
+          delimiterBuffer match
+            case head +: tail =>
+              buffer = buffer :+ head
+              delimiterBuffer = tail
+            case _ => // Should never happen since length > delimiter.length
+        // Check if delimiter buffer exactly matches the delimiter
+        if delimiterBuffer.length == delimiter.length then
+          if delimiterBuffer == delimiterAsVector then
+            // Found complete delimiter - emit buffer and reset
+            emitBufferAndReset()
+          end if
+        end if
+      end processElement
+
+      last.run(FlowEmit.fromInline(processElement))
+
+      // Handle remaining elements in delimiter buffer
+      buffer = buffer ++ delimiterBuffer
+      if buffer.nonEmpty then emit(buffer)
+    end if
+  end splitOn
 
   /** Attaches the given [[ox.channels.Sink]] to this flow, meaning elements that pass through will also be sent to the sink. If emitting an
     * element, or sending to the `other` sink blocks, no elements will be processed until both are done. The elements are first emitted by

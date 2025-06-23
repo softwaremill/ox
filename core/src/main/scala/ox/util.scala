@@ -3,6 +3,7 @@ package ox
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.*
 import scala.util.control.NonFatal
+import scala.quoted.*
 
 extension [T](inline t: T)
   /** Discard the result of the computation, to avoid discarded non-unit value warnings.
@@ -113,3 +114,19 @@ inline def timed[T](operation: => T): (FiniteDuration, T) =
   val after = System.nanoTime()
   val duration = (after - before).nanos
   (duration, result)
+
+/** Prints the code and result of the expression to the standard output. Equivalent to `println(xAsCode + " = " + x)`.
+  *
+  * @example
+  *   {{{
+  *   val a = "x"
+  *   debug(a.toUpperCase + "y")
+  *
+  *   // prints: a.toUpperCase().+("y") = Xy
+  *   }}}
+  */
+inline def debug[T](inline x: T): Unit = ${ debugImpl('x) }
+private def debugImpl[T: Type](x: Expr[T])(using qctx: Quotes): Expr[Unit] =
+  import qctx.reflect.*
+  val xAsCode = x.asTerm.show(using Printer.TreeShortCode)
+  '{ println(${ Expr(xAsCode) } + " = " + $x) }

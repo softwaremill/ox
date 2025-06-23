@@ -17,7 +17,16 @@ class FlowOpsConcatTest extends AnyFlatSpec with Matchers with Eventually:
 
     s.runToList() shouldBe List("a", "b", "c", "d", "e", "f", "g", "h", "i")
 
-  it should "not evaluate subsequent flows if there's a filure" in:
+  it should "concatenate flows using ++" in:
+    val s1 = Flow.fromValues("a", "b", "c")
+    val s2 = Flow.fromValues("d", "e", "f")
+    val s3 = Flow.fromValues("g", "h", "i")
+
+    val s = s1 ++ s2 ++ s3
+
+    s.runToList() shouldBe List("a", "b", "c", "d", "e", "f", "g", "h", "i")
+
+  it should "not evaluate subsequent flows if there's a failure" in:
     val evaluated = new AtomicBoolean(false)
     val f = Flow
       .failed(new IllegalStateException)
