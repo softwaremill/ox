@@ -136,6 +136,16 @@ class FlowIOOpsTest extends AnyWordSpec with Matchers:
 
       fileContent(filePath) shouldBe List(sourceContent)
 
+    "write concatenated chunks to a file" in supervised:
+      val path = useInScope(Files.createTempFile("ox", "test-writefile-concat"))(Files.deleteIfExists(_).discard)
+      val sourceContent = "source.toFile concatenated chunks test"
+      // Split the content into chunks of 4 characters each to test multiple chunks
+      val chunks = sourceContent.grouped(4).toList.map(chunkStr => Chunk.fromArray(chunkStr.getBytes))
+      val source = Flow.fromIterable(chunks)
+      source.runToFile(path)
+
+      fileContent(path) shouldBe List(sourceContent)
+
     "use an existing file and overwrite it a single chunk with bytes" in supervised:
       val path = useInScope(Files.createTempFile("ox", "test-writefile3"))(Files.deleteIfExists(_).discard)
       Files.write(path, "Some initial content".getBytes)

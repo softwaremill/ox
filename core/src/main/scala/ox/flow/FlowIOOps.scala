@@ -76,7 +76,7 @@ trait FlowIOOps[+T]:
           Files.newByteChannel(path, StandardOpenOption.WRITE, StandardOpenOption.CREATE)
 
     try
-      runForeach(chunk => jFileChannel.write(ByteBuffer.wrap(chunk.toArray)).discard)
+      runForeach(chunk => chunk.backingArrays.foreach(array => jFileChannel.write(ByteBuffer.wrap(array.unsafeArray)).discard))
       close(jFileChannel)
     catch
       case t: Throwable =>
