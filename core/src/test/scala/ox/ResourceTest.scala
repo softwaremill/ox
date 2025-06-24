@@ -143,4 +143,23 @@ class ResourceTest extends AnyFlatSpec with Matchers:
 
     trail.get shouldBe Vector("allocate", "in scope", "release")
   }
+
+  it should "add suppressed exception when there's an exception during releasing" in {
+    val trail = Trail()
+
+    class TestResource:
+      trail.add("allocate")
+      def release(): Unit =
+        trail.add("release")
+        throw new RuntimeException("e1")
+
+    try
+      use(new TestResource, _.release()) { r =>
+        trail.add("in scope")
+        throw new RuntimeException("e2")
+      }
+    catch case e => trail.add(s"exception ${e.getMessage} (${e.getSuppressed.map(_.getMessage).mkString(", ")})")
+
+    trail.get shouldBe Vector("allocate", "in scope", "release", "exception e2 (e1)")
+  }
 end ResourceTest

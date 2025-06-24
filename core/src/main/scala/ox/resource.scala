@@ -38,8 +38,20 @@ inline def use[R, T](inline acquire: R, inline release: R => Unit)(inline f: R =
   */
 inline def useInterruptible[R, T](inline acquire: R, inline release: R => Unit)(inline f: R => T): T =
   val r = acquire
+  var caught: Throwable = null
   try f(r)
-  finally release(r)
+  catch
+    case e: Throwable =>
+      caught = e
+      null.asInstanceOf[T]
+  finally
+    if caught == null then release(r)
+    else
+      try release(r)
+      catch case e: Throwable => caught.addSuppressed(e)
+      finally throw caught
+  end try
+end useInterruptible
 
 /** Use the given [[AutoCloseable]] resource, acquired using `acquire` in the given `f` code block. Releasing is [[uninterruptible]]. To use
   * multiple resources, consider creating a [[supervised]] scope and [[useCloseableInScope]] method.
