@@ -7,6 +7,7 @@ import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.AtomicBoolean
 import scala.concurrent.ExecutionException
 import scala.util.control.NonFatal
+import scala.util.control.NoStackTrace
 
 /** Starts a fork (logical thread of execution), which is guaranteed to complete before the enclosing [[supervised]] or [[supervisedError]]
   * block completes.
@@ -199,7 +200,9 @@ def forkCancellable[T](f: => T)(using OxUnsupervised): CancellableFork[T] =
       // will cause the scope to end, interrupting the task if it hasn't yet finished (or potentially never starting it)
       done.release()
       if !started.getAndSet(true)
-      then result.completeExceptionally(new InterruptedException("fork was cancelled before it started")).discard
+      then result.completeExceptionally(new InterruptedException("fork was cancelled before it started") with NoStackTrace).discard
+      // #161: not generating the stack trace in case the task was cancelled before it started, as this isn't going to
+      // contain any useful information anyway (no user code was executed), and it provides better performance
   end new
 end forkCancellable
 
