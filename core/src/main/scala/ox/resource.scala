@@ -29,9 +29,7 @@ def releaseCloseableAfterScope(toRelease: AutoCloseable)(using OxUnsupervised): 
   * [[uninterruptible]]. To use multiple resources, consider creating a [[supervised]] scope and [[useInScope]] method.
   */
 inline def use[R, T](inline acquire: R, inline release: R => Unit)(inline f: R => T): T =
-  val r = acquire
-  try f(r)
-  finally uninterruptible(release(r))
+  useInterruptible(acquire, r => uninterruptible(release(r)))(f)
 
 /** Use the given resource, acquired using `acquire` and released using `release` in the given `f` code block. Releasing might be
   * interrupted. To use multiple resources, consider creating a [[supervised]] scope and [[useInScope]] method.

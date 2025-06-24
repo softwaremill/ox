@@ -50,7 +50,7 @@ class ResourceTest extends AnyFlatSpec with Matchers:
     trail.get shouldBe Vector("allocate 1", "allocate 2", "release 2", "release 1", "exception")
   }
 
-  it should "release resources when there's an exception during releasing" in {
+  it should "release resources when there's an exception during releasing (normal resutl)" in {
     val trail = Trail()
 
     try
@@ -60,22 +60,50 @@ class ResourceTest extends AnyFlatSpec with Matchers:
           1
         } { n =>
           trail.add(s"release $n")
-          throw new RuntimeException()
+          throw new RuntimeException("e1")
         }
         val r2 = useInScope {
           trail.add("allocate 2");
           2
         } { n =>
           trail.add(s"release $n")
-          throw new RuntimeException()
+          throw new RuntimeException("e2")
         }
         r1 shouldBe 1
         r2 shouldBe 2
-        throw new RuntimeException
+        r1 + r2
       }
-    catch case _ => trail.add("exception")
+    catch case e => trail.add(s"exception ${e.getMessage}")
     end try
-    trail.get shouldBe Vector("allocate 1", "allocate 2", "release 2", "release 1", "exception")
+    trail.get shouldBe Vector("allocate 1", "allocate 2", "release 2", "release 1", "exception e2")
+  }
+
+  it should "release resources when there's an exception during releasing (exceptional resutl)" in {
+    val trail = Trail()
+
+    try
+      unsupervised {
+        val r1 = useInScope {
+          trail.add("allocate 1");
+          1
+        } { n =>
+          trail.add(s"release $n")
+          throw new RuntimeException("e1")
+        }
+        val r2 = useInScope {
+          trail.add("allocate 2");
+          2
+        } { n =>
+          trail.add(s"release $n")
+          throw new RuntimeException("e2")
+        }
+        r1 shouldBe 1
+        r2 shouldBe 2
+        throw new RuntimeException("e3")
+      }
+    catch case e => trail.add(s"exception ${e.getMessage}")
+    end try
+    trail.get shouldBe Vector("allocate 1", "allocate 2", "release 2", "release 1", "exception e3")
   }
 
   it should "release registered resources" in {

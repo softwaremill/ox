@@ -30,10 +30,8 @@ private[ox] def scopedWithCapability[T](capability: Ox)(f: Ox ?=> T): T =
     es.tail.foreach(e.addSuppressed)
     throw e
 
-  val herd = capability.herd
-  val finalizers = capability.finalizers
   def runFinalizers(result: Either[Throwable, T]): T =
-    val fs = finalizers.get
+    val fs = capability.finalizers.get
     if fs.isEmpty then result.fold(throw _, identity)
     else
       val es = uninterruptible {
@@ -51,17 +49,23 @@ private[ox] def scopedWithCapability[T](capability: Ox)(f: Ox ?=> T): T =
     end if
   end runFinalizers
 
-  val previousScope = currentScope.get()
-  currentScope.set(capability)
-  try
-    val t =
-      try f(using capability)
-      finally herd.interruptAllAndJoinUntilCompleted()
+  def runWithCurrentScopeSet =
+    val result =
+      try
+        Right(
+          try f(using capability)
+          finally capability.herd.interruptAllAndJoinUntilCompleted()
+        )
+      catch case e: Throwable => Left(e)
 
     // running the finalizers only once we are sure that all child threads have been terminated, so that no new
     // finalizers are added, and none are lost
-    runFinalizers(Right(t))
-  catch case e: Throwable => runFinalizers(Left(e))
+    runFinalizers(result)
+  end runWithCurrentScopeSet
+
+  val previousScope = currentScope.get()
+  try
+    currentScope.set(capability)
+    runWithCurrentScopeSet
   finally currentScope.set(previousScope)
-  end try
 end scopedWithCapability
