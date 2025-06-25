@@ -194,4 +194,18 @@ class FlowOpsRetryTest extends AnyFlatSpec with Matchers with ElapsedTime:
     result shouldBe List(20, 40)
     invocationCounter.get() shouldBe 3 // First attempt fails on element 2, second attempt processes both filtered elements (2, 4)
 
+  it should "not retry a flow which uses .take and control exceptions" in:
+    // given
+    val invocationCounter = new AtomicInteger(0)
+
+    val flow =
+      Flow.fromValues(1 to 10*).tap(_ => invocationCounter.incrementAndGet().discard).take(3).retry(Schedule.immediate.maxRepeats(3))
+
+    // when
+    val result = flow.runToList()
+
+    // then
+    result shouldBe List(1, 2, 3)
+    invocationCounter.get() shouldBe 3
+
 end FlowOpsRetryTest
