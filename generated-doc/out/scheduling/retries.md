@@ -55,7 +55,7 @@ The schedules can be then customized using methods which include the following:
 - `.maxRepeats(maxRetries: Int)`
 - `.maxInterval(maxInterval: FiniteDuration)` 
 - `.jitter(jitter: Jitter)` 
-- `.maxRepeatsByCumulativeDelay(upTo: FiniteDuration)`
+- `.maxCumulativeDelay(upTo: FiniteDuration)`
 - `.withInitialDelay(interval: FiniteDuration)`
 - `.withNoInitialDelay()`
 - `.andThen(other: Schedule)`
