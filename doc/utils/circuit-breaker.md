@@ -148,7 +148,7 @@ supervised:
   circuitBreaker.runOrDropWithErrorMode(UnionMode[String])(unionOperation)
 
   // retry with circuit breaker inside
-  retryEither(Schedule.exponentialBackoff(100.millis).maxRepeats(3)){
+  retryEither(Schedule.exponentialBackoff(100.millis).maxRetries(3)){
     circuitBreaker.runOrDrop(directOperation) match
       case Some(value) => Right(value)
       case None => Left("Operation dropped")

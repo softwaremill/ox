@@ -26,7 +26,7 @@ class AfterAttemptTest extends AnyFlatSpec with Matchers with EitherValues with 
       returnedResult = result
 
     // when
-    val result = retry(RetryConfig(Schedule.immediate.maxRepeats(3), afterAttempt = afterAttempt))(f)
+    val result = retry(RetryConfig(Schedule.immediate.maxRetries(3), afterAttempt = afterAttempt))(f)
 
     // then
     result shouldBe successfulResult
@@ -52,7 +52,7 @@ class AfterAttemptTest extends AnyFlatSpec with Matchers with EitherValues with 
       returnedResult = result
 
     // when
-    val result = the[RuntimeException] thrownBy retry(RetryConfig(Schedule.immediate.maxRepeats(3), afterAttempt = afterAttempt))(f)
+    val result = the[RuntimeException] thrownBy retry(RetryConfig(Schedule.immediate.maxRetries(3), afterAttempt = afterAttempt))(f)
 
     // then
     result shouldBe failedResult

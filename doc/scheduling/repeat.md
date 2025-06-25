@@ -53,12 +53,12 @@ def eitherOperation: Either[String, Int] = ???
 def unionOperation: String | Int = ???
 
 // various operation definitions - same syntax
-repeat(Schedule.immediate.maxRepeats(3))(directOperation)
-repeatEither(Schedule.immediate.maxRepeats(3))(eitherOperation)
+repeat(Schedule.immediate.maxAttempts(3))(directOperation)
+repeatEither(Schedule.immediate.maxAttempts(3))(eitherOperation)
 
 // various schedules
-repeat(Schedule.fixedInterval(100.millis).maxRepeats(3))(directOperation)
-repeat(Schedule.fixedInterval(100.millis).maxRepeats(3).withInitialDelay(50.millis))(
+repeat(Schedule.fixedInterval(100.millis).maxAttempts(3))(directOperation)
+repeat(Schedule.fixedInterval(100.millis).maxAttempts(3).withInitialDelay(50.millis))(
   directOperation)
 
 // infinite repeats with a custom strategy
@@ -67,11 +67,11 @@ repeat(RepeatConfig(Schedule.fixedInterval(100.millis))
   .copy(shouldContinueOnResult = customStopStrategy))(directOperation)
 
 // custom error mode
-repeatWithErrorMode(UnionMode[String])(Schedule.fixedInterval(100.millis).maxRepeats(3))(
+repeatWithErrorMode(UnionMode[String])(Schedule.fixedInterval(100.millis).maxAttempts(3))(
   unionOperation)
 
 // repeat with retry inside
-repeat(Schedule.fixedInterval(100.millis).maxRepeats(3)) {
-  retry(Schedule.exponentialBackoff(100.millis).maxRepeats(3))(directOperation)
+repeat(Schedule.fixedInterval(100.millis).maxAttempts(3)) {
+  retry(Schedule.exponentialBackoff(100.millis).maxAttempts(3))(directOperation)
 }
 ```
