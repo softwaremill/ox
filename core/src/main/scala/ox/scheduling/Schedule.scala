@@ -24,6 +24,11 @@ case class Schedule(intervals: () => LazyList[FiniteDuration], initialDelay: Opt
     */
   def maxAttempts(max: Int): Schedule = copy(intervals = () => intervals().take(max - 1))
 
+  /** Caps the number of retries to the given maximum, creating a finite schedule. The provided value specifies the number of retries after
+    * the initial attempt. The total number of invocations will be `retries + 1`.
+    */
+  def maxRetries(retries: Int): Schedule = maxAttempts(retries + 1)
+
   /** Caps the total delay to the given maximum. The resulting schedule might still be infinite, if the intervals are originally 0. */
   def maxRepeatsByCumulativeDelay(upTo: FiniteDuration): Schedule = copy(intervals = () =>
     val d = intervals()

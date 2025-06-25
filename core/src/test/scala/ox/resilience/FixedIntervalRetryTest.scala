@@ -24,7 +24,7 @@ class DelayedRetryTest extends AnyFlatSpec with Matchers with EitherValues with 
 
     // when
     val (result, elapsedTime) =
-      measure(the[RuntimeException] thrownBy retry(Schedule.fixedInterval(sleep).maxAttempts(maxRetries + 1))(f))
+      measure(the[RuntimeException] thrownBy retry(Schedule.fixedInterval(sleep).maxRetries(maxRetries))(f))
 
     // then
     result should have message "boom"
@@ -61,7 +61,7 @@ class DelayedRetryTest extends AnyFlatSpec with Matchers with EitherValues with 
       Left(errorMessage)
 
     // when
-    val (result, elapsedTime) = measure(retryEither(Schedule.fixedInterval(sleep).maxAttempts(maxRetries + 1))(f))
+    val (result, elapsedTime) = measure(retryEither(Schedule.fixedInterval(sleep).maxRetries(maxRetries))(f))
 
     // then
     result.left.value shouldBe errorMessage

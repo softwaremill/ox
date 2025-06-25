@@ -62,6 +62,6 @@ repeatWithErrorMode(UnionMode[String])(RepeatConfig(CronSchedule.fromCronExpr(cr
 
 // repeat with retry inside
 repeat(RepeatConfig(CronSchedule.fromCronExpr(cronExpr))) {
-  retry(Schedule.exponentialBackoff(100.millis).maxRepeats(3))(directOperation)
+  retry(Schedule.exponentialBackoff(100.millis).maxRetries(3))(directOperation)
 }
 ```

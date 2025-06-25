@@ -52,10 +52,11 @@ Schedules can be created using one of the following methods on the companion obj
 
 The schedules can be then customized using methods which include the following:
 
-- `.maxRepeats(maxRetries: Int)`
+- `.maxRetries(maxRetries: Int)` - specifies the number of retries after the initial attempt
+- `.maxAttempts(maxAttempts: Int)` - specifies the total number of invocations
 - `.maxInterval(maxInterval: FiniteDuration)` 
 - `.jitter(jitter: Jitter)` 
-- `.maxRepeatsByCumulativeDelay(upTo: FiniteDuration)`
+- `.maxRetriesByCumulativeDelay(upTo: FiniteDuration)`
 - `.withInitialDelay(interval: FiniteDuration)`
 - `.withNoInitialDelay()`
 - `.andThen(other: Schedule)`
@@ -114,13 +115,13 @@ def eitherOperation: Either[String, Int] = ???
 def unionOperation: String | Int = ???
 
 // various operation signatures/error modes - same syntax
-retry(Schedule.immediate.maxRepeats(3))(directOperation)
-retryEither(Schedule.immediate.maxRepeats(3))(eitherOperation)
+retry(Schedule.immediate.maxRetries(3))(directOperation)
+retryEither(Schedule.immediate.maxRetries(3))(eitherOperation)
 
 // various configs with custom schedules and default ResultPolicy
-retry(Schedule.fixedInterval(100.millis).maxRepeats(3))(directOperation)
-retry(Schedule.exponentialBackoff(100.millis).maxRepeats(3))(directOperation) 
-retry(Schedule.exponentialBackoff(100.millis).maxRepeats(3).jitter().maxInterval(5.minutes))(
+retry(Schedule.fixedInterval(100.millis).maxRetries(3))(directOperation)
+retry(Schedule.exponentialBackoff(100.millis).maxRetries(3))(directOperation)
+retry(Schedule.exponentialBackoff(100.millis).maxRetries(3).jitter().maxInterval(5.minutes))(
   directOperation)
 
 // infinite retries with a default ResultPolicy
@@ -131,18 +132,18 @@ retry(Schedule.exponentialBackoff(100.millis).jitter(Jitter.Full).maxInterval(5.
 // result policies
 // custom success
 retry(RetryConfig[Throwable, Int](
-  Schedule.immediate.maxRepeats(3), ResultPolicy.successfulWhen(_ > 0)))(directOperation)
+  Schedule.immediate.maxRetries(3), ResultPolicy.successfulWhen(_ > 0)))(directOperation)
 // fail fast on certain errors
 retry(RetryConfig[Throwable, Int](
-  Schedule.immediate.maxRepeats(3), ResultPolicy.retryWhen(_.getMessage != "fatal error")))(
+  Schedule.immediate.maxRetries(3), ResultPolicy.retryWhen(_.getMessage != "fatal error")))(
     directOperation)
 retryEither(RetryConfig(
-  Schedule.immediate.maxRepeats(3), ResultPolicy.retryWhen(_ != "fatal error")))(
+  Schedule.immediate.maxRetries(3), ResultPolicy.retryWhen(_ != "fatal error")))(
     eitherOperation)
 
 // custom error mode
 retryWithErrorMode(UnionMode[String])(RetryConfig[String, Int](
-  Schedule.immediate.maxRepeats(3), ResultPolicy.retryWhen(_ != "fatal error")))(
+  Schedule.immediate.maxRetries(3), ResultPolicy.retryWhen(_ != "fatal error")))(
     unionOperation)
 ```
 
@@ -201,31 +202,31 @@ def unionOperation: String | Int = ???
 val adaptive = AdaptiveRetry.default
 
 // various configs with custom schedules and default ResultPolicy
-adaptive.retry(Schedule.immediate.maxRepeats(3))(directOperation)
-adaptive.retry(Schedule.fixedInterval(100.millis).maxRepeats(3))(directOperation)
-adaptive.retry(Schedule.exponentialBackoff(100.millis).maxRepeats(3))(directOperation)
-adaptive.retry(Schedule.exponentialBackoff(100.millis).maxRepeats(3).jitter()
+adaptive.retry(Schedule.immediate.maxRetries(3))(directOperation)
+adaptive.retry(Schedule.fixedInterval(100.millis).maxRetries(3))(directOperation)
+adaptive.retry(Schedule.exponentialBackoff(100.millis).maxRetries(3))(directOperation)
+adaptive.retry(Schedule.exponentialBackoff(100.millis).maxRetries(3).jitter()
   .maxInterval(5.minutes))(directOperation)
 
 // result policies
 // custom success
 adaptive.retry(RetryConfig[Throwable, Int](
-  Schedule.immediate.maxRepeats(3), ResultPolicy.successfulWhen(_ > 0)))(directOperation)
+  Schedule.immediate.maxRetries(3), ResultPolicy.successfulWhen(_ > 0)))(directOperation)
 // fail fast on certain errors
 adaptive.retry(RetryConfig[Throwable, Int](
-  Schedule.immediate.maxRepeats(3), ResultPolicy.retryWhen(_.getMessage != "fatal error")))(
+  Schedule.immediate.maxRetries(3), ResultPolicy.retryWhen(_.getMessage != "fatal error")))(
     directOperation)
 adaptive.retryEither(RetryConfig(
-  Schedule.immediate.maxRepeats(3), ResultPolicy.retryWhen(_ != "fatal error")))(
+  Schedule.immediate.maxRetries(3), ResultPolicy.retryWhen(_ != "fatal error")))(
     eitherOperation)
 
 // custom error mode 
 adaptive.retryWithErrorMode(UnionMode[String])(RetryConfig[String, Int](
-  Schedule.immediate.maxRepeats(3), ResultPolicy.retryWhen(_ != "fatal error")))(
+  Schedule.immediate.maxRetries(3), ResultPolicy.retryWhen(_ != "fatal error")))(
     unionOperation)
 
 // consider "throttling error" not as a failure that should incur the retry penalty
 adaptive.retryWithErrorMode(UnionMode[String])(RetryConfig[String, Int](
-    Schedule.immediate.maxRepeats(3), ResultPolicy.retryWhen(_ != "fatal error")),
+    Schedule.immediate.maxRetries(3), ResultPolicy.retryWhen(_ != "fatal error")),
   shouldPayFailureCost = _.fold(_ != "throttling error", _ => true))(unionOperation)
 ```

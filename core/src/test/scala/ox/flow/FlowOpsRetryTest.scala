@@ -21,7 +21,7 @@ class FlowOpsRetryTest extends AnyFlatSpec with Matchers with ElapsedTime:
     val flow = Flow.fromValues(1, 2, 3)
 
     // when
-    val result = flow.retry(Schedule.immediate.maxAttempts(4)).runToList()
+    val result = flow.retry(Schedule.immediate.maxRetries(3)).runToList()
 
     // then
     result shouldBe List(1, 2, 3)
@@ -38,7 +38,7 @@ class FlowOpsRetryTest extends AnyFlatSpec with Matchers with ElapsedTime:
     }
 
     // when
-    val result = flow.retry(Schedule.immediate.maxAttempts(maxRetries + 1)).runToList()
+    val result = flow.retry(Schedule.immediate.maxRetries(maxRetries)).runToList()
 
     // then
     result shouldBe List(42)
@@ -58,7 +58,7 @@ class FlowOpsRetryTest extends AnyFlatSpec with Matchers with ElapsedTime:
 
     // when
     val (result, elapsedTime) = measure {
-      flow.retry(Schedule.fixedInterval(interval).maxAttempts(maxRetries + 1)).runToList()
+      flow.retry(Schedule.fixedInterval(interval).maxRetries(maxRetries)).runToList()
     }
 
     // then
@@ -74,7 +74,7 @@ class FlowOpsRetryTest extends AnyFlatSpec with Matchers with ElapsedTime:
     val flow = Flow
       .fromValues(1, 2, 3)
       .tap(_ => upstreamInvocationCounter.incrementAndGet().discard)
-      .retry(Schedule.immediate.maxAttempts(4))
+      .retry(Schedule.immediate.maxRetries(3))
       .tap { value =>
         downstreamInvocationCounter.incrementAndGet().discard
         if value == 2 then throw new RuntimeException("downstream failure")
@@ -101,7 +101,7 @@ class FlowOpsRetryTest extends AnyFlatSpec with Matchers with ElapsedTime:
 
     // when/then
     val exception = the[ChannelClosedException.Error] thrownBy {
-      flow.retry(Schedule.immediate.maxAttempts(maxRetries + 1)).runToList()
+      flow.retry(Schedule.immediate.maxRetries(maxRetries)).runToList()
     }
 
     exception.getCause.getMessage shouldBe errorMessage
@@ -122,7 +122,7 @@ class FlowOpsRetryTest extends AnyFlatSpec with Matchers with ElapsedTime:
     }
 
     val config = RetryConfig[Throwable, Unit](
-      Schedule.immediate.maxAttempts(maxRetries + 1),
+      Schedule.immediate.maxRetries(maxRetries),
       ResultPolicy.retryWhen[Throwable, Unit](_.getMessage != fatalErrorMessage)
     )
 
@@ -139,7 +139,7 @@ class FlowOpsRetryTest extends AnyFlatSpec with Matchers with ElapsedTime:
     val flow = Flow.empty[Int]
 
     // when
-    val result = flow.retry(Schedule.immediate.maxAttempts(4)).runToList()
+    val result = flow.retry(Schedule.immediate.maxRetries(3)).runToList()
 
     // then
     result shouldBe List.empty
@@ -153,7 +153,7 @@ class FlowOpsRetryTest extends AnyFlatSpec with Matchers with ElapsedTime:
     }
 
     // when
-    val result = flow.retry(Schedule.immediate.maxAttempts(6)).runToList()
+    val result = flow.retry(Schedule.immediate.maxRetries(5)).runToList()
 
     // then
     result shouldBe List("first try success")
@@ -169,7 +169,7 @@ class FlowOpsRetryTest extends AnyFlatSpec with Matchers with ElapsedTime:
     }
 
     // when
-    val result = flow.retry(Schedule.immediate.maxAttempts(3)).runToList()
+    val result = flow.retry(Schedule.immediate.maxRetries(2)).runToList()
 
     // then
     result shouldBe List(2, 4, 6)
@@ -188,7 +188,7 @@ class FlowOpsRetryTest extends AnyFlatSpec with Matchers with ElapsedTime:
       }
 
     // when
-    val result = flow.retry(Schedule.immediate.maxAttempts(2)).runToList()
+    val result = flow.retry(Schedule.immediate.maxRetries(1)).runToList()
 
     // then
     result shouldBe List(20, 40)
@@ -199,7 +199,7 @@ class FlowOpsRetryTest extends AnyFlatSpec with Matchers with ElapsedTime:
     val invocationCounter = new AtomicInteger(0)
 
     val flow =
-      Flow.fromValues(1 to 10*).tap(_ => invocationCounter.incrementAndGet().discard).take(3).retry(Schedule.immediate.maxAttempts(4))
+      Flow.fromValues(1 to 10*).tap(_ => invocationCounter.incrementAndGet().discard).take(3).retry(Schedule.immediate.maxRetries(3))
 
     // when
     val result = flow.runToList()

@@ -20,7 +20,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
       successfulResult
 
     // when
-    val result = retry(Schedule.immediate.maxAttempts(4))(f)
+    val result = retry(Schedule.immediate.maxRetries(3))(f)
 
     // then
     result shouldBe successfulResult
@@ -30,7 +30,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
     // given
     var counter = 0
     val errorMessage = "boom"
-    val policy = RetryConfig[Throwable, Unit](Schedule.immediate.maxAttempts(4), ResultPolicy.retryWhen(_.getMessage != errorMessage))
+    val policy = RetryConfig[Throwable, Unit](Schedule.immediate.maxRetries(3), ResultPolicy.retryWhen(_.getMessage != errorMessage))
 
     def f =
       counter += 1
@@ -44,7 +44,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
     // given
     var counter = 0
     val unsuccessfulResult = -1
-    val policy = RetryConfig[Throwable, Int](Schedule.immediate.maxAttempts(4), ResultPolicy.successfulWhen(_ > 0))
+    val policy = RetryConfig[Throwable, Int](Schedule.immediate.maxRetries(3), ResultPolicy.successfulWhen(_ > 0))
 
     def f =
       counter += 1
@@ -67,7 +67,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
       if true then throw new RuntimeException(errorMessage)
 
     // when/then
-    the[RuntimeException] thrownBy retry(Schedule.immediate.maxAttempts(4))(f) should have message errorMessage
+    the[RuntimeException] thrownBy retry(Schedule.immediate.maxRetries(3))(f) should have message errorMessage
     counter shouldBe 4
 
   it should "retry a failing function forever" in:
@@ -97,7 +97,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
       Right(successfulResult)
 
     // when
-    val result = retryEither(Schedule.immediate.maxAttempts(4))(f)
+    val result = retryEither(Schedule.immediate.maxRetries(3))(f)
 
     // then
     result.value shouldBe successfulResult
@@ -107,7 +107,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
     // given
     var counter = 0
     val errorMessage = "boom"
-    val policy: RetryConfig[String, Int] = RetryConfig(Schedule.immediate.maxAttempts(4), ResultPolicy.retryWhen(_ != errorMessage))
+    val policy: RetryConfig[String, Int] = RetryConfig(Schedule.immediate.maxRetries(3), ResultPolicy.retryWhen(_ != errorMessage))
 
     def f: Either[String, Int] =
       counter += 1
@@ -124,7 +124,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
     // given
     var counter = 0
     val unsuccessfulResult = -1
-    val policy: RetryConfig[String, Int] = RetryConfig(Schedule.immediate.maxAttempts(4), ResultPolicy.successfulWhen(_ > 0))
+    val policy: RetryConfig[String, Int] = RetryConfig(Schedule.immediate.maxRetries(3), ResultPolicy.successfulWhen(_ > 0))
 
     def f: Either[String, Int] =
       counter += 1
@@ -147,7 +147,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
       Left(errorMessage)
 
     // when
-    val result = retryEither(Schedule.immediate.maxAttempts(4))(f)
+    val result = retryEither(Schedule.immediate.maxRetries(3))(f)
 
     // then
     result.left.value shouldBe errorMessage
@@ -167,7 +167,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
 
     val adaptive = AdaptiveRetry(TokenBucket(5), 1, 1)
     // when
-    val result = adaptive.retryEither(Schedule.immediate.maxAttempts(6))(f)
+    val result = adaptive.retryEither(Schedule.immediate.maxRetries(5))(f)
 
     // then
     result.value shouldBe "Success"
@@ -184,7 +184,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
 
     val adaptive = AdaptiveRetry(TokenBucket(2), 1, 1)
     // when
-    val result = adaptive.retryEither(Schedule.immediate.maxAttempts(6))(f)
+    val result = adaptive.retryEither(Schedule.immediate.maxRetries(5))(f)
 
     // then
     result.left.value shouldBe errorMessage
@@ -202,7 +202,7 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
 
     val adaptive = AdaptiveRetry(TokenBucket(2), 1, 1)
     val retryConfig =
-      RetryConfig(Schedule.immediate.maxAttempts(6)).copy(resultPolicy = ResultPolicy.successfulWhen[String, String](_ => false))
+      RetryConfig(Schedule.immediate.maxRetries(5)).copy(resultPolicy = ResultPolicy.successfulWhen[String, String](_ => false))
     // when
     val result = adaptive.retryEither(retryConfig, _ => false)(f)
 
