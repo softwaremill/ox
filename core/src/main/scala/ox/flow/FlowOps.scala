@@ -18,6 +18,8 @@ import ox.forkCancellable
 import ox.forkUnsupervised
 import ox.forkUser
 import ox.repeatWhile
+import ox.resilience.RetryConfig
+import ox.scheduling.Schedule
 import ox.sleep
 import ox.supervised
 import ox.tapException
@@ -950,6 +952,40 @@ class FlowOps[+T]:
   /** Runs `f` after the flow completes with an error. The error can't be recovered. */
   def onError(f: Throwable => Unit): Flow[T] = Flow.usingEmitInline: emit =>
     last.run(emit).tapException(f)
+
+  /** Retries the upstream flow execution using the provided retry configuration. If the flow fails with an exception, it will be retried
+    * according to the schedule defined in the retry config until it succeeds or the retry policy decides to stop.
+    *
+    * Each retry attempt will run the complete upstream flow, from start up to this point. The retry behavior is controlled by the
+    * [[RetryConfig]].
+    *
+    * Note that this retries the flow execution itself, not individual elements within the flow. If you need to retry individual operations
+    * within the flow, consider using retry logic inside methods such as [[map]].
+    *
+    * Creates an asynchronous boundary (see [[buffer]]) to isolate failures when running the upstream flow.
+    *
+    * @param config
+    *   The retry configuration that specifies the retry schedule and success/failure conditions.
+    * @return
+    *   A new flow that will retry execution according to the provided configuration.
+    * @throws anything
+    *   The exception from the last retry attempt if all retries are exhausted.
+    * @see
+    *   [[ox.resilience.retry]]
+    */
+  def retry(config: RetryConfig[Throwable, Unit])(using BufferCapacity): Flow[T] = Flow.usingEmitInline: emit =>
+    val ch = BufferCapacity.newChannel[T]
+    unsupervised:
+      forkPropagate(ch) {
+        ox.resilience.retry(config)(last.run(FlowEmit.fromInline(t => ch.send(t))))
+        ch.done()
+      }.discard
+      FlowEmit.channelToEmit(ch, emit)
+
+  /** @see
+    *   [[retry(RetryConfig)]]
+    */
+  def retry(schedule: Schedule): Flow[T] = retry(RetryConfig(schedule))
 
   //
 
