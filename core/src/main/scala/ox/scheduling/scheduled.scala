@@ -102,8 +102,8 @@ def scheduledEither[E, T](config: ScheduledConfig[E, T])(operation: => Either[E,
   */
 def scheduledWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(config: ScheduledConfig[E, T])(operation: => F[T]): F[T] =
   @tailrec
-  def loop(invocation: Int, intervals: LazyList[FiniteDuration], lastDuration: Option[FiniteDuration]): F[T] =
-    def sleepIfNeeded(startTimestamp: Long, nextDelay: FiniteDuration) =
+  def loop(invocation: Int, intervals: LazyList[FiniteDuration]): F[T] =
+    def sleepIfNeeded(startTimestamp: Long, nextDelay: FiniteDuration): Unit =
       val delay = config.sleepMode match
         case SleepMode.StartToStart =>
           val elapsed = System.nanoTime() - startTimestamp
@@ -111,7 +111,6 @@ def scheduledWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(config: ScheduledCon
           remaining.nanos
         case SleepMode.EndToStart => nextDelay
       if delay.toMillis > 0 then sleep(delay)
-      delay
     end sleepIfNeeded
 
     val startTimestamp = System.nanoTime()
@@ -123,8 +122,8 @@ def scheduledWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(config: ScheduledCon
 
         nextDelay match
           case Some(nd) if !shouldStop.stop =>
-            val delay = sleepIfNeeded(startTimestamp, nd)
-            loop(invocation + 1, intervals.tail, Some(delay))
+            sleepIfNeeded(startTimestamp, nd)
+            loop(invocation + 1, intervals.tail)
           case _ => v
       case v =>
         val result = em.getT(v)
@@ -132,13 +131,13 @@ def scheduledWithErrorMode[E, F[_], T](em: ErrorMode[E, F])(config: ScheduledCon
 
         nextDelay match
           case Some(nd) if !shouldStop.stop =>
-            val delay = sleepIfNeeded(startTimestamp, nd)
-            loop(invocation + 1, intervals.tail, Some(delay))
+            sleepIfNeeded(startTimestamp, nd)
+            loop(invocation + 1, intervals.tail)
           case _ => v
     end match
   end loop
 
   config.schedule.initialDelay.foreach(sleep)
 
-  loop(1, config.schedule.intervals(), None)
+  loop(1, config.schedule.intervals())
 end scheduledWithErrorMode
