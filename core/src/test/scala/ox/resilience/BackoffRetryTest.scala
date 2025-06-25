@@ -25,7 +25,7 @@ class BackoffRetryTest extends AnyFlatSpec with Matchers with EitherValues with 
 
     // when
     val (result, elapsedTime) =
-      measure(the[RuntimeException] thrownBy retry(Schedule.exponentialBackoff(initialDelay).maxRepeats(maxRetries))(f))
+      measure(the[RuntimeException] thrownBy retry(Schedule.exponentialBackoff(initialDelay).maxAttempts(maxRetries + 1))(f))
 
     // then
     result should have message "boom"
@@ -63,7 +63,7 @@ class BackoffRetryTest extends AnyFlatSpec with Matchers with EitherValues with 
     // when
     val (result, elapsedTime) =
       measure(
-        the[RuntimeException] thrownBy retry(Schedule.exponentialBackoff(initialDelay).maxRepeats(maxRetries).maxInterval(maxDelay))(f)
+        the[RuntimeException] thrownBy retry(Schedule.exponentialBackoff(initialDelay).maxAttempts(maxRetries + 1).maxInterval(maxDelay))(f)
       )
 
     // then
@@ -86,7 +86,7 @@ class BackoffRetryTest extends AnyFlatSpec with Matchers with EitherValues with 
     val (result, elapsedTime) =
       measure(
         the[RuntimeException] thrownBy retry(
-          Schedule.exponentialBackoff(initialDelay).maxRepeats(maxRetries).maxInterval(maxDelay).jitter(Jitter.Equal)
+          Schedule.exponentialBackoff(initialDelay).maxAttempts(maxRetries + 1).maxInterval(maxDelay).jitter(Jitter.Equal)
         )(f)
       )
 
@@ -108,7 +108,7 @@ class BackoffRetryTest extends AnyFlatSpec with Matchers with EitherValues with 
       Left(errorMessage)
 
     // when
-    val (result, elapsedTime) = measure(retryEither(Schedule.exponentialBackoff(initialDelay).maxRepeats(maxRetries))(f))
+    val (result, elapsedTime) = measure(retryEither(Schedule.exponentialBackoff(initialDelay).maxAttempts(maxRetries + 1))(f))
 
     // then
     result.left.value shouldBe errorMessage

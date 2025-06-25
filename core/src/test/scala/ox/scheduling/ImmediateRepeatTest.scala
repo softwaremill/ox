@@ -13,23 +13,23 @@ class ImmediateRepeatTest extends AnyFlatSpec with Matchers with EitherValues wi
 
   it should "repeat a function immediately" in:
     // given
-    val repeats = 3
+    val attempts = 3
     var counter = 0
     def f =
       counter += 1
       counter
 
     // when
-    val (result, elapsedTime) = measure(repeat(Schedule.immediate.maxRepeats(repeats))(f))
+    val (result, elapsedTime) = measure(repeat(Schedule.immediate.maxAttempts(attempts))(f))
 
     // then
     elapsedTime.toMillis should be < 20L
-    result shouldBe 4
-    counter shouldBe 4
+    result shouldBe 3
+    counter shouldBe 3
 
   it should "repeat a function immediately with initial delay" in:
     // given
-    val repeats = 3
+    val attempts = 3
     val initialDelay = 50.millis
     var counter = 0
 
@@ -38,13 +38,13 @@ class ImmediateRepeatTest extends AnyFlatSpec with Matchers with EitherValues wi
       counter
 
     // when
-    val (result, elapsedTime) = measure(repeat(Schedule.immediate.maxRepeats(repeats).withInitialDelay(initialDelay))(f))
+    val (result, elapsedTime) = measure(repeat(Schedule.immediate.maxAttempts(attempts).withInitialDelay(initialDelay))(f))
 
     // then
     elapsedTime.toMillis should be >= initialDelay.toMillis
     elapsedTime.toMillis should be < initialDelay.toMillis + 20
-    result shouldBe 4
-    counter shouldBe 4
+    result shouldBe 3
+    counter shouldBe 3
 
   it should "repeat a function immediately forever" in:
     // given

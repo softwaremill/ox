@@ -14,7 +14,7 @@ class FixedRateRepeatTest extends AnyFlatSpec with Matchers with EitherValues wi
 
   it should "repeat a function at fixed rate" in:
     // given
-    val repeats = 3
+    val attempts = 3
     val funcSleepTime = 30.millis
     val interval = 100.millis
     var counter = 0
@@ -24,17 +24,17 @@ class FixedRateRepeatTest extends AnyFlatSpec with Matchers with EitherValues wi
       counter
 
     // when
-    val (result, elapsedTime) = measure(repeat(Schedule.fixedInterval(interval).maxRepeats(repeats))(f))
+    val (result, elapsedTime) = measure(repeat(Schedule.fixedInterval(interval).maxAttempts(attempts))(f))
 
     // then
-    elapsedTime.toMillis should be >= 3 * interval.toMillis + funcSleepTime.toMillis - 5 // tolerance
-    elapsedTime.toMillis should be < 4 * interval.toMillis
-    result shouldBe 4
-    counter shouldBe 4
+    elapsedTime.toMillis should be >= 2 * interval.toMillis + funcSleepTime.toMillis - 5 // tolerance
+    elapsedTime.toMillis should be < 3 * interval.toMillis
+    result shouldBe 3
+    counter shouldBe 3
 
   it should "repeat a function at fixed rate with initial delay" in:
     // given
-    val repeats = 3
+    val attempts = 3
     val initialDelay = 50.millis
     val interval = 100.millis
     var counter = 0
@@ -44,13 +44,13 @@ class FixedRateRepeatTest extends AnyFlatSpec with Matchers with EitherValues wi
       counter
 
     // when
-    val (result, elapsedTime) = measure(repeat(Schedule.fixedInterval(interval).maxRepeats(repeats).withInitialDelay(initialDelay))(f))
+    val (result, elapsedTime) = measure(repeat(Schedule.fixedInterval(interval).maxAttempts(attempts).withInitialDelay(initialDelay))(f))
 
     // then
-    elapsedTime.toMillis should be >= 3 * interval.toMillis + initialDelay.toMillis - 5 // tolerance
-    elapsedTime.toMillis should be < 4 * interval.toMillis
-    result shouldBe 4
-    counter shouldBe 4
+    elapsedTime.toMillis should be >= 2 * interval.toMillis + initialDelay.toMillis - 5 // tolerance
+    elapsedTime.toMillis should be < 3 * interval.toMillis
+    result shouldBe 3
+    counter shouldBe 3
 
   it should "repeat a function forever at fixed rate" in:
     // given
