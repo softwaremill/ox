@@ -23,7 +23,7 @@ Rules which are automatically applied, must have the following metadata header:
 ```
 ---
 description:
-globs:
+globs: *.scala
 alwaysApply: true
 ---
 

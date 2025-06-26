@@ -1,6 +1,6 @@
 ---
 description: 
-globs: 
+globs: *.scala
 alwaysApply: false
 ---
 # Ox Direct-Style Programming
