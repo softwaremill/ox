@@ -1,7 +1,7 @@
 ---
 description: 
-globs: *.scala
-alwaysApply: false
+globs: 
+alwaysApply: true
 ---
 # Ox Structured Concurrency
 
