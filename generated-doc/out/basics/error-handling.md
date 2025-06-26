@@ -207,3 +207,17 @@ assert(v1.orThrow == 10)
 val v2: Either[Exception, Int] = Left(new RuntimeException("boom!"))
 v2.orThrow // throws RuntimeException("boom!")
 ```
+
+## Mapping errors
+
+When an `Either` is used to represent errors, these can be mapped by using `.left.map`. This can be used to entirely 
+transform the error type, or eliminate some errors in case e.g. a union type is used. For example:
+
+```scala
+val e: Either[IllegalArgumentException | String, String] = ???
+
+val e2: Either[String, String] = e.left.map {
+  case e: IllegalArgumentException => s"Illegal argument: ${e.getMessage}"
+  case other: String => other
+}
+```

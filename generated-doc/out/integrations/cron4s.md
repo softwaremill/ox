@@ -3,7 +3,7 @@
 Dependency:
 
 ```scala
-"com.softwaremill.ox" %% "cron" % "0.6.1"
+"com.softwaremill.ox" %% "cron" % "0.7.0"
 ```
 
 This module allows to run schedules based on cron expressions from [cron4s](https://github.com/alonsodomin/cron4s).
@@ -62,6 +62,6 @@ repeatWithErrorMode(UnionMode[String])(RepeatConfig(CronSchedule.fromCronExpr(cr
 
 // repeat with retry inside
 repeat(RepeatConfig(CronSchedule.fromCronExpr(cronExpr))) {
-  retry(Schedule.exponentialBackoff(100.millis).maxRepeats(3))(directOperation)
+  retry(Schedule.exponentialBackoff(100.millis).maxRetries(3))(directOperation)
 }
 ```

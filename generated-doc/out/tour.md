@@ -56,7 +56,7 @@ supervised {
 
 ```scala
 def computationR: Int = ???
-retry(Schedule.exponentialBackoff(100.millis).maxRepeats(5)
+retry(Schedule.exponentialBackoff(100.millis).maxRetries(4)
   .jitter().maxInterval(5.minutes))(computationR)
 ```
 

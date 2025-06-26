@@ -3,7 +3,7 @@
 Dependency:
 
 ```scala
-"com.softwaremill.ox" %% "kafka" % "0.6.1"
+"com.softwaremill.ox" %% "kafka" % "0.7.0"
 ```
 
 `Flow`s which read from a Kafka topic, mapping stages and drains which publish to Kafka topics are available through

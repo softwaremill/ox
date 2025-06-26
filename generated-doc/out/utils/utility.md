@@ -9,6 +9,8 @@ Top-level methods:
 * `uninterruptible { ... }` evaluates the given code block making sure it can't be interrupted
 * `sleep(scala.concurrent.Duration)` blocks the current thread/fork for the given duration; same as `Thread.sleep`, but
   using's Scala's `Duration` 
+* `debug(expression)` prints the code representing the expression, and the value of the expression to standard output,
+  using `println`
 
 Extension functions on arbitrary expressions:
 
