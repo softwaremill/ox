@@ -1,0 +1,81 @@
+---
+description: Use actors for stateful components that need isolation and controlled access, especially when integrating with external systems.
+globs: 
+alwaysApply: false
+---
+# Ox Actor Isolation
+
+Use actors for stateful components that need isolation and controlled access, especially when integrating with external systems.
+
+**Stateful component with actor:**
+```scala
+class ConnectionPool(maxConnections: Int) {
+  private var connections = List.empty[Connection]
+  private var borrowed = Set.empty[Connection]
+  
+  def borrowConnection(): Option[Connection] = ???
+  def returnConnection(conn: Connection): Unit = ???
+  def currentSize: Int = connections.size
+}
+
+supervised {
+  val poolActor = Actor.create(new ConnectionPool(10))
+  
+  // Thread-safe access to stateful component
+  val connection = poolActor.ask(_.borrowConnection())
+  // ... use connection ...
+  poolActor.tell(_.returnConnection(connection))
+}
+```
+
+**Actor for external system integration:**
+```scala
+class KafkaProducerActor(producer: KafkaProducer[String, String]) {
+  def send(topic: String, key: String, value: String): Unit = 
+    producer.send(new ProducerRecord(topic, key, value)).get()
+    
+  def close(): Unit = producer.close()
+}
+
+supervised {
+  val kafkaActor = Actor.create(new KafkaProducerActor(kafkaProducer))
+  
+  // Multiple forks can safely send messages
+  forkUser { kafkaActor.tell(_.send("topic1", "key1", "value1")) }
+  forkUser { kafkaActor.tell(_.send("topic1", "key2", "value2")) }
+}
+```
+
+**Actor for rate-limited operations:**
+```scala
+class RateLimitedService(rateLimiter: RateLimiter) {
+  def makeRequest(request: ApiRequest): Either[RateLimitExceeded, ApiResponse] = 
+    if (rateLimiter.tryAcquire()) {
+      Right(externalService.call(request))
+    } else {
+      Left(RateLimitExceeded())
+    }
+}
+
+supervised {
+  val serviceActor = Actor.create(new RateLimitedService(rateLimiter))
+  
+  // Safe concurrent access to rate-limited resource
+  users.foreachPar(4) { user =>
+    serviceActor.ask(_.makeRequest(buildRequest(user)))
+  }
+}
+```
+
+**Actor benefits:**
+- Thread-safe access to mutable state
+- Controlled concurrency (single thread per actor)
+- Natural isolation boundaries
+- Simple integration with non-thread-safe resources
+- Clear ownership semantics
+
+**Use actors when:**
+- Need thread-safe mutable state
+- Integrating with non-thread-safe libraries
+- Want controlled access to shared resources
+- Building stateful components with clear boundaries

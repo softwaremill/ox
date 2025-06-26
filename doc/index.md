@@ -21,6 +21,7 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
    info/community-support
    info/dependency
    info/scope
+   info/ai
 
 .. toctree::
    :maxdepth: 2

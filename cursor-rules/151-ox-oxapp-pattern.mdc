@@ -1,0 +1,70 @@
+---
+description: Extend `OxApp` for applications that need clean shutdown handling for SIGINT/SIGTERM signals with proper fork cleanup.
+globs: 
+alwaysApply: false
+---
+# Ox OxApp Pattern
+
+Extend `OxApp` for applications that need clean shutdown handling for SIGINT/SIGTERM signals with proper fork cleanup.
+
+**Basic OxApp structure:**
+```scala
+object MyApp extends OxApp {
+  def run(args: Vector[String])(using Ox): ExitCode = {
+    // Your application logic here
+    val server = startServer()
+    val monitor = fork { monitorHealth() }
+    val processor = forkUser { processMessages() }
+    
+    // App runs until interrupted or forks complete
+    ExitCode.Success
+  }
+}
+```
+
+**Graceful shutdown handling:**
+```scala
+object MyService extends OxApp {
+  def run(args: Vector[String])(using Ox): ExitCode = {
+    val server = startHttpServer()
+    val scheduler = fork { runScheduledTasks() }
+    
+    // On SIGINT/SIGTERM:
+    // 1. All forks are interrupted
+    // 2. Forks have time to clean up gracefully  
+    // 3. Resources closed in proper order
+    // 4. App exits cleanly
+    
+    println("Service started, press Ctrl+C to stop")
+    ExitCode.Success
+  }
+}
+```
+
+**Background service with cleanup:**
+```scala
+object DataProcessor extends OxApp {
+  def run(args: Vector[String])(using Ox): ExitCode = {
+    val database = useCloseableInScope(openDatabase())
+    val queue = connectToQueue()
+    
+    forkUser {
+      queue.consume { message =>
+        processMessage(message, database)
+      }
+    }
+    
+    // Database connection properly closed on shutdown
+    ExitCode.Success
+  }
+}
+```
+
+**Benefits of OxApp:**
+- Automatic signal handling (SIGINT, SIGTERM)
+- Proper fork interruption and cleanup
+- Resource management integration
+- Clean application lifecycle
+- Standard exit code handling
+
+Use OxApp for long-running services and applications that need graceful shutdown.

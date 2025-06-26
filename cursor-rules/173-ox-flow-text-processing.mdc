@@ -1,0 +1,64 @@
+---
+description: Use built-in text transformation operators (`encodeUtf8`, `linesUtf8`, `decodeStringUtf8`) for efficient text processing in flows.
+globs: 
+alwaysApply: false
+---
+# Ox Flow Text Processing
+
+Use built-in text transformation operators (`encodeUtf8`, `linesUtf8`, `decodeStringUtf8`) for efficient text processing in flows.
+
+**File processing with line-based operations:**
+```scala
+import ox.flow.Flow
+
+Flow.fromInputStream(new FileInputStream("large-file.txt"))
+  .linesUtf8                           // Chunk[Byte] -> String (line by line)
+  .filter(_.startsWith("ERROR"))       // Filter error lines
+  .map(parseLine)                      // Process each line
+  .grouped(100)                        // Batch for efficiency
+  .runForeach(batch => processBatch(batch))
+```
+
+**Text encoding/decoding:**
+```scala
+// String to bytes
+Flow.fromValues("line1", "line2", "line3")
+  .encodeUtf8                          // String -> Chunk[Byte]
+  .runToChannel()                      // Can write to OutputStream
+
+// Bytes to string (preserving UTF-8 boundaries)
+Flow.fromInputStream(inputStream)
+  .decodeStringUtf8                    // Chunk[Byte] -> String
+  .runForeach(println)
+```
+
+**Log file analysis:**
+```scala
+def analyzeLogFile(filename: String): Map[String, Int] = 
+  Flow.fromInputStream(new FileInputStream(filename))
+    .linesUtf8
+    .filter(_.contains("ERROR"))
+    .map(extractErrorType)
+    .runFold(Map.empty[String, Int]) { (acc, errorType) =>
+      acc.updated(errorType, acc.getOrElse(errorType, 0) + 1)
+    }
+```
+
+**Stream processing with text operations:**
+```scala
+// Network stream processing
+Flow.fromInputStream(socket.getInputStream)
+  .linesUtf8                           // Handle streaming line input
+  .takeWhile(!_.equals("END"))         // Stop on delimiter
+  .map(parseCommand)
+  .runForeach(handleCommand)
+```
+
+**Benefits of built-in text ops:**
+- Proper UTF-8 boundary handling
+- Memory efficient streaming
+- No need to buffer entire files
+- Handles partial character sequences across chunks
+- Integrates seamlessly with I/O operations
+
+Use these operators for any text processing involving streams, files, or network I/O.

@@ -1,0 +1,96 @@
+---
+description: Use scheduling utilities (`repeat`, `scheduled`) for periodic tasks and time-based operations rather than manual sleep loops. 
+globs: 
+alwaysApply: false
+---
+# Ox Scheduling Patterns
+
+Use scheduling utilities (`repeat`, `scheduled`) for periodic tasks and time-based operations rather than manual sleep loops.
+
+**Bad - manual sleep loops:**
+```scala
+// Don't do this - hard to control, test, and maintain
+fork {
+  while (true) {
+    performHealthCheck()
+    Thread.sleep(30000) // 30 seconds
+  }
+}
+```
+
+**Good - use repeat for periodic tasks:**
+```scala
+// Better - declarative scheduling
+forkUser {
+  repeat(Schedule.fixedRate(30.seconds)) {
+    performHealthCheck()
+  }
+}
+```
+
+**Complex scheduling patterns:**
+```scala
+// Exponential backoff with jitter
+repeat(
+  Schedule.exponentialBackoff(1.second)
+    .maxInterval(5.minutes)
+    .jitter()
+    .maxAttempts(100)
+) {
+  synchronizeWithExternalSystem()
+}
+```
+
+**Scheduled operations with delays:**  
+```scala
+// Run something after a delay, then repeat
+scheduled(
+  initialDelay = 1.minute,
+  schedule = Schedule.fixedRate(15.minutes)
+) {
+  cleanupTemporaryFiles()
+}
+```
+
+**Conditional repeats:**
+```scala
+// Repeat while condition is true
+repeatWhile {
+  val hasMoreWork = checkForWork()
+  if (hasMoreWork) {
+    processWork()
+    true // Continue repeating
+  } else {
+    false // Stop repeating
+  }
+}
+```
+
+**Cron-like scheduling:**
+```scala
+import ox.scheduling.cron.CronSchedule
+
+// Using cron expressions (requires cron module)
+repeat(CronSchedule("0 0 * * 0")) { // Every Sunday at midnight
+  generateWeeklyReport()
+}
+```
+
+**Scheduled with timeout:**
+```scala
+// Timeout individual executions
+repeat(Schedule.fixedRate(1.minute)) {
+  timeout(30.seconds) {
+    longRunningTask()
+  }
+}
+```
+
+**Benefits of scheduling utilities:**
+- Declarative schedule definition
+- Built-in error handling and recovery
+- Easy testing with custom time sources
+- Proper resource cleanup
+- Standardized patterns for common scenarios
+
+Use these utilities instead of manual timing control for cleaner, more maintainable code.

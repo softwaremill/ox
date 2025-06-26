@@ -1,0 +1,183 @@
+---
+description: Use the `supervisedError` scope with error modes (like `EitherMode`) for application errors that should propagate without being exceptions.
+globs: 
+alwaysApply: false
+---
+# Ox Scopes for Application Errors
+
+Use `supervisedError` scopes with error modes for type-safe application error handling that propagates errors as values rather than exceptions.
+
+## SupervisedError Scope Basics
+
+The `supervisedError` scope allows forks to return application errors as values while maintaining structured concurrency:
+
+```scala
+import ox.{supervisedError, forkError, forkUserError, EitherMode}
+
+// Define error mode for your error type
+given ErrorMode[String] = EitherMode[String]
+
+val result: Either[String, (Int, String)] = supervisedError {
+  val f1 = forkError {
+    if (condition) Left("validation failed")
+    else Right(42)
+  }
+  
+  val f2 = forkError {
+    if (otherCondition) Left("business rule violated") 
+    else Right("success")
+  }
+  
+  // Combine results - errors propagate automatically
+  (f1.join(), f2.join())
+}
+```
+
+## Error Modes
+
+Error modes tell Ox how to handle application errors:
+
+```scala
+import ox.{EitherMode, UnionMode}
+
+// EitherMode for Either[Error, Success] pattern
+given ErrorMode[AppError] = EitherMode[AppError]
+
+// UnionMode for union types Error | Success
+given ErrorMode[AppError] = UnionMode[AppError]
+```
+
+## Fork Types for Application Errors
+
+```scala
+supervisedError {
+  // forkError - daemon fork with application errors
+  val f1 = forkError {
+    validateInput().fold(Left(_), Right(_))
+  }
+  
+  // forkUserError - user fork with application errors  
+  val f2 = forkUserError {
+    processData().fold(Left(_), Right(_))
+  }
+  
+  // Regular forks still work (but can't return application errors)
+  val f3 = fork {
+    logOperation()
+  }
+  
+  (f1.join(), f2.join(), f3.join())
+}
+```
+
+## Error Propagation Patterns
+
+### First Error Wins
+
+```scala
+supervisedError {
+  val computations = (1 to 10).map { i =>
+    forkError {
+      if (i == 5) Left(s"Error at $i")
+      else Right(s"Success $i")
+    }
+  }
+  
+  // If any fork returns an error, the scope returns that error
+  computations.map(_.join())
+} // Returns Left("Error at 5") - first error encountered
+```
+
+### Accumulating Errors
+
+```scala
+def processItems(
+  processor: Item => Either[E, Result]
+)(using ErrorMode[E]): Either[List[E], List[Result]] = 
+  supervisedError {
+    val forks = items.map(item => forkError(processor(item)))
+    val results = forks.map(_.join())
+    
+    // Custom logic to accumulate all errors or return all successes
+    val (errors, successes) = results.partitionMap(identity)
+    if (errors.nonEmpty) Left(errors) else Right(successes)
+  }
+```
+
+## Integration with High-Level Operations
+
+```scala
+import ox.parError
+
+given ErrorMode[String] = EitherMode[String]
+
+// Parallel execution with application error handling
+val result: Either[String, (User, Organization)] = parError(
+  fetchUser(userId).fold(Left(_), Right(_)),
+  fetchOrganization(orgId).fold(Left(_), Right(_))
+)
+
+// Race with application errors
+val winner: Either[String, Data] = raceError(
+  primaryService.getData().fold(Left(_), Right(_)),
+  fallbackService.getData().fold(Left(_), Right(_))
+)
+```
+
+## Combining with Exception Handling
+
+```scala
+supervisedError {
+  val f1 = forkError {
+    try {
+      val result = riskyOperation()
+      if (result.isValid) Right(result)
+      else Left("Invalid result")
+    } catch {
+      case e: SpecificException => Left(s"Operation failed: ${e.getMessage}")
+      case other => throw other // Re-throw unexpected exceptions
+    }
+  }
+  
+  f1.join()
+}
+```
+
+## Union Types for Multiple Error Types
+
+```scala
+sealed trait AppError
+case class ValidationError(message: String) extends AppError
+case class BusinessError(code: Int) extends AppError
+case class SystemError(cause: Throwable) extends AppError
+
+given ErrorMode[AppError] = EitherMode[AppError]
+
+supervisedError {
+  val f1 = forkError {
+    validateInput() match {
+      case Some(error) => Left(ValidationError(error))
+      case None => Right("valid")
+    }
+  }
+  
+  val f2 = forkError {
+    businessLogic() match {
+      case Left(code) => Left(BusinessError(code))
+      case Right(result) => Right(result)
+    }
+  }
+  
+  (f1.join(), f2.join())
+} // Either[AppError, (String, Result)]
+```
+
+## Best Practices
+
+1. **Use supervisedError** for expected business failures
+2. **Keep regular supervised** for system/bug exceptions  
+3. **Define error modes** at the beginning of your application
+4. **Use union types** for different error categories
+5. **Don't mix** application errors and exceptions inconsistently
+6. **Test error scenarios** to ensure proper propagation
+7. **Document error types** in method signatures

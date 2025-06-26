@@ -1,0 +1,324 @@
+---
+description: Use Ox's parallel collection operations (`mapPar`, `collectPar`, `filterPar`, `foreachPar`) for concurrent processing of collections.
+globs: 
+alwaysApply: false
+---
+# Ox Parallel Collections
+
+Use Ox's parallel collection operations for efficient concurrent processing of collections with automatic concurrency management.
+
+## Parallel Collection Operations
+
+Ox provides parallel versions of common collection operations:
+
+- **`mapPar`**: Transform elements concurrently
+- **`collectPar`**: Transform and filter elements concurrently  
+- **`filterPar`**: Filter elements concurrently
+- **`foreachPar`**: Process elements concurrently for side effects
+
+## Using `mapPar` for Parallel Transformation
+
+```scala
+import ox.mapPar
+
+// Good: Parallel transformation with automatic concurrency control
+val results = {
+  val userIds = List("user1", "user2", "user3", "user4")
+  userIds.mapPar(4) { userId =>
+    fetchUserData(userId) // Each call runs concurrently
+  }
+}
+
+// Avoid: Manual fork management for collection processing
+{
+  val userIds = List("user1", "user2", "user3", "user4")
+  val forks = userIds.map(userId => forkUser { fetchUserData(userId) })
+  forks.map(_.join()) // More verbose and error-prone
+}
+```
+
+## Controlling Parallelism
+
+The parallelism parameter controls how many operations run concurrently:
+
+```scala
+// Process 2 items at a time (good for rate limiting)
+val results1 = {
+  items.mapPar(2) { item =>
+    expensiveAPICall(item)
+  }
+}
+
+// Process all items concurrently (good for independent operations)
+val results2 = {
+  items.mapPar(items.size) { item =>
+    localComputation(item)
+  }
+}
+
+// Use reasonable default (good for CPU-bound work)
+val results3 = {
+  items.mapPar(8) { item =>
+    cpuIntensiveWork(item)
+  }
+}
+```
+
+## Using `collectPar` for Transform and Filter
+
+```scala
+// Good: Parallel collect operation
+val validUsers = {
+  userIds.collectPar(4) { userId =>
+    val user = fetchUser(userId)
+    if (user.isActive) Some(user) else None
+  }
+}
+
+// Also works with partial functions
+val processedData = {
+  rawData.collectPar(6) {
+    case ValidData(content) => processContent(content)
+    case ImportantData(content) => processImportantContent(content)
+    // InvalidData cases are filtered out
+  }
+}
+```
+
+## Using `filterPar` for Parallel Filtering
+
+```scala
+// Good: Parallel filtering with expensive predicates
+val validFiles = {
+  filePaths.filterPar(3) { path =>
+    val file = Files.readString(path)
+    validateFileContent(file) // Expensive validation
+  }
+}
+
+// Good: Filtering with I/O operations
+val availableServices = {
+  serviceUrls.filterPar(5) { url =>
+    try {
+      httpClient.get(url).status == 200
+    } catch {
+      case _: Exception => false
+    }
+  }
+}
+```
+
+## Using `foreachPar` for Side Effects
+
+```scala
+// Good: Parallel processing for side effects
+notifications.foreachPar(3) { notification =>
+  emailService.send(notification)
+}
+
+// Good: Parallel file processing
+files.foreachPar(2) { file =>
+  val content = processFile(file)
+  saveProcessedContent(file.name, content)
+}
+```
+
+## Error Handling in Parallel Collections
+
+Parallel operations fail fast - if any element processing fails, the entire operation fails:
+
+```scala
+import ox.either
+
+// Exception handling: first failure stops everything
+try {
+  items.mapPar(4) { item =>
+    if (item.isCorrupted) throw new ProcessingException()
+    processItem(item)
+  }
+} catch {
+  case e: ProcessingException => handleError(e)
+}
+
+// Application error handling with Either
+val results: Either[String, List[ProcessedItem]] = either {
+  items.mapPar(4) { item =>
+    processItemSafely(item).ok() // Unwrap Either, short-circuit on Left
+  }
+}
+```
+
+## Choosing Parallelism Levels
+
+Guidelines for choosing the parallelism parameter:
+
+```scala
+// I/O bound operations: Higher parallelism
+val ioResults = {
+  urls.mapPar(20) { url =>
+    httpClient.get(url) // Network I/O can handle many concurrent requests
+  }
+}
+
+// CPU bound operations: Match CPU cores
+val cpuResults = {
+  data.mapPar(Runtime.getRuntime.availableProcessors) { item =>
+    computeIntensive(item) // CPU-bound work
+  }
+}
+
+// Rate-limited APIs: Low parallelism
+val apiResults = {
+  requests.mapPar(2) { request =>
+    rateLimitedAPI.call(request) // Respect API rate limits
+  }
+}
+
+// Database operations: Moderate parallelism
+val dbResults = {
+  queries.mapPar(5) { query =>
+    database.execute(query) // Database connection pool size
+  }
+}
+```
+
+## Real-World Examples
+
+### Parallel Data Fetching and Processing
+
+```scala
+class UserDataService {
+  def enrichUserProfiles(userIds: List[String]): List[EnrichedProfile] = {
+    userIds.mapPar(6) { userId =>
+      // Each user processed in parallel
+      val basicProfile = userService.getProfile(userId)
+      val preferences = preferencesService.get(userId)
+      val activity = activityService.getRecent(userId)
+      
+      EnrichedProfile(basicProfile, preferences, activity)
+    }
+  }
+  
+  def processActiveUsers(allUsers: List[User]): List[ProcessedUser] = {
+    allUsers
+      .filterPar(4)(_.lastLogin.isAfter(cutoffDate)) // Filter active users
+      .mapPar(8)(processUserData) // Process active users
+  }
+}
+```
+
+### Batch File Processing
+
+```scala
+class FileProcessor {
+  def processDirectory(directory: Path): Unit = {
+    val files = Files.list(directory).toList
+    
+    // Process files in parallel
+    files.foreachPar(3) { file =>
+      val content = Files.readString(file)
+      val processed = transformContent(content)
+      val outputFile = getOutputPath(file)
+      Files.writeString(outputFile, processed)
+    }
+  }
+  
+  def validateFiles(files: List[Path]): List[Path] = {
+    files.filterPar(4) { file =>
+      try {
+        val content = Files.readString(file)
+        validateContent(content)
+      } catch {
+        case _: Exception => false
+      }
+    }
+  }
+}
+```
+
+### API Integration
+
+```scala
+class DataAggregator {
+  def aggregateFromMultipleSources(sources: List[DataSource]): AggregatedData = {
+    val results = sources.collectPar(3) { source =>
+      try {
+        val data = apiClient.fetchData(source.url)
+        if (data.isValid) Some(data) else None
+      } catch {
+        case _: Exception => None // Skip failed sources
+      }
+    }
+    
+    AggregatedData(results)
+  }
+  
+  def notifySubscribers(subscribers: List[Subscriber], event: Event): Unit = {
+    subscribers.foreachPar(5) { subscriber =>
+      notificationService.notify(subscriber, event)
+    }
+  }
+}
+```
+
+## Performance Considerations
+
+### Memory Usage
+
+```scala
+// For large collections, consider chunking
+def processLargeDataset(data: List[LargeItem]): List[ProcessedItem] = {
+  data.grouped(100).flatMap { chunk =>
+    chunk.mapPar(4) { item =>
+      processItem(item)
+    }
+  }.toList
+}
+```
+
+### Resource Management
+
+```scala
+// Use appropriate parallelism to avoid resource exhaustion
+class ResourceAwareProcessor {
+  def processWithResourceLimits(items: List[Item]): List[Result] = {
+    // Don't exceed database connection pool size
+    val dbPoolSize = 10
+    items.mapPar(math.min(dbPoolSize, 8)) { item =>
+      processWithDatabase(item)
+    }
+  }
+}
+```
+
+## Best Practices
+
+1. **Choose appropriate parallelism** based on the operation type (I/O vs CPU)
+2. **Consider resource limits** (connection pools, API rate limits)
+3. **Use `collectPar`** when you need both transformation and filtering
+4. **Handle errors appropriately** - decide between fail-fast and error tolerance
+5. **Test with realistic data sizes** to find optimal parallelism
+6. **Monitor resource usage** to avoid overwhelming systems
+7. **Use `foreachPar`** for side effects, other operations for transformations
+8. **Chunk large collections** to manage memory usage
+
+## Common Mistakes
+
+```scala
+// Bad: Too high parallelism for limited resources
+items.mapPar(1000) { item => 
+  database.query(item) // Will exhaust connection pool
+}
+
+// Bad: Using parallel operations for sequential dependencies
+items.mapPar(4) { item =>
+  val step1 = process1(item)
+  val step2 = process2(step1) // Each item is sequential anyway
+  step2
+}
+
+// Good: Use parallel operations when items are independent
+items.mapPar(4) { item =>
+  independentService.process(item) // Each item processed independently
+}
+```

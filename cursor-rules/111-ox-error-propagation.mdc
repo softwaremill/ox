@@ -1,0 +1,150 @@
+---
+description: Understand error propagation in scopes: exceptions in supervised forks cause the entire scope to fail and interrupt other forks.
+globs: 
+alwaysApply: false
+---
+# Ox Error Propagation
+
+Understanding how errors propagate through scopes is crucial for building reliable concurrent applications with Ox.
+
+## Exception Propagation in Supervised Scopes
+
+In `supervised` scopes, exceptions propagate and cause scope termination:
+
+```scala
+import ox.{fork, forkUser, supervised, sleep}
+import scala.concurrent.duration.*
+
+// Exception in any fork ends the entire scope
+supervised {
+  forkUser {
+    sleep(2.seconds)
+    println("This won't execute")
+  }
+  
+  fork {
+    sleep(500.millis)
+    throw new RuntimeException("boom!")
+  }
+  
+  println("Main computation")
+  sleep(1.second)
+} // Throws RuntimeException after all forks are interrupted
+```
+
+## Error Isolation in Unsupervised Scopes
+
+Unsupervised scopes don't propagate errors automatically:
+
+```scala
+import ox.{forkUnsupervised, unsupervised}
+
+unsupervised {
+  val f1 = forkUnsupervised {
+    throw new Exception("isolated error")
+  }
+  
+  val f2 = forkUnsupervised {
+    successfulComputation()
+  }
+  
+  // Must handle errors manually
+  val result1 = try { f1.join() } catch { case e => handleError(e) }
+  val result2 = f2.join()
+}
+```
+
+## High-Level Operations Error Propagation
+
+High-level operations short-circuit on first error:
+
+```scala
+import ox.{par, race, raceSuccess}
+
+// par - if any computation fails, all others are cancelled
+val result = par(
+  computation1(), // might throw
+  computation2(), // cancelled if computation1 fails
+  computation3()  // cancelled if any other fails
+)
+
+// race - first completion wins, others cancelled
+val winner = race(
+  computation1(), // might throw
+  computation2()  // cancelled if computation1 completes first
+)
+
+// raceSuccess - first successful completion wins
+val winner2 = raceSuccess(
+  computation1(), // might throw, others continue
+  computation2()  // continues until success or all fail
+)
+```
+
+## Application Error Propagation
+
+Use `supervisedError` with error modes for application errors:
+
+```scala
+import ox.{supervisedError, forkError, EitherMode}
+
+given ErrorMode[String] = EitherMode[String]
+
+val result = supervisedError {
+  val f1 = forkError {
+    if (condition) Left("validation error")
+    else Right("success")
+  }
+  
+  val f2 = forkError {
+    if (otherCondition) Left("business error")
+    else Right(42)
+  }
+  
+  // Application errors propagate as values
+  (f1.join(), f2.join())
+} // Returns Either with combined errors or success
+```
+
+## Error Handling Patterns
+
+### Graceful Degradation
+
+```scala
+supervised {
+  val primaryResult = try {
+    Some(primaryService.getData())
+  } catch {
+    case _: ServiceException => None
+  }
+  
+  val fallbackResult = if (primaryResult.isEmpty) {
+    Some(fallbackService.getData())
+  } else None
+  
+  primaryResult.orElse(fallbackResult).getOrElse(defaultData)
+}
+```
+
+### Partial Failure Handling
+
+```scala
+val results = items.map { item =>
+  try {
+    Right(processItem(item))
+  } catch {
+    case e: ProcessingException => Left(e.getMessage)
+  }
+}
+
+val (failures, successes) = results.partitionMap(identity)
+```
+
+## Best Practices
+
+1. **Use supervised scopes** for fail-fast behavior
+2. **Use unsupervised scopes** only in special situations, errors must be handled manually
+3. **Handle partial failures** explicitly when some operations can fail
+4. **Use application errors** for expected failure scenarios
+5. **Let exceptions bubble up** for unexpected errors
+6. **Test error scenarios** to ensure proper propagation
