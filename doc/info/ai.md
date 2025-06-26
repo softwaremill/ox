@@ -24,3 +24,12 @@ git clone --depth=1 --filter=blob:none --sparse https://github.com/softwaremill/
 
 Some of the rules are automatically applied to the context (to let the model know about basic capabilities), some are agent-requested, which exposes only the rule descriptions to the context. If needed, the agent can fetch the entire rule content, to explore a subject in more depth.
 
+## Context7
+
+[Context7](https://github.com/upstash/context7) is an open-source MCP (Model Context Protocol) server which aims to provide up-to-date documentation for AI coding assistants. You can use the managed, global MCP server, or run your own.
+
+Ox's documentation is indexed in the global server. To reference it in a prompt, be sure to add `use context7`.
+
+## llms.txt
+
+Ox currently does not server a [llms.txt](https://llmstxt.org) file, as it is currently unclear if there are any tools using this. However, if support for this format becomes more widespread, we'll automate generation of this file as well.
