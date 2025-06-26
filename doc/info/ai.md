@@ -19,16 +19,16 @@ You can then use `@Docs Ox` to hint to Cursor to use Ox's documentation.
 Rules might be project-scoped or tied to the user. Project rules are stored in a `.cursor/rules` directory. Ox contains a set of rules, which might guide LLMs when working with Ox-based applications. To include them in your project, simply fetch the current rules into your `.cursor/rules/` directory:
 
 ```
-git clone --depth=1 --filter=blob:none --sparse https://github.com/softwaremill/ox.git && cd ox && git sparse-checkout set cursor-rules && mkdir -p ../.cursor/rules && cp -r cursor-rules/* ../.cursor/rules && cd .. && rm -rf ox
+git clone --depth=1 --filter=blob:none --sparse https://github.com/softwaremill/ox.git && cd ox && git sparse-checkout set cursor-rules && mkdir -p ../.cursor/rules && cp cursor-rules/*.mdc ../.cursor/rules && cd .. && rm -rf ox
 ```
 
-Some of the rules are automatically applied to the context (to let the model know about basic capabilities), some are agent-requested, which exposes only the rule descriptions to the context. If needed, the agent can fetch the entire rule content, to explore a subject in more depth.
+Some of the rules are automatically applied to the context (to let the model know about basic capabilities), but most are agent-requested, which exposes only the rule descriptions to the context. If needed, the agent can fetch the entire rule content, to explore a subject in more depth.
 
 ## Context7
 
 [Context7](https://github.com/upstash/context7) is an open-source MCP (Model Context Protocol) server which aims to provide up-to-date documentation for AI coding assistants. You can use the managed, global MCP server, or run your own.
 
-Ox's documentation is indexed in the global server. To reference it in a prompt, be sure to add `use context7`.
+Ox's documentation is [indexed on the global server](https://context7.com/softwaremill/ox). To reference it in a prompt, be sure to add `use context7`.
 
 ## llms.txt
 
