@@ -1,0 +1,24 @@
+{
+    "$schema": "https://context7.com/schema/context7.json",
+    "projectTitle": "Ox",
+    "description": "Safe direct-style concurrency and resiliency for Scala on the JVM",
+    "folders": [
+        "generated-doc"
+    ],
+    "rules": [
+        "Use high-level concurrency operations like par(), race(), and timeout() when possible",
+        "For manual concurrency, always use structured concurrency with supervised scopes to ensure proper cleanup of threads and resources",
+        "Keep concurrency scopes as small as possible, creating short-lived scopes for single requests or jobs",
+        "Use useCloseableInScope() for automatic resource management that ensures cleanup on scope exit",
+        "Handle errors through either exceptions (for bugs/unexpected situations) or application errors as values using Either",
+        "Prefer either blocks with .ok() for streamlined Either handling instead of manual pattern matching",
+        "Use blocking operations freely, instead of using Futures",
+        "Use Flows for defining asynchronous data processing pipelines",
+        "Use .buffer() to create explicit asynchronous boundaries in flows when producers and consumers need decoupling",
+        "Use Flow.usingEmit for custom flow creation but never share FlowEmit instances across threads",
+        "Use channels for integrating with callback-based and reactive APIs within structured concurrency scopes",
+        "Leverage retry() with exponential backoff and jitter for resilient error handling of transient failures",
+        "Use repeat() with appropriate schedules for periodic task execution within supervised scopes",
+        "Use .pipe, .tap, uninterruptible, .discard, debug utility functions"
+    ]
+}

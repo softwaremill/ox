@@ -91,6 +91,9 @@ Use actors for stateful components that need isolation and controlled access, es
 ### ox-flow-text-processing
 Use built-in text transformation operators (`encodeUtf8`, `linesUtf8`, `decodeStringUtf8`) for efficient text processing in flows.
 
+### ox-utility-functions
+Ox provides utility functions for common operations in direct-style code: `.pipe`, `.tap`, `.discard`, `uninterruptible` and `debug`. These are often inline methods with no runtime overhead.
+
 ## Integration & Interoperability
 
 ### ox-reactive-streams
