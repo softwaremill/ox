@@ -5,9 +5,6 @@
 ### ox-direct-style (automatically applied)
 Ox promotes direct-style programming where effectful computations return values directly without wrapper types like `Future`, `IO`, or `Task`. This leverages Java 21 virtual threads for high-performance concurrency.
 
-### ox-structured-concurrency (automatically applied)
-Use structured concurrency with scopes (`supervised`, `supervisedError`, `unsupervised`) to manage thread lifetimes. All manually managed threading and concurrent operations must be contained within scopes that guarantee cleanup and proper resource management.
-
 ### ox-virtual-threads (automatically applied)
 Leverage virtual threads - don't be afraid of blocking operations, create many forks when needed.
 
@@ -23,6 +20,9 @@ Understand error propagation in scopes: exceptions in supervised forks cause the
 Use the `supervisedError` scope with error modes (like `EitherMode`) for application errors that should propagate without being exceptions.
 
 ## Scope Management
+
+### ox-structured-concurrency
+Use structured concurrency with scopes (`supervised`, `supervisedError`, `unsupervised`) to manage thread lifetimes. All manual thread/fork creation in Ox must happen within concurrency scopes that guarantee proper cleanup and resource management. Scopes define the lifetime of forks (threads) through code structure.
 
 ### ox-scope-lifetime
 Keep concurrency scopes as small as possible. Create short-lived scopes for single requests, messages, or jobs rather than long-running global scopes.

@@ -1,11 +1,11 @@
 ---
-description: Ox uses two distinct channels for errors: exceptions for bugs/unexpected situations, and application errors as values (`Either`, union types).
+description: 
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
 # Ox Error Handling: Dual Channel
 
-Ox uses two distinct channels for error handling: exceptions for bugs and unexpected situations, and application errors represented as values.
+Ox uses two distinct channels for errors: exceptions for bugs/unexpected situations, and application errors as values (`Either`, union types).
 
 ## Two Error Channels
 

@@ -1,11 +1,11 @@
 ---
-description: 
+description: Use structured concurrency with scopes (`supervised`, `supervisedError`, `unsupervised`) to manage thread lifetimes. All manual thread/fork creation in Ox must happen within concurrency scopes that guarantee proper cleanup and resource management. Scopes define the lifetime of forks (threads) through code structure.
 globs: 
-alwaysApply: true
+alwaysApply: false
 ---
 # Ox Structured Concurrency
 
-All concurrent operations in Ox must happen within concurrency scopes that guarantee proper cleanup and resource management. Scopes define the lifetime of forks (threads) through code structure.
+Use structured concurrency with scopes (`supervised`, `supervisedError`, `unsupervised`) to manage thread lifetimes. All manual thread/fork creation in Ox must happen within concurrency scopes that guarantee proper cleanup and resource management. Scopes define the lifetime of forks (threads) through code structure.
 
 ## Scope Types
 
