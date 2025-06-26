@@ -19,7 +19,7 @@ You can then use `@Docs Ox` to hint to Cursor to use Ox's documentation.
 Rules might be project-scoped or tied to the user. Project rules are stored in a `.cursor/rules` directory. Ox contains a set of rules, which might guide LLMs when working with Ox-based applications. To include them in your project, simply fetch the current rules into your `.cursor/rules/` directory:
 
 ```
-git clone --depth=1 --filter=blob:none --sparse https://github.com/softwaremill/ox.git && cd ox && git sparse-checkout set doc && mkdir -p ../.cursor/rules && cp -r doc/* ../.cursor/rules && cd .. && rm -rf ox
+git clone --depth=1 --filter=blob:none --sparse https://github.com/softwaremill/ox.git && cd ox && git sparse-checkout set cursor-rules && mkdir -p ../.cursor/rules && cp -r cursor-rules/* ../.cursor/rules && cd .. && rm -rf ox
 ```
 
 Some of the rules are automatically applied to the context (to let the model know about basic capabilities), some are agent-requested, which exposes only the rule descriptions to the context. If needed, the agent can fetch the entire rule content, to explore a subject in more depth.
