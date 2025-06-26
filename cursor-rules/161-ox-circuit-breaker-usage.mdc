@@ -1,0 +1,125 @@
+---
+description: Use circuit breakers for protecting against cascading failures. Configure appropriate failure thresholds and recovery strategies.
+globs: 
+alwaysApply: false
+---
+# Ox Circuit Breaker Usage
+
+Use CircuitBreaker to prevent cascading failures in distributed systems. Circuit breakers have three states: Closed (normal), Open (failing fast), and HalfOpen (testing recovery).
+
+## Basic Usage
+
+```scala
+import ox.supervised
+import ox.resilience.*
+
+supervised {
+  val breaker = CircuitBreaker()
+  
+  // Returns Option - None when circuit is open
+  val result: Option[String] = breaker.runOrDrop {
+    externalService.getData() // May throw exceptions
+  }
+  
+  result.getOrElse(fallbackValue)
+}
+```
+
+## Configuration
+
+```scala
+import scala.concurrent.duration.*
+
+val config = CircuitBreakerConfig(
+  failureRateThreshold = PercentageThreshold(60),    // Open at 60% failures
+  slowCallThreshold = PercentageThreshold(80),       // Open at 80% slow calls
+  slowCallDurationThreshold = 5.seconds,             // Slow call threshold
+  slidingWindow = SlidingWindow.CountBased(50),      // Track last 50 calls
+  minimumNumberOfCalls = 10,                         // Min calls before opening
+  waitDurationOpenState = 30.seconds,                // Wait before half-open
+  numberOfCallsInHalfOpenState = 5                   // Test calls in half-open
+)
+
+val breaker = CircuitBreaker(config)
+```
+
+## Error Handling Patterns
+
+```scala
+// Exception-based operations
+breaker.runOrDrop(externalAPI.call()) match {
+  case Some(result) => processResult(result)
+  case None => handleCircuitOpen()
+}
+
+// Either-based operations
+breaker.runOrDropEither(safeAPICall()) match {
+  case Some(Right(response)) => processResponse(response)
+  case Some(Left(error)) => handleAPIError(error)
+  case None => handleCircuitOpen()
+}
+
+// Union types with custom error modes
+breaker.runOrDropWithErrorMode(UnionMode[ServiceError])(serviceCall())
+```
+
+## Integration with Other Patterns
+
+```scala
+// With retry
+retryEither(Schedule.exponentialBackoff(100.millis).maxRetries(3)) {
+  breaker.runOrDrop(service.call()) match {
+    case Some(value) => Right(value)
+    case None => Left("Circuit breaker open")
+  }
+}
+
+// With timeout
+breaker.runOrDrop {
+  timeout(5.seconds) { slowService.getData() }
+}
+```
+
+## Real-World Example
+
+```scala
+class ServiceClient {
+  private val primaryBreaker = CircuitBreaker()
+  private val fallbackBreaker = CircuitBreaker(CircuitBreakerConfig(
+    failureRateThreshold = PercentageThreshold(80) // More lenient
+  ))
+  
+  def fetchData(): String = {
+    primaryBreaker.runOrDrop(primaryService.getData())
+      .orElse(fallbackBreaker.runOrDrop(fallbackService.getData()))
+      .getOrElse("Default data")
+  }
+}
+```
+
+## Best Practices
+
+1. **Use separate circuit breakers** for different services
+2. **Configure thresholds** based on service characteristics
+3. **Provide meaningful fallbacks** when circuit is open
+4. **Combine with retries and timeouts** for layered resilience
+5. **Monitor circuit breaker state** for operational insights
+
+## Common Mistakes
+
+```scala
+// Bad: Shared circuit breaker for different services
+val sharedBreaker = CircuitBreaker()
+sharedBreaker.runOrDrop(serviceA.call())
+sharedBreaker.runOrDrop(serviceB.call()) // Services affect each other
+
+// Bad: Not handling None result
+breaker.runOrDrop(service.call()).get // Throws if circuit is open
+
+// Good: Separate breakers and proper handling
+val serviceABreaker = CircuitBreaker()
+val serviceBBreaker = CircuitBreaker()
+
+serviceABreaker.runOrDrop(serviceA.call()).getOrElse(fallbackA)
+serviceBBreaker.runOrDrop(serviceB.call()).getOrElse(fallbackB)
+```

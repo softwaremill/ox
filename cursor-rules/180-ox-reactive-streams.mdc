@@ -1,0 +1,89 @@
+---
+description: Use flow-to-publisher conversion for reactive streams integration. Remember that publishers need active scopes to function.
+globs: 
+alwaysApply: false
+---
+# Ox Reactive Streams
+
+Use flow-to-publisher conversion for reactive streams integration. Remember that publishers need active scopes to function.
+
+**Converting Flow to Publisher:**
+```scala
+import ox.flow.reactive.*
+
+supervised {  // Publisher needs active scope
+  val flow = Flow.fromValues(1, 2, 3, 4, 5)
+    .map(_ * 2)
+    .filter(_ > 4)
+  
+  val publisher = flow.toReactiveStreamsPublisher
+  
+  // Use publisher with reactive streams libraries
+  publisher.subscribe(mySubscriber)
+  
+  // Scope must remain active while publisher is used
+}
+```
+
+**Integration with reactive libraries:**
+```scala
+// With Akka Streams
+supervised {
+  val oxFlow = Flow.iterate(0)(_ + 1)
+    .take(1000)
+    .mapPar(4)(processNumber)
+  
+  val publisher = oxFlow.toReactiveStreamsPublisher
+  val akkaSource = Source.fromPublisher(publisher)
+  
+  akkaSource.runWith(Sink.foreach(println))
+}
+```
+
+**Publisher with backpressure:**
+```scala
+supervised {
+  given BufferCapacity = BufferCapacity(100) // Control buffering
+  
+  val publisher = Flow.tick(10.millis, "data")
+    .take(10000)
+    .toReactiveStreamsPublisher
+  
+  // Publisher respects backpressure from subscriber
+  slowSubscriber.subscribe(publisher)
+}
+```
+
+**Converting Publisher to Flow:**
+```scala
+import java.util.concurrent.Flow.Publisher
+
+def integrateExternalPublisher(publisher: Publisher[String]): Unit = 
+  given BufferCapacity = BufferCapacity(50)
+  
+  Flow.fromPublisher(publisher)
+    .filter(_.nonEmpty)
+    .map(_.toUpperCase)
+    .runForeach(println)
+```
+
+**Scope lifetime considerations:**
+```scala
+// Bad - scope ends before publisher used
+def createPublisher(): Publisher[Int] = supervised {
+  Flow.fromValues(1, 2, 3).toPublisher // Scope ends here!
+}
+
+// Good - scope lives as long as publisher needed
+supervised {
+  val publisher = Flow.fromValues(1, 2, 3).toPublisher
+  // Use publisher within scope
+  processWithPublisher(publisher)
+}
+```
+
+**Key points:**
+- Publishers must be created and used within active scopes
+- Buffering controlled by `BufferCapacity` in scope
+- Backpressure handled automatically
+- Scope must outlive publisher usage

@@ -1,0 +1,244 @@
+---
+description: Use appropriate fork types: `fork` (daemon), `forkUser` (user, scope waits), `forkError`/`forkUserError` (with error handling), `forkUnsupervised` (manual management).
+globs: 
+alwaysApply: false
+---
+# Ox Fork Types Guide
+
+Choose the right fork type based on whether the scope should wait for completion and how errors should be handled.
+
+## Fork Types Overview
+
+| Fork Type | Scope Waits | Error Handling | Use Case |
+|-----------|-------------|----------------|-----------|
+| `fork` | No (daemon) | Exception propagation | Background work |
+| `forkUser` | Yes (user) | Exception propagation | Critical work |
+| `forkError` | No (daemon) | Application errors | Background with validation |
+| `forkUserError` | Yes (user) | Application errors | Critical with validation |
+| `forkUnsupervised` | Manual | Manual | Full control needed |
+| `forkCancellable` | Manual | Manual | Need cancellation |
+
+## Daemon vs User Forks
+
+### `fork` - Daemon Fork
+
+The scope doesn't wait for daemon forks if all user work completes:
+
+```scala
+import ox.{fork, forkUser, supervised}
+
+supervised {
+  // Daemon fork - runs in background
+  fork {
+    generateReport() // Takes 10 seconds
+    emailReport()
+  }
+  
+  // Main work
+  val result = processMainWork() // Takes 2 seconds
+  result
+} // Scope ends after 2 seconds, daemon fork is cancelled
+```
+
+### `forkUser` - User Fork
+
+The scope waits for all user forks to complete:
+
+```scala
+supervised {
+  // User fork - scope must wait for completion
+  forkUser {
+    updateDatabase() // Critical operation
+    auditLog()
+  }
+  
+  // Another user fork
+  forkUser {
+    sendNotification() // Must complete before scope ends
+  }
+  
+  processMainWork()
+} // Scope waits for ALL forks to complete
+```
+
+## Practical Examples
+
+### Web Request Processing
+
+```scala
+def handleWebRequest(request: Request): Response = supervised {
+  // Critical user work - must complete for valid response
+  val authFork = forkUser { authenticateUser(request) }
+  val dataFork = forkUser { fetchRequestData(request) }
+  
+  // Background daemon work - nice to have but not required
+  fork { logRequest(request) }
+  fork { updateMetrics(request) }
+  
+  Response(
+    auth = authFork.join(),
+    data = dataFork.join()
+  )
+} // Returns immediately after user forks complete
+```
+
+### Batch Processing
+
+```scala
+def processBatch(items: List[Item]): BatchResult = supervised {
+  // All items must be processed - use user forks
+  val processingForks = items.map { item =>
+    forkUser { processItem(item) }
+  }
+  
+  // Background reporting - use daemon fork
+  fork { 
+    while (processingForks.exists(!_.isCompleted)) {
+      reportProgress(processingForks.count(_.isCompleted), items.size)
+      Thread.sleep(1000)
+    }
+  }
+  
+  BatchResult(processingForks.map(_.join()))
+} // Waits for all item processing, cancels progress reporting
+```
+
+## Application Error Forks
+
+### `forkError` - Daemon with Application Errors
+
+```scala
+import ox.{supervisedError, forkError, EitherMode}
+
+given ErrorMode[String] = EitherMode[String]
+
+supervisedError {
+  // Background validation - doesn't block main work
+  forkError {
+    if (isValidInput(input)) Right("valid")
+    else Left("validation failed")
+  }
+  
+  // Main work continues even if validation not complete
+  val mainResult = processMainLogic()
+  mainResult
+}
+```
+
+### `forkUserError` - User with Application Errors
+
+```scala
+supervisedError {
+  // Critical validation - must complete before scope ends
+  val validationFork = forkUserError {
+    validateBusinessRules(data).fold(Left(_), Right(_))
+  }
+  
+  val processingFork = forkUserError {
+    processData(data).fold(Left(_), Right(_))
+  }
+  
+  // Scope waits for both validations
+  (validationFork.join(), processingFork.join())
+}
+```
+
+## Unsupervised Forks
+
+### `forkUnsupervised` - Full Manual Control
+
+```scala
+import ox.{unsupervised, forkUnsupervised}
+
+unsupervised {
+  val backgroundWork = forkUnsupervised {
+    try {
+      longRunningTask()
+      "success"
+    } catch {
+      case e: Exception => s"failed: ${e.getMessage}"
+    }
+  }
+  
+  val mainWork = forkUnsupervised {
+    processImportantWork()
+  }
+  
+  // Manual control over completion and error handling
+  val mainResult = mainWork.join()
+  
+  // Optionally wait for background work
+  if (shouldWaitForBackground) {
+    val backgroundResult = backgroundWork.join()
+    println(s"Background work: $backgroundResult")
+  }
+  
+  mainResult
+}
+```
+
+### `forkCancellable` - With Cancellation Control
+
+```scala
+import ox.{unsupervised, forkCancellable}
+
+unsupervised {
+  val cancellableWork = forkCancellable {
+    for (i <- 1 to 1000) {
+      if (Thread.currentThread().isInterrupted) {
+        return "cancelled"
+      }
+      expensiveComputation(i)
+    }
+    "completed"
+  }
+  
+  // Cancel if it takes too long
+  Thread.sleep(5000)
+  if (!cancellableWork.isCompleted) {
+    cancellableWork.cancel() // Interrupts and waits for completion
+  }
+  
+  cancellableWork.join()
+}
+```
+
+## Choosing Fork Types - Decision Tree
+
+```scala
+// Start here: Do you need the scope to wait for this work?
+
+// YES - Use User Fork
+if (workIsCriticalForResult) {
+  if (expectApplicationErrors) {
+    forkUserError { /* work that might return Left/Right */ }
+  } else {
+    forkUser { /* work that throws on errors */ }
+  }
+}
+
+// NO - Use Daemon Fork  
+else {
+  if (expectApplicationErrors) {
+    forkError { /* background work with validation */ }
+  } else {
+    fork { /* background work that throws on errors */ }
+  }
+}
+
+// SPECIAL CASES - Use Unsupervised
+if (needCustomErrorHandling || needCancellation) {
+  forkUnsupervised { /* full manual control */ }
+  // or
+  forkCancellable { /* with cancellation support */ }
+}
+```
+
+## Best Practices
+
+1. **Default to `forkUser`** for critical work that must complete
+2. **Use `fork`** for background operations like logging, metrics
+3. **Use error variants** (`forkError`, `forkUserError`) with `supervisedError` scopes
+4. **Avoid `forkUnsupervised`** unless you really need manual control
+5. **Be explicit** about which work is critical vs background
+6. **Test completion behavior** to ensure forks behave as expected

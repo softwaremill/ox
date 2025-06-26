@@ -1,0 +1,54 @@
+---
+description: Remember that flows are lazy - they only execute when run with `.run*` methods. Use appropriate run methods for your use case.
+globs: 
+alwaysApply: false
+---
+# Ox Flow Laziness
+
+Remember that flows are lazy - they only execute when run with `.run*` methods. Use appropriate run methods for your use case.
+
+**Flows are descriptions, not executions:**
+```scala
+// This creates a description - no execution yet
+val flow = Flow.fromValues(1, 2, 3)
+  .map(_ * 2)
+  .filter(_ > 4)
+
+// Nothing happens until you run it
+val results = flow.runToList() // Now it executes
+```
+
+**Common run methods:**
+```scala
+val flow = Flow.fromValues("a", "b", "c")
+
+// Collect all results
+flow.runToList() // List[String]
+
+// Side effects only
+flow.runForeach(println) // Unit
+
+// Drain without collecting
+flow.runDrain() // Unit
+
+// Run to channel for further processing
+flow.runToChannel()(using Ox, BufferCapacity) // Source[String]
+```
+
+**Reusable flow definitions:**
+```scala
+def processNumbers(input: Flow[Int]): Flow[String] = 
+  input
+    .filter(_ > 0)
+    .map(_.toString)
+    .map(_.toUpperCase)
+// Returns flow description - can be reused
+
+val result1 = processNumbers(Flow.fromValues(1, 2, 3)).runToList()
+val result2 = processNumbers(Flow.iterate(1)(_ + 1)).take(10).runToList()
+```
+
+**Lazy evaluation benefits:**
+- Compose complex pipelines without execution
+- Reuse flow definitions
+- Control when effects happen

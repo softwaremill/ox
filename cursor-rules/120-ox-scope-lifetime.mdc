@@ -1,0 +1,187 @@
+---
+description: Keep concurrency scopes as small as possible. Create short-lived scopes for single requests, messages, or jobs rather than long-running global scopes.
+globs: 
+alwaysApply: false
+---
+# Ox Scope Lifetime Management
+
+Keep concurrency scopes as small as possible and short-lived. Create scopes for single operations rather than long-running global scopes.
+
+## Short-Lived Scopes Principle
+
+Create scopes for specific tasks and close them quickly:
+
+```scala
+import ox.{fork, supervised}
+
+// Good: Scope per request
+def handleRequest(request: Request): Response = supervised {
+  val f1 = fork { validateRequest(request) }
+  val f2 = fork { fetchUserData(request.userId) }
+  val f3 = fork { checkPermissions(request) }
+  
+  val validation = f1.join()
+  val userData = f2.join()
+  val permissions = f3.join()
+  
+  buildResponse(validation, userData, permissions)
+} // Scope ends here - all forks cleaned up
+
+// Good: Scope per batch of work
+def processBatch(items: List[Item]): List[Result] = supervised {
+  items.map { item =>
+    fork { processItem(item) }
+  }.map(_.join())
+}
+```
+
+## Avoid Long-Running Global Scopes
+
+```scala
+// Bad: Global long-running scope
+object BadExample {
+  val globalScope = supervised {
+    // This scope runs for the entire application lifetime
+    var running = true
+    while (running) {
+      val work = workQueue.take()
+      fork { processWork(work) }
+    }
+  }
+}
+
+// Good: Scope per work unit
+object GoodExample {
+  def processWorkQueue(): Unit = {
+    while (workQueue.nonEmpty) {
+      val work = workQueue.take()
+      supervised { // New scope for each work item
+        fork { processWork(work) }
+        // Additional concurrent processing if needed
+      } // Scope ends, all processing complete
+    }
+  }
+}
+```
+
+## Request-Scoped Concurrency
+
+Perfect for web applications and microservices:
+
+```scala
+import ox.{fork, supervised}
+
+class UserController {
+  def getUser(userId: String): User = supervised {
+    val profileFork = fork { profileService.getProfile(userId) }
+    val preferencesFork = fork { preferencesService.getPreferences(userId) }
+    val activityFork = fork { activityService.getRecentActivity(userId) }
+    
+    User(
+      profile = profileFork.join(),
+      preferences = preferencesFork.join(),
+      recentActivity = activityFork.join()
+    )
+  } // All forks complete before response is sent
+  
+  def updateUser(userId: String, updates: UserUpdates): User = supervised {
+    val validationFork = fork { validate(updates) }
+    val currentUserFork = fork { userService.getUser(userId) }
+    
+    val validation = validationFork.join()
+    val currentUser = currentUserFork.join()
+    
+    fork { auditService.logUpdate(userId, updates) }
+    fork { notificationService.sendUpdateNotification(userId) }
+    
+    userService.updateUser(currentUser, updates)
+  }
+}
+```
+
+## Message Processing Scopes
+
+Ideal for event-driven and message-based systems:
+
+```scala
+class MessageProcessor {
+  def processMessage(message: Message): Unit = supervised {
+    message.messageType match {
+      case "user_signup" => 
+        val f1 = fork { createUserAccount(message) }
+        val f2 = forkUser { sendWelcomeEmail(message) }
+        val f3 = forkUser { updateAnalytics(message) }
+        
+        f1.join() // Wait for main operation to obtain result
+        // the scope will complete only when f2 and f3 are done
+        
+      case "order_placed" =>
+        val orderFork = fork { processOrder(message) }
+        val inventoryFork = fork { updateInventory(message) }
+        val emailFork = fork { sendOrderConfirmation(message) }
+        
+        (orderFork.join(), inventoryFork.join(), emailFork.join())
+    }
+  } // Scope ensures all message processing completes
+}
+```
+
+## Scope Lifecycle Management
+
+```scala
+// Good: Clear scope boundaries
+class OrderService {
+  def fulfillOrder(orderId: String): OrderResult = {
+    val order = fetchOrder(orderId) // Sequential pre-work
+    
+    supervised { // Scope starts when concurrency needed
+      val paymentFork = fork { processPayment(order) }
+      val shippingFork = fork { arrangeShipping(order) }
+      val inventoryFork = fork { reserveInventory(order) }
+      
+      OrderResult(
+        payment = paymentFork.join(),
+        shipping = shippingFork.join(),
+        inventory = inventoryFork.join()
+      )
+    } // Scope ends immediately after concurrent work
+    
+    // Sequential post-work can continue
+  }
+}
+```
+
+## Benefits of Short-Lived Scopes
+
+1. **Resource cleanup**: Automatic cleanup when scope ends
+2. **Error isolation**: Failures don't affect other operations
+3. **Predictable performance**: No accumulation of long-running forks
+4. **Easy testing**: Each scope can be tested independently
+5. **Clear boundaries**: Obvious start and end of concurrent operations
+6. **Memory efficiency**: Resources released promptly
+
+## Anti-Patterns to Avoid
+
+```scala
+// Bad: Application-wide scope
+val appScope = supervised {
+  while (applicationRunning) {
+    // This never ends!
+  }
+}
+
+// Bad: Accumulating forks without cleanup
+var globalForks: List[Fork[Unit]] = List.empty
+def startWork(): Unit = supervised {
+  globalForks = globalForks :+ fork { doWork() }
+  // Forks keep accumulating
+}
+
+// Bad: Sharing scopes across unrelated operations
+val sharedScope = supervised {
+  handleUserRequest()
+  processPayment()
+  sendEmail()
+  // Mixed concerns in single scope
+}
+```

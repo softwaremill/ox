@@ -1,0 +1,80 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Ox Structured Concurrency
+
+All concurrent operations in Ox must happen within concurrency scopes that guarantee proper cleanup and resource management. Scopes define the lifetime of forks (threads) through code structure.
+
+## Scope Types
+
+- **`supervised`**: Default scope with error propagation
+- **`supervisedError`**: For application errors that should propagate as values
+- **`unsupervised`**: Manual error management, no automatic cancellation
+
+## Good Examples
+
+```scala
+import ox.{fork, supervised, sleep}
+import scala.concurrent.duration.*
+
+// Basic supervised scope
+supervised {
+  val f1 = fork {
+    sleep(2.seconds)
+    1
+  }
+  val f2 = fork {
+    sleep(1.second)
+    2
+  }
+  (f1.join(), f2.join())
+}
+
+// Helper methods requiring Ox capability
+def forkComputation(p: Int)(using Ox): Fork[Int] = fork {
+  sleep(p.seconds)
+  p + 1
+}
+
+supervised {
+  val f1 = forkComputation(2)
+  val f2 = forkComputation(4)
+  (f1.join(), f2.join())
+}
+```
+
+## Scope Guarantees
+
+1. **Cleanup**: All forks are interrupted when scope ends
+2. **Completion**: Scope waits for all forks to complete before returning
+3. **Error propagation**: Exceptions in any fork can end the entire scope
+4. **Resource safety**: No leaked threads or resources
+
+## Fork Types
+
+- `fork`: Daemon fork (scope doesn't wait if body completes)
+- `forkUser`: User fork (scope waits for completion)
+- `forkError`/`forkUserError`: With application error support
+- `forkUnsupervised`: Manual management (only in unsupervised scopes)
+
+## Avoid
+
+```scala
+// Never fork outside of scopes
+val f = fork { ??? } // Compile error!
+
+// Don't create long-running global scopes
+val globalScope = supervised { ??? } // Bad practice
+
+// Don't ignore scope requirements
+def helper(): Fork[Int] = fork { ??? } // Missing Ox capability
+```
+
+## Best Practices
+
+- Keep scopes as small as possible
+- Create scopes for single requests, messages, or jobs
+- Nest scopes when needed for complex operations
+- Use appropriate scope type for your error handling needs
