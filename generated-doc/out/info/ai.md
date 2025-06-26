@@ -1,4 +1,4 @@
-# Using Ox with AI tools
+# Using Ox with AI coding assistants
 
 If you are using AI coding assistants or agents, they will only be as useful, as much they know about Ox. Since Ox's documentation (especially the latest features) might not be in the LLMs training set, it might be useful to let the models know about Ox's capabilities and the preferred way that Ox should be used.
 
