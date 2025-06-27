@@ -4,23 +4,21 @@
 [![CI](https://github.com/softwaremill/ox/workflows/CI/badge.svg)](https://github.com/softwaremill/ox/actions?query=workflow%3A%22CI%22)
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.softwaremill.ox/core_3/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.softwaremill.ox/core_3)
 
-Safe direct-style concurrency and resiliency for Scala on the JVM. Requires JDK 21+ & Scala 3. The areas that we'd like 
-to cover with Ox are:
+Safe direct-style streaming, concurrency and resiliency for Scala on the JVM. Requires JDK 21+ & Scala 3. Ox covers
+the following areas:
 
-* concurrency: developer-friendly structured concurrency, high-level concurrency operators, safe low-level primitives, 
+* streaming: push-based backpressured streaming designed for direct-style, with a rich set of stream transformations,
+  flexible stream source & sink definitions and reactive streams integration
+* error management: retries, timeouts, a safe approach to error propagation, safe resource management  
+* concurrency: high-level concurrency operators, developer-friendly structured concurrency, safe low-level primitives, 
   communication between concurrently running computations
-* error management: retries, timeouts, a safe approach to error propagation, safe resource management
 * scheduling & timers
 * resiliency: circuit breakers, bulkheads, rate limiters, backpressure
 
-All of the above should allow for observability of the orchestrated business logic. We aim to enable writing simple, 
-expression-oriented code in functional style. We’d like to keep the syntax overhead to a minimum, preserving 
-developer-friendly stack traces, and without compromising performance.
+Ox enables writing simple, expression-oriented code in funcitonal style. The syntax overhead is kept to a minimum, 
+preserving developer-friendly stack traces, and without compromising performance.
 
-Some of the above are already addressed in the API, some are coming up in the future. We’d love your help in shaping 
-the project!
-
-To test Ox, use the following dependency, using either [sbt](https://www.scala-sbt.org):
+To use Ox, add the following dependency, using either [sbt](https://www.scala-sbt.org):
 
 ```scala
 "com.softwaremill.ox" %% "core" % "0.7.0"
@@ -230,11 +228,11 @@ More [in the docs!](https://ox.softwaremill.com).
 ## Other projects
 
 The wider goal of direct-style Scala is enabling teams to deliver working software quickly and with confidence. Our
-other projects, including [sttp client](https://sttp.softwaremill.com) and [tapir](https://tapir.softwaremill.com),
+other projects, including [sttp client](https://sttp.softwaremill.com) and [Tapir](https://tapir.softwaremill.com),
 also include integrations directly tailored towards direct style.
 
 Moreover, also check out the [gears](https://github.com/lampepfl/gears) project, an experimental multi-platform library
-also covering direct-style Scala.
+covering direct-style Scala.
 
 ## Contributing
 
@@ -266,4 +264,4 @@ We offer commercial development services. [Contact us](https://softwaremill.com)
 
 ## Copyright
 
-Copyright (C) 2023-2024 SoftwareMill [https://softwaremill.com](https://softwaremill.com).
+Copyright (C) 2023-2025 SoftwareMill [https://softwaremill.com](https://softwaremill.com).

@@ -1,19 +1,17 @@
 # Project scope
 
-The areas that we'd like to cover with Ox are:
+Ox covers the following areas:
 
-* concurrency: developer-friendly structured concurrency, high-level concurrency operators, safe low-level primitives, 
+* streaming: push-based backpressured streaming designed for direct-style, with a rich set of stream transformations,
+  flexible stream source & sink definitions and reactive streams integration
+* error management: retries, timeouts, a safe approach to error propagation, safe resource management  
+* concurrency: high-level concurrency operators, developer-friendly structured concurrency, safe low-level primitives, 
   communication between concurrently running computations
-* error management: retries, timeouts, a safe approach to error propagation, safe resource management
 * scheduling & timers
 * resiliency: circuit breakers, bulkheads, rate limiters, backpressure
 
-All of the above should allow for observability of the orchestrated business logic. We aim to enable writing simple, 
-expression-oriented code in functional style. We'd like to keep the syntax overhead to a minimum, preserving 
-developer-friendly stack traces, and without compromising performance.
-
-Some of the above are already addressed in the API, some are coming up in the future. We'd love your help in shaping the
-project!
+Ox enables writing simple, expression-oriented code in funcitonal style. The syntax overhead is kept to a minimum, 
+preserving developer-friendly stack traces, and without compromising performance.
 
 ## Inspiration & building blocks
 

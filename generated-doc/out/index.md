@@ -1,6 +1,6 @@
 # Ox
 
-Safe direct-style concurrency and resiliency for Scala on the JVM. Requires JDK 21 & Scala 3.
+Safe direct-style streaming, concurrency and resiliency for Scala on the JVM. Requires JDK 21+ & Scala 3.
 
 To start using Ox, add the `com.softwaremill.ox::core:0.7.0` [dependency](info/dependency.md) to your project. 
 Then, take a look at the tour of Ox, or follow one of the topics listed in the menu to get to know Ox's API!
