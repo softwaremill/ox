@@ -9,39 +9,39 @@ Apply rate limiting to prevent system overload. Choose appropriate algorithms ba
 
 **Fixed window rate limiting:**
 ```scala
-  val rateLimiter = RateLimiter.fixedWindow(
-    permits = 100,        // 100 requests
-    window = 1.minute     // per minute
-  )
-  
-  rateLimiter.runBlocking {
-    callExternalAPI()
-  }
+val rateLimiter = RateLimiter.fixedWindow(
+  permits = 100,        // 100 requests
+  window = 1.minute     // per minute
+)
+
+rateLimiter.runBlocking {
+  callExternalAPI()
+}
 ```
 
 **Token bucket for burst handling:**
 ```scala
-  val rateLimiter = RateLimiter.tokenBucket(
-    capacity = 50,        // 50 tokens max
-    refillRate = 10       // 10 tokens per second
-  )
+val rateLimiter = RateLimiter.tokenBucket(
+  capacity = 50,        // 50 tokens max
+  refillRate = 10       // 10 tokens per second
+)
   
-  // Allows bursts up to 50, then 10/second sustained
-  rateLimiter.runBlocking {
-    processRequest()
-  }
+// Allows bursts up to 50, then 10/second sustained
+rateLimiter.runBlocking {
+  processRequest()
+}
 ```
 
 **Sliding window for smooth rate limiting:**
 ```scala
-  val rateLimiter = RateLimiter.slidingWindow(
-    permits = 1000,       // 1000 requests
-    window = 1.hour       // per hour
-  )
+val rateLimiter = RateLimiter.slidingWindow(
+  permits = 1000,       // 1000 requests
+  window = 1.hour       // per hour
+)
   
-  rateLimiter.runBlocking {
-    heavyComputation()
-  }
+rateLimiter.runBlocking {
+  heavyComputation()
+}
 ```
 
 **Algorithm selection:**
