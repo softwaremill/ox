@@ -1,106 +1,37 @@
-# Ox Library Cursor Rules
+# Ox Library - Cursor Rules List
 
-## General & Foundation
+## ox-direct-style-overview (automatically applied)
+Overview of Ox library for direct-style Scala programming using virtual threads and structured concurrency. Ox enables safe concurrent programming with blocking-like syntax, Go-like channels, and comprehensive error handling. Uses JDK 21+ virtual threads for performance without reactive complexity, structured concurrency scopes for thread safety, and dual error channels (exceptions for bugs, Either values for application logic).
 
-### ox-direct-style (automatically applied)
-Ox promotes direct-style programming where effectful computations return values directly without wrapper types like `Future`, `IO`, or `Task`. This leverages Java 21 virtual threads for high-performance concurrency.
+## ox-structured-concurrency-scopes
+Use `supervised` and `unsupervised` scopes to manage concurrent thread lifetime safely. Scopes ensure all forked threads complete before the scope ends, preventing thread leaks. Always prefer small, short-lived scopes over global ones, and avoid passing `using Ox` capability through multiple method layers.
 
-### ox-virtual-threads (automatically applied)
-Leverage virtual threads - don't be afraid of blocking operations, create many forks when needed.
+## ox-fork-join-patterns
+Create concurrent computations using `fork` within scopes and `join()` to collect results. Use `forkUser` for user-level tasks and `forkDaemon` for background work. Avoid returning `Fork` instances from methods to prevent accidental concurrency - let callers manage parallelism explicitly.
 
-## Error Handling
+## ox-high-level-concurrency-ops
+Prefer high-level operations like `par()`, `race()`, and `timeout()` for concurrent programming instead of manual fork management. These operations handle error propagation, interruption, and resource cleanup automatically. Use `raceSuccess()` to get the first successful result while canceling other branches.
 
-### ox-error-handling-dual-channel (automatically applied)
-Ox uses two distinct channels for errors: exceptions for bugs/unexpected situations, and application errors as values (`Either`, union types).
+## ox-streaming-flows-over-channels
+Use Flows for functional-style streaming transformations with methods like `map`, `mapPar`, `filter`, `groupBy`. Flows are lazy, composable, and manage concurrency efficiently. Only use imperative Channels when you need fine-grained control over blocking send/receive operations or complex coordination patterns.
 
-### ox-error-propagation
-Understand error propagation in scopes: exceptions in supervised forks cause the entire scope to fail and interrupt other forks.
+## ox-dual-error-handling
+Handle exceptions for bugs/unexpected situations and use `Either` values for application logic errors. Use `either` blocks with `.ok()` to unwrap `Either` values with automatic short-circuiting. Combine different error types using union types (`Either[Int | Long, String]`) and avoid nested `either` blocks in the same scope.
 
-### ox-scopes-application-errors
-Use the `supervisedError` scope with error modes (like `EitherMode`) for application errors that should propagate without being exceptions.
+## ox-resource-management-scopes
+Use `useCloseableInScope()` and `releaseAfterScope()` for automatic resource cleanup when scopes end. Resources are properly released even on interruption or errors. Integrate with existing Java AutoCloseable resources and define custom cleanup logic for non-standard resource types.
 
-## Scope Management
+## ox-oxapp-application-structure
+Extend `OxApp` for applications requiring proper SIGINT/SIGTERM handling and clean shutdown. The `run` method receives root `Ox` capability and command-line arguments, must return `ExitCode`. Use `OxApp.Simple` for basic cases or `OxApp.WithEitherErrors[E]` for direct-style error handling in main application logic.
 
-### ox-structured-concurrency
-Use structured concurrency with scopes (`supervised`, `supervisedError`, `unsupervised`) to manage thread lifetimes. All manual thread/fork creation in Ox must happen within concurrency scopes that guarantee proper cleanup and resource management. Scopes define the lifetime of forks (threads) through code structure.
+## ox-retry-resilience-patterns
+Use `retry()` with `Schedule` configurations for resilient operations: `Schedule.exponentialBackoff()`, `Schedule.fixedInterval()` with jitter, max retries, and backoff limits. Combine with `RateLimiter` for rate limiting and `CircuitBreaker` for failure threshold management in distributed systems.
 
-### ox-scope-lifetime
-Keep concurrency scopes as small as possible. Create short-lived scopes for single requests, messages, or jobs rather than long-running global scopes.
+## ox-channel-coordination-patterns
+Use Channels for Go-like inter-thread communication with `send()`, `receive()`, and `select()` operations. Create buffered channels for throughput, rendezvous channels for synchronization. Use `select` with multiple clauses for non-blocking coordination and integrate callback-based APIs through channel bridging.
 
-### ox-scope-selection
-Choose appropriate scope types: `supervised` for error propagation, `supervisedError` for application error handling, `unsupervised` for manual error management.
+## ox-flow-concurrency-control
+Control Flow concurrency using `mapPar()`, `mapParUnordered()` with explicit parallelism limits, and `async()` for asynchronous boundaries. Use `buffer()` for backpressure management and `merge()` for combining multiple flows. Leverage `runToChannel()` and `runForeach()` for different consumption patterns.
 
-### ox-fork-types
-Use appropriate fork types: `fork` (daemon), `forkUser` (user, scope waits), `forkError`/`forkUserError` (with error handling), `forkUnsupervised` (manual management).
-
-## High-Level Concurrency
-
-### ox-prefer-high-level-ops
-Prefer high-level operations (`par`, `race`, `timeout`) over manual fork/join patterns when possible for better readability and safety.
-
-### ox-parallel-collections
-Use Ox's parallel collection operations (`mapPar`, `collectPar`, `filterPar`, `foreachPar`) for concurrent processing of collections.
-
-### ox-race-timeout-patterns
-Use `race` for competing computations and `timeout` for operations that may run too long. Both properly handle interruption of losing branches.
-
-## Streaming & Flows
-
-### ox-streaming-using-flows 
-Use Flows to implement streaming, asynchronous data transformation pipelines. Flows integrate with I/O, provide a various ways to integrate with data sources and sinks, as well as declarative intermediate transformations. 
-
-### ox-flow-laziness
-Remember that flows are lazy - they only execute when run with `.run*` methods. Use appropriate run methods for your use case.
-
-### ox-flow-concurrency-control
-Use flow concurrency operators (`mapPar`, `buffer`, `merge`) to introduce asynchronous boundaries only when needed for performance.
-
-### ox-channel-integration
-Use channels for integrating with callback-based APIs. Channels provide completable, queue-like communication with Go-like `select` features, without requiring structured context. 
-
-## Resource Management
-
-### ox-resource-scopes
-Use `useCloseableInScope` and similar methods to ensure proper resource cleanup when scopes end, regardless of success or failure.
-
-### ox-oxapp-pattern
-Extend `OxApp` for applications that need clean shutdown handling for SIGINT/SIGTERM signals with proper fork cleanup.
-
-## Resilience Patterns
-
-### ox-retry-configuration
-Configure retries with appropriate schedules, result policies, and error conditions. Consider using adaptive retries for systemic failure scenarios.
-
-### ox-circuit-breaker-usage
-Use circuit breakers for protecting against cascading failures. Configure appropriate failure thresholds and recovery strategies.
-
-### ox-rate-limiting
-Apply rate limiting to prevent system overload. Choose appropriate algorithms (fixed window, sliding window, token bucket) based on requirements.
-
-## Performance & Best Practices
-
-### ox-avoid-fork-return
-Avoid returning `Fork` objects from methods to prevent accidental concurrency. Model concurrency at the caller level instead.
-
-### ox-using-ox-sparingly
-Use `using Ox` capability sparingly as it grants thread creation power. Avoid passing it through multiple method layers.
-
-### ox-actor-isolation
-Use actors for stateful components that need isolation and controlled access, especially when integrating with external systems.
-
-### ox-flow-text-processing
-Use built-in text transformation operators (`encodeUtf8`, `linesUtf8`, `decodeStringUtf8`) for efficient text processing in flows.
-
-### ox-utility-functions
-Ox provides utility functions for common operations in direct-style code: `.pipe`, `.tap`, `.discard`, `uninterruptible` and `debug`. These are often inline methods with no runtime overhead.
-
-## Integration & Interoperability
-
-### ox-reactive-streams
-Use flow-to-publisher conversion for reactive streams integration. Remember that publishers need active scopes to function.
-
-### ox-callback-integration
-Integrate callback-based APIs using channels and `Flow.usingEmit` for safe bridging between structured and unstructured concurrency.
-
-### ox-scheduling-patterns
-Use scheduling utilities (`repeat`, `scheduled`) for periodic tasks and time-based operations rather than manual sleep loops. 
+## ox-scheduling-repeat-patterns
+Use `repeat()` with scheduling configurations for periodic tasks: `Schedule.fixedRate()`, `Schedule.fixedInterval()`, and `Schedule.cron()` (with cron extension). Combine with `scheduled()` for delayed execution and integrate scheduling patterns within supervised scopes for proper cleanup.
