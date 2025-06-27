@@ -1,24 +1,19 @@
 # Generation of documentation-based Cursor rules
 
 Using:
+
 * the documentation of this library, available at @/generated-doc
-* the list of rule names and descriptions, grouped by topics, available at @xyz
+* the list of rule names and descriptions, available at @rules-list.md
 
 generate the content of each Cursor rule.
 
-The rules will guide AI models when using this library in a project. The goal is to capture the main aspects of the library, and NOT to replicate the entire documentation. Each rule should be helpful for an AI coding assistant in generating end-user code, leveraging features of the library.
-
-## What a rule should include
-
-Each rule from the list covers one topic. The content of the rule should be derived from the project's documentation. Rules should be useful in code generation contexts: keep in mind the main goal of providing information useful to AI coding assistants, and specific to the library.
-
-Rules might include code examples, both "good" and "bad" (what to avoid).
+A Cursor rule guides an agent-based coding assistant when using this library in a project. A rule should provide information that is specific to the given library, and lies outside of the common knowledge about a particular programming ecosystem. The goal is to capture the main aspects of the library, and NOT to replicate the entire documentation.
 
 ## File format and metadata
 
 The rules should be in the .mdc format. 
 
-Rules which are automatically applied, must have the following metadata header:
+The first overview rule should be automatically applied and must have the following metadata header:
 
 ```
 ---
@@ -34,14 +29,22 @@ Other rules will be provided to agents so that they can request them when needed
 
 ```
 ---
-description: [rule description]
 globs:
 alwaysApply: false
-description: 
+description: [rule description]
 ---
 
 [text of the rule]
 ```
+
+## Guidelines
+
+* avoid going into too much detail
+* if needed, include a reference to more detailed documentation available online
+* avoid repeating documentation
+* keep in mind the main goal, of providing information useful to AI coding assistants
+
+Rules might include code examples, both "good" and "bad" (what to avoid).
 
 ## Rule files destination and naming
 

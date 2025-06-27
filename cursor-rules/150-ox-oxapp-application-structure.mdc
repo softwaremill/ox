@@ -1,0 +1,145 @@
+---
+description: Extend `OxApp` when writing application entry points. The `run` method receives root `Ox` capability and command-line arguments, must return `ExitCode`. Use `OxApp.Simple` for basic cases or `OxApp.WithEitherErrors[E]` for direct-style error handling in main application logic.
+globs: 
+alwaysApply: false
+---
+# OxApp Application Structure
+
+**Extend `OxApp` for application entry points** that need structured concurrency and clean shutdown handling.
+
+## Basic OxApp Structure
+
+**Standard application structure**:
+
+```scala
+import ox.{ExitCode, Ox, OxApp}
+
+object MyApp extends OxApp:
+  def run(args: Vector[String])(using Ox): ExitCode =
+    println("Starting application...")
+    
+    // Application logic here - can use fork, supervised, etc.
+    val server = startServer()
+    val backgroundWorker = forkUser:
+      runBackgroundTasks()
+    
+    println("Application started successfully")
+    ExitCode.Success
+```
+
+## OxApp Variants
+
+**Choose appropriate variant** based on error handling needs:
+
+```scala
+// Simple applications
+object SimpleApp extends OxApp.Simple:
+  def run(args: Vector[String])(using Ox): Unit =
+    println("Simple app logic")
+    // No need to return ExitCode
+
+// Applications with typed error handling  
+object AppWithErrors extends OxApp.WithEitherErrors[String]:
+  def run(args: Vector[String])(using Ox): Either[String, ExitCode] = either:
+    val config = loadConfig(args).ok()
+    val server = startServer(config).ok() 
+    
+    forkUser:
+      runHealthCheck().ok()
+      
+    ExitCode.Success
+```
+
+## Automatic Shutdown Handling
+
+**OxApp handles SIGINT/SIGTERM gracefully**:
+
+```scala
+object ServerApp extends OxApp:
+  def run(args: Vector[String])(using Ox): ExitCode =
+    val server = startHttpServer()
+    
+    forkUser:
+      // Long-running background task
+      while true do
+        processQueue()
+        sleep(1.second)
+        
+    // App keeps running until interrupted
+    // CTRL+C or SIGTERM will:
+    // 1. Interrupt all user forks
+    // 2. Wait for them to complete
+    // 3. Clean up resources
+    // 4. Exit cleanly
+```
+
+## Resource Management in Apps
+
+**Combine with resource management**:
+
+```scala
+object DatabaseApp extends OxApp:
+  def run(args: Vector[String])(using Ox): ExitCode =
+    val connection = useCloseableInScope:
+      DriverManager.getConnection(jdbcUrl)
+      
+    val server = startApiServer(connection)
+    
+    forkUser:
+      runDatabaseMaintenance(connection)
+      
+    ExitCode.Success
+    // Connection automatically closed on shutdown
+```
+
+## Configuration and Arguments
+
+**Handle command line arguments and configuration**:
+
+```scala
+case class Config(port: Int, dbUrl: String)
+
+object ConfigurableApp extends OxApp:
+  def run(args: Vector[String])(using Ox): ExitCode =
+    val config = parseArgs(args) match
+      case Some(cfg) => cfg
+      case None => 
+        println("Usage: app --port 8080 --db-url jdbc:...")
+        return ExitCode.Failure
+        
+    startApplication(config)
+    ExitCode.Success
+    
+  private def parseArgs(args: Vector[String]): Option[Config] = ???
+```
+
+## Error Handling Strategies
+
+**Different error handling approaches**:
+
+```scala
+// Exception-based (traditional)
+object ExceptionApp extends OxApp:
+  def run(args: Vector[String])(using Ox): ExitCode =
+    try
+      startApplication()
+      ExitCode.Success
+    catch
+      case e: ConfigurationException =>
+        println(s"Configuration error: ${e.getMessage}")
+        ExitCode.Failure
+
+// Either-based (typed errors)
+object TypedErrorApp extends OxApp.WithEitherErrors[AppError]:
+  def run(args: Vector[String])(using Ox): Either[AppError, ExitCode] = either:
+    val config = loadConfig().ok()
+    val server = startServer(config).ok()
+    ExitCode.Success
+```
+
+**Key benefits of OxApp**:
+- Automatic SIGINT/SIGTERM handling
+- Clean shutdown of all background tasks
+- Resource cleanup on exit
+- Root `Ox` capability provided
+- Structured application lifecycle

@@ -1,0 +1,183 @@
+---
+description: Use `repeat()` with scheduling configurations for periodic tasks: `Schedule.fixedRate()`, `Schedule.fixedInterval()`, and `Schedule.cron()` (with cron extension). Combine with `scheduled()` for delayed execution and integrate scheduling patterns within supervised scopes for proper cleanup.
+globs: 
+alwaysApply: false
+---
+# Scheduling and Repeat Patterns
+
+**Use Ox's scheduling utilities** for periodic tasks, delayed execution, and cron-like scheduling.
+
+## Basic Repeat Operations
+
+**Use `repeat()` for periodic task execution**:
+
+```scala
+import ox.scheduling.{repeat, Schedule}
+import scala.concurrent.duration.*
+
+// Fixed interval between task completions
+repeat(Schedule.fixedInterval(30.seconds)):
+  performMaintenance()  // runs every 30 seconds after previous completion
+
+// Fixed rate (ignores task duration)  
+repeat(Schedule.fixedRate(1.minute)):
+  collectMetrics()  // starts every minute regardless of duration
+```
+
+## Delayed Execution
+
+**Use `scheduled()` for delayed tasks**:
+
+```scala
+import ox.scheduling.{scheduled, Schedule}
+
+// Single delayed execution
+scheduled(Schedule.delay(5.minutes)):
+  cleanupTempFiles()
+
+// Delayed start then repeat
+scheduled(
+  Schedule.delay(1.minute)  // wait 1 minute
+    .andThen(Schedule.fixedInterval(10.seconds))  // then every 10 seconds
+):
+  sendHeartbeat()
+```
+
+## Cron-Style Scheduling
+
+**Use cron expressions** (requires cron extension):
+
+```scala
+// Add dependency: "com.softwaremill.ox" %% "cron" % "0.7.0"
+import ox.scheduling.{repeat, Schedule}
+import ox.scheduling.cron.CronSchedule
+
+// Every day at 2:30 AM
+repeat(Schedule.cron(CronSchedule.unsafeParse("30 2 * * *"))):
+  performDailyBackup()
+
+// Every weekday at 9 AM
+repeat(Schedule.cron(CronSchedule.unsafeParse("0 9 * * 1-5"))):
+  sendDailyReport()
+
+// Every 15 minutes
+repeat(Schedule.cron(CronSchedule.unsafeParse("*/15 * * * *"))):
+  checkSystemHealth()
+```
+
+## Integration with Supervised Scopes
+
+**Run scheduled tasks within supervised scopes** for proper cleanup:
+
+```scala
+import ox.{supervised, forkUser}
+
+supervised:
+  // Scheduled task as user fork (blocks scope completion)
+  forkUser:
+    repeat(Schedule.fixedInterval(1.minute)):
+      performPeriodicTask()
+      
+  // Main application logic
+  val server = startServer()
+  waitForShutdown()
+  
+// Periodic task stops when scope ends (on shutdown)
+```
+
+## Complex Scheduling Patterns
+
+**Combine scheduling strategies**:
+
+```scala
+import ox.scheduling.{scheduled, repeat, Schedule}
+
+// Immediate start, then exponential backoff up to max interval
+scheduled(
+  Schedule.immediate
+    .andThen(Schedule.exponentialBackoff(1.second).maxInterval(1.minute))
+):
+  attemptConnection()
+
+// Delayed start with limited repetitions
+scheduled(
+  Schedule.delay(10.seconds)
+    .andThen(Schedule.fixedInterval(5.seconds).maxRepeats(10))
+):
+  sendNotificationBatch()
+```
+
+## Error Handling in Scheduled Tasks
+
+**Handle failures in periodic tasks**:
+
+```scala
+supervised:
+  forkUser:
+    repeat(Schedule.fixedInterval(30.seconds)):
+      try
+        performRiskyOperation()
+      catch
+        case e: TemporaryException =>
+          logger.warn(s"Temporary failure: ${e.getMessage}")
+          // Continue with next iteration
+        case e: FatalException =>
+          logger.error(s"Fatal error: ${e.getMessage}")
+          throw e  // This will terminate the repeat loop
+```
+
+## Resource Management in Scheduled Tasks
+
+**Properly manage resources** in long-running scheduled tasks:
+
+```scala
+supervised:
+  val connection = useCloseableInScope(createDatabaseConnection())
+  
+  forkUser:
+    repeat(Schedule.fixedInterval(1.minute)):
+      // Safe to use connection - lifetime managed by scope
+      runDatabaseMaintenance(connection)
+      
+// Connection closed when scope ends
+```
+
+## Conditional Scheduling
+
+**Use conditional logic in scheduled tasks**:
+
+```scala
+forkUser:
+  repeat(Schedule.fixedInterval(10.seconds)):
+    if systemIsHealthy() then
+      performOptimization()
+    else
+      logger.info("System unhealthy, skipping optimization")
+      
+    // Task continues regardless of condition
+```
+
+## Monitoring Scheduled Tasks
+
+**Add monitoring to scheduled operations**:
+
+```scala
+forkUser:
+  repeat(Schedule.fixedInterval(1.minute)):
+    val startTime = System.currentTimeMillis()
+    
+    try
+      performTask()
+      metrics.recordSuccess(System.currentTimeMillis() - startTime)
+    catch
+      case e: Exception =>
+        metrics.recordFailure(e)
+        throw e
+```
+
+**Key patterns**:
+- Use **`forkUser`** for background scheduled tasks
+- **Combine delays and intervals** for complex timing
+- **Handle errors appropriately** to keep schedules running
+- **Manage resources at scope level**, not per task execution
+- **Add monitoring** to track scheduled task health

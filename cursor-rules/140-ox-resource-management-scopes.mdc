@@ -1,0 +1,148 @@
+---
+description: Use `useCloseableInScope()` and `releaseAfterScope()` for automatic resource cleanup when scopes end. Resources are properly released even on interruption or errors. Integrate with existing Java AutoCloseable resources and define custom cleanup logic for non-standard resource types.
+globs: 
+alwaysApply: false
+---
+# Resource Management in Scopes
+
+**Use Ox's resource management functions** to ensure proper cleanup of resources within concurrency scopes, even during interruptions or errors.
+
+## Auto-Closeable Resources
+
+**Use `useCloseableInScope()`** for Java `AutoCloseable` resources:
+
+```scala
+import ox.{supervised, useCloseableInScope}
+import java.io.PrintWriter
+
+supervised:
+  val writer = useCloseableInScope(new PrintWriter("output.txt"))
+  val connection = useCloseableInScope(database.getConnection())
+  
+  forkUser:
+    writer.println("Starting processing")
+    processData(connection)
+    
+  forkUser:
+    writer.println("Background task running")
+    backgroundWork(connection)
+    
+// writer.close() and connection.close() called automatically
+// even if forks are interrupted or throw exceptions
+```
+
+## Custom Resource Cleanup
+
+**Use `releaseAfterScope()`** for custom cleanup logic:
+
+```scala
+import ox.{supervised, releaseAfterScope}
+
+supervised:
+  val resourceHandle = acquireResource()
+  releaseAfterScope:
+    cleanupResource(resourceHandle)  // called when scope ends
+    println("Resource cleaned up")
+  
+  // Use resource in forks
+  forkUser:
+    processWithResource(resourceHandle)
+    
+// Custom cleanup guaranteed to run
+```
+
+## Multiple Resources
+
+**Manage multiple resources** with proper cleanup order:
+
+```scala
+supervised:
+  // Resources cleaned up in reverse order of registration
+  val connection = useCloseableInScope(database.getConnection())
+  val statement = useCloseableInScope(connection.prepareStatement(sql))
+  val resultSet = useCloseableInScope(statement.executeQuery())
+  
+  forkUser:
+    processResults(resultSet)
+    
+// Cleanup order: resultSet.close(), statement.close(), connection.close()
+```
+
+## Resource Sharing Across Forks
+
+**Share resources safely** across multiple forks:
+
+```scala
+supervised:
+  val sharedConnection = useCloseableInScope(createConnection())
+  
+  val results = (1 to 10).map: i =>
+    fork:
+      // Safe to share - resource lifetime exceeds fork lifetime
+      queryDatabase(sharedConnection, i)
+  .map(_.join())
+  
+// Connection closed after all forks complete
+```
+
+## Error Handling with Resources
+
+**Resources are cleaned up even on errors**:
+
+```scala
+supervised:
+  val file = useCloseableInScope(new FileWriter("output.txt"))
+  
+  forkUser:
+    file.write("some data")
+    throw RuntimeException("Something went wrong!")
+    
+// file.close() is still called despite the exception
+// Exception is re-thrown after cleanup
+```
+
+## Integration with External Resource Pools
+
+**Integrate with resource pools** and custom allocation:
+
+```scala
+def withDatabaseConnection[T]()(work: Connection => T): T =
+  supervised:
+    val connection = useCloseableInScope:
+      connectionPool.acquire()  // Get from pool
+      
+    releaseAfterScope:
+      connectionPool.release(connection)  // Return to pool
+      
+    work(connection)
+```
+
+## Resource Acquisition Patterns
+
+**Acquire resources at scope start**:
+
+```scala
+// GOOD: Resource acquired once per scope
+def processFiles(files: List[File]): Unit =
+  supervised:
+    val writer = useCloseableInScope(new PrintWriter("summary.txt"))
+    
+    files.foreach: file =>
+      forkUser:
+        val content = processFile(file)
+        writer.println(s"Processed: ${file.name}")
+
+// AVOID: Resource per fork (inefficient, error-prone)
+def processFiles(files: List[File]): Unit =
+  supervised:
+    files.foreach: file =>
+      forkUser:
+        val writer = useCloseableInScope(new PrintWriter(s"${file.name}.out"))
+        processFile(file, writer)
+```
+
+**Key benefits**:
+- Automatic cleanup on scope completion
+- Cleanup guaranteed even during interruption/errors  
+- Integration with existing Java resource patterns
+- Custom cleanup logic support

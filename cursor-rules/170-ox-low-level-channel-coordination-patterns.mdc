@@ -1,0 +1,186 @@
+---
+description: Use low-level `Channel`s for Go-like inter-thread communication with `send()`, `receive()`, and `select()` operations. Create buffered channels for throughput, rendezvous channels for synchronization. Use `select` with multiple clauses for non-blocking coordination and integrate callback-based APIs through channel bridging.
+globs: 
+alwaysApply: false
+---
+# Low-Level Channel Coordination Patterns
+
+**Use low-level channels for Go-like inter-thread communication** when you need fine-grained control over thread coordination that Flows don't provide.
+
+## Basic Channel Operations
+
+**Create and use channels** for thread communication:
+
+```scala
+import ox.channels.Channel
+import ox.{supervised, fork}
+
+supervised:
+  val ch = Channel.bufferedDefault[String]
+  
+  forkUser:
+    ch.send("Hello")
+    ch.send("World")
+    ch.done()  // signal completion
+    
+  forkUser:
+    ch.receive() // "Hello"
+    ch.receive() // "World"
+    // ch.receive() would throw ChannelClosed
+```
+
+## Channel Types
+
+**Choose appropriate channel types**:
+
+```scala
+// Buffered channels for throughput
+val buffered = Channel.bufferedDefault[Int]
+
+// Rendezvous channels for synchronization (zero capacity)
+val rendezvous = Channel.rendezvous[String]
+
+// Unlimited capacity (use with caution - memory usage)
+val unlimited = Channel.unlimited[Data]
+```
+
+## Select Operations
+
+**Use `select` for non-blocking coordination**:
+
+```scala
+import ox.channels.{Channel, select}
+
+supervised:
+  val ch1 = Channel.rendezvous[Int]
+  val ch2 = Channel.rendezvous[String]
+  
+  fork:
+    sleep(100.millis)
+    ch1.send(42)
+    
+  fork:
+    sleep(200.millis) 
+    ch2.send("done")
+    
+  // Non-blocking select - handles whichever is ready first
+  select(
+    ch1.receiveClause,
+    ch2.receiveClause
+  ) match
+    case ch1.Received(value) => println(s"Got int: $value")
+    case ch2.Received(value) => println(s"Got string: $value")
+```
+
+## Channel Bridging for Callback APIs
+
+**Integrate callback-based APIs** using channels:
+
+```scala
+import ox.channels.Channel
+
+def bridgeCallbackApi()(using Ox): Source[Event] =
+  val eventChannel = Channel.bufferedDefault[Event]
+  
+  val callback = (event: Event) => 
+    eventChannel.send(event)  // bridge callback to channel
+    
+  // Register callback with external system
+  externalSystem.onEvent(callback)
+  
+  // Return channel as Source for further processing
+  eventChannel
+```
+
+## Producer-Consumer Patterns
+
+**Implement producer-consumer coordination**:
+
+```scala
+supervised:
+  val workQueue = Channel.bufferedDefault[Task]
+  
+  // Producer
+  forkUser:
+    for task <- generateTasks() do
+      workQueue.send(task)
+    workQueue.done()
+    
+  // Multiple consumers
+  (1 to 4).foreach: workerId =>
+    forkUser:
+      workQueue.drain(): task =>
+        processTask(task, workerId)
+```
+
+## Error Handling with Channels
+
+**Handle channel errors and closure**:
+
+```scala
+supervised:
+  val ch = Channel.bufferedDefault[String]
+  
+  fork:
+    try
+      while true do
+        val msg = ch.receive()
+        processMessage(msg)
+    catch
+      case _: ChannelClosed => 
+        println("Channel closed, stopping consumer")
+        
+  fork:
+    sendMessages(ch)
+    ch.done()  // Close channel when done
+```
+
+## Channel Cleanup Patterns
+
+**Ensure proper channel cleanup**:
+
+```scala
+supervised:
+  val ch = Channel.bufferedDefault[Data]
+  
+  releaseAfterScope:
+    ch.done()  // Ensure channel is closed
+    
+  // Use channel in forks
+  fork:
+    processData(ch)
+```
+
+## When to Use Channels Directly
+
+**Use channels for**:
+- **Go-like communication patterns** between threads
+- **Custom coordination logic** that doesn't fit Flow patterns
+- **Bridging callback-based APIs** to structured concurrency
+- **Building custom streaming operators**
+
+**Avoid channels for**:
+- Simple streaming transformations (use Flows)
+- Basic parallel operations (use `par`, `race`, etc.)
+- Sequential data processing
+
+**Good**: Channel-based coordination
+```scala
+// Custom coordination logic
+select(
+  timer.receiveClause,
+  dataChannel.receiveClause,
+  stopChannel.receiveClause
+)
+```
+
+**Avoid**: Channels for simple transformations
+```scala
+// Use Flow instead
+val ch = Channel.bufferedDefault[Int]
+fork:
+  data.foreach(ch.send)
+fork:
+  ch.drain(): item =>
+    processItem(item)
+```

@@ -1,0 +1,74 @@
+---
+description: Prefer high-level operations like `par()`, `race()`, and `timeout()` for concurrent programming instead of manual fork management. These operations handle error propagation, interruption, and resource cleanup automatically. Use `.mapPar`, `.filterPar` and `.collectPar` on large collections for added performance.
+globs: 
+alwaysApply: false
+---
+# High-Level Concurrency Operations
+
+**Prefer high-level concurrency operations** over manual fork management. These operations automatically handle error propagation, interruption, and resource cleanup.
+
+## Core Operations
+
+**Parallel execution** with `par()`:
+```scala
+import ox.{par, sleep}
+import scala.concurrent.duration.*
+
+val result: (Int, String) = par(
+  { sleep(2.seconds); 1 },
+  { sleep(1.second); "done" }
+)
+```
+
+**Racing computations** with `race()` and `raceSuccess()`:
+```scala
+import ox.{raceSuccess, timeout}
+
+val winner = raceSuccess(
+  computation1,
+  timeout(1.second)(computation2)
+)
+```
+
+**Timeouts** with automatic interruption:
+```scala
+import ox.{timeout, either}
+
+val result = either.catching:
+  timeout(5.seconds)(longRunningTask())
+```
+
+## Collection Operations
+
+**Use parallel collection operations** for improved performance:
+```scala
+// Instead of manual forking
+val results = items.mapPar(4)(process)        // parallel map
+val filtered = items.filterPar(8)(predicate)  // parallel filter  
+val collected = items.collectPar(2)(partial)  // parallel collect
+```
+
+## Error Handling
+
+High-level operations **automatically handle failures**:
+- Failed computations interrupt others
+- Resources are properly cleaned up
+- Original exceptions are preserved and re-thrown
+- `parEither` variant supports application errors
+
+**Good**: Using high-level operations
+```scala
+val result = parEither(
+  { sleep(100.millis); Right("ok") },
+  { sleep(200.millis); Left("error") }
+)
+```
+
+**Avoid**: Manual fork management for simple parallel operations
+```scala
+// Don't do this for simple cases
+supervised:
+  val f1 = fork(computation1)
+  val f2 = fork(computation2) 
+  (f1.join(), f2.join())
+```

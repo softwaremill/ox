@@ -25,7 +25,7 @@ Subequent rules should be accompanied by an agent-friendly description. The desc
 
 ## Guidelines
 
-* avoid going into much detail
+* avoid going into too much detail
 * if needed, include a reference to more detailed documentation available online
 * keep the list of rules short
 * avoid repeating documentation

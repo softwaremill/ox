@@ -1,0 +1,163 @@
+---
+description: Use `retry()` with `Schedule` configurations for resilient operations: `Schedule.exponentialBackoff()`, `Schedule.fixedInterval()` with jitter, max retries, and backoff limits. Combine with `RateLimiter` for rate limiting and `CircuitBreaker` for failure threshold management in distributed systems. Use adaptive retries to avoid overloading systems due to systemic failures.
+globs: 
+alwaysApply: false
+---
+# Retry and Resilience Patterns
+
+**Use Ox's resilience utilities** to build fault-tolerant systems with retry policies, rate limiting, and circuit breakers.
+
+## Basic Retry Patterns
+
+**Use `retry()` with `Schedule`** for configurable retry policies:
+
+```scala
+import ox.resilience.{retry, Schedule}
+import scala.concurrent.duration.*
+
+// Exponential backoff with jitter
+val result = retry(
+  Schedule.exponentialBackoff(initial = 100.millis)
+    .maxRetries(5)
+    .jitter()  // add randomness to prevent thundering herd
+    .maxInterval(30.seconds)
+):
+  callExternalService()  // will be retried on failure
+
+// Fixed interval retries
+retry(Schedule.fixedInterval(1.second).maxRetries(3)):
+  unreliableOperation()
+```
+
+## Advanced Retry Configuration
+
+**Fine-tune retry behavior**:
+
+```scala
+import ox.resilience.{retry, Schedule}
+
+// Custom retry with complex schedule
+retry(
+  Schedule.exponentialBackoff(50.millis)
+    .maxRetries(10)
+    .maxInterval(5.minutes)
+    .jitter(factor = 0.2)  // 20% jitter
+):
+  // Retry logic applied to this block
+  sendHttpRequest() match
+    case response if response.status == 500 => throw RetryableException()
+    case response => response
+```
+
+## Rate Limiting
+
+**Use `RateLimiter` to control request rates**:
+
+```scala
+import ox.resilience.RateLimiter
+import ox.supervised
+
+supervised:
+  val rateLimiter = RateLimiter.fixedWindow(
+    permits = 10,      // 10 requests 
+    window = 1.second  // per second
+  )
+  
+  // All operations respect the rate limit
+  for request <- requests do
+    rateLimiter.runBlocking:
+      processRequest(request)
+```
+
+## Circuit Breakers
+
+**Use `CircuitBreaker` for failure threshold management**:
+
+```scala
+import ox.resilience.{CircuitBreaker, CircuitBreakerConfig}
+import scala.concurrent.duration.*
+
+supervised:
+  val circuitBreaker = CircuitBreaker(
+    CircuitBreakerConfig.default
+      .maxFailures(5)              // open after 5 failures
+      .resetTimeout(30.seconds)    // try closing after 30s
+  )
+  
+  def callService(): String =
+    circuitBreaker.runOrDrop:
+      externalServiceCall()  // protected by circuit breaker
+```
+
+## Adaptive Retries
+
+**Use adaptive retry to prevent system overload**:
+
+```scala
+import ox.resilience.{AdaptiveRetry, retry}
+
+// Automatically adjusts retry delays based on system load
+val adaptiveRetry = AdaptiveRetry()
+
+val result = retry(adaptiveRetry.schedule()):
+  systemCallThatMightBeOverloaded()
+  
+// Retry delays increase when many operations are failing
+// (indicating system stress)
+```
+
+## Combining Resilience Patterns
+
+**Combine multiple resilience mechanisms**:
+
+```scala
+supervised:
+  val rateLimiter = RateLimiter.fixedWindow(100, 1.minute)
+  val circuitBreaker = CircuitBreaker(CircuitBreakerConfig.default)
+  
+  def resilientServiceCall(): Response =
+    rateLimiter.runBlocking:          // Rate limiting first
+      retry(Schedule.exponentialBackoff(100.millis).maxRetries(3)):  // Then retry
+        circuitBreaker.runOrDrop:    // Finally circuit breaker
+          callExternalService()
+```
+
+## Error-Specific Retry Logic
+
+**Retry only specific types of failures**:
+
+```scala
+import ox.resilience.{retry, Schedule, ResultPolicy}
+
+// Only retry on specific exceptions
+retry(
+  Schedule.exponentialBackoff(100.millis).maxRetries(3),
+  ResultPolicy.retryWhen[Exception]:
+    case _: ConnectException => true      // retry connection failures
+    case _: TimeoutException => true      // retry timeouts  
+    case _: AuthenticationException => false  // don't retry auth failures
+    case _ => false
+):
+  riskyNetworkCall()
+```
+
+## Resilient Flow Processing
+
+**Apply resilience to streaming operations**:
+
+```scala
+import ox.flow.Flow
+
+Flow.fromValues(requests)
+  .mapPar(4): request =>
+    retry(Schedule.exponentialBackoff(100.millis).maxRetries(2)):
+      processRequest(request)
+  .runForeach(handleResponse)
+```
+
+**Best practices**:
+- Use **exponential backoff with jitter** to prevent thundering herd
+- Set **reasonable max intervals** to avoid excessive delays
+- **Combine techniques** (rate limiting + retry + circuit breaking)
+- **Monitor and tune** retry policies based on actual system behavior
+- Use **adaptive retries** in high-load distributed systems

@@ -1,0 +1,48 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Ox Library Overview
+
+Ox is a Scala 3 library for **safe direct-style streaming, concurrency and resiliency** on the JVM. Requires JDK 21+ and Scala 3.
+
+## Key Concepts
+
+**Direct-Style Programming**: Write blocking-style code using virtual threads instead of async/await or reactive streams. This provides readable, debuggable code without callback hell.
+
+**Dual Error Handling**: 
+- Use **exceptions** for bugs and unexpected situations
+- Use **Either values** for application logic errors with `.ok()` unwrapping
+
+**Structured Concurrency**: All concurrent operations happen within high-level operations or low-level scopes that ensure proper cleanup and resource management.
+
+**Streaming with Flows**: Use `Flow[T]` for lazy, composable, reactive-streams compatible data transformation pipelines with built-in concurrency control.
+
+## Common Patterns
+
+```scala
+// High-level concurrency
+val result = par(computation1, computation2)
+val winner = raceSuccess(comp1, comp2)
+
+// Streaming transformations  
+Flow.fromValues(1, 2, 3)
+  .mapPar(4)(process)
+  .filter(_ > 0)
+  .runForeach(println)
+
+// Error handling with Either
+val result: Either[String, Int] = either:
+  val user = lookupUser(id).ok()
+  val org = lookupOrg(id).ok()
+  calculateResult(user, org)
+
+// Structured concurrency scopes
+supervised:
+  val f1 = fork { longRunningTask1() }
+  val f2 = fork { longRunningTask2() }
+  (f1.join(), f2.join())
+```
+
+Ox emphasizes safety, composability and readability while providing high performance through virtual threads.

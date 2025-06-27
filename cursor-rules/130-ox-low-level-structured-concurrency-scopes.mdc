@@ -1,0 +1,126 @@
+---
+description: Use `supervised` scopes for low-level, manual concurrency to manage thread lifetime safely. Scopes ensure all forked threads complete before the scope ends, preventing thread leaks. Always prefer small, short-lived scopes over global ones, and avoid passing `using Ox` capability through multiple method layers.
+globs: 
+alwaysApply: false
+---
+# Low-Level Structured Concurrency Scopes
+
+**Use `supervised` scopes for manual concurrency control** when high-level operations aren't sufficient. Scopes ensure thread safety and prevent resource leaks.
+
+## Basic Supervised Scopes
+
+**All forks must complete** before scope ends:
+
+```scala
+import ox.{supervised, fork, sleep}
+import scala.concurrent.duration.*
+
+supervised:  // blocks until all forks complete
+  val f1 = fork:
+    sleep(2.seconds)
+    println("Task 1 done")
+    1
+    
+  val f2 = fork:
+    sleep(1.second) 
+    println("Task 2 done")
+    2
+    
+  // Scope waits for both forks
+  val results = (f1.join(), f2.join())
+  println(s"All done: $results")
+```
+
+## Error Handling in Scopes
+
+**Failed forks interrupt all others**:
+
+```scala
+supervised:
+  forkUser:  // use forkUser for background tasks
+    sleep(1.second)
+    println("This won't print")
+    
+  forkUser:
+    sleep(500.millis)
+    throw RuntimeException("boom!")  // interrupts other forks
+    
+// Scope ends after all interrupted forks complete
+// Exception is re-thrown
+```
+
+## Scope Sizing Guidelines
+
+**Prefer small, short-lived scopes**:
+
+```scala
+// GOOD: Small, focused scope
+def processItems(items: List[Item]): List[Result] =
+  supervised:
+    items.map: item =>
+      fork(processItem(item))
+    .map(_.join())
+
+// AVOID: Long-lived global scope
+object MyApp:
+  supervised:  // DON'T - scope lives too long
+    def method1() = fork(task1())
+    def method2() = fork(task2())
+```
+
+## Avoid Passing Ox Capability
+
+**Don't pass `using Ox` through multiple method layers**:
+
+```scala
+// AVOID: Threading Ox capability through layers
+def serviceMethod(data: Data)(using Ox): Result =
+  helperMethod(data)  // passes Ox implicitly
+
+def helperMethod(data: Data)(using Ox): Result =
+  fork(processData(data)).join()  // uses Ox far from scope
+
+// GOOD: Keep concurrency localized
+def serviceMethod(data: Data): Result =
+  val processedData = prepareData(data)  // no concurrency
+  
+  supervised:  // concurrency scope close to usage
+    fork(processData(processedData)).join()
+
+def prepareData(data: Data): ProcessedData = ??? // pure function
+```
+
+## User Forks vs Regular Forks
+
+**Use `forkUser` for background tasks** that should block scope completion:
+
+```scala
+supervised:
+  // Regular fork - represents main computation
+  val mainResult = fork(mainComputation())
+  
+  // User fork - background task (logging, cleanup, etc.)
+  forkUser:
+    while !mainResult.isCompleted do
+      sleep(1.second)
+      logHeartbeat()
+      
+  mainResult.join()
+```
+
+## Resource Management
+
+**Integrate with resource cleanup**:
+
+```scala
+supervised:
+  val connection = useCloseableInScope(createConnection())
+  
+  val f1 = fork(query1(connection))
+  val f2 = fork(query2(connection))
+  
+  (f1.join(), f2.join())
+// connection automatically closed when scope ends
+```
+
+**Key principle**: Structured concurrency prevents thread leaks by ensuring all spawned threads are properly cleaned up before scope completion.

@@ -1,0 +1,140 @@
+---
+description: Create concurrent computations using `fork` within concurrency scopes and `join()` to collect results. Use `forkUser` for tasks which should block scope completion. Avoid returning `Fork` instances from methods to prevent accidental concurrency - let callers manage parallelism explicitly.
+globs: 
+alwaysApply: false
+---
+# Fork-Join Patterns
+
+**Use `fork` and `join()` for manual concurrency control** within structured concurrency scopes. Follow patterns that prevent accidental concurrency and thread leaks.
+
+## Basic Fork-Join Pattern
+
+**Fork computations and join results**:
+
+```scala
+import ox.{supervised, fork}
+
+supervised:
+  val f1 = fork:
+    expensiveComputation1()
+    
+  val f2 = fork:
+    expensiveComputation2()
+    
+  val f3 = fork:
+    expensiveComputation3()
+    
+  // Collect all results - blocks until all complete
+  val results = (f1.join(), f2.join(), f3.join())
+```
+
+## Fork vs ForkUser
+
+**Use appropriate fork types** based on task role:
+
+```scala
+supervised:
+  // Main computation fork
+  val mainTask = fork:
+    processData()
+    
+  // Background/supporting task - blocks scope completion
+  forkUser:
+    while !mainTask.isCompleted do
+      sleep(1.second)
+      reportProgress()
+      
+  mainTask.join()  // wait for main result
+// Scope waits for both main task AND user fork
+```
+
+## Don't Return Fork Instances
+
+**Avoid returning Fork instances** from methods to prevent accidental concurrency:
+
+```scala
+// BAD: Exposes concurrency to caller
+def startBackgroundTask()(using Ox): Fork[Unit] =
+  fork:
+    longRunningBackgroundWork()
+
+// GOOD: Manage concurrency internally  
+def processWithBackground(): Result =
+  supervised:
+    val backgroundTask = forkUser:
+      longRunningBackgroundWork()
+      
+    val mainResult = fork:
+      mainProcessing()
+      
+    mainResult.join()  // background continues until scope ends
+```
+
+## Let Callers Control Parallelism
+
+**Design APIs so callers decide on parallelism**:
+
+```scala
+// GOOD: Sequential by default
+def processItems(items: List[Item]): List[Result] =
+  items.map(processItem)
+
+// GOOD: Explicit parallel version
+def processItemsPar(items: List[Item]): List[Result] =
+  supervised:
+    items.map(item => fork(processItem(item)))
+         .map(_.join())
+
+// AVOID: Hidden internal concurrency
+def processItems(items: List[Item]): List[Result] =
+  supervised:  // Caller can't control this concurrency
+    items.map(item => fork(processItem(item)))
+         .map(_.join())
+```
+
+## Error Handling Patterns
+
+**Understand error propagation**:
+
+```scala
+supervised:
+  val f1 = fork:
+    computation1()  // might throw
+    
+  val f2 = fork:
+    computation2()  // might throw
+    
+  try
+    val result = f1.join()  // exception propagated here
+    f2.join()  // f2 already interrupted if f1 failed
+  catch
+    case e: Exception =>
+      // Both forks are interrupted and completed before this catch
+      handleError(e)
+```
+
+## Resource Sharing Patterns
+
+**Share resources safely across forks**:
+
+```scala
+supervised:
+  val sharedResource = useCloseableInScope(createResource())
+  
+  val f1 = fork:
+    useResource(sharedResource)  // safe - resource lifetime managed
+    
+  val f2 = fork:
+    useResource(sharedResource)  // safe - both forks in same scope
+    
+  (f1.join(), f2.join())
+// Resource cleaned up after both forks complete
+```
+
+## Key Principles
+
+1. **Fork instances should not escape their creating scope**
+2. **Join results in the same scope where forks were created**  
+3. **Use `forkUser` for background tasks that should block scope completion**
+4. **Let callers control parallelism rather than hiding it in implementation**
+5. **Resource lifetimes are tied to scope lifetimes, not individual forks**

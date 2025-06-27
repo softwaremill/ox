@@ -1,0 +1,203 @@
+---
+description: Leverage ox's utility functions like `pipe()` for method chaining, `tap()` for side effects, `timeout()` for time limits, `debug()` for printing expression values, `.discard` for discarding values and `sleep` for blocking a thread. These maintain direct-style while providing powerful composition patterns.
+globs: 
+alwaysApply: false
+---
+# Utility Combinators
+
+**Use Ox's utility functions** to write cleaner, more expressive direct-style code with better composition patterns.
+
+## Method Chaining with `pipe()`
+
+**Use `pipe()` for dot-syntax method chaining**:
+
+```scala
+import ox.util.{pipe, tap}
+
+def compute(): Int = 42
+def transform(x: Int): String = s"value: $x"
+def enhance(s: String): String = s"enhanced $s"
+
+// Traditional function composition
+val result1 = enhance(transform(compute()))
+
+// Cleaner with pipe
+val result2 = compute()
+  .pipe(transform)
+  .pipe(enhance)
+  .pipe(_.toUpperCase)
+```
+
+## Side Effects with `tap()`
+
+**Use `tap()` for side effects without breaking the chain**:
+
+```scala
+import ox.util.tap
+
+val result = computeExpensiveValue()
+  .tap(v => println(s"Computed: $v"))
+  .tap(v => metrics.record(v))
+  .pipe(transform)
+  .tap(v => logger.debug(s"Transformed: $v"))
+```
+
+## Debugging with `debug()`
+
+**Use `debug()` to print expression values**:
+
+```scala
+import ox.util.debug
+
+val result = data
+  .map(_.toUpperCase)
+  .debug("after uppercase")  // prints: after uppercase: List(...)
+  .filter(_.startsWith("A"))
+  .debug("after filter")     // prints: after filter: List(...)
+  .take(5)
+```
+
+## Discarding Values with `.discard`
+
+**Use `.discard` to explicitly ignore return values**:
+
+```scala
+import ox.util.discard
+
+// Instead of assigning to _
+val _ = expensiveOperation()
+
+// More explicit
+expensiveOperation().discard
+
+// Useful in for-comprehensions and chains
+processData()
+  .tap(logResult)
+  .discard  // clearly indicates we don't use the result
+```
+
+## Blocking with `sleep`
+
+**Use `sleep` for thread blocking**:
+
+```scala
+import ox.{sleep, fork, supervised}
+import scala.concurrent.duration.*
+
+supervised:
+  fork:
+    println("Starting task")
+    sleep(2.seconds)  // blocks current thread
+    println("Task completed")
+    
+  fork:
+    sleep(1.second)
+    println("Quick task done")
+```
+
+## Timeout Operations
+
+**Use `timeout()` for time-limited operations**:
+
+```scala
+import ox.{timeout, either}
+import scala.concurrent.duration.*
+
+// With exception handling
+val result = either.catching:
+  timeout(5.seconds):
+    longRunningComputation()
+    
+// Direct timeout (throws on timeout)
+val quickResult = timeout(1.second):
+  quickComputation()
+```
+
+## Combining Utilities
+
+**Chain multiple utilities together**:
+
+```scala
+import ox.util.{pipe, tap, debug}
+
+def processData(input: List[String]): List[Int] =
+  input
+    .debug("input")
+    .pipe(_.filter(_.nonEmpty))
+    .tap(filtered => println(s"Filtered ${filtered.size} items"))
+    .pipe(_.map(_.length))
+    .debug("lengths")
+    .pipe(_.sorted)
+    .tap(sorted => metrics.recordSizes(sorted))
+```
+
+## Control Flow Utilities
+
+**Use utilities for cleaner control flow**:
+
+```scala
+import ox.util.{pipe, tap}
+
+def validateAndProcess(data: String): Either[String, Result] =
+  data
+    .pipe(_.trim)
+    .tap(d => logger.debug(s"Processing: $d"))
+    .pipe: trimmed =>
+      if trimmed.isEmpty then
+        Left("Empty data")
+      else
+        Right(processData(trimmed))
+```
+
+## Integration with Other Patterns
+
+**Combine utilities with other Ox patterns**:
+
+```scala
+import ox.util.{pipe, tap, debug}
+import ox.flow.Flow
+
+// In Flow transformations
+Flow.fromValues(1, 2, 3)
+  .map(_.toString)
+  .tap(debug("string values"))
+  .mapPar(2): value =>
+    value
+      .pipe(_.toUpperCase)
+      .tap(v => logProcessing(v))
+  .runForeach(println)
+
+// In retry blocks
+retry(Schedule.exponentialBackoff(100.millis)):
+  externalCall()
+    .tap(response => logger.debug(s"Response: $response"))
+    .pipe(validateResponse)
+```
+
+## Avoiding Nested Blocks
+
+**Use utilities to avoid deeply nested code**:
+
+```scala
+// Instead of nested blocks
+def processComplex(data: Data): Result =
+  val step1 = transform1(data)
+  val step2 = transform2(step1)
+  val step3 = transform3(step2)
+  finalProcess(step3)
+
+// Cleaner with pipe
+def processComplex(data: Data): Result =
+  data
+    .pipe(transform1)
+    .pipe(transform2)  
+    .pipe(transform3)
+    .pipe(finalProcess)
+```
+
+**Key benefits**:
+- **Improved readability** with method chaining
+- **Better debugging** with inline inspection
+- **Explicit side effects** without breaking flow
+- **Cleaner composition** of transformations
+- **Maintains direct-style** programming model

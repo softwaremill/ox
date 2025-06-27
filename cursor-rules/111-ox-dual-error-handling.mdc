@@ -1,0 +1,86 @@
+---
+description: Use exceptions for bugs/unexpected situations and use `Either` values for application logic errors. Use Rust-like `either` blocks with `.ok()` to unwrap `Either` values with automatic short-circuiting. Combine different error types using union types (`Either[Int | Long, String]`) and avoid nested `either` blocks in the same scope.
+globs: 
+alwaysApply: false
+---
+# Dual Error Handling
+
+Ox uses **two channels for error handling**:
+1. **Exceptions**: for bugs, unexpected situations, Java library integration
+2. **Either values**: for application logic errors (typed, explicit)
+
+## Either Blocks with `.ok()` Unwrapping
+
+**Use `either` blocks** for Rust-like error handling with automatic short-circuiting:
+
+```scala
+import ox.either
+import ox.either.ok
+
+case class User()
+case class Organization()
+
+def lookupUser(id: Int): Either[String, User] = ???
+def lookupOrganization(id: Int): Either[String, Organization] = ???
+
+// Automatic short-circuiting on first Left value
+val result: Either[String, Assignment] = either:
+  val user = lookupUser(1).ok()      // unwraps Right, or short-circuits on Left
+  val org = lookupOrganization(2).ok()
+  Assignment(user, org)
+```
+
+## Union Types for Multiple Error Types
+
+**Combine different error types** using union types:
+
+```scala
+val v1: Either[Int, String] = ???
+val v2: Either[Long, String] = ???
+
+val result: Either[Int | Long, String] = either:
+  v1.ok() ++ v2.ok()  // Error type becomes Int | Long
+```
+
+## Converting Exceptions to Either
+
+**Convert exception-throwing code** using `either.catching`:
+
+```scala
+val result: Either[Throwable, String] = either.catching:
+  riskyOperation()  // catches non-fatal exceptions
+```
+
+## Important: Avoid Nested `either` Blocks
+
+**Don't nest `either` blocks** in the same scope - this can cause surprising behavior after refactoring:
+
+```scala
+// BAD: Nested either blocks
+val outerResult: Either[Exception, Unit] = either:
+  val innerResult: Either[String, Int] = either:  // DON'T DO THIS
+    returnsEither.ok()  // Which either block does this target?
+    // ...
+  ()
+
+// GOOD: Extract to separate function
+def innerLogic(): Either[String, Int] = either:
+  returnsEither.ok()
+
+val outerResult: Either[Exception, Unit] = either:
+  val innerResult = innerLogic()
+  ()
+```
+
+## When to Use Each Approach
+
+**Use exceptions for**:
+- Programming bugs
+- Unexpected system failures  
+- Java library integration
+
+**Use Either for**:
+- Expected application errors
+- Validation failures
+- Business logic errors
+- When you want explicit error types in signatures

@@ -1,0 +1,107 @@
+---
+description: Control Flow concurrency using `mapPar()`, `mapParUnordered()` with explicit parallelism limits, and `buffer()` for asynchronous boundaries. Use `merge()` for combining multiple flows. Use the various methods to construct Flows such as `.fromEmit` and `.fromChannel` to integrate with third-party sources. Leverage `runToChannel()` to integrate with third-party sinks.
+globs: 
+alwaysApply: false
+---
+# Flow Concurrency Control
+
+**Control concurrency explicitly** in Flow pipelines using parallel operations, buffering, and merging strategies.
+
+## Parallel Processing
+
+**Use `mapPar()` and `mapParUnordered()`** with explicit parallelism limits:
+
+```scala
+import ox.flow.Flow
+
+// Ordered parallel processing (maintains element order)
+Flow.fromValues(urls)
+  .mapPar(parallelism = 4)(sendHttpRequest)
+  .runForeach(processResponse)
+
+// Unordered parallel processing (better throughput) 
+Flow.fromValues(tasks)
+  .mapParUnordered(parallelism = 8)(processTask)
+  .runDrain()
+```
+
+## Asynchronous Boundaries
+
+**Use `buffer()` to create async boundaries** between pipeline stages:
+
+```scala
+Flow.fromSource(slowProducer)
+  .buffer(capacity = 100)        // producer runs async from consumer
+  .map(expensiveTransformation)  // consumer can work while producer fills buffer
+  .runToList()
+```
+
+## Combining Flows
+
+**Use `merge()` to combine multiple flows** with proper error handling:
+
+```scala
+val leftFlow = Flow.tick(123.millis, "left")
+val rightFlow = Flow.tick(312.millis, "right") 
+
+// Merge handles failure of either branch properly
+leftFlow.merge(rightFlow)
+  .take(100)
+  .runForeach(println)
+```
+
+## Integration with Third-Party Sources
+
+**Various construction methods** for integrating external sources:
+
+```scala
+// From input streams
+Flow.fromInputStream(inputStream)
+  .linesUtf8
+  .mapPar(4)(processLine)
+
+// Custom emission logic
+Flow.usingEmit: emit =>
+  while shouldContinue() do
+    val batch = readNextBatch()
+    batch.foreach(emit.apply)
+
+// From channels for integration
+def integrateExternalSource()(using Ox): Source[String] =
+  Flow.fromValues(initialData)
+    .mapPar(concurrency)(enrichWithExternalCall)
+    .runToChannel()  // Convert back to channel for integration
+```
+
+## Integration with Third-Party Sinks
+
+**Use `runToChannel()` for integration** with external systems:
+
+```scala
+import ox.{Ox, supervised}
+import ox.channels.BufferCapacity
+
+def processToKafka()(using Ox, BufferCapacity): Unit =
+  Flow.fromSource(inputChannel)
+    .mapPar(4)(transform)
+    .filter(_.isValid)
+    .runToChannel()  // Returns Source[T] for integration
+```
+
+## Text Processing
+
+**Built-in text combinators** for byte/string flows:
+```scala
+Flow.fromInputStream(fileInputStream)
+  .linesUtf8                    // decode bytes to lines
+  .mapPar(8)(processLine)
+  .encodeUtf8                   // encode back to bytes
+  .runToOutputStream(outputStream)
+```
+
+## Performance Considerations
+
+- **Choose parallelism limits** based on resource constraints (I/O vs CPU)
+- **Use buffering** when producer/consumer speeds vary
+- **Prefer `mapParUnordered`** when order doesn't matter (better throughput)
+- **Consider backpressure** - flows naturally apply backpressure through channels

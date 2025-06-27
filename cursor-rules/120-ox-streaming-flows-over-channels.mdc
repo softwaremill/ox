@@ -1,0 +1,106 @@
+---
+description: Use Flows for functional-style streaming transformations with methods like `map`, `mapPar`, `filter`, `groupBy` and many others. Flows are lazy, composable, and manage concurrency declaratively and efficiently. Flows only start processing data when run.
+globs: 
+alwaysApply: false
+---
+# Streaming: Prefer Flows Over Channels
+
+**Use `Flow[T]` for streaming data transformations** instead of low-level channel operations. Flows provide a functional, composable API with built-in concurrency management.
+
+## Flow Characteristics
+
+**Flows are lazy**: No processing happens until `.run*()` methods are called
+```scala
+import ox.flow.Flow
+
+// This just describes the pipeline - nothing executes yet
+val pipeline = Flow.fromValues(1, 2, 3)
+  .map(_ * 2)
+  .filter(_ > 2)
+
+// Processing happens here
+val result = pipeline.runToList()  // List(4, 6)
+```
+
+## Creating Flows
+
+**Multiple ways to create flows**:
+```scala
+import ox.flow.Flow
+import scala.concurrent.duration.*
+
+// From values
+Flow.fromValues(1, 2, 3)
+
+// Infinite flows  
+Flow.tick(1.second, "heartbeat")
+Flow.iterate(0)(_ + 1)  // natural numbers
+
+// From channels
+Flow.fromSource(channel)
+
+// Custom emission logic
+Flow.usingEmit: emit =>
+  emit(1)
+  for i <- 4 to 50 do emit(i)
+  if condition() then emit(42)
+```
+
+## Functional Transformations
+
+**Rich transformation API** similar to Scala collections:
+```scala
+Flow.fromValues(1, 2, 3, 4, 5)
+  .map(_ * 2)
+  .filter(_ % 4 == 0)
+  .take(3)
+  .zip(Flow.repeat("item"))
+  .interleave(Flow.fromValues((0, "other")))
+  .runForeach(println)
+```
+
+## Built-in Concurrency Management
+
+**Flows handle concurrency declaratively**:
+```scala
+// Parallel processing with controlled concurrency
+Flow.fromValues(urls)
+  .mapPar(4)(sendHttpRequest)  // max 4 concurrent requests
+  .filter(_.isSuccess)
+  .runDrain()
+
+// Asynchronous boundaries with buffering
+Flow.fromSource(inputChannel)
+  .buffer(capacity = 100)  // explicit async boundary
+  .mapPar(8)(process)
+  .runToChannel()
+```
+
+## When to Use Channels Directly
+
+**Use low-level channels only for**:
+- Go-like inter-thread communication patterns
+- Custom coordination with `select` operations  
+- Bridging callback-based APIs
+- Building custom flow operations
+
+**Good**: Flow-based streaming
+```scala
+Flow.fromInputStream(inputStream)
+  .linesUtf8
+  .mapPar(parallelism)(processLine)
+  .runForeach(println)
+```
+
+**Avoid**: Manual channel coordination for simple transformations
+```scala
+// Don't do this for simple transformations
+val ch1 = Channel.buffered[String](mdc:10)
+val ch2 = Channel.buffered[Int](mdc:10)
+fork:
+  ch1.drain(): line =>
+    ch2.send(line.length)
+  ch2.done()
+```
+
+Flows provide **safety, composability, and performance** with a familiar functional API.
