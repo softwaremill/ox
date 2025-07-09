@@ -81,6 +81,24 @@ extension [T](inline t: T)
         try f(e)
         catch case ee: Throwable => e.addSuppressed(ee)
         throw e
+
+  /** Print the value of this expression, preceeded with the given label, and return the original value.
+    *
+    * @example
+    *   {{{
+    *   import ox.debug
+    *   val x = 20
+    *   x.debug("current value of x")
+    *
+    *   // prints: current value of x: 20
+    *   }}}
+    *
+    * @see
+    *   [[debug]] as a top-level method for printing the code corresponding to an expression, alongside its value.
+    */
+  inline def debug(label: String): T =
+    println(s"$label: $t")
+    t
 end extension
 
 extension [T](inline f: Future[T])
@@ -115,7 +133,9 @@ inline def timed[T](operation: => T): (FiniteDuration, T) =
   val duration = (after - before).nanos
   (duration, result)
 
-/** Prints the code and result of the expression to the standard output. Equivalent to `println(xAsCode + " = " + x)`.
+/** Prints the code and the value of the expression to the standard output. Equivalent to `println(xAsCode + " = " + x)`.
+  * @see
+  *   [[debug]] as an extension method on a value.
   *
   * @example
   *   {{{
