@@ -32,4 +32,4 @@ Ox's documentation is [indexed on the global server](https://context7.com/softwa
 
 ## llms.txt
 
-Ox currently does not server a [llms.txt](https://llmstxt.org) file, as it is currently unclear if there are any tools using this. However, if support for this format becomes more widespread, we'll automate generation of this file as well.
+Ox currently  a [llms.txt](https://llmstxt.org) file, as it is currently unclear if there are any tools using this. However, if support for this format becomes more widespread, we'll automate generation of this file as well.
