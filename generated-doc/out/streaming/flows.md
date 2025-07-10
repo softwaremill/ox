@@ -171,7 +171,7 @@ To obtain a `org.reactivestreams.Publisher` instance, you'll need to add the fol
 bring the `toReactiveStreamsPublisher` method into scope:
 
 ```scala
-// sbt dependency: "com.softwaremill.ox" %% "flow-reactive-streams" % "0.7.1"
+// sbt dependency: "com.softwaremill.ox" %% "flow-reactive-streams" % "0.7.2"
 
 import ox.supervised
 import ox.flow.Flow
