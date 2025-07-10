@@ -3,7 +3,10 @@ package ox
 import org.scalatest.exceptions.TestFailedException
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import ox.either.{fail, ok, orThrow}
+import ox.either.catching
+import ox.either.fail
+import ox.either.ok
+import ox.either.orThrow
 
 import scala.util.boundary.Label
 
@@ -116,24 +119,24 @@ class EitherTest extends AnyFlatSpec with Matchers:
     e.getMessage should include("The enclosing `either` call uses a different error type.")
   }
 
-  it should "catch exceptions" in {
-    either.catching(throw new RuntimeException("boom")).left.map(_.getMessage) shouldBe Left("boom")
+  it should "catch non fatal exceptions" in {
+    either.catchingNonFatal(throw new RuntimeException("boom")).left.map(_.getMessage) shouldBe Left("boom")
   }
 
   it should "not catch fatal exceptions" in {
-    val e = intercept[InterruptedException](either.catching(throw new InterruptedException()))
+    val e = intercept[InterruptedException](either.catchingNonFatal(throw new InterruptedException()))
 
     e shouldBe a[InterruptedException]
   }
 
-  it should "provide an either scope when catching" in {
+  it should "provide an either scope when catching non fatal exceptions" in {
     val val1: Either[Throwable, Int] = Left(ComparableException("oh no"))
 
-    either.catching(val1.ok()) shouldBe Left(ComparableException("oh no"))
+    either.catchingNonFatal(val1.ok()) shouldBe Left(ComparableException("oh no"))
   }
 
-  it should "report a proper compilation error when wrong error type is used for ok() in catching block" in {
-    val e = intercept[TestFailedException](assertCompiles("""either.catching(fail1.ok())"""))
+  it should "report a proper compilation error when wrong error type is used for ok() in catchingNonFatal block" in {
+    val e = intercept[TestFailedException](assertCompiles("""either.catchingNonFatal(fail1.ok())"""))
 
     e.getMessage should include("The enclosing `either` call uses a different error type.")
   }
@@ -172,6 +175,25 @@ class EitherTest extends AnyFlatSpec with Matchers:
   it should "throw exceptions for a Left-value" in {
     val v: Either[Exception, Int] = Left(new RuntimeException("boom!"))
     intercept[RuntimeException](v.orThrow).getMessage shouldBe "boom!"
+  }
+
+  "catching" should "catch given exceptions only" in {
+    val e = new IllegalArgumentException("boom")
+    (throw e).catching[IllegalArgumentException] shouldBe Left(e)
+  }
+
+  it should "catch parent exceptions" in {
+    val e = new IllegalArgumentException("boom")
+    (throw e).catching[Exception] shouldBe Left(e)
+  }
+
+  it should "not catch non-given exceptions" in {
+    val e = new IllegalArgumentException("boom")
+    intercept[IllegalArgumentException]((throw e).catching[IllegalStateException]) shouldBe e
+  }
+
+  it should "return successful results as Right-values" in {
+    10.catching[Exception] shouldBe Right(10)
   }
 
   private transparent inline def receivesNoEitherNestingError(inline code: String): Unit =

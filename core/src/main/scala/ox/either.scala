@@ -5,11 +5,12 @@ import scala.compiletime.{error, summonFrom}
 import scala.util.{NotGiven, boundary}
 import scala.util.boundary.{Label, break}
 import scala.util.control.NonFatal
+import scala.reflect.ClassTag
 
 object either:
 
   /** Catches non-fatal exceptions that occur when evaluating `t` and returns them as the left side of the returned `Either`. */
-  inline def catching[T](inline t: Label[Either[Throwable, T]] ?=> T): Either[Throwable, T] =
+  inline def catchingNonFatal[T](inline t: Label[Either[Throwable, T]] ?=> T): Either[Throwable, T] =
     try boundary(Right(t))
     catch case NonFatal(e) => Left(e)
 
@@ -143,4 +144,10 @@ object either:
     def orThrow: T = e match
       case Right(value)    => value
       case Left(throwable) => throw throwable
+
+  extension [T](inline t: T)
+    /** Catches `E` exceptions that occur when evaluating `t` and returns them as the left side of the returned `Either`. */
+    inline def catching[E <: Throwable: ClassTag]: Either[E, T] =
+      try Right(t)
+      catch case e: E => Left(e)
 end either

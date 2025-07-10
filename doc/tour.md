@@ -3,11 +3,13 @@
 ```scala mdoc:invisible
 import ox.*
 import ox.either.ok
+import ox.either.catching
 import ox.channels.*
 import ox.flow.Flow
 import ox.resilience.*
 import ox.scheduling.*
 import scala.concurrent.duration.*
+import scala.concurrent.TimeoutException
 ```
 
 Run two computations [in parallel](high-level-concurrency/par.md):
@@ -23,7 +25,7 @@ val result1: (Int, String) = par(computation1, computation2)
 
 ```scala mdoc:compile-only
 def computation3: Int = { sleep(2.seconds); 1 }
-val result2: Either[Throwable, Int] = either.catching(timeout(1.second)(computation3))
+val result2: Either[TimeoutException, Int] = timeout(1.second)(computation3).catching[TimeoutException]
 // `timeout` only completes once the loosing branch is interrupted & done
 ```
 
