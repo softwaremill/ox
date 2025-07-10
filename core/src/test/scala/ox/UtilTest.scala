@@ -3,6 +3,7 @@ package ox
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.util.Trail
+import ox.*
 
 class UtilTest extends AnyFlatSpec with Matchers:
   "discard" should "do nothing" in {
@@ -59,5 +60,15 @@ class UtilTest extends AnyFlatSpec with Matchers:
       1 + 2
     }.tap(v => t.add(s"Got: $v")) shouldBe 3
     t.get shouldBe Vector("Adding", "Got: 3")
+  }
+
+  "debug as extension" should "work" in {
+    val x = 10
+    x.debug("some label") shouldBe 10
+  }
+
+  "debug as top-level method" should "work" in {
+    val x = 10
+    debug(x + 1) shouldBe ()
   }
 end UtilTest
