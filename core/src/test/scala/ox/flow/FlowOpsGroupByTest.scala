@@ -21,6 +21,12 @@ class FlowOpsGroupByTest extends AnyFlatSpec with Matchers:
   it should "handle single-element flow" in:
     Flow.fromValues(42).groupBy(10, _ % 10)(v => f => f).runToList() shouldBe List(42)
 
+  it should "handle single-element flow (stress test)" in:
+    // this test failed with a previous implementation which used separate channels for receiving child elements
+    // (childOutput) and for signalling children completion; the select then sometimes chose the done clause before
+    // the value clause, which resulted in dropping the value
+    for i <- 1 to 100000 do Flow.fromValues(42).groupBy(10, _ % 10)(v => f => f).runToList() shouldBe List(42)
+
   it should "create simple groups without reaching parallelism limit" in:
     case class Group(v: Int, values: List[Int])
 
