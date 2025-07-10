@@ -47,7 +47,7 @@ val result1: (Int, String) = par(computation1, computation2)
 
 ```scala mdoc:compile-only
 def computation3: Int = { sleep(2.seconds); 1 }
-val result2: Either[Throwable, Int] = either.catching(timeout(1.second)(computation3))
+val result2: Either[TimeoutException, Int] = timeout(1.second)(computation3).catching[TimeoutException]
 // `timeout` only completes once the loosing branch is interrupted & done
 ```
 
