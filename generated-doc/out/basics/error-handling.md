@@ -127,13 +127,23 @@ val result: Either[String, Int] = either:
   if v1.ok() > 10 then 42 else "wrong".fail()
 ```
 
-Exception-throwing code can be converted to an `Either` using `catching`. Note that this only catches non-fatal 
-exceptions!
+An exception-throwing expression can be converted to an `Either` using the `.catching[E]` extension method:
+
+```scala
+import ox.either.catching
+
+val userInput: Boolean = ???
+val result: Either[IllegalArgumentException, Int] =
+  (if userInput then 10 else throw new IllegalArgumentException("boom"))
+    .catching[IllegalArgumentException]
+```
+
+Arbitrary exception-throwing code can be converted to an `Either` using `catchingNonFatal`:
 
 ```scala
 import ox.either
 
-val result: Either[Throwable, String] = either.catching(throw new RuntimeException("boom"))
+val result: Either[Throwable, String] = either.catchingNonFatal(throw new RuntimeException("boom"))
 ```
 
 ### Nested `either` blocks
