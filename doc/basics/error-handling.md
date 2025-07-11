@@ -139,12 +139,18 @@ val result: Either[IllegalArgumentException, Int] =
     .catching[IllegalArgumentException]
 ```
 
-Arbitrary exception-throwing code can be converted to an `Either` using `catchingNonFatal`:
+An alternative to an `either` block is an `either.catchAll` block which additionally catches any non-fatal exceptions 
+that occur when evaluating the nested expression. Within the block, both `.ok()` and `.fail()` can be used. The error
+type within such block is fixed to `Throwable`:
 
 ```scala mdoc:compile-only
 import ox.either
+import ox.either.ok
 
-val result: Either[Throwable, String] = either.catchingNonFatal(throw new RuntimeException("boom"))
+def doWork(): Either[Exception, Boolean] = ???
+
+val result: Either[Throwable, String] = either.catchAll:
+  if doWork().ok() then "ok" else throw new RuntimeException("not ok")
 ```
 
 ### Nested `either` blocks
