@@ -127,6 +127,8 @@ val result: Either[String, Int] = either:
   if v1.ok() > 10 then 42 else "wrong".fail()
 ```
 
+### Converting from exceptions
+
 An exception-throwing expression can be converted to an `Either` using the `.catching[E]` extension method (catches 
 only non-fatal exceptions!):
 
@@ -138,6 +140,10 @@ val result: Either[IllegalArgumentException, Int] =
   (if userInput then 10 else throw new IllegalArgumentException("boom"))
     .catching[IllegalArgumentException]
 ```
+
+Any `try-catch` blocks that you have in your code should be kept as small as possible, so that it's possibly obvious
+where the errors might originate. Using `.catching` at the sites where exceptions are thrown helps keeps the syntax
+lean and enables pinpointing where exceptions might occur.
 
 An alternative to an `either` block is an `either.catchAll` block which additionally catches any non-fatal exceptions 
 that occur when evaluating the nested expression. Within the block, both `.ok()` and `.fail()` can be used. The error
@@ -151,6 +157,21 @@ def doWork(): Either[Exception, Boolean] = ???
 
 val result: Either[Throwable, String] = either.catchAll:
   if doWork().ok() then "ok" else throw new RuntimeException("not ok")
+```
+
+## Converting to exceptions
+
+For `Either` instances where the left-side is an exception, the right-value of an `Either` can be unwrapped using `.orThrow`.
+The exception on the left side is thrown if it is present:
+
+```scala mdoc:compile-only
+import ox.either.orThrow
+
+val v1: Either[Exception, Int] = Right(10)
+assert(v1.orThrow == 10)
+
+val v2: Either[Exception, Int] = Left(new RuntimeException("boom!"))
+v2.orThrow // throws RuntimeException("boom!")
 ```
 
 ### Nested `either` blocks
@@ -209,21 +230,6 @@ val outerResult: Either[Exception, Unit] = either:
 ```
 
 After this change refactoring `returnsEither` to return `Either[Exception, Int]` would yield a compile error on `returnsEither.ok()`.
-
-## Other `Either` utilities
-
-For `Either` instances where the left-side is an exception, the right-value of an `Either` can be unwrapped using `.orThrow`.
-The exception on the left side is thrown if it is present:
-
-```scala mdoc:compile-only
-import ox.either.orThrow
-
-val v1: Either[Exception, Int] = Right(10)
-assert(v1.orThrow == 10)
-
-val v2: Either[Exception, Int] = Left(new RuntimeException("boom!"))
-v2.orThrow // throws RuntimeException("boom!")
-```
 
 ## Mapping errors
 
