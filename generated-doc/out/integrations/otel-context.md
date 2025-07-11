@@ -3,7 +3,7 @@
 Dependency:
 
 ```scala
-"com.softwaremill.ox" %% "otel-context" % "0.7.2"
+"com.softwaremill.ox" %% "otel-context" % "0.7.3"
 ```
 
 When using the default OpenTelemetry context-propagation mechanisms, which rely on thread-local storage, the context
