@@ -192,6 +192,11 @@ class EitherTest extends AnyFlatSpec with Matchers:
     intercept[IllegalArgumentException]((throw e).catching[IllegalStateException]) shouldBe e
   }
 
+  it should "not catch fatal exceptions" in {
+    val e = new InterruptedException("boom")
+    intercept[InterruptedException]((throw e).catching[Exception]) shouldBe e
+  }
+
   it should "return successful results as Right-values" in {
     10.catching[Exception] shouldBe Right(10)
   }

@@ -146,8 +146,10 @@ object either:
       case Left(throwable) => throw throwable
 
   extension [T](inline t: T)
-    /** Catches `E` exceptions that occur when evaluating `t` and returns them as the left side of the returned `Either`. */
+    /** Catches `E` exceptions that occur when evaluating `t` and returns them as the left side of the returned `Either`. Only non-fatal
+      * exceptions are caught, even if they are a subtype of `E`.
+      */
     inline def catching[E <: Throwable: ClassTag]: Either[E, T] =
       try Right(t)
-      catch case e: E => Left(e)
+      catch case NonFatal(e: E) => Left(e)
 end either

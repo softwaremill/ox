@@ -127,7 +127,8 @@ val result: Either[String, Int] = either:
   if v1.ok() > 10 then 42 else "wrong".fail()
 ```
 
-An exception-throwing expression can be converted to an `Either` using the `.catching[E]` extension method:
+An exception-throwing expression can be converted to an `Either` using the `.catching[E]` extension method (catches 
+only non-fatal exceptions!):
 
 ```scala mdoc:compile-only
 import ox.either.catching
