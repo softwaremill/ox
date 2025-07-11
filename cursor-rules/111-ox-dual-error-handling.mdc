@@ -1,5 +1,5 @@
 ---
-description: Use exceptions for bugs/unexpected situations and use `Either` values for application logic errors. Use Rust-like `either` blocks with `.ok()` to unwrap `Either` values with automatic short-circuiting. Combine different error types using union types (`Either[Int | Long, String]`) and avoid nested `either` blocks in the same scope.
+description: Use exceptions for bugs/unexpected situations and use `Either` values for application logic errors. Use Rust-like `either` blocks with `.ok()` to unwrap `Either` values with automatic short-circuiting. Combine different error types using union types (`Either[Int | Long, String]`), keep try-catch blocks small and avoid nested `either` blocks in the same scope.
 globs: 
 alwaysApply: false
 ---
@@ -44,12 +44,17 @@ val result: Either[Int | Long, String] = either:
 
 ## Converting Exceptions to Either
 
-**Convert exception-throwing code** using `either.catching`:
+**Convert exception-throwing code** using the inline `catching` (only non-fatal exceptions):
 
 ```scala
-val result: Either[Throwable, String] = either.catching:
-  riskyOperation()  // catches non-fatal exceptions
+import either.catching
+
+val result: Either[IllegalStateException, String] = 
+  riskyOperation().catching[IllegalStateException]  
 ```
+
+This helps to pinpoint where exceptions might originate, and either completely eliminate `try-catch` blocks, or 
+to keep them as small as possible.
 
 ## Important: Avoid Nested `either` Blocks
 

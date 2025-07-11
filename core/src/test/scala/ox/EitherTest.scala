@@ -120,11 +120,11 @@ class EitherTest extends AnyFlatSpec with Matchers:
   }
 
   it should "catch non fatal exceptions" in {
-    either.catchingNonFatal(throw new RuntimeException("boom")).left.map(_.getMessage) shouldBe Left("boom")
+    either.catchAll(throw new RuntimeException("boom")).left.map(_.getMessage) shouldBe Left("boom")
   }
 
   it should "not catch fatal exceptions" in {
-    val e = intercept[InterruptedException](either.catchingNonFatal(throw new InterruptedException()))
+    val e = intercept[InterruptedException](either.catchAll(throw new InterruptedException()))
 
     e shouldBe a[InterruptedException]
   }
@@ -132,11 +132,11 @@ class EitherTest extends AnyFlatSpec with Matchers:
   it should "provide an either scope when catching non fatal exceptions" in {
     val val1: Either[Throwable, Int] = Left(ComparableException("oh no"))
 
-    either.catchingNonFatal(val1.ok()) shouldBe Left(ComparableException("oh no"))
+    either.catchAll(val1.ok()) shouldBe Left(ComparableException("oh no"))
   }
 
   it should "report a proper compilation error when wrong error type is used for ok() in catchingNonFatal block" in {
-    val e = intercept[TestFailedException](assertCompiles("""either.catchingNonFatal(fail1.ok())"""))
+    val e = intercept[TestFailedException](assertCompiles("""either.catchAll(fail1.ok())"""))
 
     e.getMessage should include("The enclosing `either` call uses a different error type.")
   }
@@ -190,6 +190,11 @@ class EitherTest extends AnyFlatSpec with Matchers:
   it should "not catch non-given exceptions" in {
     val e = new IllegalArgumentException("boom")
     intercept[IllegalArgumentException]((throw e).catching[IllegalStateException]) shouldBe e
+  }
+
+  it should "not catch fatal exceptions" in {
+    val e = new InterruptedException("boom")
+    intercept[InterruptedException]((throw e).catching[Exception]) shouldBe e
   }
 
   it should "return successful results as Right-values" in {

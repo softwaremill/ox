@@ -9,11 +9,6 @@ import scala.reflect.ClassTag
 
 object either:
 
-  /** Catches non-fatal exceptions that occur when evaluating `t` and returns them as the left side of the returned `Either`. */
-  inline def catchingNonFatal[T](inline t: Label[Either[Throwable, T]] ?=> T): Either[Throwable, T] =
-    try boundary(Right(t))
-    catch case NonFatal(e) => Left(e)
-
   private type NotNested = NotGiven[Label[Either[Nothing, Nothing]]]
 
   /** Within an [[either]] block, allows unwrapping [[Either]] and [[Option]] values using [[ok()]]. The result is the right-value of an
@@ -47,6 +42,13 @@ object either:
         "Nesting of either blocks is not allowed as it's error prone, due to type inference. Consider extracting the nested either block to a separate function."
       ) nn: NotNested
   ): Either[E, A] = boundary(Right(body))
+
+  /** Same as an `either` block created using [[apply]], but additionally catches all non-fatal exceptions that occur when evaluating `t`.
+    * The error type is fixed to `Throwable`, and all caught exceptions are represented as the left side of the returned `Either`.
+    */
+  inline def catchAll[T](inline t: Label[Either[Throwable, T]] ?=> T): Either[Throwable, T] =
+    try boundary(Right(t))
+    catch case NonFatal(e) => Left(e)
 
   extension [E, A](inline t: Either[E, A])
     /** Unwrap the value of the `Either`, short-circuiting the computation to the enclosing [[either]], in case this is a left-value. */
@@ -146,8 +148,10 @@ object either:
       case Left(throwable) => throw throwable
 
   extension [T](inline t: T)
-    /** Catches `E` exceptions that occur when evaluating `t` and returns them as the left side of the returned `Either`. */
+    /** Catches `E` exceptions that occur when evaluating `t` and returns them as the left side of the returned `Either`. Only non-fatal
+      * exceptions are caught, even if they are a subtype of `E`.
+      */
     inline def catching[E <: Throwable: ClassTag]: Either[E, T] =
       try Right(t)
-      catch case e: E => Left(e)
+      catch case NonFatal(e: E) => Left(e)
 end either

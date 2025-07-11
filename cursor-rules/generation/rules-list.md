@@ -7,7 +7,7 @@ Overview of Ox library for direct-style Scala 3 programming covering streaming, 
 Prefer high-level operations like `par()`, `race()`, and `timeout()` for concurrent programming instead of manual fork management. These operations handle error propagation, interruption, and resource cleanup automatically. Use `.mapPar`, `.filterPar` and `.collectPar` on large collections for added performance.
 
 ## ox-dual-error-handling
-Use exceptions for bugs/unexpected situations and use `Either` values for application logic errors. Use Rust-like `either` blocks with `.ok()` to unwrap `Either` values with automatic short-circuiting. Combine different error types using union types (`Either[Int | Long, String]`) and avoid nested `either` blocks in the same scope.
+Use exceptions for bugs/unexpected situations and use `Either` values for application logic errors. Use Rust-like `either` blocks with `.ok()` to unwrap `Either` values with automatic short-circuiting. Combine different error types using union types (`Either[Int | Long, String]`), keep try-catch blocks small and avoid nested `either` blocks in the same scope.
 
 ## ox-streaming-flows-over-channels
 Use Flows for functional-style streaming transformations with methods like `map`, `mapPar`, `filter`, `groupBy` and many others. Flows are lazy, composable, and manage concurrency declaratively and efficiently. Flows only start processing data when run.
