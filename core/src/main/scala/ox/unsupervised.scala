@@ -65,7 +65,10 @@ private[ox] def scopedWithCapability[T](capability: Ox)(f: Ox ?=> T): T =
 
   val previousScope = currentScope.get()
   try
+    Clock.herdStarted(capability.herd)
     currentScope.set(capability)
     runWithCurrentScopeSet
-  finally currentScope.set(previousScope)
+  finally
+    currentScope.set(previousScope)
+    Clock.herdCompleted(capability.herd)
 end scopedWithCapability

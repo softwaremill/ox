@@ -18,7 +18,7 @@ private[ox] class ThreadHerd(threadFactory: ThreadFactory):
   private val herdOwner = Thread.currentThread()
 
   private val shutdownInProgress = new AtomicBoolean(false)
-  private val threads = ConcurrentHashMap.newKeySet[Thread]()
+  private[ox] val threads = ConcurrentHashMap.newKeySet[Thread]()
 
   def startThread(t: => Unit): Unit =
     assertNotShuttingDown()

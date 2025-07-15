@@ -123,7 +123,7 @@ inline def uninterruptible[T](inline f: T): T =
   }
 
 /** Sleep (block the current thread/fork) for the provided amount of time. */
-inline def sleep(inline howLong: Duration): Unit = Thread.sleep(howLong.toMillis)
+inline def sleep(inline howLong: FiniteDuration): Unit = Clock.sleep(howLong)
 
 /** Provide duration and result for operation. */
 inline def timed[T](operation: => T): (FiniteDuration, T) =
