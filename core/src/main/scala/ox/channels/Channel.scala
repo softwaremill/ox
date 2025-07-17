@@ -177,8 +177,7 @@ trait Sink[-T]:
     */
   def error(reason: Throwable): Unit = errorOrClosed(reason).orThrow
 
-  /** Close the channel, indicating that no more values will be sent. Doesn't throw exceptions when the channel is closed, but returns a
-    * value.
+  /** Close the channel, indicating that no more values will be sent.
     *
     * Any values that are already buffered will be delivered. Any send operations that are in progress will complete normally, when a
     * receiver arrives. Any pending receive operations will complete with a channel closed result.
@@ -192,8 +191,7 @@ trait Sink[-T]:
     */
   def doneOrClosed(): Unit | ChannelClosed = ChannelClosed.fromJoxOrUnit(delegate.doneOrClosed())
 
-  /** Close the channel, indicating that no more values will be sent. Doesn't throw exceptions when the channel is closed, but returns a
-    * value.
+  /** Close the channel, indicating that no more values will be sent.
     *
     * Any values that are already buffered will be delivered. Any send operations that are in progress will complete normally, when a
     * receiver arrives. Any pending receive operations will complete with a channel closed result.
