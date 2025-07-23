@@ -192,7 +192,9 @@ class FlowOps[+T]:
     */
   def mapPar[U](parallelism: Int)(f: T => U)(using BufferCapacity): Flow[U] = Flow.usingEmitInline: emit =>
     val s = new Semaphore(parallelism)
-    val inProgress = Channel.withCapacity[Fork[Option[U]]](parallelism)
+    // doubling the capacity to allow for some slack after the mapping is completed, but its result not yet received
+    // then, new mappings can already be started
+    val inProgress = Channel.withCapacity[Fork[Option[U]]](parallelism * 2)
     val results = BufferCapacity.newChannel[U]
 
     def forkMapping(t: T)(using OxUnsupervised): Fork[Option[U]] =
