@@ -192,12 +192,16 @@ class FlowOps[+T]:
     */
   def mapPar[U](parallelism: Int)(f: T => U)(using BufferCapacity): Flow[U] = Flow.usingEmitInline: emit =>
     val s = new Semaphore(parallelism)
-    val inProgress = Channel.withCapacity[Fork[Option[U]]](parallelism)
+    // providing extra capacity in the `inProgress` channel (but still limiting it so that processing is bounded):
+    // 1. starting more forks than parallelism, so that they are read to do their work immediately after a permit becomes available
+    // 2. allowing for some slack after the mapping is completed, but its result not yet received; then, new mappings can already be started
+    val inProgress = Channel.withCapacity[Fork[Option[U]]](parallelism * 4)
     val results = BufferCapacity.newChannel[U]
 
     def forkMapping(t: T)(using OxUnsupervised): Fork[Option[U]] =
       forkUnsupervised:
         try
+          s.acquire()
           val u = f(t)
           s.release() // not in finally, as in case of an exception, no point in starting subsequent forks
           Some(u)
@@ -214,11 +218,7 @@ class FlowOps[+T]:
       // notifying only the `results` channels, as it will cause the scope to end, and any other forks to be
       // interrupted, including the inProgress-fork, which might be waiting on a join()
       forkPropagate(results):
-        last.run(
-          FlowEmit.fromInline: t =>
-            s.acquire()
-            inProgress.sendOrClosed(forkMapping(t)).discard
-        )
+        last.run(FlowEmit.fromInline(t => inProgress.sendOrClosed(forkMapping(t)).discard))
         inProgress.doneOrClosed().discard
 
       // a fork in which we wait for the created forks to finish (in sequence), and forward the mapped values to `results`
