@@ -30,7 +30,7 @@ class InScopeRunner(runInScope: ActorRef[RunInScope]):
   /** Runs the given function asynchronously, in the scope of the [[Ox]] concurrency scope in which this runner was created.
     *
     * `f` should not block and return promptly, not to obstruct execution of other scheduled functions. Typically, it should start a
-    * background fork. Any exceptions thrown by `f` will be cause the entire scope to end.
+    * background fork. Any exceptions thrown by `f` will cause the entire scope to end.
     */
   def async(f: Ox ?=> Unit): Unit = runInScope.tell(_.apply(f))
 end InScopeRunner
