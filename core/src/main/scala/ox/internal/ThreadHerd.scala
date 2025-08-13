@@ -88,8 +88,12 @@ private[ox] class ThreadHerd(threadFactory: ThreadFactory):
 
     currentScope.get() match
       case null =>
-        throw new IllegalStateException("Forks can only be started inside a concurrency scope, or from other forks started in the scope.")
+        throw new IllegalStateException(
+          "Forks can only be started inside a running concurrency scope, or from other forks started in the scope. " +
+            s"Creating this fork was attempted from an unrelated thread: ${Thread.currentThread.getName}."
+        )
       case scope => doAssert(scope)
+    end match
   end verifyCurrentThreadInScopeTree
 
   private def assertOnOwnerThread(): Unit =
