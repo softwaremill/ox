@@ -13,7 +13,23 @@ lazy val commonSettings = commonSmlBuildSettings ++ ossPublishSettings ++ Seq(
     }
   }.value,
   Test / scalacOptions += "-Wconf:msg=unused value of type org.scalatest.Assertion:s",
-  Test / scalacOptions += "-Wconf:msg=unused value of type org.scalatest.compatible.Assertion:s"
+  Test / scalacOptions += "-Wconf:msg=unused value of type org.scalatest.compatible.Assertion:s",
+  mimaPreviousArtifacts := Set.empty // we only use MiMa for `core` for now, using enableMimaSettings
+)
+
+val enableMimaSettings = Seq(
+  mimaPreviousArtifacts := {
+    val current = version.value
+    val isRcOrMilestone = current.contains("M") || current.contains("RC")
+    if (!isRcOrMilestone) {
+      val previous = previousStableVersion.value
+      println(s"[info] Not a M or RC version, using previous version for MiMa check: $previous")
+      previousStableVersion.value.map(organization.value %% moduleName.value % _).toSet
+    } else {
+      println(s"[info] $current is an M or RC version, no previous version to check with MiMa")
+      Set.empty
+    }
+  }
 )
 
 val scalaTest = "org.scalatest" %% "scalatest" % "3.2.19" % Test
@@ -43,6 +59,7 @@ lazy val core: Project = (project in file("core"))
     ),
     Test / fork := true
   )
+  .settings(enableMimaSettings)
 
 lazy val kafka: Project = (project in file("kafka"))
   .settings(commonSettings)
