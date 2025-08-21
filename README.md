@@ -15,7 +15,7 @@ the following areas:
 * scheduling & timers
 * resiliency: circuit breakers, bulkheads, rate limiters, backpressure
 
-Ox enables writing simple, expression-oriented code in funcitonal style. The syntax overhead is kept to a minimum, 
+Ox enables writing simple, expression-oriented code in functional style. The syntax overhead is kept to a minimum, 
 preserving developer-friendly stack traces, and without compromising performance.
 
 To use Ox, add the following dependency, using either [sbt](https://www.scala-sbt.org):
