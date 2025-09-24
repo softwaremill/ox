@@ -32,6 +32,7 @@ val enableMimaSettings = Seq(
     }
   },
   mimaBinaryIssueFilters ++= Seq(
+    // GroupingTimeout is only ever used within the groupWithin method, never exposed externally
     ProblemFilters.exclude[MissingClassProblem]("ox.flow.FlowOps$GroupingTimeout$")
   )
 )
