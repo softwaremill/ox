@@ -1,6 +1,7 @@
 import com.softwaremill.SbtSoftwareMillCommon.commonSmlBuildSettings
 import com.softwaremill.Publish.{ossPublishSettings, updateDocs}
 import com.softwaremill.UpdateVersionInDocs
+import com.typesafe.tools.mima.core.{MissingClassProblem, ProblemFilters}
 
 lazy val commonSettings = commonSmlBuildSettings ++ ossPublishSettings ++ Seq(
   organization := "com.softwaremill.ox",
@@ -29,7 +30,11 @@ val enableMimaSettings = Seq(
       println(s"[info] $current is an M or RC version, no previous version to check with MiMa")
       Set.empty
     }
-  }
+  },
+  mimaBinaryIssueFilters ++= Seq(
+    // GroupingTimeout is only ever used within the groupWithin method, never exposed externally
+    ProblemFilters.exclude[MissingClassProblem]("ox.flow.FlowOps$GroupingTimeout$")
+  )
 )
 
 val scalaTest = "org.scalatest" %% "scalatest" % "3.2.19" % Test
