@@ -677,7 +677,7 @@ class FlowOps[+T]:
     */
   def groupedWithin(n: Int, duration: FiniteDuration)(using BufferCapacity): Flow[Seq[T]] = groupedWeightedWithin(n, duration)(_ => 1)
 
-  private case object GroupingTimeout
+  private case class GroupingTimeout(generation: Long)
 
   /** Chunks up the emitted elements into groups, within a time window, or limited by the cumulative weight being greater or equal to the
     * `minWeight`, whatever happens first. The timeout is reset after a group is emitted. If timeout expires and the buffer is empty,
@@ -698,14 +698,18 @@ class FlowOps[+T]:
       unsupervised:
         val c = outer.runToChannel()
         val c2 = BufferCapacity.newChannel[Seq[T]]
-        val timerChannel = BufferCapacity.newChannel[GroupingTimeout.type]
+        val timerChannel = BufferCapacity.newChannel[GroupingTimeout]
         forkPropagate(c2):
           var buffer = Vector.empty[T]
           var accumulatedCost: Long = 0
+          var currentGeneration = 0L
 
-          def forkTimeout() = forkCancellable:
-            sleep(duration)
-            timerChannel.sendOrClosed(GroupingTimeout).discard
+          def forkTimeout() =
+            currentGeneration += 1
+            val gen = currentGeneration
+            forkCancellable:
+              sleep(duration)
+              timerChannel.sendOrClosed(GroupingTimeout(gen)).discard
 
           var timeoutFork: Option[CancellableFork[Unit]] = Some(forkTimeout())
 
@@ -727,9 +731,12 @@ class FlowOps[+T]:
                 timeoutFork.foreach(_.cancelNow())
                 c2.error(r)
                 false
-              case timerChannel.Received(GroupingTimeout) =>
+              case timerChannel.Received(GroupingTimeout(gen)) if gen == currentGeneration =>
                 timeoutFork = None // enter 'timed out state', may stay in this state if buffer is empty
                 if buffer.nonEmpty then sendBufferAndForkNewTimeout()
+                true
+              case timerChannel.Received(GroupingTimeout(_)) =>
+                // different (older) generation, ignore - must have been sent concurrently with cancelling the timer
                 true
               case c.Received(t) =>
                 buffer = buffer :+ t
