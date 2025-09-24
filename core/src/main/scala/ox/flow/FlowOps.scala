@@ -677,8 +677,6 @@ class FlowOps[+T]:
     */
   def groupedWithin(n: Int, duration: FiniteDuration)(using BufferCapacity): Flow[Seq[T]] = groupedWeightedWithin(n, duration)(_ => 1)
 
-  private case class GroupingTimeout(generation: Long)
-
   /** Chunks up the emitted elements into groups, within a time window, or limited by the cumulative weight being greater or equal to the
     * `minWeight`, whatever happens first. The timeout is reset after a group is emitted. If timeout expires and the buffer is empty,
     * nothing is emitted. As soon as a new element is received, the flow will emit it as a single-element group and reset the timer.
@@ -691,6 +689,8 @@ class FlowOps[+T]:
     *   The function that calculates the weight of an element.
     */
   def groupedWeightedWithin(minWeight: Long, duration: FiniteDuration)(costFn: T => Long)(using BufferCapacity): Flow[Seq[T]] =
+    case class GroupingTimeout(generation: Long)
+
     require(minWeight > 0, "minWeight must be > 0")
     require(duration > 0.seconds, "duration must be > 0")
 
