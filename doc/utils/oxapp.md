@@ -103,6 +103,9 @@ All `ox.OxApp` instances can be configured by overriding the `def settings: Sett
 * `threadFactory`: the thread factory that is used to create threads in Ox scopes ([[supervised]], [[unsupervised]]
    etc.). Useful e.g. when integrating with third-party libraries to propagate context across (virtual) thread 
    boundaries.
+* `shutdownTimeout`: the maximum amount of time a clean shutdown might take. By default 10 seconds. This might
+  prevent deadlocks due to usage of `System.exit` in the user's code. After the timeout passes, the application
+  will forcibly exit.
 
 Settings can be overridden:
 

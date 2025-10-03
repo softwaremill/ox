@@ -95,6 +95,9 @@ object OxApp:
     *   The thread factory that should be used to create threads in Ox scopes ([[supervised]], [[unsupervised]] etc.). Useful e.g. when
     *   integrating with third-party libraries to propagate context across (virtual) thread boundaries. If left unspecified, the default
     *   virtual thread factory is used.
+    * @param shutdownTimeout
+    *   The maximum amount of time a clean shutdown might take. This might prevent deadlocks due to usage of `System.exit` in the user's
+    *   code. After the timeout passes, the application will forcibly exit.
     */
   case class Settings(
       interruptedExitCode: ExitCode,
