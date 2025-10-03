@@ -46,3 +46,9 @@ Accidental concurrency is often cited as a problem with using `Future`s: if you 
 a method returns Ox's `Fork`. Hence, avoid returning `Fork`s from methods. Instead, model concurrency on the caller's
 side - if something should be run in parallel, the caller can do so, using `supervised` and `fork`, and by calling
 blocking methods within the forks.
+
+## Debugging virtual threads
+
+Virtual threads are normally not visible when using tools such as `jstack` or IntelliJ's debugger. To inspect their
+stack traces, you'll need to create a thread dump to a file using `jcmd [pid] Thread.dump_to_file [file]`, or use
+Intellij's thread dump utility, when paused in the debugger.
