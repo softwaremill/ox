@@ -16,9 +16,9 @@ The patch version is increased when there are binary-compatible changes in **sta
 
 | Module                | Level        |
 |-----------------------|--------------|
-| core                  | stabilizing  |
+| core                  | stable       |
 | flow-reactive-streams | stabilizing  |
-| kafka                 | experimental |
-| mdc-logback           | experimental |
-| cron                  | experimental |
-| otel-context          | experimental |
+| kafka                 | stabilizing  |
+| mdc-logback           | stabilizing  |
+| cron                  | stabilizing  |
+| otel-context          | stabilizing  |
