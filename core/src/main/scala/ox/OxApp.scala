@@ -3,6 +3,7 @@ package ox
 import scala.util.boundary.*
 import scala.util.control.NonFatal
 import java.util.concurrent.ThreadFactory
+import scala.concurrent.duration.*
 
 enum ExitCode(val code: Int):
   case Success extends ExitCode(0)
@@ -47,7 +48,11 @@ trait OxApp:
         }
 
         // on shutdown, the above fork is cancelled, causing interruption
-        val interruptThread = new Thread(() => cancellableMainFork.cancel().discard)
+        val interruptThread =
+          new Thread(() =>
+            if timeoutOption(settings.shutdownTimeout)(cancellableMainFork.cancel()).isEmpty then
+              Console.err.println(s"Clean shutdown timed out after ${settings.shutdownTimeout}, exiting.")
+          )
         interruptThread.setName("ox-interrupt-hook")
         mountShutdownHook(interruptThread)
 
@@ -95,10 +100,36 @@ object OxApp:
       interruptedExitCode: ExitCode,
       handleInterruptedException: InterruptedException => Unit,
       handleException: Throwable => Unit,
-      threadFactory: Option[ThreadFactory]
-  )
+      threadFactory: Option[ThreadFactory],
+      shutdownTimeout: FiniteDuration
+  ):
+    // required for binary compatibility
+    def this(
+        interruptedExitCode: ExitCode,
+        handleInterruptedException: InterruptedException => Unit,
+        handleException: Throwable => Unit,
+        threadFactory: Option[ThreadFactory]
+    ) = this(interruptedExitCode, handleInterruptedException, handleException, threadFactory, 10.seconds)
+
+    // required for binary compatibility
+    def copy(
+        interruptedExitCode: ExitCode,
+        handleInterruptedException: InterruptedException => Unit,
+        handleException: Throwable => Unit,
+        threadFactory: Option[ThreadFactory]
+    ): Settings = Settings(interruptedExitCode, handleInterruptedException, handleException, threadFactory, shutdownTimeout)
+  end Settings
 
   object Settings:
+    // required for binary compatibility
+    def apply(
+        interruptedExitCode: ExitCode,
+        handleInterruptedException: InterruptedException => Unit,
+        handleException: Throwable => Unit,
+        threadFactory: Option[ThreadFactory]
+    ): Settings =
+      Settings(interruptedExitCode, handleInterruptedException, handleException, threadFactory, 10.seconds)
+
     val DefaultLogException: Throwable => Unit = (t: Throwable) =>
       val defaultHandler = Thread.getDefaultUncaughtExceptionHandler
       if defaultHandler != null then defaultHandler.uncaughtException(Thread.currentThread(), t) else t.printStackTrace()
@@ -111,7 +142,7 @@ object OxApp:
           case _                       => logException(t2)
 
     val Default: Settings =
-      Settings(ExitCode.Success, defaultHandleInterruptedException(DefaultLogException), DefaultLogException, None)
+      Settings(ExitCode.Success, defaultHandleInterruptedException(DefaultLogException), DefaultLogException, None, 10.seconds)
   end Settings
 
   /** Simple variant of OxApp does not pass command line arguments and exits with exit code 0 if no exceptions were thrown. */
