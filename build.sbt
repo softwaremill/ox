@@ -5,7 +5,7 @@ import com.typesafe.tools.mima.core.{MissingClassProblem, ProblemFilters}
 
 lazy val commonSettings = commonSmlBuildSettings ++ ossPublishSettings ++ Seq(
   organization := "com.softwaremill.ox",
-  scalaVersion := "3.3.6",
+  scalaVersion := "3.3.7",
   updateDocs := Def.taskDyn {
     val files1 = UpdateVersionInDocs(sLog.value, organization.value, version.value)
     Def.task {
