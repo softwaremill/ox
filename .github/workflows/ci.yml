@@ -5,6 +5,9 @@ on:
   push:
     branches: [ master ]
     tags: [ v* ]
+permissions:
+  contents: write        # release-drafter, auto-merge requirement
+  pull-requests: write   # labeler, auto-merge requirement    
 jobs:
   ci:
     runs-on: ubuntu-24.04
@@ -21,7 +24,7 @@ jobs:
         distribution: 'temurin'
         java-version: ${{ matrix.java }}
         cache: 'sbt'
-    - uses: sbt/setup-sbt@v1
+    - uses: sbt/setup-sbt@3e125ece5c3e5248e18da9ed8d2cce3d335ec8dd # v1, specifically v1.1.14
     - name: Check formatting
       run: sbt -v scalafmtCheckAll
     - name: Compile
@@ -52,12 +55,14 @@ jobs:
       java-version: '21'
 
   label:
-    # only for PRs by softwaremill-ci
-    if: github.event.pull_request.user.login == 'softwaremill-ci'
+    # only for PRs by github-actions[bot]
+    if: github.event.pull_request.user.login == 'github-actions[bot]'
     uses: softwaremill/github-actions-workflows/.github/workflows/label.yml@main
+    secrets: inherit
 
   auto-merge:
-    # only for PRs by softwaremill-ci
-    if: github.event.pull_request.user.login == 'softwaremill-ci'
+    # only for PRs by github-actions[bot]
+    if: github.event.pull_request.user.login == 'github-actions[bot]'
     needs: [ ci, label, mima ]
     uses: softwaremill/github-actions-workflows/.github/workflows/auto-merge.yml@main
+    secrets: inherit
