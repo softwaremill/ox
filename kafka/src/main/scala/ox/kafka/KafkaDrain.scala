@@ -35,7 +35,7 @@ object KafkaDrain:
               case e: ChannelClosed.Error         => throw e.toThrowable
               case ChannelClosed.Done             => false // source must be done, as producerExceptions is never done
               case producerExceptions.Received(e) => throw e
-              case source.Received(record) =>
+              case source.Received(record)        =>
                 producer.send(
                   record,
                   (_: RecordMetadata, exception: Exception) =>

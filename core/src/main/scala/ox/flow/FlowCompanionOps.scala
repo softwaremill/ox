@@ -190,7 +190,7 @@ trait FlowCompanionOps:
     flows match
       case Nil           => Flow.empty
       case single :: Nil => single
-      case _ =>
+      case _             =>
         usingEmitInline: emit =>
           val results = BufferCapacity.newChannel[T]
           unsupervised:

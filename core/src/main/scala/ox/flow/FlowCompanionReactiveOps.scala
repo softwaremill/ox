@@ -58,7 +58,7 @@ trait FlowCompanionReactiveOps:
           t match
             case ChannelClosed.Done     => false
             case e: ChannelClosed.Error => throw e.toThrowable
-            case t: T @unchecked =>
+            case t: T @unchecked        =>
               emit(t)
 
               // if we have an element, onSubscribe must have already happened; we can read the subscription and cache it for later

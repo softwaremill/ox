@@ -454,7 +454,7 @@ class FlowOps[+T]:
         s1.receiveOrClosed() match
           case ChannelClosed.Done     => false
           case e: ChannelClosed.Error => throw e.toThrowable
-          case t: T @unchecked =>
+          case t: T @unchecked        =>
             s2.receiveOrClosed() match
               case ChannelClosed.Done     => false
               case e: ChannelClosed.Error => throw e.toThrowable
@@ -489,7 +489,7 @@ class FlowOps[+T]:
               () => false
             )
           case e: ChannelClosed.Error => throw e.toThrowable
-          case t: T @unchecked =>
+          case t: T @unchecked        =>
             receiveFromOther(
               t,
               () =>
