@@ -86,7 +86,7 @@ object StartTimeRateLimiterAlgorithm:
     @tailrec
     private def removeRecords(q: Queue[(Long, Int)], now: Long): Queue[(Long, Int)] =
       q.dequeueOption match
-        case None => q
+        case None               => q
         case Some((head, tail)) =>
           if head._1 + per.toNanos < now then
             val (_, permits) = head

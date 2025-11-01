@@ -55,7 +55,7 @@ case class WeightedHeap[T](
   def insert(value: T, weight: Long): WeightedHeap[T] =
     valueToIndex.get(value) match
       case Some(_) => updateWeight(value, weight)
-      case None =>
+      case None    =>
         val newHeap = heap :+ (value, weight)
         val newMap = valueToIndex + (value -> (newHeap.length - 1))
         val (finalHeap, finalMap) = bubbleUp(newHeap, newMap, newHeap.length - 1)

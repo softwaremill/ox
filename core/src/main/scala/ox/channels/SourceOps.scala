@@ -108,7 +108,7 @@ trait SourceOps[+T]:
       override def next(): T = forceNext() match
         case ChannelClosed.Done     => throw new NoSuchElementException
         case e: ChannelClosed.Error => throw e.toThrowable
-        case t: T @unchecked =>
+        case t: T @unchecked        =>
           v = None
           t
     Source.fromIterator(f(it))
