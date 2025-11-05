@@ -61,7 +61,11 @@ impossible to interrupt such operations directly. This pattern extends to other 
 like stdin.
 
 The solution is to delegate the blocking operation to a separate thread and use a [channel](../streaming/channels.md)
-for communication. Since receiving from a channel is interruptible, this makes the overall operation interruptible as well:
+for communication. This thread cannot be managed by Ox as Ox always attempts to run clean up when work is done and that 
+means interrupting all forks living in the scope that's getting shut down. Blocking I/O can't, however, be interrupted 
+on the JVM and the advised way of dealing with that is to just close the resource which in turn makes read/write methods 
+throw an `IOException`. In the case of stdin closing it is usually not what you want to do. To work around that you can
+sacrifice a thread and since receiving from a channel is interruptible, this makes the overall operation interruptible as well:
 
 ```scala
 import ox.*, channels.*
@@ -91,5 +95,5 @@ such as `timeoutOption` or scope cancellation.
 Note that for better stdin performance, you can use `Channel.buffered` instead of a rendezvous channel, or even use
 `java.lang.System.in` directly and proxy raw data through the channel. Keep in mind that this solution leaks a thread
 that will remain blocked on stdin for the lifetime of the application. It's possible to avoid this trade-off by using
-libraries that employ JNI/JNA to access stdin, such as JLine 3, which can use raw mode with non-blocking or
-timeout-based reads, allowing the thread to be properly interrupted and cleaned up.
+libraries that employ JNI/JNA to access stdin, such as [JLine 3](https://jline.org/docs/intro), which can use raw mode 
+with non-blocking or timeout-based reads, allowing the thread to be properly interrupted and cleaned up.
