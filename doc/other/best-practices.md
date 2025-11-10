@@ -52,3 +52,48 @@ blocking methods within the forks.
 Virtual threads are normally not visible when using tools such as `jstack` or IntelliJ's debugger. To inspect their
 stack traces, you'll need to create a thread dump to a file using `jcmd [pid] Thread.dump_to_file [file]`, or use
 Intellij's thread dump utility, when paused in the debugger.
+
+## Dealing with uninterruptible stdin
+
+Some I/O operations, like reading from stdin, block the thread on the `read` syscall and only unblock when data becomes
+available or the stream is closed. The problem with stdin specifically is that it can't be easily closed, making it
+impossible to interrupt such operations directly. This pattern extends to other similar blocking operations that behave
+like stdin.
+
+The solution is to delegate the blocking operation to a separate thread and use a [channel](../streaming/channels.md)
+for communication. This thread cannot be managed by Ox as Ox always attempts to run clean up when work is done and that 
+means interrupting all forks living in the scope that's getting shut down. Blocking I/O can't, however, be interrupted 
+on the JVM and the advised way of dealing with that is to just close the resource which in turn makes read/write methods 
+throw an `IOException`. In the case of stdin closing it is usually not what you want to do. To work around that you can
+sacrifice a thread and since receiving from a channel is interruptible, this makes the overall operation interruptible as well:
+
+```scala
+import ox.*, channels.*
+import scala.io.StdIn
+
+object stdinSupport:
+  private lazy val chan: Channel[String] =
+    val rvChan = Channel.rendezvous[String]
+
+    Thread
+      .ofVirtual()
+      .start(() => forever(rvChan.sendOrClosed(StdIn.readLine()).discard))
+
+    rvChan
+
+  def readLineInterruptibly: String =
+    try chan.receive()
+    catch
+      case iex: InterruptedException =>
+        // Handle interruption appropriately
+        throw iex
+```
+
+This pattern allows you to use stdin (or similar blocking operations) with ox's timeout and interruption mechanisms,
+such as `timeoutOption` or scope cancellation.
+
+Note that for better stdin performance, you can use `Channel.buffered` instead of a rendezvous channel, or even use
+`java.lang.System.in` directly and proxy raw data through the channel. Keep in mind that this solution leaks a thread
+that will remain blocked on stdin for the lifetime of the application. It's possible to avoid this trade-off by using
+libraries that employ JNI/JNA to access stdin, such as [JLine 3](https://jline.org/docs/intro), which can use raw mode 
+with non-blocking or timeout-based reads, allowing the thread to be properly interrupted and cleaned up.
