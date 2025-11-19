@@ -30,7 +30,7 @@ trait FlowRunOps[+T]:
     // in a fork
     last match
       case FlowStage.FromSource(source) => source
-      case _ =>
+      case _                            =>
         val ch = BufferCapacity.newChannel[T]
         runLastToChannelAsync(ch)
         ch

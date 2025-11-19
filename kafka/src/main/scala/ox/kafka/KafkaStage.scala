@@ -100,7 +100,7 @@ object KafkaStage:
                   false
                 case exceptions.Received(e)    => throw e
                 case metadata.Received((s, m)) => sendInSequence.send(s, m); true
-                case source.Received(packet) =>
+                case source.Received(packet)   =>
                   try
                     sendPacket(producer, packet, sendInSequence, toCommit, exceptions, metadata, commitOffsets)
                     true
