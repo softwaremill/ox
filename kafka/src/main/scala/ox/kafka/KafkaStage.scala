@@ -119,6 +119,49 @@ object KafkaStage:
     end mapPublishAndCommit
   end extension
 
+  extension (flow: Flow[CommitPacket])
+    /** Commits all messages from [[CommitPacket.commit]]: for each topic-partition, up to the highest observed offset. Offsets are
+      * committed periodically, with aggregation by topic-partition.
+      *
+      * @return
+      *   A flow that completes when all commit packets have been processed and offsets committed.
+      */
+    def mapCommit()(using BufferCapacity): Flow[Unit] =
+      Flow.usingEmit { emit =>
+        // a helper channel to signal any exceptions that occur while committing offsets
+        val exceptions = Channel.unlimited[Throwable]
+        // packets which should be committed
+        val toCommit = Channel.unlimited[CommitPacket]
+
+        supervised {
+          // source - the upstream from which commit packets are received
+          val source = flow.runToChannel()
+
+          // committer fork
+          val commitDoneSource = Source.fromFork(fork(doCommit(toCommit).tapException(exceptions.sendOrClosed(_).discard)))
+
+          repeatWhile {
+            selectOrClosed(exceptions.receiveClause, source.receiveClause) match
+              case ChannelClosed.Error(r) => throw r
+              case ChannelClosed.Done     =>
+                // we now know that there won't be any more offsets sent to be committed - we can complete the channel
+                toCommit.done()
+                // waiting until the commit fork is done
+                commitDoneSource.receiveOrClosed().discard
+                // and finally winding down this scope
+                false
+              case exceptions.Received(e)  => throw e
+              case source.Received(packet) =>
+                // send commit packet directly for commit
+                toCommit.send(packet)
+                emit(()) // emit a unit value to indicate the packet was processed
+                true
+          }
+        }
+      }
+    end mapCommit
+  end extension
+
   private def sendPacket[K, V](
       producer: KafkaProducer[K, V],
       packet: SendPacket[K, V],
@@ -131,7 +174,7 @@ object KafkaStage:
     val leftToSend = new AtomicInteger(packet.send.size)
     packet.send.foreach { toSend =>
       val sequenceNo = sendInSequence.nextSequenceNo
-      // this will block if Kafka's buffers are full, thus limting the number of packets that are in-flight (waiting to be sent)
+      // this will block if Kafka's buffers are full, thus limiting the number of packets that are in-flight (waiting to be sent)
       producer.send(
         toSend,
         (m: RecordMetadata, e: Exception) =>

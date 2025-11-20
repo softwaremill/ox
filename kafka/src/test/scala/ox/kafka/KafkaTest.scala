@@ -75,7 +75,7 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
     consumeNumberMessagesFrom[String](topic, count, timeout = 30.seconds) shouldBe msgs
   }
 
-  it should "commit offsets of processed messages" in {
+  "stage" should "commit offsets of processed messages" in {
     // given
     val sourceTopic = "t3_1"
     val destTopic = "t3_2"
@@ -153,7 +153,7 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
     consumeNumberMessagesFrom[String](topic, 3, timeout = 30.seconds) shouldBe List("a", "b", "c")
   }
 
-  it should "commit offsets of processed messages" in {
+  "drain" should "commit offsets of processed messages" in {
     // given
     val sourceTopic = "t5_1"
     val destTopic = "t5_2"
@@ -200,6 +200,113 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
       // while reading using another group, should start from the earliest offset
       val inSource2 = KafkaFlow.subscribe(consumerSettings.groupId(group2), sourceTopic).runToChannel()
       inSource2.receive().value shouldBe "10"
+    }
+  }
+
+  "drain" should "commit offsets using runCommit" in {
+    // given
+    val sourceTopic = "t6_1"
+    val group1 = "g6_1"
+    val group2 = "g6_2"
+
+    val consumerSettings = ConsumerSettings.default(group1).bootstrapServers(bootstrapServer).autoOffsetReset(Earliest)
+
+    // when
+    publishStringMessageToKafka(sourceTopic, "msg1")
+    publishStringMessageToKafka(sourceTopic, "msg2")
+    publishStringMessageToKafka(sourceTopic, "msg3")
+
+    val consumedCount = BufferCapacity.newChannel[Int]
+
+    supervised {
+      // then
+      forkDiscard {
+        var count = 0
+        KafkaFlow
+          .subscribe(consumerSettings, sourceTopic)
+          .map { in =>
+            count += 1
+            if count == 3 then consumedCount.send(count)
+            CommitPacket(in)
+          }
+          .pipe(KafkaDrain.runCommit)
+      }
+
+      // wait until all 3 messages are consumed
+      consumedCount.receive() shouldBe 3
+
+      // giving the commit process a chance to commit
+      sleep(2.seconds)
+
+      // interrupting the stream processing
+    }
+
+    // sending some more messages to source
+    publishStringMessageToKafka(sourceTopic, "msg4")
+
+    supervised {
+      // reading from source, using the same consumer group as before, should start from the last committed offset
+      val inSource = KafkaFlow.subscribe(consumerSettings, sourceTopic).runToChannel()
+      inSource.receive().value shouldBe "msg4"
+
+      // while reading using another group, should start from the earliest offset
+      val inSource2 = KafkaFlow.subscribe(consumerSettings.groupId(group2), sourceTopic).runToChannel()
+      inSource2.receive().value shouldBe "msg1"
+    }
+  }
+
+  "stage" should "commit offsets using mapCommit" in {
+    // given
+    val sourceTopic = "t7_1"
+    val group1 = "g7_1"
+    val group2 = "g7_2"
+
+    val consumerSettings = ConsumerSettings.default(group1).bootstrapServers(bootstrapServer).autoOffsetReset(Earliest)
+
+    // when
+    publishStringMessageToKafka(sourceTopic, "msg1")
+    publishStringMessageToKafka(sourceTopic, "msg2")
+    publishStringMessageToKafka(sourceTopic, "msg3")
+
+    val consumedCount = BufferCapacity.newChannel[Int]
+
+    supervised {
+      // then
+      forkDiscard {
+        import KafkaStage.*
+
+        var count = 0
+        KafkaFlow
+          .subscribe(consumerSettings, sourceTopic)
+          .map { in =>
+            count += 1
+            if count == 3 then consumedCount.send(count)
+            CommitPacket(in)
+          }
+          .mapCommit()
+          .runDrain()
+      }
+
+      // wait until all 3 messages are consumed
+      consumedCount.receive() shouldBe 3
+
+      // giving the commit process a chance to commit
+      sleep(2.seconds)
+
+      // interrupting the stream processing
+    }
+
+    // sending some more messages to source
+    publishStringMessageToKafka(sourceTopic, "msg4")
+
+    supervised {
+      // reading from source, using the same consumer group as before, should start from the last committed offset
+      val inSource = KafkaFlow.subscribe(consumerSettings, sourceTopic).runToChannel()
+      inSource.receive().value shouldBe "msg4"
+
+      // while reading using another group, should start from the earliest offset
+      val inSource2 = KafkaFlow.subscribe(consumerSettings.groupId(group2), sourceTopic).runToChannel()
+      inSource2.receive().value shouldBe "msg1"
     }
   }
 end KafkaTest

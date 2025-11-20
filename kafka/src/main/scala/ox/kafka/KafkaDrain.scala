@@ -68,4 +68,12 @@ object KafkaDrain:
   ): Flow[SendPacket[K, V]] => Unit = flow =>
     import KafkaStage.*
     flow.mapPublishAndCommit(producer, closeWhenComplete).runDrain()
+
+  /** @return
+    *   A drain, which consumes all commit packets emitted by the provided [[Flow]]. For each packet, all `commit` messages (consumer
+    *   records) are committed: for each topic-partition, up to the highest observed offset without gaps.
+    */
+  def runCommit(using BufferCapacity): Flow[CommitPacket] => Unit = flow =>
+    import KafkaStage.*
+    flow.mapCommit().runDrain()
 end KafkaDrain
