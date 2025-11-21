@@ -52,20 +52,32 @@ object KafkaDrain:
 
   /** @return
     *   A drain, which consumes all packets emitted by the provided [[Flow]]. For each packet, first all `send` messages (producer records)
-    *   are sent. Then, all `commit` messages (consumer records) up to their offsets are committed.
+    *   are sent, using a producer created with the given `producerSettings`. Then, all `commit` messages (consumer records) up to their
+    *   offsets are committed, using the given `consumer`.
     */
-  def runPublishAndCommit[K, V](producerSettings: ProducerSettings[K, V])(using BufferCapacity): Flow[SendPacket[K, V]] => Unit =
-    flow => runPublishAndCommit(producerSettings.toProducer, closeWhenComplete = true)(flow)
+  def runPublishAndCommit[K, V](producerSettings: ProducerSettings[K, V], consumer: ActorRef[KafkaConsumerWrapper[K, V]])(using
+      BufferCapacity
+  ): Flow[SendPacket[K, V]] => Unit =
+    flow => runPublishAndCommit(producerSettings.toProducer, consumer, closeWhenComplete = true)(flow)
 
   /** @param producer
     *   The producer that is used to send messages.
     * @return
     *   A drain, which consumes all packets emitted by the provided [[Flow]]. For each packet, first all `send` messages (producer records)
-    *   are sent. Then, all `commit` messages (consumer records) up to their offsets are committed.
+    *   are sent, using the given `producer`. Then, all `commit` messages (consumer records) up to their offsets are committed, using the
+    *   given `consumer`.
     */
-  def runPublishAndCommit[K, V](producer: KafkaProducer[K, V], closeWhenComplete: Boolean)(using
-      BufferCapacity
+  def runPublishAndCommit[K, V](producer: KafkaProducer[K, V], consumer: ActorRef[KafkaConsumerWrapper[K, V]], closeWhenComplete: Boolean)(
+      using BufferCapacity
   ): Flow[SendPacket[K, V]] => Unit = flow =>
     import KafkaStage.*
-    flow.mapPublishAndCommit(producer, closeWhenComplete).runDrain()
+    flow.mapPublishAndCommit(producer, consumer, closeWhenComplete).runDrain()
+
+  /** @return
+    *   A drain, which consumes all commit packets emitted by the provided [[Flow]]. For each packet, all `commit` messages (consumer
+    *   records) are committed: for each topic-partition, up to the highest observed offset, using the given `consumer`.
+    */
+  def runCommit[K, V](consumer: ActorRef[KafkaConsumerWrapper[K, V]])(using BufferCapacity): Flow[CommitPacket] => Unit = flow =>
+    import KafkaStage.*
+    flow.mapCommit(consumer).runDrain()
 end KafkaDrain
