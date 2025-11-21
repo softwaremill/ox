@@ -97,12 +97,14 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
       forkDiscard {
         import KafkaStage.*
 
-        KafkaFlow
-          .subscribe(consumerSettings, sourceTopic)
-          .map(in => (in.value.toLong * 2, in))
-          .map((value, original) => SendPacket(ProducerRecord[String, String](destTopic, value.toString), original))
-          .mapPublishAndCommit(producerSettings)
-          .runPipeToSink(metadatas, propagateDone = false)
+        supervised:
+          val consumer = consumerSettings.toThreadSafeConsumerWrapper
+          KafkaFlow
+            .subscribe(consumer, sourceTopic)
+            .map(in => (in.value.toLong * 2, in))
+            .map((value, original) => SendPacket(ProducerRecord[String, String](destTopic, value.toString), original))
+            .mapPublishAndCommit(producerSettings, consumer)
+            .runPipeToSink(metadatas, propagateDone = false)
       }
 
       val inDest = KafkaFlow.subscribe(consumerSettings, destTopic).runToChannel()
@@ -171,11 +173,13 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
     supervised {
       // then
       forkDiscard {
-        KafkaFlow
-          .subscribe(consumerSettings, sourceTopic)
-          .map(in => (in.value.toLong * 2, in))
-          .map((value, original) => SendPacket(ProducerRecord[String, String](destTopic, value.toString), original))
-          .pipe(KafkaDrain.runPublishAndCommit(producerSettings))
+        supervised:
+          val consumer = consumerSettings.toThreadSafeConsumerWrapper
+          KafkaFlow
+            .subscribe(consumer, sourceTopic)
+            .map(in => (in.value.toLong * 2, in))
+            .map((value, original) => SendPacket(ProducerRecord[String, String](destTopic, value.toString), original))
+            .pipe(KafkaDrain.runPublishAndCommit(producerSettings, consumer))
       }
 
       val inDest = KafkaFlow.subscribe(consumerSettings, destTopic).runToChannel()
@@ -222,14 +226,16 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
       // then
       forkDiscard {
         var count = 0
-        KafkaFlow
-          .subscribe(consumerSettings, sourceTopic)
-          .map { in =>
-            count += 1
-            if count == 3 then consumedCount.send(count)
-            CommitPacket(in)
-          }
-          .pipe(KafkaDrain.runCommit)
+        supervised:
+          val consumer = consumerSettings.toThreadSafeConsumerWrapper
+          KafkaFlow
+            .subscribe(consumer, sourceTopic)
+            .map { in =>
+              count += 1
+              if count == 3 then consumedCount.send(count)
+              CommitPacket(in)
+            }
+            .pipe(KafkaDrain.runCommit(consumer))
       }
 
       // wait until all 3 messages are consumed
@@ -276,15 +282,17 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
         import KafkaStage.*
 
         var count = 0
-        KafkaFlow
-          .subscribe(consumerSettings, sourceTopic)
-          .map { in =>
-            count += 1
-            if count == 3 then consumedCount.send(count)
-            CommitPacket(in)
-          }
-          .mapCommit()
-          .runDrain()
+        supervised:
+          val consumer = consumerSettings.toThreadSafeConsumerWrapper
+          KafkaFlow
+            .subscribe(consumer, sourceTopic)
+            .map { in =>
+              count += 1
+              if count == 3 then consumedCount.send(count)
+              CommitPacket(in)
+            }
+            .mapCommit(consumer)
+            .runDrain()
       }
 
       // wait until all 3 messages are consumed
@@ -303,6 +311,51 @@ class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with Before
       // reading from source, using the same consumer group as before, should start from the last committed offset
       val inSource = KafkaFlow.subscribe(consumerSettings, sourceTopic).runToChannel()
       inSource.receive().value shouldBe "msg4"
+
+      // while reading using another group, should start from the earliest offset
+      val inSource2 = KafkaFlow.subscribe(consumerSettings.groupId(group2), sourceTopic).runToChannel()
+      inSource2.receive().value shouldBe "msg1"
+    }
+  }
+
+  "stage" should "commit offsets when consuming a finite stream using take" in {
+    // given
+    val sourceTopic = "t8_1"
+    val group1 = "g8_1"
+    val group2 = "g8_2"
+
+    val consumerSettings = ConsumerSettings.default(group1).bootstrapServers(bootstrapServer).autoOffsetReset(Earliest)
+
+    publishStringMessageToKafka(sourceTopic, "msg1")
+    publishStringMessageToKafka(sourceTopic, "msg2")
+    publishStringMessageToKafka(sourceTopic, "msg3")
+    publishStringMessageToKafka(sourceTopic, "msg4")
+    publishStringMessageToKafka(sourceTopic, "msg5")
+
+    // when
+
+    // consume only first 3 messages using take, synchronously
+    import KafkaStage.*
+
+    val consumed = supervised:
+      val consumer = consumerSettings.toThreadSafeConsumerWrapper
+      KafkaFlow
+        .subscribe(consumer, sourceTopic)
+        .take(3)
+        .map(in => CommitPacket(in))
+        .mapCommit(consumer)
+        .runToList()
+
+    // commit should have ended synchronously with the flow
+
+    // then
+    consumed.size shouldBe 3
+
+    supervised {
+      // reading from source, using the same consumer group as before, should start from the last committed offset (after msg3)
+      val inSource = KafkaFlow.subscribe(consumerSettings, sourceTopic).runToChannel()
+      inSource.receive().value shouldBe "msg4"
+      inSource.receive().value shouldBe "msg5"
 
       // while reading using another group, should start from the earliest offset
       val inSource2 = KafkaFlow.subscribe(consumerSettings.groupId(group2), sourceTopic).runToChannel()

@@ -30,22 +30,24 @@ object KafkaStage:
       *   A stream of published records metadata, in the order in which the [[ProducerRecord]]s are received.
       */
     def mapPublish(producer: KafkaProducer[K, V], closeWhenComplete: Boolean)(using BufferCapacity): Flow[RecordMetadata] =
-      flow.map(r => SendPacket(List(r), Nil)).mapPublishAndCommit(producer, closeWhenComplete, commitOffsets = false)
+      flow.map(r => SendPacket(List(r), Nil)).mapPublishAndCommit(producer, None, closeWhenComplete)
   end extension
 
   extension [K, V](flow: Flow[SendPacket[K, V]])
     /** For each packet, first all messages (producer records) from [[SendPacket.send]] are sent, using a producer created with the given
       * `producerSettings`. Then, all messages from [[SendPacket.commit]] are committed: for each topic-partition, up to the highest
-      * observed offset.
+      * observed offset, using the given `consumer`.
       *
       * @return
       *   A stream of published records metadata, in the order in which the [[SendPacket]]s are received.
       */
-    def mapPublishAndCommit(producerSettings: ProducerSettings[K, V])(using BufferCapacity): Flow[RecordMetadata] =
-      mapPublishAndCommit(producerSettings.toProducer, closeWhenComplete = true)
+    def mapPublishAndCommit(producerSettings: ProducerSettings[K, V], consumer: ActorRef[KafkaConsumerWrapper[K, V]])(using
+        BufferCapacity
+    ): Flow[RecordMetadata] =
+      mapPublishAndCommit(producerSettings.toProducer, Some(consumer), closeWhenComplete = true)
 
     /** For each packet, first all messages (producer records) are sent, using the given `producer`. Then, all messages from
-      * [[SendPacket.commit]] are committed: for each topic-partition, up to the highest observed offset.
+      * [[SendPacket.commit]] are committed: for each topic-partition, up to the highest observed offset, using the given `consumer`.
       *
       * The producer is closed depending on the `closeWhenComplete` flag, after all messages are published, or when an exception occurs.
       *
@@ -54,10 +56,16 @@ object KafkaStage:
       * @return
       *   A stream of published records metadata, in the order in which the [[SendPacket]]s are received.
       */
-    def mapPublishAndCommit(producer: KafkaProducer[K, V], closeWhenComplete: Boolean)(using BufferCapacity): Flow[RecordMetadata] =
-      mapPublishAndCommit(producer, closeWhenComplete, commitOffsets = true)
+    def mapPublishAndCommit(producer: KafkaProducer[K, V], consumer: ActorRef[KafkaConsumerWrapper[K, V]], closeWhenComplete: Boolean)(using
+        BufferCapacity
+    ): Flow[RecordMetadata] =
+      mapPublishAndCommit(producer, Some(consumer), closeWhenComplete)
 
-    private def mapPublishAndCommit(producer: KafkaProducer[K, V], closeWhenComplete: Boolean, commitOffsets: Boolean)(using
+    private def mapPublishAndCommit(
+        producer: KafkaProducer[K, V],
+        commitOffsets: Option[ActorRef[KafkaConsumerWrapper[K, V]]],
+        closeWhenComplete: Boolean
+    )(using
         BufferCapacity
     ): Flow[RecordMetadata] =
       Flow.usingEmit { emit =>
@@ -82,9 +90,9 @@ object KafkaStage:
             val source = flow.runToChannel()
 
             // committer
-            val commitDoneSource =
-              if commitOffsets then Source.fromFork(fork(doCommit(toCommit).tapException(exceptions.sendOrClosed(_).discard)))
-              else Source.empty
+            val commitDoneSource = commitOffsets match
+              case Some(consumer) => Source.fromFork(fork(doCommit(consumer, toCommit).tapException(exceptions.sendOrClosed(_).discard)))
+              case None           => Source.empty
 
             repeatWhile {
               selectOrClosed(exceptions.receiveClause, metadata.receiveClause, source.receiveClause) match
@@ -102,7 +110,7 @@ object KafkaStage:
                 case metadata.Received((s, m)) => sendInSequence.send(s, m); true
                 case source.Received(packet)   =>
                   try
-                    sendPacket(producer, packet, sendInSequence, toCommit, exceptions, metadata, commitOffsets)
+                    sendPacket(producer, packet, sendInSequence, toCommit, exceptions, metadata, commitOffsets.isDefined)
                     true
                   catch
                     case e: Exception =>
@@ -120,13 +128,13 @@ object KafkaStage:
   end extension
 
   extension (flow: Flow[CommitPacket])
-    /** Commits all messages from [[CommitPacket.commit]]: for each topic-partition, up to the highest observed offset. Offsets are
-      * committed periodically, with aggregation by topic-partition.
+    /** Commits all messages from [[CommitPacket.commit]]: for each topic-partition, up to the highest observed offset, using the given
+      * `consumer`. Offsets are committed periodically, with aggregation by topic-partition.
       *
       * @return
       *   A flow that completes when all commit packets have been processed and offsets committed.
       */
-    def mapCommit()(using BufferCapacity): Flow[Unit] =
+    def mapCommit[K, V](consumer: ActorRef[KafkaConsumerWrapper[K, V]])(using BufferCapacity): Flow[Unit] =
       Flow.usingEmit { emit =>
         // a helper channel to signal any exceptions that occur while committing offsets
         val exceptions = Channel.unlimited[Throwable]
@@ -138,7 +146,7 @@ object KafkaStage:
           val source = flow.runToChannel()
 
           // committer fork
-          val commitDoneSource = Source.fromFork(fork(doCommit(toCommit).tapException(exceptions.sendOrClosed(_).discard)))
+          val commitDoneSource = Source.fromFork(fork(doCommit(consumer, toCommit).tapException(exceptions.sendOrClosed(_).discard)))
 
           repeatWhile {
             selectOrClosed(exceptions.receiveClause, source.receiveClause) match

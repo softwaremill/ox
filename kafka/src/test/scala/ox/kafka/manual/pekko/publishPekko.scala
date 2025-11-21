@@ -9,9 +9,6 @@ import org.apache.pekko.stream.scaladsl.Source
 import ox.{discard, get}
 import ox.kafka.manual.{randomString, timedAndLogged}
 
-import scala.concurrent.Await
-import scala.concurrent.duration.Duration
-
 @main def publishPekko(): Unit =
   val topic = "t2"
   timedAndLogged("publish-pekko") {
