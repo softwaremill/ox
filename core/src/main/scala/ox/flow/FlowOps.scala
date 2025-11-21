@@ -28,6 +28,7 @@ import ox.unsupervised
 import java.util.concurrent.Semaphore
 import scala.concurrent.duration.DurationLong
 import scala.concurrent.duration.FiniteDuration
+import scala.util.control.ControlThrowable
 
 class FlowOps[+T]:
   outer: Flow[T] =>
@@ -271,7 +272,7 @@ class FlowOps[+T]:
 
       FlowEmit.channelToEmit(results, emit)
 
-  private val abortTake = new Exception("abort take")
+  private val abortTake = new ControlThrowable("abort take") {}
 
   /** Takes the first `n` elements from this flow and emits them. If the flow completes before emitting `n` elements, the returned flow
     * completes as well.
