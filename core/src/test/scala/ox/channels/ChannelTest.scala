@@ -336,7 +336,7 @@ class ChannelTest extends AnyFlatSpec with Matchers with Eventually:
         c.send(3)
 
         // when
-        val result = for (_ <- 1 to 4) yield select(c.receiveClause, Default(5)).value
+        val result = for _ <- 1 to 4 yield select(c.receiveClause, Default(5)).value
 
         // then
         result.toList shouldBe List(1, 2, 3, 5)
