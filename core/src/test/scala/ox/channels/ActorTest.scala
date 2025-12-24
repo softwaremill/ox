@@ -37,7 +37,7 @@ class ActorTest extends AnyFlatSpec with Matchers:
     val outer = 1000
     val inner = 1000
 
-    val forks = for (i <- 1 to outer) yield fork {
+    val forks = for i <- 1 to outer yield fork {
       for j <- 1 to inner do ref.ask(_.f(1))
     }
     forks.foreach(_.join())
