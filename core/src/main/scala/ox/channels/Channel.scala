@@ -80,7 +80,7 @@ trait Source[+T] extends SourceOps[T] with SourceDrainOps[T]:
     * @throws ChannelClosedException
     *   If the channel is closed (done or in error).
     * @return
-    *   Either a value of type `T`, or [[ChannelClosed]], when the channel is closed.
+    *   a value of type `T`
     */
   def receive(): T = receiveOrClosed().orThrow
 
