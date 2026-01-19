@@ -49,17 +49,18 @@ trait FlowCompanionOps:
     * @param withSink
     *   A function that receives a [[Sink]] to which elements can be sent.
     */
-  def usingChannel[T](withSink: Sink[T] => Unit)(using BufferCapacity, ox.OxUnsupervised): Flow[T] = usingEmitInline: emit =>
-    val ch = BufferCapacity.newChannel[T]
-    forkUnsupervised:
-      try
-        withSink(ch)
-        ch.done()
-      catch
-        case e: Throwable =>
-          ch.error(e)
-          throw e
-    FlowEmit.channelToEmit(ch, emit)
+  def usingChannel[T](withSink: Sink[T] => Unit)(using BufferCapacity, ox.OxUnsupervised): Flow[T] =
+    usingEmitInline: emit =>
+      val ch = BufferCapacity.newChannel[T]
+      forkUnsupervised:
+        try
+          withSink(ch)
+          ch.done()
+        catch
+          case e: Throwable =>
+            ch.error(e)
+            throw e
+      FlowEmit.channelToEmit(ch, emit)
 
   /** Creates a flow using the given `source`. An element is emitted for each value received from the source. If the source is completed
     * with an error, is it propagated by throwing.

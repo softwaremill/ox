@@ -9,7 +9,8 @@ import scala.annotation.nowarn
   *
   * A flow is lazy - evaluation happens only when it's run.
   *
-  * Flows can be created using the [[Flow.usingEmit]], [[Flow.usingChannel]], [[Flow.fromValues]] and other `Flow.from*` methods, [[Flow.tick]] etc.
+  * Flows can be created using the [[Flow.usingEmit]], [[Flow.usingChannel]], [[Flow.fromValues]] and other `Flow.from*` methods,
+  * [[Flow.tick]] etc.
   *
   * Transformation stages can be added using the available combinators, such as [[Flow.map]], [[Flow.buffer]], [[Flow.grouped]], etc. Each
   * such method returns a new immutable `Flow` instance.
