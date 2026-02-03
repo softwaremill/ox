@@ -1,6 +1,8 @@
 {
   "name": "Ox Dev Container",
-  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
   "features": {
     "ghcr.io/devcontainers/features/java:1": {
       "version": "21",
@@ -16,6 +18,7 @@
   "customizations": {
     "vscode": {
       "extensions": [
+        "anthropic.claude-code",
         "scalameta.metals",
         "scala-lang.scala",
         "github.vscode-pull-request-github"

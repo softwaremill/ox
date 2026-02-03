@@ -1,19 +1,19 @@
 #!/bin/bash
 set -e
 
-echo "Setting up dev container..."
+echo "Finalizing dev container setup..."
 
 # Fix ownership of mounted cache directories (Docker volumes are created as root)
 echo "Fixing permissions on mounted cache directories..."
 sudo chown -R vscode:vscode /home/vscode/.sbt /home/vscode/.ivy2 /home/vscode/.cache /home/vscode/.claude 2>/dev/null || true
 
-# Install sbt
-echo "Installing sbt..."
-curl -fL "https://github.com/sbt/sbt/releases/download/v1.12.0/sbt-1.12.0.tgz" | tar xz -C /tmp
-sudo mv /tmp/sbt/bin/sbt /usr/local/bin/
-sudo mv /tmp/sbt/bin/sbt-launch.jar /usr/local/bin/
-sudo chmod +x /usr/local/bin/sbt
-rm -rf /tmp/sbt
+# Override git config with environment variables if provided
+if [ -n "$GIT_USER_NAME" ]; then
+  git config --global user.name "$GIT_USER_NAME"
+fi
+if [ -n "$GIT_USER_EMAIL" ]; then
+  git config --global user.email "$GIT_USER_EMAIL"
+fi
 
 # Configure gh with token if available
 if [ -n "$GITHUB_TOKEN" ]; then
@@ -24,20 +24,21 @@ else
   echo "Warning: GITHUB_TOKEN not set. GitHub CLI will not be authenticated."
 fi
 
-# Configure git (without SSH)
-git config --global user.name "${GIT_USER_NAME:-Dev Container User}"
-git config --global user.email "${GIT_USER_EMAIL:-devcontainer@localhost}"
-
 # Disable SSH agent forwarding explicitly
 unset SSH_AUTH_SOCK
 unset SSH_AGENT_PID
 
+# Verify Claude Code API key is available
+if [ -n "$ANTHROPIC_API_KEY" ]; then
+  echo "ANTHROPIC_API_KEY is set - Claude Code will use it for authentication."
+else
+  echo "Warning: ANTHROPIC_API_KEY not set. Claude Code will require manual authentication."
+fi
+
+echo ""
 echo "Dev container setup complete!"
 echo "Java version: $(java -version 2>&1 | head -n 1)"
 echo "sbt version: $(sbt --version 2>&1 | grep 'sbt version')"
 echo "gh version: $(gh --version | head -n 1)"
 echo ""
-echo "Note: Claude Code will run with auto-approved permissions in this container."
-
-# Add claude alias with auto-approved permissions
-echo 'alias claude="claude --dangerously-skip-permissions"' >> ~/.bashrc
+echo "Note: Claude Code is configured to bypass all permissions by default."
