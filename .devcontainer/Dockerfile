@@ -13,12 +13,3 @@ RUN curl -fL "https://github.com/sbt/sbt/releases/download/v1.12.0/sbt-1.12.0.tg
     chmod +x /usr/local/bin/sbt && \
     rm -rf /tmp/sbt
 
-# Set up Claude Code settings directory and default configuration
-USER vscode
-RUN mkdir -p ~/.claude && \
-    echo '{\n  "permissions": {\n    "defaultMode": "bypassPermissions"\n  }\n}' > ~/.claude/settings.json
-
-# Add ANTHROPIC_API_KEY export to .bashrc
-RUN echo '\n# Export ANTHROPIC_API_KEY if set in environment\nif [ -n "$ANTHROPIC_API_KEY" ]; then\n  export ANTHROPIC_API_KEY\nfi' >> ~/.bashrc
-
-USER root

@@ -30,7 +30,8 @@
       }
     }
   },
-  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "postStartCommand": "bash .devcontainer/post-start.sh",
   "mounts": [
     "type=volume,source=ox-sbt-cache,target=/home/vscode/.sbt",
     "type=volume,source=ox-ivy-cache,target=/home/vscode/.ivy2",
