@@ -2,6 +2,7 @@ package ox.flow
 
 import ox.Fork
 import ox.channels.ChannelClosed
+import ox.channels.ChannelClosedException
 import ox.channels.ChannelClosedUnion.isValue
 import ox.channels.Source
 import ox.channels.Sink
@@ -59,7 +60,8 @@ trait FlowCompanionOps:
         case e: Throwable =>
           ch.error(e)
           throw e
-    FlowEmit.channelToEmit(ch, emit)
+    try FlowEmit.channelToEmit(ch, emit)
+    catch case ChannelClosedException.Error(cause) => throw cause
 
   /** Creates a flow using the given `source`. An element is emitted for each value received from the source. If the source is completed
     * with an error, is it propagated by throwing.

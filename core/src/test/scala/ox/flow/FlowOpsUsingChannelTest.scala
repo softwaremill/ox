@@ -48,12 +48,14 @@ class FlowOpsUsingChannelTest extends AnyFlatSpec with Matchers:
   it should "support concurrent sending" in supervised:
     Flow
       .usingChannel[Int](sink =>
-        fork:
+        val f1 = fork:
           sink.send(1)
           sink.send(2)
-        fork:
+        val f2 = fork:
           sink.send(3)
           sink.send(4)
+        f1.join()
+        f2.join()
       )
       .runToList()
       .sorted shouldBe List(1, 2, 3, 4)
