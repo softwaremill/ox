@@ -38,8 +38,8 @@ trait FlowCompanionOps:
     */
   def usingEmit[T](withEmit: FlowEmit[T] => Unit): Flow[T] = usingEmitInline(withEmit)
 
-  /** Creates a flow, which when run, provides a [[Sink]] (channel) to the given `withSink` function. Elements can be sent to the sink to
-    * be processed by downstream stages. The `withSink` function is run asynchronously in a forked task.
+  /** Creates a flow, which when run, provides a [[Sink]] (channel) to the given `withSink` function. Elements can be sent to the sink to be
+    * processed by downstream stages. The `withSink` function is run asynchronously in a forked task.
     *
     * The flow completes when the `withSink` function completes and the provided sink is closed. The sink is automatically closed when
     * `withSink` completes normally. If `withSink` throws an exception, the sink is closed with an error.
