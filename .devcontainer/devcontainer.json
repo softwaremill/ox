@@ -42,6 +42,9 @@
     "type=bind,source=${localEnv:HOME}/.claude/commands,target=/home/vscode/.claude/commands,readonly",
     "type=bind,source=${localEnv:HOME}/.claude/agents,target=/home/vscode/.claude/agents,readonly"
   ],
+  "containerEnv": {
+    "SSH_AUTH_SOCK": ""
+  },
   "forwardPorts": [],
   "portsAttributes": {},
   "runArgs": [
