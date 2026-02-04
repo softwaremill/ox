@@ -9,17 +9,16 @@ mkdir -p /home/vscode/.sbt /home/vscode/.ivy2 /home/vscode/.cache/coursier /home
 # Fix ownership of mounted cache directories (Docker volumes are created as root)
 sudo chown -R vscode:vscode /home/vscode/.sbt /home/vscode/.ivy2 /home/vscode/.cache /home/vscode/.claude 2>/dev/null || true
 
-# Ensure Claude Code has bypass permissions configured
-if [ ! -f /home/vscode/.claude/settings.json ] || ! grep -q "bypassPermissions" /home/vscode/.claude/settings.json 2>/dev/null; then
-  echo "Setting Claude Code to bypass permissions mode..."
-  cat > /home/vscode/.claude/settings.json << 'EOF'
+# Ensure Claude Code settings are configured (bypass permissions + opus model)
+echo "Configuring Claude Code settings..."
+cat > /home/vscode/.claude/settings.json << 'EOF'
 {
   "permissions": {
     "defaultMode": "bypassPermissions"
-  }
+  },
+  "model": "opus"
 }
 EOF
-fi
 
 # Configure gh with token if available
 if [ -n "$GITHUB_TOKEN" ]; then
@@ -28,4 +27,4 @@ fi
 
 echo ""
 echo "Dev container ready!"
-echo "Note: Claude Code is configured to bypass all permissions by default."
+echo "Note: Claude Code is configured to use Opus model with bypass permissions."
