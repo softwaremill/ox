@@ -5,6 +5,9 @@ on:
   push:
     branches: [ master ]
     tags: [ v* ]
+permissions:
+  contents: write        # release-drafter, auto-merge requirement
+  pull-requests: write   # labeler, auto-merge requirement    
 jobs:
   ci:
     runs-on: ubuntu-24.04
@@ -21,7 +24,7 @@ jobs:
         distribution: 'temurin'
         java-version: ${{ matrix.java }}
         cache: 'sbt'
-    - uses: sbt/setup-sbt@v1
+    - uses: sbt/setup-sbt@3e125ece5c3e5248e18da9ed8d2cce3d335ec8dd # v1, specifically v1.1.14
     - name: Check formatting
       run: sbt -v scalafmtCheckAll
     - name: Compile
@@ -39,12 +42,6 @@ jobs:
   # identify binary incompatibilities (check build.sbt for details)
   mima:
     uses: softwaremill/github-actions-workflows/.github/workflows/mima.yml@main
-    # run on 1) push, 2) external PRs, 3) softwaremill-ci PRs
-    # do not run on internal, non-steward PRs since those will be run by push to branch
-    if: |
-      github.event_name == 'push' || 
-      github.event.pull_request.head.repo.full_name != github.repository ||
-      github.event.pull_request.user.login == 'softwaremill-ci'
     with:
       java-version: '21'
       java-opts: '-Xms4g -Xmx4g' # SBT_JAVA_OPTS env parameter adapted for JVM
@@ -61,9 +58,11 @@ jobs:
     # only for PRs by softwaremill-ci
     if: github.event.pull_request.user.login == 'softwaremill-ci'
     uses: softwaremill/github-actions-workflows/.github/workflows/label.yml@main
+    secrets: inherit
 
   auto-merge:
     # only for PRs by softwaremill-ci
     if: github.event.pull_request.user.login == 'softwaremill-ci'
     needs: [ ci, label, mima ]
     uses: softwaremill/github-actions-workflows/.github/workflows/auto-merge.yml@main
+    secrets: inherit

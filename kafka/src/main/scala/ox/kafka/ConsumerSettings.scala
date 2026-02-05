@@ -1,7 +1,11 @@
 package ox.kafka
 
-import org.apache.kafka.clients.consumer.{ConsumerConfig, KafkaConsumer}
-import org.apache.kafka.common.serialization.{Deserializer, StringDeserializer}
+import org.apache.kafka.clients.consumer.ConsumerConfig
+import org.apache.kafka.clients.consumer.KafkaConsumer
+import org.apache.kafka.common.serialization.Deserializer
+import org.apache.kafka.common.serialization.StringDeserializer
+import ox.Ox
+import ox.channels.ActorRef
 import ox.kafka.ConsumerSettings.AutoOffsetReset
 
 import java.util.Properties
@@ -32,7 +36,16 @@ case class ConsumerSettings[K, V](
     props
   end toProperties
 
+  /** Using these settings, create a new open [[KafkaConsumer]]. The consumer is not thread-safe, and should not be used concurrently, and
+    * has to be closed manually.
+    */
   def toConsumer: KafkaConsumer[K, V] = KafkaConsumer(toProperties, keyDeserializer, valueDeserializer)
+
+  /** Using these settings, create a thread-safe wrapper on top of a new open [[KafkaConsumer]]. The wrapper serializes calls using an
+    * actor. The actor is created within the current concurrency scope and will be closed (along with the consumer) when the scope ends.
+    */
+  def toThreadSafeConsumerWrapper(using Ox): ActorRef[KafkaConsumerWrapper[K, V]] =
+    KafkaConsumerWrapper(toConsumer, closeWhenComplete = true)
 end ConsumerSettings
 
 object ConsumerSettings:

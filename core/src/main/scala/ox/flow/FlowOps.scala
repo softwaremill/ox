@@ -28,6 +28,7 @@ import ox.unsupervised
 import java.util.concurrent.Semaphore
 import scala.concurrent.duration.DurationLong
 import scala.concurrent.duration.FiniteDuration
+import scala.util.control.ControlThrowable
 
 class FlowOps[+T]:
   outer: Flow[T] =>
@@ -271,7 +272,7 @@ class FlowOps[+T]:
 
       FlowEmit.channelToEmit(results, emit)
 
-  private val abortTake = new Exception("abort take")
+  private val abortTake = new ControlThrowable("abort take") {}
 
   /** Takes the first `n` elements from this flow and emits them. If the flow completes before emitting `n` elements, the returned flow
     * completes as well.
@@ -454,7 +455,7 @@ class FlowOps[+T]:
         s1.receiveOrClosed() match
           case ChannelClosed.Done     => false
           case e: ChannelClosed.Error => throw e.toThrowable
-          case t: T @unchecked =>
+          case t: T @unchecked        =>
             s2.receiveOrClosed() match
               case ChannelClosed.Done     => false
               case e: ChannelClosed.Error => throw e.toThrowable
@@ -489,7 +490,7 @@ class FlowOps[+T]:
               () => false
             )
           case e: ChannelClosed.Error => throw e.toThrowable
-          case t: T @unchecked =>
+          case t: T @unchecked        =>
             receiveFromOther(
               t,
               () =>
@@ -677,8 +678,6 @@ class FlowOps[+T]:
     */
   def groupedWithin(n: Int, duration: FiniteDuration)(using BufferCapacity): Flow[Seq[T]] = groupedWeightedWithin(n, duration)(_ => 1)
 
-  private case object GroupingTimeout
-
   /** Chunks up the emitted elements into groups, within a time window, or limited by the cumulative weight being greater or equal to the
     * `minWeight`, whatever happens first. The timeout is reset after a group is emitted. If timeout expires and the buffer is empty,
     * nothing is emitted. As soon as a new element is received, the flow will emit it as a single-element group and reset the timer.
@@ -691,6 +690,8 @@ class FlowOps[+T]:
     *   The function that calculates the weight of an element.
     */
   def groupedWeightedWithin(minWeight: Long, duration: FiniteDuration)(costFn: T => Long)(using BufferCapacity): Flow[Seq[T]] =
+    case class GroupingTimeout(generation: Long)
+
     require(minWeight > 0, "minWeight must be > 0")
     require(duration > 0.seconds, "duration must be > 0")
 
@@ -698,14 +699,18 @@ class FlowOps[+T]:
       unsupervised:
         val c = outer.runToChannel()
         val c2 = BufferCapacity.newChannel[Seq[T]]
-        val timerChannel = BufferCapacity.newChannel[GroupingTimeout.type]
+        val timerChannel = BufferCapacity.newChannel[GroupingTimeout]
         forkPropagate(c2):
           var buffer = Vector.empty[T]
           var accumulatedCost: Long = 0
+          var currentGeneration = 0L
 
-          def forkTimeout() = forkCancellable:
-            sleep(duration)
-            timerChannel.sendOrClosed(GroupingTimeout).discard
+          def forkTimeout() =
+            currentGeneration += 1
+            val gen = currentGeneration
+            forkCancellable:
+              sleep(duration)
+              timerChannel.sendOrClosed(GroupingTimeout(gen)).discard
 
           var timeoutFork: Option[CancellableFork[Unit]] = Some(forkTimeout())
 
@@ -727,9 +732,12 @@ class FlowOps[+T]:
                 timeoutFork.foreach(_.cancelNow())
                 c2.error(r)
                 false
-              case timerChannel.Received(GroupingTimeout) =>
+              case timerChannel.Received(GroupingTimeout(gen)) if gen == currentGeneration =>
                 timeoutFork = None // enter 'timed out state', may stay in this state if buffer is empty
                 if buffer.nonEmpty then sendBufferAndForkNewTimeout()
+                true
+              case timerChannel.Received(GroupingTimeout(_)) =>
+                // different (older) generation, ignore - must have been sent concurrently with cancelling the timer
                 true
               case c.Received(t) =>
                 buffer = buffer :+ t

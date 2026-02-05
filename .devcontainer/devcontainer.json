@@ -1,0 +1,51 @@
+{
+  "name": "Ox Dev Container",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/java:1": {
+      "version": "21",
+      "installGradle": false,
+      "installMaven": false
+    },
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {
+      "installDirectlyFromGitHubRelease": true,
+      "version": "latest"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "anthropic.claude-code",
+        "scalameta.metals",
+        "scala-lang.scala",
+        "github.vscode-pull-request-github"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "claudeCode.allowDangerouslySkipPermissions": true,
+        "claudeCode.initialPermissionMode": "bypassPermissions",
+        "claudeCode.selectedModel": "opus"
+      }
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "postStartCommand": "bash .devcontainer/post-start.sh",
+  "mounts": [
+    "type=volume,source=ox-sbt-cache,target=/home/vscode/.sbt",
+    "type=volume,source=ox-ivy-cache,target=/home/vscode/.ivy2",
+    "type=volume,source=ox-coursier-cache,target=/home/vscode/.cache/coursier",
+    "type=volume,source=ox-claude-data,target=/home/vscode/.claude",
+    "type=bind,source=${localEnv:HOME}/.claude/CLAUDE.md,target=/home/vscode/.claude/CLAUDE.md,readonly",
+    "type=bind,source=${localEnv:HOME}/.claude/commands,target=/home/vscode/.claude/commands,readonly",
+    "type=bind,source=${localEnv:HOME}/.claude/agents,target=/home/vscode/.claude/agents,readonly"
+  ],
+  "forwardPorts": [],
+  "portsAttributes": {},
+  "runArgs": [
+    "--env-file=${localWorkspaceFolder}/../dev-container-oss.env"
+  ],
+  "remoteUser": "vscode"
+}

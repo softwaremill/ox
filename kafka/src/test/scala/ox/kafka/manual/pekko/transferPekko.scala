@@ -10,9 +10,6 @@ import org.apache.pekko.kafka.{CommitterSettings, ConsumerSettings, ProducerMess
 import ox.{discard, get}
 import ox.kafka.manual.timedAndLogged
 
-import scala.concurrent.Await
-import scala.concurrent.duration.Duration
-
 @main def transferPekko(): Unit =
   val sourceTopic = "t2"
   val destTopic = "t2mapped"

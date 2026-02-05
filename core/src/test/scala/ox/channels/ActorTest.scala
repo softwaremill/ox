@@ -37,7 +37,7 @@ class ActorTest extends AnyFlatSpec with Matchers:
     val outer = 1000
     val inner = 1000
 
-    val forks = for (i <- 1 to outer) yield fork {
+    val forks = for i <- 1 to outer yield fork {
       for j <- 1 to inner do ref.ask(_.f(1))
     }
     forks.foreach(_.join())
@@ -79,5 +79,16 @@ class ActorTest extends AnyFlatSpec with Matchers:
     }
 
     thrown.getMessage shouldBe "boom"
+  }
+
+  it should "throw a channel closed exception when the actor's scope becomes closed" in {
+    val actor = supervised:
+      val logic = new Test1:
+        override def f(x: Int): Long = 10
+
+      Actor.create(logic)
+      // when the scope ends, the actor's fork is interrupted
+
+    an[ChannelClosedException] should be thrownBy actor.ask(_.f(5))
   }
 end ActorTest

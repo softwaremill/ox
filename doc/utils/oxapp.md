@@ -24,6 +24,12 @@ When the application receives a SIGINT/SIGTERM, e.g. due to a CTRL+C, the root s
 forks) are interrupted. This allows for a clean shutdown: any resources that are attached to scopes, or managed using 
 `try-finally` blocks, are released. Application shutdown is handled by adding a `Runtime.addShutdownHook`.
 
+```{warning}
+When using `OxApp`, within an Ox-managed fork (thread), do not use `System.exit` or `sys.exit` to shut down your 
+application. This will cause a deadlock with the cleanup process. For more details see 
+[#368](https://github.com/softwaremill/ox/issues/368).
+```
+
 In the code below, the resource is released when the application is interrupted:
 
 ```scala mdoc:compile-only
@@ -97,6 +103,9 @@ All `ox.OxApp` instances can be configured by overriding the `def settings: Sett
 * `threadFactory`: the thread factory that is used to create threads in Ox scopes ([[supervised]], [[unsupervised]]
    etc.). Useful e.g. when integrating with third-party libraries to propagate context across (virtual) thread 
    boundaries.
+* `shutdownTimeout`: the maximum amount of time a clean shutdown might take. By default 10 seconds. This might
+  prevent deadlocks due to usage of `System.exit` in the user's code. After the timeout passes, the application
+  will forcibly exit.
 
 Settings can be overridden:
 
