@@ -16,24 +16,16 @@ class FlowOpsUsingChannelTest extends AnyFlatSpec with Matchers:
       )
       .runToList() shouldBe List(1, 2, 3)
 
-  it should "complete when the channel is done" in supervised:
-    Flow
-      .usingChannel[Int](sink =>
-        sink.send(10)
-        sink.send(20)
-      )
-      .runToList() shouldBe List(10, 20)
-
   it should "propagate errors from the channel" in supervised:
     val exception = new RuntimeException("test error")
-    val result = intercept[RuntimeException]:
+    val result = intercept[ox.channels.ChannelClosedException.Error]:
       Flow
         .usingChannel[Int](sink =>
           sink.send(1)
           throw exception
         )
         .runToList()
-    result shouldBe exception
+    result.cause shouldBe exception
 
   it should "work with transformations" in supervised:
     Flow
@@ -59,4 +51,24 @@ class FlowOpsUsingChannelTest extends AnyFlatSpec with Matchers:
       )
       .runToList()
       .sorted shouldBe List(1, 2, 3, 4)
+
+  it should "handle channel closed by withSink with done()" in supervised:
+    Flow
+      .usingChannel[Int](sink =>
+        sink.send(1)
+        sink.send(2)
+        sink.done()
+      )
+      .runToList() shouldBe List(1, 2)
+
+  it should "handle channel closed by withSink with error()" in supervised:
+    val exception = new RuntimeException("explicit error")
+    val result = intercept[ox.channels.ChannelClosedException.Error]:
+      Flow
+        .usingChannel[Int](sink =>
+          sink.send(1)
+          sink.error(exception)
+        )
+        .runToList()
+    result.cause shouldBe exception
 end FlowOpsUsingChannelTest

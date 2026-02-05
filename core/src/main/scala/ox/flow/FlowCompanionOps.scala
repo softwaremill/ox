@@ -2,7 +2,6 @@ package ox.flow
 
 import ox.Fork
 import ox.channels.ChannelClosed
-import ox.channels.ChannelClosedException
 import ox.channels.ChannelClosedUnion.isValue
 import ox.channels.Source
 import ox.channels.Sink
@@ -52,16 +51,12 @@ trait FlowCompanionOps:
     */
   def usingChannel[T](withSink: Sink[T] => Unit)(using BufferCapacity, ox.OxUnsupervised): Flow[T] = usingEmitInline: emit =>
     val ch = BufferCapacity.newChannel[T]
-    forkUnsupervised:
+    val _ = forkUnsupervised:
       try
         withSink(ch)
-        ch.done()
-      catch
-        case e: Throwable =>
-          ch.error(e)
-          throw e
-    try FlowEmit.channelToEmit(ch, emit)
-    catch case ChannelClosedException.Error(cause) => throw cause
+        ch.doneOrClosed().discard // the channel might be already closed by `withSink`
+      catch case e: Throwable => ch.errorOrClosed(e).discard // the channel might be already closed by `withSink`
+    FlowEmit.channelToEmit(ch, emit)
 
   /** Creates a flow using the given `source`. An element is emitted for each value received from the source. If the source is completed
     * with an error, is it propagated by throwing.
