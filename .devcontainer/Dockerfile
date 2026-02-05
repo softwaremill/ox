@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/devcontainers/base:ubuntu-24.04
+FROM mcr.microsoft.com/devcontainers/java:25
 
 # Install essential tools
 RUN apt-get update && \
@@ -12,4 +12,3 @@ RUN curl -fL "https://github.com/sbt/sbt/releases/download/v1.12.0/sbt-1.12.0.tg
     mv /tmp/sbt/bin/sbt-launch.jar /usr/local/bin/ && \
     chmod +x /usr/local/bin/sbt && \
     rm -rf /tmp/sbt
-
