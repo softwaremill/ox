@@ -56,7 +56,7 @@ case class Schedule(intervals: () => LazyList[FiniteDuration], initialDelay: Opt
     () =>
       intervals().map: d =>
         j match
-          case Jitter.Full => Random.between(0, d.toMillis).millis
+          case Jitter.Full  => Random.between(0, d.toMillis).millis
           case Jitter.Equal =>
             val base = d.toMillis
             (base / 2 + Random.between(0, base / 2)).millis

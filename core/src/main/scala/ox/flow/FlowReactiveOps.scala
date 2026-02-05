@@ -99,7 +99,7 @@ trait FlowReactiveOps[+T]:
               case signals.Received(Signal.Cancel)     => cancel()
               case errors.Received(_)                  => // impossible
               case ChannelClosed.Done                  => // impossible
-              case ChannelClosed.Error(e) => // only `errors` can be closed due to an error
+              case ChannelClosed.Error(e)              => // only `errors` can be closed due to an error
                 cancel()
                 errorSent = true
                 subscriber.onError(e)
@@ -108,7 +108,7 @@ trait FlowReactiveOps[+T]:
               case signals.Received(Signal.Request(n)) => increaseDemand(n)
               case signals.Received(Signal.Cancel)     => cancel()
               case errors.Received(_)                  => // impossible
-              case data.Received(t: T) =>
+              case data.Received(t: T)                 =>
                 subscriber.onNext(t)
                 demand -= 1
               case ChannelClosed.Done => // only `data` can be done

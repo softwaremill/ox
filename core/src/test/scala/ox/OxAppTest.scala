@@ -8,6 +8,9 @@ import java.io.{PrintWriter, StringWriter}
 import java.util.concurrent.CountDownLatch
 import scala.util.boundary.*
 import scala.concurrent.duration.*
+import ox.OxApp.Settings
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.{Semaphore, TimeUnit}
 
 class OxAppTest extends AnyFlatSpec with Matchers:
 
@@ -23,6 +26,39 @@ class OxAppTest extends AnyFlatSpec with Matchers:
     Main10.main(Array.empty)
 
     ec shouldEqual 0
+  }
+
+  "OxApp" should "shutdown despite cleanup taking a long time" in {
+    var ec = Int.MinValue
+
+    val shutdownHookStarted = new AtomicLong(0L)
+    val shutdownHookFinished = new AtomicLong(0L)
+
+    object Main15 extends OxApp:
+      override protected def settings: Settings = Settings.Default.copy(shutdownTimeout = 100.millis)
+      override private[ox] def mountShutdownHook(thread: Thread): Unit =
+        Thread.sleep(100) // let the fork with the main logic start
+        // running the shutdown hook - will interrupt the main logic
+        shutdownHookStarted.set(System.currentTimeMillis())
+        thread.start()
+        thread.join()
+        shutdownHookFinished.set(System.currentTimeMillis())
+      end mountShutdownHook
+
+      override private[ox] def exit(exitCode: ExitCode): Unit = ec = exitCode.code
+
+      override def run(args: Vector[String])(using Ox): ExitCode =
+        try
+          // will be interrupted by the shutdown hook
+          never
+        finally sleep(200.millis) // simulating cleanup longer than the shutdown timeout
+    end Main15
+
+    supervised:
+      Main15.main(Array.empty)
+      ec shouldEqual 0
+      (shutdownHookFinished.get() - shutdownHookStarted.get()) should be >= 100L
+      (shutdownHookFinished.get() - shutdownHookStarted.get()) should be < 200L
   }
 
   "OxApp" should "work in interrupted case" in {

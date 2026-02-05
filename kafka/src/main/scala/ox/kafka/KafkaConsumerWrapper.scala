@@ -16,6 +16,9 @@ trait KafkaConsumerWrapper[K, V]:
 object KafkaConsumerWrapper:
   private val logger = LoggerFactory.getLogger(classOf[KafkaConsumerWrapper.type])
 
+  /** Create a thread-safe wrapper on top of a [[KafkaConsumer]], which serializes calls using an actor. The actor is created within the
+    * current concurrency scope and will be closed when the scope ends if the `closeWhenComplete` flag is `true`.
+    */
   def apply[K, V](consumer: KafkaConsumer[K, V], closeWhenComplete: Boolean)(using Ox): ActorRef[KafkaConsumerWrapper[K, V]] =
     val logic = new KafkaConsumerWrapper[K, V]:
       override def subscribe(topics: Seq[String]): Unit =
@@ -41,7 +44,7 @@ object KafkaConsumerWrapper:
 
     def close(wrapper: KafkaConsumerWrapper[K, V]): Unit = if closeWhenComplete then
       logger.debug("Closing the Kafka consumer")
-      uninterruptible(consumer.close())
+      consumer.close()
 
     Actor.create(logic, Some(close))
   end apply

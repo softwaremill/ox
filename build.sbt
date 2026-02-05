@@ -5,7 +5,7 @@ import com.typesafe.tools.mima.core.{MissingClassProblem, ProblemFilters}
 
 lazy val commonSettings = commonSmlBuildSettings ++ ossPublishSettings ++ Seq(
   organization := "com.softwaremill.ox",
-  scalaVersion := "3.3.6",
+  scalaVersion := "3.3.7",
   updateDocs := Def.taskDyn {
     val files1 = UpdateVersionInDocs(sLog.value, organization.value, version.value)
     Def.task {
@@ -39,7 +39,7 @@ val enableMimaSettings = Seq(
 
 val scalaTest = "org.scalatest" %% "scalatest" % "3.2.19" % Test
 val slf4j = "org.slf4j" % "slf4j-api" % "2.0.17"
-val logback = "ch.qos.logback" % "logback-classic" % "1.5.18"
+val logback = "ch.qos.logback" % "logback-classic" % "1.5.27"
 
 // used during CI to verify that the documentation compiles
 val compileDocumentation: TaskKey[Unit] = taskKey[Unit]("Compiles documentation throwing away its output")
@@ -57,7 +57,7 @@ lazy val core: Project = (project in file("core"))
   .settings(
     name := "core",
     libraryDependencies ++= Seq(
-      "com.softwaremill.jox" % "channels" % "1.0.1",
+      "com.softwaremill.jox" % "channels" % "1.1.1",
       scalaTest,
       "org.apache.pekko" %% "pekko-stream" % "1.2.1" % Test,
       "org.reactivestreams" % "reactive-streams-tck-flow" % "1.0.4" % Test
@@ -71,7 +71,7 @@ lazy val kafka: Project = (project in file("kafka"))
   .settings(
     name := "kafka",
     libraryDependencies ++= Seq(
-      "org.apache.kafka" % "kafka-clients" % "4.0.0",
+      "org.apache.kafka" % "kafka-clients" % "4.1.1",
       slf4j,
       logback % Test,
       "io.github.embeddedkafka" %% "embedded-kafka" % "4.1.0" % Test,

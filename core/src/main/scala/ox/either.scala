@@ -110,7 +110,7 @@ object either:
     /** Unwrap the value of the `Option`, short-circuiting the computation to the enclosing [[either]] on guaranteed `None`. */
     transparent inline def ok(): A =
       summonFrom {
-        case given boundary.Label[Either[Unit, Nothing]] => break(Left(()))
+        case given boundary.Label[Either[Unit, Nothing]]    => break(Left(()))
         case given boundary.Label[Either[Nothing, Nothing]] =>
           error(
             "The enclosing `either` call uses a different error type.\nIf it's explicitly typed, is the error type correct?\nNote that for options, the error type must contain a `Unit`."
@@ -133,7 +133,7 @@ object either:
     /** Fail the computation, short-circuiting to the enclosing [[either]] block. */
     transparent inline def fail(): Nothing =
       summonFrom {
-        case given boundary.Label[Either[E, Nothing]] => break(Left(e))
+        case given boundary.Label[Either[E, Nothing]]       => break(Left(e))
         case given boundary.Label[Either[Nothing, Nothing]] =>
           error("The enclosing `either` call uses a different error type.\nIf it's explicitly typed, is the error type correct?")
       }

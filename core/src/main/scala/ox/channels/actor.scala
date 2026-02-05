@@ -15,6 +15,9 @@ object Actor:
     * cause the actor's channel to be closed with an error, and are propagated to the enclosing scope.
     *
     * The actor's mailbox (incoming channel) will have a capacity as specified by the [[BufferCapacity]] in scope.
+    *
+    * @param close
+    *   An optional callback that will be called uninterruptedly before the actor closes.
     */
   def create[T](logic: T, close: Option[T => Unit] = None)(using ox: Ox, sc: BufferCapacity): ActorRef[T] =
     val c = BufferCapacity.newChannel[T => Unit]
@@ -22,8 +25,9 @@ object Actor:
     forkDiscard {
       try
         forever {
-          val m = c.receive()
-          try m(logic)
+          try
+            val m = c.receive()
+            m(logic)
           catch
             case t: Throwable =>
               c.error(t)
