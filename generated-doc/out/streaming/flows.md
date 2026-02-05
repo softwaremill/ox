@@ -60,6 +60,26 @@ As part of the callback, you can create [supervision scopes](../structured-concu
 
 Any asynchronous communication should be best done with [channels](channels.md). You can then manually forward any elements received from a channel to `emit`, or use e.g. `FlowEmit.channelToEmit`.
 
+Alternatively, flows can be created by providing a function that receives a `Sink` (channel):
+
+```scala
+import ox.flow.Flow
+import ox.{fork, supervised}
+
+supervised:
+  Flow.usingChannel: sink =>
+    sink.send(1)
+    fork:
+      sink.send(2)
+      sink.send(3)
+    sink.send(4)
+  // TODO: transform the flow further & run
+```
+
+Unlike `usingEmit`, the `Sink` instance can be safely shared across threads, as channels are thread-safe. The provided function is run asynchronously in a forked task. The flow completes when the function completes and the sink is automatically closed. If the function throws an exception, it is propagated as a flow error.
+
+Note that `Flow.usingChannel` must be run within a concurrency scope, as it creates a fork to run the provided function.
+
 ## Transforming flows: basics
 
 Multiple transformation stages can be added to a flow, each time returning a new `Flow` instance, describing the extended pipeline. As before, no elements are emitted or transformed until the flow is run, as flows are lazy. There's a number of pre-defined transformation stages, many of them similar in function to corresponding methods on Scala's collections:
@@ -171,7 +191,7 @@ To obtain a `org.reactivestreams.Publisher` instance, you'll need to add the fol
 bring the `toReactiveStreamsPublisher` method into scope:
 
 ```scala
-// sbt dependency: "com.softwaremill.ox" %% "flow-reactive-streams" % "1.0.2"
+// sbt dependency: "com.softwaremill.ox" %% "flow-reactive-streams" % "1.0.3"
 
 import ox.supervised
 import ox.flow.Flow
