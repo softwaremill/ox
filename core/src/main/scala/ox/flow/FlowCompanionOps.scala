@@ -4,6 +4,7 @@ import ox.Fork
 import ox.channels.ChannelClosed
 import ox.channels.ChannelClosedUnion.isValue
 import ox.channels.Source
+import ox.channels.Sink
 import ox.channels.BufferCapacity
 import ox.forever
 import ox.forkUnsupervised
@@ -36,6 +37,26 @@ trait FlowCompanionOps:
     * thread-unsafe. Moreover, the instance should not be stored or captured in closures, which outlive the invocation of `withEmit`.
     */
   def usingEmit[T](withEmit: FlowEmit[T] => Unit): Flow[T] = usingEmitInline(withEmit)
+
+  /** Creates a flow, which when run, provides a [[Sink]] (channel) to the given `withSink` function. Elements can be sent to the sink to be
+    * processed by downstream stages. The `withSink` function is run asynchronously in a forked task.
+    *
+    * The flow completes when the `withSink` function completes and the provided sink is closed. The sink is automatically closed when
+    * `withSink` completes normally. If `withSink` throws an exception, the sink is closed with an error.
+    *
+    * Must be run within a concurrency scope as a fork is created to run the `withSink` function.
+    *
+    * @param withSink
+    *   A function that receives a [[Sink]] to which elements can be sent.
+    */
+  def usingChannel[T](withSink: Sink[T] => Unit)(using BufferCapacity, ox.OxUnsupervised): Flow[T] = usingEmitInline: emit =>
+    val ch = BufferCapacity.newChannel[T]
+    val _ = forkUnsupervised:
+      try
+        withSink(ch)
+        ch.doneOrClosed().discard // the channel might be already closed by `withSink`
+      catch case e: Throwable => ch.errorOrClosed(e).discard // the channel might be already closed by `withSink`
+    FlowEmit.channelToEmit(ch, emit)
 
   /** Creates a flow using the given `source`. An element is emitted for each value received from the source. If the source is completed
     * with an error, is it propagated by throwing.
