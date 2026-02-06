@@ -14,4 +14,8 @@ fi
 # Add claude-yolo alias
 echo 'alias claude-yolo="claude --dangerously-skip-permissions"' >> ~/.bashrc
 
+# Ensure mounted directories exist & fix ownership (Docker volumes are created as root)
+mkdir -p /home/vscode/.claude
+sudo chown -R vscode:vscode /home/vscode/.claude 2>/dev/null || true
+
 echo "Post-create setup complete."
