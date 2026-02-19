@@ -46,6 +46,253 @@ class FlowOps[+T]:
       runLastToChannelAsync(ch)
       FlowEmit.channelToEmit(ch, emit)
 
+  /** Batches elements based on a weighted cost function. When downstream is slower than upstream, elements are eagerly pulled and
+    * aggregated.
+    *
+    * The first upstream element creates the initial aggregate via `seed`. Subsequent elements are aggregated using `aggregate` as long as
+    * their cumulative cost (determined by `costFn`) does not exceed `maxWeight`. When the cost would be exceeded, the current aggregate is
+    * emitted downstream and a new aggregate is started from the element that exceeded the budget.
+    *
+    * A single element whose cost exceeds `maxWeight` is still emitted (via `seed`), ensuring no elements are dropped.
+    *
+    * Creates an asynchronous boundary.
+    *
+    * @param maxWeight
+    *   The maximum cumulative cost before emitting the current aggregate.
+    * @param costFn
+    *   A function computing the cost of each element. Must return non-negative values.
+    * @param seed
+    *   A function creating the initial aggregate from the first element.
+    * @param aggregate
+    *   A function combining the current aggregate with a new element.
+    */
+  def batchWeighted[S](maxWeight: Long, costFn: T => Long, seed: T => S)(aggregate: (S, T) => S)(using BufferCapacity): Flow[S] =
+    require(maxWeight > 0, "maxWeight must be > 0")
+    Flow.usingEmitInline: emit =>
+      val output = Channel.rendezvous[S]
+      unsupervised:
+        val c = outer.runToChannel()
+        forkPropagate(output):
+          var agg: Option[S] = None
+          var remainingWeight: Long = maxWeight
+          var pending: Option[T] = None
+          var upstreamDone = false
+
+          def processPending(): Unit =
+            pending match
+              case Some(p) =>
+                pending = None
+                agg = Some(seed(p))
+                remainingWeight = maxWeight - costFn(p)
+              case None =>
+
+          def handleReceive(t: T): Unit =
+            agg match
+              case None =>
+                agg = Some(seed(t))
+                remainingWeight = maxWeight - costFn(t)
+              case Some(acc) =>
+                val cost = costFn(t)
+                if cost <= remainingWeight then
+                  agg = Some(aggregate(acc, t))
+                  remainingWeight -= cost
+                else pending = Some(t)
+
+          def flushAgg(a: S): Unit =
+            output.send(a)
+            agg = None
+            remainingWeight = maxWeight
+            processPending()
+
+          repeatWhile:
+            (agg, pending, upstreamDone) match
+              // No aggregate yet, upstream active: just receive
+              case (None, _, false) =>
+                c.receiveOrClosed() match
+                  case ChannelClosed.Done =>
+                    output.done()
+                    false
+                  case ChannelClosed.Error(reason) =>
+                    output.error(reason)
+                    false
+                  case t: T @unchecked =>
+                    handleReceive(t)
+                    true
+
+              // Have aggregate, no pending, upstream active: select between send and receive.
+              // Send is first so that when downstream is ready, we emit immediately rather than
+              // eagerly aggregating more elements from upstream.
+              case (Some(a), None, false) =>
+                selectOrClosed(output.sendClause(a), c.receiveClause) match
+                  case ChannelClosed.Done =>
+                    // upstream done; we still have agg to send
+                    upstreamDone = true
+                    true
+                  case ChannelClosed.Error(reason) =>
+                    output.error(reason)
+                    false
+                  case output.Sent() =>
+                    agg = None
+                    remainingWeight = maxWeight
+                    true
+                  case c.Received(t) =>
+                    handleReceive(t.asInstanceOf[T])
+                    true
+
+              // Have aggregate and pending (budget exceeded): must send aggregate
+              case (Some(a), Some(_), false) =>
+                flushAgg(a)
+                true
+
+              // Upstream done, have aggregate: send it
+              case (Some(a), _, true) =>
+                flushAgg(a)
+                agg match
+                  case Some(_) => true // still have data from pending
+                  case None    =>
+                    output.done()
+                    false
+
+              // Upstream done, no aggregate: done
+              case (None, _, true) =>
+                output.done()
+                false
+        FlowEmit.channelToEmit(output, emit)
+  end batchWeighted
+
+  /** Batches elements into groups of up to `max` elements. When downstream is slower than upstream, elements are eagerly pulled and
+    * aggregated using the provided `seed` and `aggregate` functions.
+    *
+    * Equivalent to `batchWeighted(max, _ => 1, seed)(aggregate)`.
+    *
+    * Creates an asynchronous boundary.
+    *
+    * @param max
+    *   The maximum number of elements per batch.
+    * @param seed
+    *   A function creating the initial aggregate from the first element.
+    * @param aggregate
+    *   A function combining the current aggregate with a new element.
+    */
+  def batch[S](max: Long, seed: T => S)(aggregate: (S, T) => S)(using BufferCapacity): Flow[S] =
+    require(max > 0, "max must be > 0")
+    batchWeighted(max, _ => 1L, seed)(aggregate)
+
+  /** Conflates elements when downstream is slower than upstream, using the provided `seed` to initialize the aggregate and `aggregate` to
+    * combine elements.
+    *
+    * Equivalent to `batchWeighted(1, _ => 0, seed)(aggregate)` — cost is always 0 so the budget is never exceeded, resulting in unbounded
+    * aggregation while downstream is busy.
+    *
+    * Creates an asynchronous boundary.
+    *
+    * @param seed
+    *   A function creating the initial aggregate from the first element.
+    * @param aggregate
+    *   A function combining the current aggregate with a new element.
+    */
+  def conflateWithSeed[S](seed: T => S)(aggregate: (S, T) => S)(using BufferCapacity): Flow[S] =
+    batchWeighted(1L, _ => 0L, seed)(aggregate)
+
+  /** Conflates elements when downstream is slower than upstream, using the provided `aggregate` function to combine elements.
+    *
+    * Equivalent to `conflateWithSeed(identity)(aggregate)`.
+    *
+    * Creates an asynchronous boundary.
+    *
+    * @param aggregate
+    *   A function combining two elements.
+    */
+  def conflate[T2 >: T](aggregate: (T2, T2) => T2)(using BufferCapacity): Flow[T2] =
+    conflateWithSeed[T2](identity)(aggregate)
+
+  /** Expands elements by applying the `expander` function to each upstream element, producing an iterator. When downstream is faster than
+    * upstream, elements from the iterator are emitted. When a new upstream element arrives, it replaces the current iterator.
+    *
+    * Note that upstream elements are not emitted directly — only the elements produced by the `expander` iterator are. To also emit the
+    * original element, include it in the iterator (e.g., `Iterator.single(elem) ++ ...`), or use [[extrapolate]] which does this
+    * automatically.
+    *
+    * When a new upstream element arrives while a send from the current iterator is pending, the pending value is discarded in favor of the
+    * new element's iterator. This favors freshness over completeness.
+    *
+    * Creates an asynchronous boundary.
+    *
+    * @param expander
+    *   A function that creates an iterator from an upstream element.
+    */
+  def expand[U](expander: T => Iterator[U])(using BufferCapacity): Flow[U] =
+    Flow.usingEmitInline: emit =>
+      val output = Channel.rendezvous[U]
+      unsupervised:
+        val c = outer.runToChannel()
+        forkPropagate(output):
+          var iterator: Iterator[U] = Iterator.empty
+          var upstreamDone = false
+
+          repeatWhile:
+            (iterator.hasNext, upstreamDone) match
+              // No elements and upstream active: must receive
+              case (false, false) =>
+                c.receiveOrClosed() match
+                  case ChannelClosed.Done =>
+                    output.done()
+                    false
+                  case ChannelClosed.Error(reason) =>
+                    output.error(reason)
+                    false
+                  case t: T @unchecked =>
+                    iterator = expander(t)
+                    true
+
+              // Have elements and upstream active: select (biased toward receive)
+              case (true, false) =>
+                val next = iterator.next()
+                selectOrClosed(c.receiveClause, output.sendClause(next)) match
+                  case ChannelClosed.Done =>
+                    // upstream done, but we consumed next from iterator already
+                    // we need to send it, then drain
+                    upstreamDone = true
+                    output.send(next)
+                    true
+                  case ChannelClosed.Error(reason) =>
+                    output.error(reason)
+                    false
+                  case c.Received(t) =>
+                    iterator = expander(t.asInstanceOf[T])
+                    true
+                  case output.Sent() =>
+                    true
+                end match
+
+              // Have elements and upstream done: drain
+              case (true, true) =>
+                output.send(iterator.next())
+                true
+
+              // No elements and upstream done: done
+              case (false, true) =>
+                output.done()
+                false
+        FlowEmit.channelToEmit(output, emit)
+  end expand
+
+  /** Extrapolates elements when downstream is faster than upstream. Each upstream element is first emitted as-is, then the `extrapolator`
+    * function is used to generate additional elements.
+    *
+    * Optionally, an `initial` element can be provided which will be emitted before the first upstream element arrives.
+    *
+    * Creates an asynchronous boundary.
+    *
+    * @param extrapolator
+    *   A function generating extra elements from the last upstream element.
+    * @param initial
+    *   An optional element to emit before any upstream element.
+    */
+  def extrapolate[U >: T](extrapolator: U => Iterator[U], initial: Option[U] = None)(using BufferCapacity): Flow[U] =
+    val base: Flow[U] = expand[U](u => Iterator.single(u) ++ extrapolator(u))
+    initial.fold(base)(e => Flow.fromValues(e).concat(base))
+
   //
 
   /** Applies the given mapping function `f` to each element emitted by this flow. The returned flow then emits the results.
