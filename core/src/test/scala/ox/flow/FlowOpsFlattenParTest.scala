@@ -114,10 +114,9 @@ class FlowOpsFlattenParTest extends AnyFlatSpec with Matchers with OptionValues:
     supervised:
       val child1 = Channel.rendezvous[Int]
       val lockA = CountDownLatch(1)
-      val lockB = CountDownLatch(1)
+      val received10 = CountDownLatch(1)
       forkDiscard:
         child1.send(10)
-        lockB.countDown()
         lockA.await()
 
         child1.send(20)
@@ -125,7 +124,7 @@ class FlowOpsFlattenParTest extends AnyFlatSpec with Matchers with OptionValues:
 
       val flow = Flow.usingEmit[Flow[Int]]: sink =>
         sink(Flow.fromSource(child1))
-        lockB.await()
+        received10.await()
         throw new IllegalStateException()
 
       val flattenedSource =
@@ -135,6 +134,7 @@ class FlowOpsFlattenParTest extends AnyFlatSpec with Matchers with OptionValues:
       end flattenedSource
 
       flattenedSource.receive() shouldBe 10
+      received10.countDown()
       flattenedSource.receiveOrClosed() should be(a[ChannelClosed.Error])
       lockA.countDown()
 
