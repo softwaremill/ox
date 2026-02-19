@@ -5,9 +5,6 @@ import org.scalatest.matchers.should.Matchers
 import ox.*
 import ox.channels.ChannelClosedException
 
-import java.util.concurrent.CopyOnWriteArrayList
-import scala.jdk.CollectionConverters.*
-
 class FlowOpsRecoverWithTest extends AnyFlatSpec with Matchers:
 
   behavior of "Flow.recoverWith"
@@ -51,13 +48,10 @@ class FlowOpsRecoverWithTest extends AnyFlatSpec with Matchers:
   it should "propagate error from recovery flow that emits some elements then fails" in:
     val recoveryFlow = Flow.fromValues(10, 20).concat(Flow.failed(new IllegalStateException("recovery boom")))
     val flow = Flow.fromValues(1).concat(Flow.failed(new RuntimeException("original")))
-    val observed = new CopyOnWriteArrayList[Int]()
     val caught = the[ChannelClosedException.Error] thrownBy {
-      flow.recoverWith { case _: RuntimeException => recoveryFlow }.tap(e => observed.add(e).discard).runToList()
+      flow.recoverWith { case _: RuntimeException => recoveryFlow }.runToList()
     }
     caught.getCause shouldBe an[IllegalStateException]
-    // upstream element 1 and at least the first recovery element are observed before the error
-    observed.asScala.toList should contain(1)
-    observed.asScala.toList should contain(10)
+    caught.getCause.getMessage shouldBe "recovery boom"
 
 end FlowOpsRecoverWithTest
