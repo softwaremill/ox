@@ -39,7 +39,7 @@ val enableMimaSettings = Seq(
 
 val scalaTest = "org.scalatest" %% "scalatest" % "3.2.19" % Test
 val slf4j = "org.slf4j" % "slf4j-api" % "2.0.17"
-val logback = "ch.qos.logback" % "logback-classic" % "1.5.27"
+val logback = "ch.qos.logback" % "logback-classic" % "1.5.29"
 
 // used during CI to verify that the documentation compiles
 val compileDocumentation: TaskKey[Unit] = taskKey[Unit]("Compiles documentation throwing away its output")
@@ -74,7 +74,7 @@ lazy val kafka: Project = (project in file("kafka"))
       "org.apache.kafka" % "kafka-clients" % "4.1.1",
       slf4j,
       logback % Test,
-      "io.github.embeddedkafka" %% "embedded-kafka" % "4.1.0" % Test,
+      "io.github.embeddedkafka" %% "embedded-kafka" % "4.2.0" % Test,
       "org.apache.pekko" %% "pekko-connectors-kafka" % "1.1.0" % Test,
       "org.apache.pekko" %% "pekko-stream" % "1.4.0" % Test,
       scalaTest
@@ -120,7 +120,7 @@ lazy val otelContext: Project = (project in file("otel-context"))
   .settings(
     name := "otel-context",
     libraryDependencies ++= Seq(
-      "io.opentelemetry" % "opentelemetry-api" % "1.54.1",
+      "io.opentelemetry" % "opentelemetry-api" % "1.59.0",
       scalaTest
     )
   )

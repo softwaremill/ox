@@ -41,6 +41,20 @@ trait FlowRunOps[+T]:
     runForeach(b += _)
     b.result()
 
+  /** Accumulates all elements emitted by this flow into a set. Blocks until the flow completes. */
+  def runToSet[B >: T](): Set[B] =
+    val b = Set.newBuilder[B]
+    runForeach(b += _)
+    b.result()
+
+  /** Accumulates all elements emitted by this flow into a map. Each element must be a key-value pair. If duplicate keys are emitted, the
+    * last value for a given key is retained. Blocks until the flow completes.
+    */
+  def runToMap[K, V]()(using ev: T <:< (K, V)): Map[K, V] =
+    val b = Map.newBuilder[K, V]
+    runForeach(t => b += ev(t))
+    b.result()
+
   /** Passes each element emitted by this flow to the given sink. Blocks until the flow completes.
     *
     * Errors are always propagated to the provided sink. Successful flow completion is propagated when `propagateDone` is set to `true`.
