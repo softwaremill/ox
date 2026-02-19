@@ -1262,6 +1262,95 @@ class FlowOps[+T]:
       }.discard
       FlowEmit.channelToEmit(ch, emit)
 
+  /** Recovers from errors in the upstream flow by switching to an alternative flow produced by the partial function. Elements already
+    * emitted by the upstream flow before the error are preserved. If the partial function is not defined for the error, the original error
+    * is propagated.
+    *
+    * Creates an asynchronous boundary (see [[buffer]]) to isolate failures when running the upstream flow.
+    *
+    * @param pf
+    *   A partial function that handles specific exceptions and returns an alternative flow to switch to.
+    * @return
+    *   A flow that emits elements from the upstream flow, and switches to the recovery flow if the upstream fails with a handled
+    *   exception.
+    */
+  def recoverWith[U >: T](pf: PartialFunction[Throwable, Flow[U]])(using BufferCapacity): Flow[U] = Flow.usingEmitInline: emit =>
+    val ch = BufferCapacity.newChannel[U]
+    unsupervised:
+      forkPropagate(ch) {
+        try last.run(FlowEmit.fromInline(t => ch.send(t)))
+        catch case e: Throwable if pf.isDefinedAt(e) => pf(e).runToEmit(FlowEmit.fromInline(t => ch.send(t)))
+        ch.done()
+      }.discard
+      FlowEmit.channelToEmit(ch, emit)
+
+  /** Recovers from errors in the upstream flow by switching to an alternative flow, with retry support. On each failure matching the
+    * partial function, the recovery flow is materialized and run. If the recovery flow also fails and retries remain (as specified by the
+    * retry config), the recovery is attempted again. After exhausting all retries, the error is propagated.
+    *
+    * Creates an asynchronous boundary (see [[buffer]]) to isolate failures when running the upstream flow.
+    *
+    * @param config
+    *   The retry configuration that specifies the schedule and policy for recovery attempts.
+    * @param pf
+    *   A partial function that handles specific exceptions and returns an alternative flow to switch to.
+    * @return
+    *   A flow that emits elements from the upstream flow, and switches to recovery flows on failure, retrying according to the config.
+    */
+  def recoverWithRetry[U >: T](config: RetryConfig[Throwable, Unit])(pf: PartialFunction[Throwable, Flow[U]])(using
+      BufferCapacity
+  ): Flow[U] =
+    Flow.usingEmitInline: emit =>
+      val ch = BufferCapacity.newChannel[U]
+      unsupervised:
+        forkPropagate(ch) {
+          try last.run(FlowEmit.fromInline(t => ch.send(t)))
+          catch
+            case e: Throwable if pf.isDefinedAt(e) =>
+              ox.resilience.retry(config)(pf(e).runToEmit(FlowEmit.fromInline(t => ch.send(t))))
+          ch.done()
+        }.discard
+        FlowEmit.channelToEmit(ch, emit)
+
+  /** @see [[recoverWithRetry(RetryConfig)]] */
+  def recoverWithRetry[U >: T](schedule: Schedule)(pf: PartialFunction[Throwable, Flow[U]])(using BufferCapacity): Flow[U] =
+    recoverWithRetry(RetryConfig(schedule))(pf)
+
+  /** Completes the flow normally (without error) when the upstream fails with an exception matching the partial function. Elements already
+    * emitted before the error are preserved. If the partial function is not defined for the error, the original error is propagated.
+    *
+    * @param pf
+    *   A partial function that determines which exceptions should cause the flow to complete. The function should return `true` if the
+    *   exception should be suppressed.
+    * @return
+    *   A flow that completes normally when an error matching `pf` occurs.
+    */
+  def onErrorComplete(pf: PartialFunction[Throwable, Boolean]): Flow[T] = Flow.usingEmitInline: emit =>
+    try last.run(emit)
+    catch case e: Throwable if pf.applyOrElse(e, (_: Throwable) => false) => ()
+
+  /** Completes the flow normally (without error) when the upstream fails with any exception. Elements already emitted before the error are
+    * preserved. Does not catch non-exception throwables such as fatal errors or control throwables.
+    *
+    * @return
+    *   A flow that completes normally when any exception occurs.
+    */
+  def onErrorComplete: Flow[T] = Flow.usingEmitInline: emit =>
+    try last.run(emit)
+    catch case _: Exception => ()
+
+  /** Recovers from any error in the upstream flow by emitting a value produced by `f`. Unlike [[recover]], this takes a total function and
+    * handles all exceptions.
+    *
+    * Creates an asynchronous boundary (see [[buffer]]) to isolate failures when running the upstream flow.
+    *
+    * @param f
+    *   A function that maps an exception to a recovery value to emit.
+    * @return
+    *   A flow that emits elements from the upstream flow, and emits a recovery value if the upstream fails.
+    */
+  def onErrorRecover[U >: T](f: Throwable => U)(using BufferCapacity): Flow[U] = recover { case e => f(e) }
+
   //
 
   protected def runLastToChannelAsync(ch: Sink[T])(using OxUnsupervised): Unit =
