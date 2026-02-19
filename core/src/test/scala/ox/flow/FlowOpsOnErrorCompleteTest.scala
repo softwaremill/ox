@@ -51,4 +51,19 @@ class FlowOpsOnErrorCompleteTest extends AnyFlatSpec with Matchers:
       flow.onErrorComplete { case _: RuntimeException => false }.runToList()
     } should have message "rejected"
 
+  it should "not suppress downstream exceptions" in:
+    val flow = Flow.fromValues(1, 2, 3).onErrorComplete.map(x => if x == 2 then throw new RuntimeException("downstream") else x)
+    the[RuntimeException] thrownBy {
+      flow.runToList()
+    } should have message "downstream"
+
+  it should "not suppress downstream exceptions with partial function" in:
+    val flow = Flow
+      .fromValues(1, 2, 3)
+      .onErrorComplete { case _: RuntimeException => true }
+      .map(x => if x == 2 then throw new RuntimeException("downstream pf") else x)
+    the[RuntimeException] thrownBy {
+      flow.runToList()
+    } should have message "downstream pf"
+
 end FlowOpsOnErrorCompleteTest

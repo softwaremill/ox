@@ -4,6 +4,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ox.*
 import ox.channels.ChannelClosedException
+import ox.resilience.RetryConfig
 import ox.scheduling.Schedule
 
 import java.util.concurrent.atomic.AtomicInteger
@@ -56,9 +57,10 @@ class FlowOpsRecoverWithRetryTest extends AnyFlatSpec with Matchers:
     }
     caught.getCause shouldBe an[IllegalStateException]
 
-  it should "accept Schedule convenience overload" in:
+  it should "accept RetryConfig primary overload" in:
     val flow = Flow.fromValues(1).concat(Flow.failed(new RuntimeException("boom")))
-    val result = flow.recoverWithRetry(Schedule.immediate.maxRetries(0)) { case _: RuntimeException => Flow.fromValues(42) }.runToList()
+    val config = RetryConfig[Throwable, Unit](Schedule.immediate.maxRetries(0))
+    val result = flow.recoverWithRetry(config) { case _: RuntimeException => Flow.fromValues(42) }.runToList()
     result shouldBe List(1, 42)
 
 end FlowOpsRecoverWithRetryTest

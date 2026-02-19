@@ -1317,6 +1317,7 @@ class FlowOps[+T]:
 
   /** Completes the flow normally (without error) when the upstream fails with an exception matching the partial function. Elements already
     * emitted before the error are preserved. If the partial function is not defined for the error, the original error is propagated.
+    * Exceptions thrown by downstream operators are not suppressed.
     *
     * @param pf
     *   A partial function that determines which exceptions should cause the flow to complete. The function should return `true` if the
@@ -1325,21 +1326,36 @@ class FlowOps[+T]:
     *   A flow that completes normally when an error matching `pf` occurs.
     */
   def onErrorComplete(pf: PartialFunction[Throwable, Boolean]): Flow[T] = Flow.usingEmitInline: emit =>
-    try last.run(emit)
-    catch case e: Throwable if pf.applyOrElse(e, (_: Throwable) => false) => ()
+    var downstreamFailure: Throwable | Null = null
+    val guardedEmit = FlowEmit.fromInline[T]: t =>
+      try emit(t)
+      catch
+        case e: Throwable =>
+          downstreamFailure = e
+          throw e
+    try last.run(guardedEmit)
+    catch case e: Throwable if (downstreamFailure ne e) && pf.applyOrElse(e, (_: Throwable) => false) => ()
 
   /** Completes the flow normally (without error) when the upstream fails with any exception. Elements already emitted before the error are
-    * preserved. Does not catch non-exception throwables such as fatal errors or control throwables.
+    * preserved. Does not catch non-exception throwables such as fatal errors or control throwables. Exceptions thrown by downstream
+    * operators are not suppressed.
     *
     * @return
     *   A flow that completes normally when any exception occurs.
     */
   def onErrorComplete: Flow[T] = Flow.usingEmitInline: emit =>
-    try last.run(emit)
-    catch case _: Exception => ()
+    var downstreamFailure: Throwable | Null = null
+    val guardedEmit = FlowEmit.fromInline[T]: t =>
+      try emit(t)
+      catch
+        case e: Throwable =>
+          downstreamFailure = e
+          throw e
+    try last.run(guardedEmit)
+    catch case e: Exception if downstreamFailure ne e => ()
 
   /** Recovers from any error in the upstream flow by emitting a value produced by `f`. Unlike [[recover]], this takes a total function and
-    * handles all exceptions.
+    * handles all throwables (including control throwables and fatal errors).
     *
     * Creates an asynchronous boundary (see [[buffer]]) to isolate failures when running the upstream flow.
     *
