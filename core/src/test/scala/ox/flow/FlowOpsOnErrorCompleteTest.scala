@@ -3,7 +3,6 @@ package ox.flow
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-
 class FlowOpsOnErrorCompleteTest extends AnyFlatSpec with Matchers:
 
   behavior of "Flow.onErrorComplete"
