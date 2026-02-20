@@ -103,7 +103,7 @@ def computationR: Int = ???
 repeat(Schedule.fixedInterval(100.millis))(computationR)
 ```
 
-[Rate limit](https://ox.softwaremill.com/latest/scheduling/rate-limiter.html) computations:
+[Rate limit](https://ox.softwaremill.com/latest/utils/rate-limiter.html) computations:
 
 ```scala mdoc:compile-only
 supervised:
