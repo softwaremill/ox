@@ -2,7 +2,8 @@
 
 [![Ideas, suggestions, problems, questions](https://img.shields.io/badge/Discourse-ask%20question-blue)](https://softwaremill.community/c/ox)
 [![CI](https://github.com/softwaremill/ox/workflows/CI/badge.svg)](https://github.com/softwaremill/ox/actions?query=workflow%3A%22CI%22)
-[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.softwaremill.ox/core_3/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.softwaremill.ox/core_3)
+[![Maven Central](https://img.shields.io/maven-central/v/com.softwaremill.ox/core_3)](https://central.sonatype.com/artifact/com.softwaremill.ox/core_3)
+[![ScalaDoc](https://javadoc.io/badge2/com.softwaremill.ox/core_3/ox.svg)](https://javadoc.io/doc/com.softwaremill.ox/core_3)
 
 Safe direct-style streaming, concurrency and resiliency for Scala on the JVM. Requires JDK 21+ & Scala 3. Ox covers
 the following areas:
