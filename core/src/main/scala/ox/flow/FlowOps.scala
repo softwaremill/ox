@@ -831,6 +831,64 @@ class FlowOps[+T]:
     onComplete(state).foreach(emit.apply)
   end mapStatefulConcat
 
+  /** Applies the given mapping function `f` to each element emitted by this flow, using a resource that is acquired when the flow starts
+    * and released when it completes (either successfully or with an error).
+    *
+    * The `create` function is called once when the flow starts to acquire the resource. The `close` function is called once when the flow
+    * completes. If the flow completes successfully and `close` returns a non-empty value, that value is emitted as a final element. If the
+    * flow fails, the return value of `close` is discarded. If `close` itself throws while the flow has already failed, the exception is
+    * added as suppressed to the original error. If `close` throws and there was no prior error, the exception is propagated.
+    *
+    * @param create
+    *   A function that acquires the resource.
+    * @param close
+    *   A function that releases the resource, optionally returning a final element.
+    * @param f
+    *   A function that transforms each element using the resource.
+    * @return
+    *   A flow that emits the transformed elements and optionally a final element from `close`.
+    */
+  def mapWithResource[R, U](create: => R, close: R => Option[U])(f: (R, T) => U): Flow[U] =
+    Flow.usingEmitInline: emit =>
+      val resource = create
+      var error: Throwable | Null = null
+      try
+        last.run(
+          FlowEmit.fromInline: t =>
+            emit(f(resource, t))
+        )
+      catch
+        case e: Throwable =>
+          error = e
+          throw e
+      finally
+        try
+          val finalElement = close(resource)
+          if error eq null then finalElement.foreach(emit.apply)
+        catch
+          case e: Throwable =>
+            if error ne null then error.nn.addSuppressed(e)
+            else throw e
+      end try
+  end mapWithResource
+
+  /** Applies the given mapping function `f` to each element emitted by this flow, using an [[AutoCloseable]] resource that is acquired when
+    * the flow starts and closed when it completes.
+    *
+    * This is a convenience method that delegates to [[mapWithResource]] with `close` calling [[AutoCloseable.close]] and returning `None`.
+    *
+    * @param create
+    *   A function that acquires the resource.
+    * @param f
+    *   A function that transforms each element using the resource.
+    */
+  def mapWithCloseableResource[R <: AutoCloseable, U](create: => R)(f: (R, T) => U): Flow[U] =
+    mapWithResource(
+      create,
+      r =>
+        r.close(); None
+    )(f)
+
   /** Applies the given mapping function `f`, to each element emitted by this source, transforming it into an [[IterableOnce]] of results,
     * then the returned flow emits the results one by one. Can be used to unfold incoming sequences of elements into single elements.
     *
