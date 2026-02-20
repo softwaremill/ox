@@ -8,6 +8,11 @@ Flows are lazy, evaluation (and any effects) happen only when the flow is run. F
 An introduction to Ox's Flow, along with some code samples is available [as a video](https://www.youtube.com/watch?v=2sZGVRXP9PM).
 ```
 
+As a companion to this guide, refer to the ScalaDoc for a comprehensive list of:
+* [ways to create Flows](https://www.javadoc.io/static/com.softwaremill.ox/core_3/1.0.4/ox/flow/FlowCompanionOps.html#)
+* [ways to transform Flows](https://www.javadoc.io/static/com.softwaremill.ox/core_3/1.0.4/ox/flow/FlowOps.html#)
+* [ways to run Flows](https://www.javadoc.io/static/com.softwaremill.ox/core_3/1.0.4/ox/flow/FlowRunOps.html#)
+
 ## Creating flows
 
 There's a number of methods on the `Flow` companion object that can be used to create a flow:
@@ -191,7 +196,7 @@ To obtain a `org.reactivestreams.Publisher` instance, you'll need to add the fol
 bring the `toReactiveStreamsPublisher` method into scope:
 
 ```scala
-// sbt dependency: "com.softwaremill.ox" %% "flow-reactive-streams" % "1.0.3"
+// sbt dependency: "com.softwaremill.ox" %% "flow-reactive-streams" % "1.0.4"
 
 import ox.supervised
 import ox.flow.Flow
