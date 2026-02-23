@@ -73,5 +73,11 @@ EOFJSON
     fi
 fi
 
+# Seed the onboarding flag so Claude Code uses the API key without interactive
+# setup. Only written when the user configured an ANTHROPIC_API_KEY secret.
+if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+    echo '{"hasCompletedOnboarding":true}' > "$HOME/.claude.json"
+fi
+
 # Best-effort: may fail if network isn't routed yet or CLI was just installed.
 claude update || true

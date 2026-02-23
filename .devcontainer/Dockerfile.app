@@ -42,10 +42,9 @@ RUN if MISE_JAVA=$(mise where java 2>/dev/null); then \
     } >> "$HOME/.bashrc"; \
     fi
 
-# Pre-create the Claude config directory and seed onboarding flag so Claude
-# Code can use an API key from the environment without interactive setup.
-RUN mkdir -p /home/vscode/.claude \
-    && echo '{"hasCompletedOnboarding":true}' > /home/vscode/.claude.json
+# Pre-create ~/.claude so Docker bind-mounts (CLAUDE.md, agents/, commands/)
+# don't cause it to be created as root-owned.
+RUN mkdir -p /home/vscode/.claude
 
 RUN echo 'alias claude-yolo="claude --dangerously-skip-permissions"' >> /home/vscode/.bashrc
 
