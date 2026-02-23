@@ -30,8 +30,6 @@ services:
       - mitmproxy-config:/home/mitmproxy/.mitmproxy
       - ./scripts/mitmproxy_addon.py:/scripts/mitmproxy_addon.py:ro
       - ~/.config/sandcat/settings.json:/config/settings.json:ro
-    cap_add:
-      - NET_ADMIN
     healthcheck:
       test: ["CMD", "test", "-f", "/home/mitmproxy/.mitmproxy/wireguard.conf"]
       interval: 2s
