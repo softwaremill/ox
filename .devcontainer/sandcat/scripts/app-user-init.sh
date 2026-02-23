@@ -23,7 +23,7 @@ git config --global commit.gpgsign false
 # store. Java uses its own cacerts and ignores the system CA store.
 CA_CERT="/mitmproxy-config/mitmproxy-ca-cert.pem"
 
-# Ensure mise is on PATH.  `su - vscode` resets the environment and sources
+# Ensure mise is on PATH. `su - vscode` resets the environment and sources
 # only the first of ~/.bash_profile, ~/.bash_login, ~/.profile.  If
 # ~/.bash_profile exists (e.g. created by VS Code on a persistent volume),
 # ~/.profile — where the Dockerfile adds mise — is never read.
@@ -33,8 +33,8 @@ fi
 
 MISE_JAVA_HOME="$(mise where java 2>/dev/null || true)"
 if [ -n "$MISE_JAVA_HOME" ] && [ -f "$CA_CERT" ]; then
-    # Create a version-independent symlink so JAVA_HOME (exported via
-    # /etc/profile.d/) doesn't depend on the mise Java version.
+    # Create a version-independent symlink so JAVA_HOME doesn't depend
+    # on the mise Java version.
     SANDCAT_DIR="$HOME/.local/share/sandcat"
     mkdir -p "$SANDCAT_DIR"
     ln -sfn "$MISE_JAVA_HOME" "$SANDCAT_DIR/java-home"
@@ -69,30 +69,7 @@ if [ -n "$MISE_JAVA_HOME" ] && [ -f "$CA_CERT" ]; then
   }
 }
 EOFJSON
-    fi
 
-    # Signal to app-init.sh (which runs as root) where the cacerts copy is,
-    # so it can set JAVA_TOOL_OPTIONS. Written on every start since /tmp
-    # is cleared on container restart.
-    if [ -f "$SANDCAT_CACERTS" ]; then
-        echo "$SANDCAT_CACERTS" > /tmp/sandcat-java-cacerts-path
-    fi
-
-    # Write Java env vars to ~/.bashrc (on the persistent app-home volume)
-    # so VS Code's userEnvProbe picks them up even after container rebuild.
-    # /etc/profile.d/ is ephemeral and works for shells, but VS Code may
-    # probe the environment before the entrypoint recreates those files.
-    BASHRC_JAVA_MARKER="# sandcat-java-env"
-    if ! grep -q "$BASHRC_JAVA_MARKER" "$HOME/.bashrc" 2>/dev/null; then
-        cat >> "$HOME/.bashrc" << 'BASHRC_JAVA'
-
-# sandcat-java-env
-_sc_java="$HOME/.local/share/sandcat/java-home"
-_sc_cacerts="$HOME/.local/share/sandcat/cacerts"
-[ -L "$_sc_java" ] && export JAVA_HOME="$_sc_java"
-[ -f "$_sc_cacerts" ] && export JAVA_TOOL_OPTIONS="-Djavax.net.ssl.trustStore=$_sc_cacerts -Djavax.net.ssl.trustStorePassword=changeit"
-unset _sc_java _sc_cacerts
-BASHRC_JAVA
     fi
 fi
 
