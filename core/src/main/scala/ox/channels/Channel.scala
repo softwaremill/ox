@@ -76,7 +76,12 @@ trait Source[+T] extends SourceOps[T] with SourceDrainOps[T]:
     *   [[Some]] with the received value, [[None]] if no value is immediately available, or [[ChannelClosed]] when the channel is closed.
     */
   def tryReceiveOrClosed(): Option[T] | ChannelClosed =
-    ChannelClosed.fromJoxTryReceiveOrClosed(delegate.tryReceiveOrClosed())
+    val r = delegate.tryReceiveOrClosed()
+    if r == null then None
+    else
+      ChannelClosed.fromJoxOrT[T](r.asInstanceOf[AnyRef]) match
+        case c: ChannelClosed => c
+        case v: T @unchecked  => Some(v)
 
   /** Receive a value from the channel. For a variant which throws exceptions when the channel is closed, use [[receive]].
     *
@@ -176,7 +181,12 @@ trait Sink[-T]:
     *   `true` if the value was sent, `false` if there's no space/waiting receiver, or [[ChannelClosed]] when the channel is closed.
     */
   def trySendOrClosed(t: T): Boolean | ChannelClosed =
-    ChannelClosed.fromJoxTrySendOrClosed(delegate.asInstanceOf[JSink[T]].trySendOrClosed(t))
+    val r = delegate.asInstanceOf[JSink[T]].trySendOrClosed(t)
+    if r == null then true // null = sent
+    else
+      ChannelClosed.fromJox(r.asInstanceOf[AnyRef]) match
+        case c: ChannelClosed => c
+        case _                => false // sentinel = not sent
 
   /** Send a value to the channel. For a variant which throws exceptions when the channel is closed, use [[send]].
     *

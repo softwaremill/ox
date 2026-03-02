@@ -16,27 +16,7 @@ object ChannelClosed:
   private[ox] def fromJoxOrUnit(joxResult: AnyRef): Unit | ChannelClosed =
     if joxResult == null then () else fromJox(joxResult).asInstanceOf[ChannelClosed]
 
-  /** Converts the result of jox's `tryReceiveOrClosed()` (which returns `T | JChannelClosed | null`) to `Option[T] | ChannelClosed`. `null`
-    * means no value was immediately available.
-    */
-  private[ox] def fromJoxTryReceiveOrClosed[T](joxResult: AnyRef): Option[T] | ChannelClosed =
-    joxResult match
-      case null             => None
-      case _: JChannelDone  => Done
-      case e: JChannelError => Error(e.cause())
-      case v                => Some(v.asInstanceOf[T])
-
-  /** Converts the result of jox's `trySendOrClosed()` (which returns `null | JChannelClosed | sentinel`) to `Boolean | ChannelClosed`.
-    * `null` means the value was sent, any other non-`ChannelClosed` value (sentinel) means it was not sent.
-    */
-  private[ox] def fromJoxTrySendOrClosed(joxResult: AnyRef): Boolean | ChannelClosed =
-    joxResult match
-      case null             => true
-      case _: JChannelDone  => Done
-      case e: JChannelError => Error(e.cause())
-      case _                => false
-
-  private def fromJox(joxResult: AnyRef): AnyRef | ChannelClosed =
+  private[ox] def fromJox(joxResult: AnyRef): AnyRef | ChannelClosed =
     joxResult match
       case _: JChannelDone  => Done
       case e: JChannelError => Error(e.cause())
