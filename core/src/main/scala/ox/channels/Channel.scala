@@ -54,6 +54,32 @@ trait Source[+T] extends SourceOps[T] with SourceDrainOps[T]:
   /** Create a clause which can be used in [[select]]. The clause will receive a value from the current channel. */
   def receiveClause: Receive = Receive(delegate.receiveClause(t => Received(t.asInstanceOf[T])))
 
+  /** Attempt to receive a value from the channel if one is immediately available. This method never blocks or suspends the calling thread.
+    *
+    * May return [[None]] even when a value is available, due to contention with concurrent operations. Should not be used as a substitute
+    * for [[receive]] in a spin loop.
+    *
+    * @return
+    *   [[Some]] with the received value, or [[None]] if no value is immediately available.
+    * @throws ChannelClosedException
+    *   When the channel is closed.
+    */
+  def tryReceive(): Option[T] = tryReceiveOrClosed() match
+    case c: ChannelClosed          => throw c.toThrowable
+    case opt: Option[T @unchecked] => opt
+
+  /** Attempt to receive a value from the channel if one is immediately available. This method never blocks or suspends the calling thread.
+    * Doesn't throw exceptions when the channel is closed, but returns a value.
+    *
+    * May return [[None]] even when a value is available, due to contention with concurrent operations. Should not be used as a substitute
+    * for [[receiveOrClosed]] in a spin loop.
+    *
+    * @return
+    *   [[Some]] with the received value, [[None]] if no value is immediately available, or [[ChannelClosed]] when the channel is closed.
+    */
+  def tryReceiveOrClosed(): Option[T] | ChannelClosed =
+    ChannelClosed.fromJoxTryReceiveOrClosed(delegate.tryReceiveOrClosed())
+
   /** Receive a value from the channel. For a variant which throws exceptions when the channel is closed, use [[receive]].
     *
     * @return
@@ -124,6 +150,37 @@ trait Sink[-T]:
     * clause's result.
     */
   def sendClause(t: T): Send = Send(delegate.asInstanceOf[JSink[T]].sendClause(t, () => Sent()))
+
+  /** Attempt to send a value to the channel if there's a waiting receiver, or space in the buffer. This method never blocks or suspends the
+    * calling thread.
+    *
+    * May return `false` even when space is available, due to contention with concurrent operations. Should not be used as a substitute for
+    * [[send]] in a spin loop.
+    *
+    * @param t
+    *   The value to send. Not `null`.
+    * @return
+    *   `true` if the value was sent, `false` otherwise.
+    * @throws ChannelClosedException
+    *   When the channel is closed.
+    */
+  def trySend(t: T): Boolean = trySendOrClosed(t) match
+    case c: ChannelClosed => throw c.toThrowable
+    case b: Boolean       => b
+
+  /** Attempt to send a value to the channel if there's a waiting receiver, or space in the buffer. This method never blocks or suspends the
+    * calling thread. Doesn't throw exceptions when the channel is closed, but returns a value.
+    *
+    * May return `false` even when space is available, due to contention with concurrent operations. Should not be used as a substitute for
+    * [[sendOrClosed]] in a spin loop.
+    *
+    * @param t
+    *   The value to send. Not `null`.
+    * @return
+    *   `true` if the value was sent, `false` if there's no space/waiting receiver, or [[ChannelClosed]] when the channel is closed.
+    */
+  def trySendOrClosed(t: T): Boolean | ChannelClosed =
+    ChannelClosed.fromJoxTrySendOrClosed(delegate.asInstanceOf[JSink[T]].trySendOrClosed(t))
 
   /** Send a value to the channel. For a variant which throws exceptions when the channel is closed, use [[send]].
     *
