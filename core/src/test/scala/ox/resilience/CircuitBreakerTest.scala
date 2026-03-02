@@ -3,15 +3,11 @@ package ox.resilience
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.OptionValues
-import org.scalatest.concurrent.Eventually
-import org.scalatest.time.{Millis, Seconds, Span}
 import scala.concurrent.duration.*
 import ox.*
 import org.scalatest.EitherValues
 
-class CircuitBreakerTest extends AnyFlatSpec with Matchers with OptionValues with EitherValues with Eventually:
-  implicit override val patienceConfig: PatienceConfig =
-    PatienceConfig(timeout = Span(1, Seconds), interval = Span(50, Millis))
+class CircuitBreakerTest extends AnyFlatSpec with Matchers with OptionValues with EitherValues:
   behavior of "Circuit Breaker run operations"
 
   it should "run operation when metrics are not exceeded" in supervised {
@@ -194,11 +190,11 @@ class CircuitBreakerTest extends AnyFlatSpec with Matchers with OptionValues wit
 
     // 750ms: the first operation failed, should be open
     sleep(500.millis)
-    eventually { circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.Open] }
+    circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.Open]
 
     // 1750ms: first operation failed more than 1s ago, second operation failed less than 1s ago and was ignored
     sleep(1.second)
-    eventually { circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.HalfOpen] }
+    circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.HalfOpen]
 
     // 2250ms: more than 1s after the last failing operation, should be now half-open
     sleep(500.millis)
@@ -206,11 +202,11 @@ class CircuitBreakerTest extends AnyFlatSpec with Matchers with OptionValues wit
 
     // 3250ms: at 2500ms 1 sec timeout on halfOpen state passes, we go back to open
     sleep(1.second)
-    eventually { circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.Open] }
+    circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.Open]
 
     // 3750ms: at 3500ms we go to halfOpen again
     sleep(1000.millis)
-    eventually { circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.HalfOpen] }
+    circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.HalfOpen]
   }
 
   it should "correctly calculate metrics when results come in after state change" in supervised {
@@ -250,17 +246,18 @@ class CircuitBreakerTest extends AnyFlatSpec with Matchers with OptionValues wit
 
     // 750ms: the first operation failed, should be open
     sleep(500.millis)
-    eventually { circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.Open] }
+    circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.Open]
 
     // 1750ms: first operation failed more than 1s ago, second operation failed less than 1s ago and was ignored
     sleep(1.second)
-    eventually { circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.HalfOpen] }
+    circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.HalfOpen]
 
     // 2250ms: complete enough operations for halfOpen state - since success should switch back to Closed
     sleep(500.millis)
     circuitBreaker.runOrDropEither(Right("c")).discard
+    sleep(100.millis) // wait for state to register
     // Should go back to closed, we have one successful operation
-    eventually { circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.Closed] }
+    circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.Closed]
   }
 
 end CircuitBreakerTest
