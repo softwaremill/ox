@@ -27,7 +27,7 @@ object ChannelClosed:
       case v                => Some(v.asInstanceOf[T])
 
   /** Converts the result of jox's `trySendOrClosed()` (which returns `null | JChannelClosed | sentinel`) to `Boolean | ChannelClosed`.
-    * `null` means the value was sent, any other non-ChannelClosed value (sentinel) means it was not sent.
+    * `null` means the value was sent, any other non-`ChannelClosed` value (sentinel) means it was not sent.
     */
   private[ox] def fromJoxTrySendOrClosed(joxResult: AnyRef): Boolean | ChannelClosed =
     joxResult match

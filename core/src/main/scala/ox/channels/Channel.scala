@@ -64,9 +64,7 @@ trait Source[+T] extends SourceOps[T] with SourceDrainOps[T]:
     * @throws ChannelClosedException
     *   When the channel is closed.
     */
-  def tryReceive(): Option[T] = tryReceiveOrClosed() match
-    case c: ChannelClosed          => throw c.toThrowable
-    case opt: Option[T @unchecked] => opt
+  def tryReceive(): Option[T] = tryReceiveOrClosed().orThrow
 
   /** Attempt to receive a value from the channel if one is immediately available. This method never blocks or suspends the calling thread.
     * Doesn't throw exceptions when the channel is closed, but returns a value.
@@ -164,9 +162,7 @@ trait Sink[-T]:
     * @throws ChannelClosedException
     *   When the channel is closed.
     */
-  def trySend(t: T): Boolean = trySendOrClosed(t) match
-    case c: ChannelClosed => throw c.toThrowable
-    case b: Boolean       => b
+  def trySend(t: T): Boolean = trySendOrClosed(t).orThrow
 
   /** Attempt to send a value to the channel if there's a waiting receiver, or space in the buffer. This method never blocks or suspends the
     * calling thread. Doesn't throw exceptions when the channel is closed, but returns a value.
