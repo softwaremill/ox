@@ -16,7 +16,7 @@ object ChannelClosed:
   private[ox] def fromJoxOrUnit(joxResult: AnyRef): Unit | ChannelClosed =
     if joxResult == null then () else fromJox(joxResult).asInstanceOf[ChannelClosed]
 
-  private def fromJox(joxResult: AnyRef): AnyRef | ChannelClosed =
+  private[ox] def fromJox(joxResult: AnyRef): AnyRef | ChannelClosed =
     joxResult match
       case _: JChannelDone  => Done
       case e: JChannelError => Error(e.cause())

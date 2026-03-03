@@ -87,31 +87,33 @@ class FlowOpsMapParTest extends AnyFlatSpec with Matchers with Eventually:
   it should "cancel other running forks when there's an error" in supervised:
     // given
     val trail = Trail()
-    val flow = Flow.fromIterable(1 to 10)
+    // Using exactly 2 elements with mapPar(2) so both always start concurrently — the semaphore has
+    // 2 permits and there are only 2 forks, so both acquire immediately with no competition.
+    // Element 2 fails after a short delay; element 1 should be cancelled during its long sleep.
 
     // when
-    val s2 = flow
+    val s2 = Flow
+      .fromIterable(List(1, 2))
       .mapPar(2): i =>
-        if i == 4 then
+        if i == 2 then
           sleep(100.millis)
           trail.add("exception")
           throw new Exception("boom")
         else
-          sleep(200.millis)
+          sleep(1000.millis)
           trail.add(s"done")
           i * 2
       .runToChannel()
 
     // then
-    s2.receive() shouldBe 2
-    s2.receive() shouldBe 4
     s2.receiveOrClosed() should matchPattern {
       case ChannelClosed.Error(ChannelClosedException.Error(reason)) if reason.getMessage == "boom" =>
     }
 
-    // checking if the forks aren't left running
+    // checking if the forks aren't left running; element 1 runs concurrently with the failing element 2
+    // and should be cancelled before its 1s sleep completes (900ms cancellation window)
     sleep(200.millis)
-    trail.get shouldBe Vector("done", "done", "exception") // TODO: 3 isn't cancelled because it's already taken off the queue
+    trail.get shouldBe Vector("exception") // element 1 cancelled (no "done"), element 2 added "exception"
 
   // Edge Cases
   it should "handle empty flow" in supervised:
