@@ -92,7 +92,8 @@ class FlowOpsMapParTest extends AnyFlatSpec with Matchers with Eventually:
     // Element 2 fails after a short delay; element 1 should be cancelled during its long sleep.
 
     // when
-    val s2 = Flow.fromIterable(List(1, 2))
+    val s2 = Flow
+      .fromIterable(List(1, 2))
       .mapPar(2): i =>
         if i == 2 then
           sleep(100.millis)
