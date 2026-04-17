@@ -2,18 +2,30 @@
 
 In Ox, we propose distinguishing two kinds of errors:
 
-1. **unrecoverable errors**: bugs, catastrophic failures (e.g. out of memory) and conditions which require the current "processing unit" to be terminated. This might be handling of the current HTTP request (and returning a 500), handling of an incoming MQ message, or simply exiting a CLI. These are untyped **on purpose**, and signalled using exceptions. That way, implementing control flow basing on the specific error type is discouraged.
-2. **recoverable/"expected" errors**: anticipated failures, where the code can take specific corrective action based on the error's details. These are fully typed, represented as values - using `Either`s, or as part of a custom data type.
+1. **unrecoverable errors**: bugs, catastrophic failures (e.g. out of memory)
+   and conditions which require the current "processing unit" to be terminated.
+   This might be handling of the current HTTP request (and returning a 500),
+   handling of an incoming MQ message, or simply exiting a CLI. These are
+   untyped **on purpose**, and signalled using exceptions. That way,
+   implementing control flow basing on the specific error type is discouraged.
+2. **recoverable/"expected" errors**: anticipated failures, where the code can
+   take specific corrective action based on the error's details. These are fully
+   typed, represented as values - using `Either`s, or as part of a custom data
+   type.
 
 ## Unrecoverable errors
 
-Exceptions are always appropriately handled by computation combinators, such as the high-level concurrency operations
-[`par`](../high-level-concurrency/par.md) and [`race`](../high-level-concurrency/race.md), as well as by 
-[scopes](../structured-concurrency/fork-join.md) and [streams](../streaming/index.md).
+Exceptions are always appropriately handled by computation combinators, such as
+the high-level concurrency operations [`par`](../high-level-concurrency/par.md)
+and [`race`](../high-level-concurrency/race.md), as well as by
+[scopes](../structured-concurrency/fork-join.md) and
+[streams](../streaming/index.md).
 
-The general rule for computation combinators is that using them should throw exactly the same exceptions, as if the 
-provided code was executed without them. That is, no additional exceptions might be thrown, and no exceptions are 
-swallowed. The only difference is that some exceptions might be added as suppressed (e.g. interrupted exceptions).
+The general rule for computation combinators is that using them should throw
+exactly the same exceptions, as if the provided code was executed without them.
+That is, no additional exceptions might be thrown, and no exceptions are
+swallowed. The only difference is that some exceptions might be added as
+suppressed (e.g. interrupted exceptions).
 
 Some examples of exception handling in Ox include:
 
@@ -30,17 +42,20 @@ level might become recoverable when caught at a higher level. However, only with
 
 ## Recoverable errors
 
-Some of the functionalities provided by Ox also support recoverable (application-level) errors. Such errors are
-represented as values, e.g. the left side of an `Either[MyError, MyResult]`. They are not thrown, but returned from
+Some of the functionalities provided by Ox also support recoverable
+(application-level) errors. Such errors are represented as values, e.g. the left
+side of an `Either[MyError, MyResult]`. They are not thrown, but returned from
 the computations which are orchestrated by Ox.
 
-Ox must be made aware of how such recoverable errors are represented. This is done through an `ErrorMode`. Provided
-implementations include `EitherMode[E]` (where left sides of `Either`s are used to represent errors), and 
-`UnionMode[E]`, where a union type of `E` and a successful value is used. Arbitrary user-provided implementations
-are possible as well.
+Ox must be made aware of how such recoverable errors are represented. This is
+done through an `ErrorMode`. Provided implementations include `EitherMode[E]`
+(where left sides of `Either`s are used to represent errors), and
+`UnionMode[E]`, where a union type of `E` and a successful value is used.
+Arbitrary user-provided implementations are possible as well.
 
-Error modes can be used in [`supervisedError`](../structured-concurrency/error-handling-scopes.md) scopes, as well as in variants of the `par`, `race`, `retry` 
-methods, and others.
+Error modes can be used in
+[`supervisedError`](../structured-concurrency/error-handling-scopes.md) scopes,
+as well as in variants of the `par`, `race`, `retry` methods, and others.
 
 ```{note}
 Typing recoverable errors makes the recovery paths explicit in method signatures, which is the whole point: the
@@ -53,12 +68,16 @@ boundary where recovery becomes meaningful.
 
 ## Boundary/break for `Either`s
 
-To streamline working with `Either` values, Ox provides a specialised version of the 
-[boundary/break](https://www.scala-lang.org/api/current/scala/util/boundary$.html) mechanism.
+To streamline working with `Either` values, Ox provides a specialised version of
+the
+[boundary/break](https://www.scala-lang.org/api/current/scala/util/boundary$.html)
+mechanism.
 
-Within a code block passed to `either`, it allows "unwrapping" `Either`s using `.ok()`. The unwrapped value corresponds
-to the right side of the `Either`, which by convention represents successful computations. In case a failure is
-encountered (a left side of an `Either`), the computation is short-circuited, and the failure becomes the result.
+Within a code block passed to `either`, it allows "unwrapping" `Either`s using
+`.ok()`. The unwrapped value corresponds to the right side of the `Either`,
+which by convention represents successful computations. In case a failure is
+encountered (a left side of an `Either`), the computation is short-circuited,
+and the failure becomes the result.
 
 For example:
 
@@ -105,7 +124,8 @@ val result: Either[Unit, String] = either:
   v1.ok() * v2.ok()
 ```
 
-Finally, a forked computation, resulting in an `Either`, can be joined & unwrapped using a single `ok()` invocation:
+Finally, a forked computation, resulting in an `Either`, can be joined &
+unwrapped using a single `ok()` invocation:
 
 ```scala mdoc:compile-only
 import ox.{either, fork, Fork, supervised}
@@ -120,7 +140,8 @@ supervised:
     forkedResult.ok()
 ```
 
-Failures can be reported using `.fail()`. For example (although a pattern match would be better in such a simple case):
+Failures can be reported using `.fail()`. For example (although a pattern match
+would be better in such a simple case):
 
 ```scala mdoc:compile-only
 import ox.either
@@ -134,8 +155,8 @@ val result: Either[String, Int] = either:
 
 ### Converting from exceptions
 
-An exception-throwing expression can be converted to an `Either` using the `.catching[E]` extension method (catches 
-only non-fatal exceptions!):
+An exception-throwing expression can be converted to an `Either` using the
+`.catching[E]` extension method (catches only non-fatal exceptions!):
 
 ```scala mdoc:compile-only
 import ox.either.catching
@@ -146,13 +167,15 @@ val result: Either[IllegalArgumentException, Int] =
     .catching[IllegalArgumentException]
 ```
 
-Any `try-catch` blocks that you have in your code should be kept as small as possible, so that it's possibly obvious
-where the errors might originate. Using `.catching` at the sites where exceptions are thrown helps keeps the syntax
-lean and enables pinpointing where exceptions might occur.
+Any `try-catch` blocks that you have in your code should be kept as small as
+possible, so that it's possibly obvious where the errors might originate. Using
+`.catching` at the sites where exceptions are thrown helps keeps the syntax lean
+and enables pinpointing where exceptions might occur.
 
-An alternative to an `either` block is an `either.catchAll` block which additionally catches any non-fatal exceptions 
-that occur when evaluating the nested expression. Within the block, both `.ok()` and `.fail()` can be used. The error
-type within such block is fixed to `Throwable`:
+An alternative to an `either` block is an `either.catchAll` block which
+additionally catches any non-fatal exceptions that occur when evaluating the
+nested expression. Within the block, both `.ok()` and `.fail()` can be used. The
+error type within such block is fixed to `Throwable`:
 
 ```scala mdoc:compile-only
 import ox.either
@@ -166,8 +189,9 @@ val result: Either[Throwable, String] = either.catchAll:
 
 ## Converting to exceptions
 
-For `Either` instances where the left-side is an exception, the right-value of an `Either` can be unwrapped using `.orThrow`.
-The exception on the left side is thrown if it is present:
+For `Either` instances where the left-side is an exception, the right-value of
+an `Either` can be unwrapped using `.orThrow`. The exception on the left side is
+thrown if it is present:
 
 ```scala mdoc:compile-only
 import ox.either.orThrow
@@ -181,10 +205,12 @@ v2.orThrow // throws RuntimeException("boom!")
 
 ### Nested `either` blocks
 
-Either blocks cannot be nested in the same scope to prevent surprising failures after refactors. The `.ok()` combinator
-is typed using inference. Therefore, nesting of `either:` blocks can quickly lead to a scenario where due to a change 
-in the return type of a method, another `either:` block will be selected by the `.ok()` combinator. This could lead to a
-change in execution semantics without a compile error. Consider:
+Either blocks cannot be nested in the same scope to prevent surprising failures
+after refactors. The `.ok()` combinator is typed using inference. Therefore,
+nesting of `either:` blocks can quickly lead to a scenario where due to a change
+in the return type of a method, another `either:` block will be selected by the
+`.ok()` combinator. This could lead to a change in execution semantics without a
+compile error. Consider:
 
 ```scala 
 import ox.either
@@ -200,8 +226,10 @@ val outerResult: Either[Exception, Unit] = either:
   ()
 ```
 
-Now, after a small refactor of `returnsEither` return type the `returnsEither.ok()` expression would still compile but 
-instead of short-circuiting the inner `either:` block, it would immediately jump to the outer `either:` block on errors.
+Now, after a small refactor of `returnsEither` return type the
+`returnsEither.ok()` expression would still compile but instead of
+short-circuiting the inner `either:` block, it would immediately jump to the
+outer `either:` block on errors.
 
 ```scala
 import ox.either
@@ -217,7 +245,8 @@ val outerResult: Either[Exception, Unit] = either:
   ()
 ```
 
-Proper way to solve this is to extract the inner `either:` block to a separate function:
+Proper way to solve this is to extract the inner `either:` block to a separate
+function:
 
 ```scala mdoc:compile-only
 import ox.either
@@ -234,12 +263,14 @@ val outerResult: Either[Exception, Unit] = either:
   ()
 ```
 
-After this change refactoring `returnsEither` to return `Either[Exception, Int]` would yield a compile error on `returnsEither.ok()`.
+After this change refactoring `returnsEither` to return `Either[Exception, Int]`
+would yield a compile error on `returnsEither.ok()`.
 
 ## Mapping errors
 
-When an `Either` is used to represent errors, these can be mapped by using `.left.map`. This can be used to entirely 
-transform the error type, or eliminate some errors in case e.g. a union type is used. For example:
+When an `Either` is used to represent errors, these can be mapped by using
+`.left.map`. This can be used to entirely transform the error type, or eliminate
+some errors in case e.g. a union type is used. For example:
 
 ```scala mdoc:compile-only
 val e: Either[IllegalArgumentException | String, String] = ???
