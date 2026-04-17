@@ -11,9 +11,9 @@ Ox is a Scala 3 library for **safe direct-style streaming, concurrency and resil
 
 **Direct-Style Programming**: Write blocking-style code using virtual threads instead of async/await or reactive streams. This provides readable, debuggable code without callback hell.
 
-**Dual Error Handling**: 
-- Use **exceptions** for bugs and unexpected situations
-- Use **Either values** for application logic errors with `.ok()` unwrapping
+**Error Handling - Unrecoverable vs Recoverable**:
+- Use **exceptions** (untyped on purpose) for unrecoverable errors: bugs, catastrophic failures, or conditions requiring the current processing unit to terminate
+- Use **Either values** (fully typed) for recoverable / expected errors, with `.ok()` unwrapping
 
 **Structured Concurrency**: All concurrent operations happen within high-level operations or low-level scopes that ensure proper cleanup and resource management.
 

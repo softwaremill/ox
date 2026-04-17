@@ -7,7 +7,7 @@ In Ox, we propose distinguishing two kinds of errors:
    This might be handling of the current HTTP request (and returning a 500),
    handling of an incoming MQ message, or simply exiting a CLI. These are
    untyped **on purpose**, and signalled using exceptions. That way,
-   implementing control flow basing on the specific error type is discouraged.
+   implementing control flow based on the specific error type is discouraged.
 2. **recoverable/"expected" errors**: anticipated failures, where the code can
    take specific corrective action based on the error's details. These are fully
    typed, represented as values - using `Either`s, or as part of a custom data
@@ -36,8 +36,9 @@ Some examples of exception handling in Ox include:
 Exceptions can be handled using the `try/catch/finally` mechanism. 
 
 ```{note}
-An error which is unrecoverable at one
-level might become recoverable when caught at a higher level. However, only with the context that is accessible at the catch point.
+An error which is unrecoverable at one level might become recoverable when
+caught at a higher level - however, only with the context that is accessible at
+the catch point.
 ```
 
 ## Recoverable errors
@@ -58,12 +59,11 @@ Error modes can be used in
 as well as in variants of the `par`, `race`, `retry` methods, and others.
 
 ```{note}
-Typing recoverable errors makes the recovery paths explicit in method signatures, which is the whole point: the
-caller is expected to act on those error details. Unrecoverable errors, by contrast, are kept untyped so that the
-code doesn't build conditional logic around them. Representing recoverable errors as values might incur a syntax
-overhead, and might be less convenient in some cases. Moreover, all I/O libraries typically throw exceptions - to
-use them with errors-as-values, one would need to provide a wrapper which converts such exceptions to values, at the
-boundary where recovery becomes meaningful.
+Representing recoverable errors as values might incur a syntax overhead, and
+might be less convenient in some cases. Moreover, all I/O libraries typically
+throw exceptions - to use them with errors-as-values, one would need to provide
+a wrapper which converts such exceptions to values, at the boundary where
+recovery becomes meaningful.
 ```
 
 ## Boundary/break for `Either`s

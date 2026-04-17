@@ -1,13 +1,13 @@
 ---
-description: Use exceptions for bugs/unexpected situations and use `Either` values for application logic errors. Use Rust-like `either` blocks with `.ok()` to unwrap `Either` values with automatic short-circuiting. Combine different error types using union types (`Either[Int | Long, String]`), keep try-catch blocks small and avoid nested `either` blocks in the same scope.
-globs: 
+description: Distinguish unrecoverable errors (bugs, catastrophic failures, conditions requiring the current processing unit to terminate) from recoverable/expected errors (anticipated failures the caller can act on). Signal unrecoverable errors with untyped exceptions; represent recoverable errors as fully-typed values (`Either`s or custom data types). Use `either` blocks with `.ok()` to unwrap `Either` values with automatic short-circuiting. Combine different error types using union types (`Either[Int | Long, String]`), keep try-catch blocks small and avoid nested `either` blocks in the same scope.
+globs:
 alwaysApply: false
 ---
-# Dual Error Handling
+# Error Handling: Unrecoverable vs Recoverable
 
-Ox uses **two channels for error handling**:
-1. **Exceptions**: for bugs, unexpected situations, Java library integration
-2. **Either values**: for application logic errors (typed, explicit)
+Ox distinguishes **two kinds of errors**:
+1. **Unrecoverable errors**: bugs, catastrophic failures (e.g. OOM), and conditions requiring the current "processing unit" to be terminated (HTTP 500, failed MQ message, CLI exit). Untyped **on purpose**, signalled using exceptions - so the code isn't tempted to branch on specific error types.
+2. **Recoverable / "expected" errors**: anticipated failures where the caller can take specific corrective action based on the error's details. Fully typed, represented as values - `Either`s or a custom data type.
 
 ## Either Blocks with `.ok()` Unwrapping
 
@@ -79,13 +79,14 @@ val outerResult: Either[Exception, Unit] = either:
 
 ## When to Use Each Approach
 
-**Use exceptions for**:
+**Use exceptions (unrecoverable) for**:
 - Programming bugs
-- Unexpected system failures  
+- Catastrophic / unexpected system failures
+- Conditions that require terminating the current processing unit (request, MQ message, CLI run)
 - Java library integration
 
-**Use Either for**:
-- Expected application errors
+**Use `Either` / typed values (recoverable) for**:
+- Anticipated failures the caller can act on
 - Validation failures
 - Business logic errors
-- When you want explicit error types in signatures
+- When you want explicit error types in method signatures
