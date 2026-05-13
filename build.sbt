@@ -38,7 +38,7 @@ val enableMimaSettings = Seq(
 )
 
 val scalaTest = "org.scalatest" %% "scalatest" % "3.2.20" % Test
-val slf4j = "org.slf4j" % "slf4j-api" % "2.0.17"
+val slf4j = "org.slf4j" % "slf4j-api" % "2.0.18"
 val logback = "ch.qos.logback" % "logback-classic" % "1.5.32"
 
 // used during CI to verify that the documentation compiles
