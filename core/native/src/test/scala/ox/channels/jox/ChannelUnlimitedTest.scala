@@ -1,5 +1,7 @@
 package ox.channels.jox
 
+// Ported from: channels/src/test/java/com/softwaremill/jox/ChannelUnlimitedTest.java (jox 1.1.2)
+
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 

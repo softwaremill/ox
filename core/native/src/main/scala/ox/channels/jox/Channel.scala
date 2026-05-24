@@ -76,47 +76,40 @@ final class Channel[T] private (val capacity: Int) extends Source[T] with Sink[T
 
         if seg.getId != id then
           sendersAndClosedFlag.compareAndSet(s, seg.getId * SEGMENT_SIZE)
-          // continue
-        else
-          if isClosed(scf) then return closedReason.get().nn
-          else
-            val sendResult = updateCellSend(seg, i, s, value, select, selectClause, true)
-            return handleSendResult(sendResult, seg) match
-              case null    => null // sent
-              case r: AnyRef if r eq CONTINUE_MARKER => null // will continue in the outer while
-              case r       => r
-      else
-        if isClosed(scf) then return closedReason.get().nn
+          // continue - skipping interrupted cells
+        else if isClosed(scf) then
+          return closedReason.get().nn
         else
           val sendResult = updateCellSend(seg, i, s, value, select, selectClause, true)
-          handleSendResult(sendResult, seg) match
-            case null       => return null
-            case r: AnyRef if r eq CONTINUE_MARKER => () // continue loop
-            case r          => return r
+          sendResult match
+            case SendResult.BUFFERED | SendResult.AWAITED => return null
+            case SendResult.RESUMED =>
+              seg.cleanPrev()
+              return null
+            case ss: StoredSelectClause => return ss
+            case SendResult.FAILED =>
+              seg.cleanPrev()
+              // continue - trying with a new cell
+            case SendResult.CLOSED => return closedReason.get().nn
+            case _ => throw new IllegalStateException(s"Unexpected result: $sendResult in channel: $this")
+      else if isClosed(scf) then
+        return closedReason.get().nn
+      else
+        val sendResult = updateCellSend(seg, i, s, value, select, selectClause, true)
+        sendResult match
+          case SendResult.BUFFERED | SendResult.AWAITED => return null
+          case SendResult.RESUMED =>
+            seg.cleanPrev()
+            return null
+          case ss: StoredSelectClause => return ss
+          case SendResult.FAILED =>
+            seg.cleanPrev()
+            // continue - trying with a new cell
+          case SendResult.CLOSED => return closedReason.get().nn
+          case _ => throw new IllegalStateException(s"Unexpected result: $sendResult in channel: $this")
     end while
     throw new AssertionError("unreachable")
   end doSend
-
-  private val CONTINUE_MARKER = new AnyRef
-
-  private def handleSendResult(sendResult: AnyRef, segment: Segment): AnyRef | Null =
-    sendResult match
-      case SendResult.BUFFERED =>
-        null
-      case SendResult.AWAITED =>
-        null
-      case SendResult.RESUMED =>
-        segment.cleanPrev()
-        null
-      case ss: StoredSelectClause =>
-        ss
-      case SendResult.FAILED =>
-        segment.cleanPrev()
-        CONTINUE_MARKER
-      case SendResult.CLOSED =>
-        closedReason.get()
-      case _ =>
-        throw new IllegalStateException(s"Unexpected result: $sendResult in channel: $this")
 
   // Non-blocking send
   override def trySendOrClosed(value: T): AnyRef =
@@ -149,30 +142,33 @@ final class Channel[T] private (val capacity: Int) extends Source[T] with Sink[T
           if seg.getId != id then
             sendersAndClosedFlag.compareAndSet(s + 1, seg.getId * SEGMENT_SIZE)
             () // continue
-          else return trySendCell(seg, i, s, value)
-        else return trySendCell(seg, i, s, value)
+          else
+            val r = finishTrySend(seg, i, s, value)
+            if r ne RETRY_SENTINEL then return r
+        else
+          val r = finishTrySend(seg, i, s, value)
+          if r ne RETRY_SENTINEL then return r
     end while
     throw new AssertionError("unreachable")
 
-  private def trySendCell(segment: Segment, i: Int, s: Long, value: T): AnyRef =
+  private val RETRY_SENTINEL: AnyRef = new AnyRef
+
+  /** Returns result or RETRY_SENTINEL to indicate the caller should loop. */
+  private def finishTrySend(segment: Segment, i: Int, s: Long, value: T): AnyRef =
     val sendResult =
       try updateCellSend(segment, i, s, value, null, null, false)
       catch case e: InterruptedException => throw new AssertionError("unreachable: non-blocking send", e)
     sendResult match
-      case SendResult.BUFFERED =>
-        null
+      case SendResult.BUFFERED => null
       case SendResult.RESUMED =>
         segment.cleanPrev()
         null
       case SendResult.FAILED =>
         segment.cleanPrev()
-        trySendOrClosed(value) // retry from top
-      case SendResult.CLOSED =>
-        closedReason.get()
-      case r if r eq Channel.TRY_SEND_NOT_SENT =>
-        Channel.TRY_SEND_NOT_SENT
-      case _ =>
-        throw new IllegalStateException(s"Unexpected result: $sendResult")
+        RETRY_SENTINEL
+      case SendResult.CLOSED => closedReason.get()
+      case r if r eq Channel.TRY_SEND_NOT_SENT => Channel.TRY_SEND_NOT_SENT
+      case _ => throw new IllegalStateException(s"Unexpected result: $sendResult")
 
   // Non-blocking receive
   override def tryReceiveOrClosed(): AnyRef =
@@ -198,19 +194,25 @@ final class Channel[T] private (val capacity: Int) extends Source[T] with Sink[T
           if seg.getId != id then
             receivers.compareAndSet(r + 1, seg.getId * SEGMENT_SIZE)
             () // continue
-          else return tryReceiveCell(seg, i, r)
-        else return tryReceiveCell(seg, i, r)
+          else
+            val res = finishTryReceive(seg, i)
+            if res ne RETRY_SENTINEL then return res
+        else
+          val res = finishTryReceive(seg, i)
+          if res ne RETRY_SENTINEL then return res
     end while
     throw new AssertionError("unreachable")
 
-  private def tryReceiveCell(segment: Segment, i: Int, r: Long): AnyRef | Null =
+  /** Returns result, null (nothing available), or RETRY_SENTINEL to indicate the caller should loop. */
+  private def finishTryReceive(segment: Segment, i: Int): AnyRef | Null =
+    val r = receivers.get() - 1 // the cell index we just reserved
     val result =
       try updateCellReceive(segment, i, r, null, null, false)
       catch case e: InterruptedException => throw new AssertionError("unreachable: non-blocking receive", e)
     if result eq ReceiveResult.CLOSED then closedReason.get()
     else if result eq ReceiveResult.FAILED then
       segment.cleanPrev()
-      tryReceiveOrClosed() // retry
+      RETRY_SENTINEL
     else if result == null then null
     else
       segment.cleanPrev()

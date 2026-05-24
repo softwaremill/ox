@@ -1,7 +1,8 @@
 # Scala Port of Jox Channels
 
 Pure Scala port of [softwaremill/jox](https://github.com/softwaremill/jox) `channels` module,
-enabling cross-compilation to Scala Native.
+enabling Scala Native support. This code lives in `core/native/` and is only compiled for the
+Native platform; the JVM continues to use the Java Jox library directly.
 
 ## Source Version
 
@@ -70,3 +71,24 @@ The Java version prints full segment-by-segment cell state. The Scala port retur
 | (inner classes in Channel.java) | `CellState.scala` |
 | (inner class in Select.java) | `StoredSelectClause.scala` |
 | (inner class in Channel.java) | `Continuation.scala` |
+
+## Test Mapping
+
+Tests are in `core/native/src/test/scala/ox/channels/jox/`. They require clang/LLVM to link and run.
+
+| Java test file | Scala test file | Notes |
+|---------------|----------------|-------|
+| `TestUtil.java` | `TestUtil.scala` | Scope/fork helpers |
+| `ChannelRendezvousTest.java` | `ChannelRendezvousTest.scala` | All tests except perf benchmark |
+| `ChannelBufferedTest.java` | `ChannelBufferedTest.scala` | All tests |
+| `ChannelUnlimitedTest.java` | `ChannelUnlimitedTest.scala` | All tests |
+| `ChannelClosedTest.java` | `ChannelClosedTest.scala` | All tests |
+| `ChannelTrySendReceiveTest.java` | `ChannelTrySendReceiveTest.scala` | All tests |
+| `ChannelInterruptionTest.java` | `ChannelInterruptionTest.scala` | Core interruption tests (no memory leak tests) |
+| `SelectReceiveTest.java` | `SelectTest.scala` | Merged into one file |
+| `SelectSendTest.java` | `SelectTest.scala` | Merged into one file |
+| `SelectTest.java` | `SelectTest.scala` | Default clause tests |
+| `StressTest.java` | — | Not ported (Fray-specific, requires JVM tooling) |
+| `SegmentTest.java` | — | Not ported (tests internals via reflection) |
+| `SegmentRendezvousTest.java` | — | Not ported (tests internals via reflection) |
+| `SelectWithinTest.java` | — | Not ported (uses Thread.ofVirtual for timeout, covered by Ox wrapper tests) |
