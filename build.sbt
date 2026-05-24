@@ -2,6 +2,8 @@ import com.softwaremill.SbtSoftwareMillCommon.commonSmlBuildSettings
 import com.softwaremill.Publish.{ossPublishSettings, updateDocs}
 import com.softwaremill.UpdateVersionInDocs
 import com.typesafe.tools.mima.core.{MissingClassProblem, ProblemFilters}
+import sbtcrossproject.CrossPlugin.autoImport.{crossProject, CrossType}
+import scalanative.build._
 
 lazy val commonSettings = commonSmlBuildSettings ++ ossPublishSettings ++ Seq(
   organization := "com.softwaremill.ox",
@@ -50,21 +52,32 @@ compileDocumentation := {
 lazy val rootProject = (project in file("."))
   .settings(commonSettings)
   .settings(publishArtifact := false, name := "ox")
-  .aggregate(core, kafka, mdcLogback, flowReactiveStreams, cron, otelContext)
+  .aggregate(core.jvm, core.native, kafka, mdcLogback, flowReactiveStreams, cron, otelContext)
 
-lazy val core: Project = (project in file("core"))
+lazy val core = crossProject(JVMPlatform, NativePlatform)
+  .crossType(CrossType.Full)
+  .in(file("core"))
   .settings(commonSettings)
   .settings(
     name := "core",
     libraryDependencies ++= Seq(
-      "com.softwaremill.jox" % "channels" % "1.1.2",
-      scalaTest,
-      "org.apache.pekko" %% "pekko-stream" % "1.6.0" % Test,
-      "org.reactivestreams" % "reactive-streams-tck-flow" % "1.0.4" % Test
+      scalaTest
     ),
     Test / fork := true
   )
-  .settings(enableMimaSettings)
+  .jvmSettings(
+    libraryDependencies ++= Seq(
+      "com.softwaremill.jox" % "channels" % "1.1.2",
+      "org.apache.pekko" %% "pekko-stream" % "1.6.0" % Test,
+      "org.reactivestreams" % "reactive-streams-tck-flow" % "1.0.4" % Test
+    )
+  )
+  .jvmSettings(enableMimaSettings)
+  .nativeSettings(
+    nativeConfig ~= {
+      _.withMultithreading(true)
+    }
+  )
 
 lazy val kafka: Project = (project in file("kafka"))
   .settings(commonSettings)
@@ -80,7 +93,7 @@ lazy val kafka: Project = (project in file("kafka"))
       scalaTest
     )
   )
-  .dependsOn(core)
+  .dependsOn(core.jvm)
 
 lazy val mdcLogback: Project = (project in file("mdc-logback"))
   .settings(commonSettings)
@@ -91,7 +104,7 @@ lazy val mdcLogback: Project = (project in file("mdc-logback"))
       scalaTest
     )
   )
-  .dependsOn(core)
+  .dependsOn(core.jvm)
 
 lazy val flowReactiveStreams: Project = (project in file("flow-reactive-streams"))
   .settings(commonSettings)
@@ -102,7 +115,7 @@ lazy val flowReactiveStreams: Project = (project in file("flow-reactive-streams"
       scalaTest
     )
   )
-  .dependsOn(core)
+  .dependsOn(core.jvm)
 
 lazy val cron: Project = (project in file("cron"))
   .settings(commonSettings)
@@ -113,7 +126,7 @@ lazy val cron: Project = (project in file("cron"))
       scalaTest
     )
   )
-  .dependsOn(core % "test->test;compile->compile")
+  .dependsOn(core.jvm % "test->test;compile->compile")
 
 lazy val otelContext: Project = (project in file("otel-context"))
   .settings(commonSettings)
@@ -124,7 +137,7 @@ lazy val otelContext: Project = (project in file("otel-context"))
       scalaTest
     )
   )
-  .dependsOn(core % "test->test;compile->compile")
+  .dependsOn(core.jvm % "test->test;compile->compile")
 
 lazy val documentation: Project = (project in file("generated-doc")) // important: it must not be doc/
   .enablePlugins(MdocPlugin)
@@ -142,7 +155,7 @@ lazy val documentation: Project = (project in file("generated-doc")) // importan
     libraryDependencies ++= Seq(logback % Test)
   )
   .dependsOn(
-    core,
+    core.jvm,
     kafka,
     mdcLogback,
     flowReactiveStreams,
