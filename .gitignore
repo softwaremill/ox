@@ -22,3 +22,4 @@ project/plugins/project/
 metals.sbt
 
 /notes.md
+.devcontainer
