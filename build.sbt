@@ -80,19 +80,19 @@ lazy val core = crossProject(JVMPlatform, NativePlatform)
     }
   )
 
-lazy val example = crossProject(JVMPlatform, NativePlatform)
+lazy val examples = crossProject(JVMPlatform, NativePlatform)
   .crossType(CrossType.Pure)
-  .in(file("example"))
+  .in(file("examples"))
   .settings(commonSettings)
   .settings(
-    name := "example",
-    publishArtifact := false
+    name := "examples",
+    publishArtifact := false,
+    Compile / mainClass := Some("VirtualThreadsNativeJvmBenchmark")
   )
   .jvmSettings(
-    Compile / mainClass := Some("VirtualThreadsBenchmark")
+    assembly / assemblyJarName := "examples-assembly.jar"
   )
   .nativeSettings(
-    Compile / mainClass := Some("VirtualThreadsBenchmark"),
     nativeConfig ~= {
       _.withMultithreading(true)
     }
