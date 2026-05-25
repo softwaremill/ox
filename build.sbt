@@ -60,9 +60,7 @@ lazy val core = crossProject(JVMPlatform, NativePlatform)
   .settings(commonSettings)
   .settings(
     name := "core",
-    libraryDependencies ++= Seq(
-      scalaTest
-    ),
+    libraryDependencies += "org.scalatest" %%% "scalatest" % "3.2.20" % Test,
     Test / fork := true
   )
   .jvmSettings(
@@ -74,6 +72,9 @@ lazy val core = crossProject(JVMPlatform, NativePlatform)
   )
   .jvmSettings(enableMimaSettings)
   .nativeSettings(
+    Test / fork := false,
+    // Only include native-specific tests; shared Ox tests use JVM-only APIs (java.time, java.net, etc.)
+    Test / unmanagedSourceDirectories := Seq((Test / sourceDirectory).value / "scala"),
     nativeConfig ~= {
       _.withMultithreading(true)
     }

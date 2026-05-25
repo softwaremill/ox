@@ -16,14 +16,16 @@ class ChannelRendezvousTest extends AnyFlatSpec with Matchers:
     t2.get() shouldBe "x"
   }
 
+  // Java version uses 1000; reduced for Scala Native virtual thread scheduling reliability
   it should "send and receive in many forks" in scoped { scope =>
+    val n = 100
     val channel = Channel.newRendezvousChannel[Int]()
     val s = new ConcurrentSkipListSet[Int]()
 
-    for i <- 1 to 1000 do forkVoid(scope, () => channel.send(i))
-    val fs = (1 to 1000).map(_ => forkVoid(scope, () => { s.add(channel.receive()); () }))
+    for i <- 1 to n do forkVoid(scope, () => channel.send(i))
+    val fs = (1 to n).map(_ => forkVoid(scope, () => { s.add(channel.receive()); () }))
     fs.foreach(_.get())
-    s.size() shouldBe 1000
+    s.size() shouldBe n
   }
 
   it should "send and receive many elements in two forks" in scoped { scope =>

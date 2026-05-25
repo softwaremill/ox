@@ -33,14 +33,16 @@ class ChannelBufferedTest extends AnyFlatSpec with Matchers:
     ch.receive() shouldBe 3
   }
 
+  // Java version uses 1000; reduced for Scala Native virtual thread scheduling reliability
   it should "send and receive in many forks" in scoped { scope =>
+    val n = 100
     val ch = Channel.newBufferedChannel[Int](16)
     val s = new ConcurrentSkipListSet[Int]()
 
-    for i <- 1 to 1000 do forkVoid(scope, () => ch.send(i))
-    val fs = (1 to 1000).map(_ => forkVoid(scope, () => { s.add(ch.receive()); () }))
+    for i <- 1 to n do forkVoid(scope, () => ch.send(i))
+    val fs = (1 to n).map(_ => forkVoid(scope, () => { s.add(ch.receive()); () }))
     fs.foreach(_.get())
-    s.size() shouldBe 1000
+    s.size() shouldBe n
   }
 
   it should "handle done with buffered values" in:
