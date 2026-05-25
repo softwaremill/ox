@@ -80,6 +80,25 @@ lazy val core = crossProject(JVMPlatform, NativePlatform)
     }
   )
 
+lazy val example = crossProject(JVMPlatform, NativePlatform)
+  .crossType(CrossType.Pure)
+  .in(file("example"))
+  .settings(commonSettings)
+  .settings(
+    name := "example",
+    publishArtifact := false
+  )
+  .jvmSettings(
+    Compile / mainClass := Some("VirtualThreadsBenchmark")
+  )
+  .nativeSettings(
+    Compile / mainClass := Some("VirtualThreadsBenchmark"),
+    nativeConfig ~= {
+      _.withMultithreading(true)
+    }
+  )
+  .dependsOn(core)
+
 lazy val kafka: Project = (project in file("kafka"))
   .settings(commonSettings)
   .settings(
