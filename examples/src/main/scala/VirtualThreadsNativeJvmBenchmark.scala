@@ -10,16 +10,16 @@ import java.util.concurrent.atomic.AtomicLong
   * To package & run:
   * {{{
   * # JVM fat jar
-  * sbt examplesJVM/assembly
-  * java -jar examples/.jvm/target/scala-3.3.7/examples-assembly.jar
+  * sbt examples3/assembly
+  * java -jar examples/target/jvm-3/examples-assembly.jar
   *
   * # Native binary
-  * sbt examplesNative/nativeLink
-  * ./examples/.native/target/scala-3.3.7/examples
+  * sbt examplesNative3/nativeLink
+  * ./examples/target/native-3/example
   *
   * # Compare (3 iterations each):
-  * for i in 1 2 3; do java -jar examples/.jvm/target/scala-3.3.7/examples-assembly.jar; done
-  * for i in 1 2 3; do ./examples/.native/target/scala-3.3.7/examples; done
+  * for i in 1 2 3; do java -jar examples/target/jvm-3/examples-assembly.jar; done
+  * for i in 1 2 3; do ./examples/target/native-3/example; done
   * }}}
   */
 object VirtualThreadsNativeJvmBenchmark:
