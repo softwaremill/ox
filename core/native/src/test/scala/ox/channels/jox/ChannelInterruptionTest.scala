@@ -69,3 +69,4 @@ class ChannelInterruptionTest extends AnyFlatSpec with Matchers:
     Thread.sleep(50)
     ch.receive() shouldBe 3
   }
+end ChannelInterruptionTest

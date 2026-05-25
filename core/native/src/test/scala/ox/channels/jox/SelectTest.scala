@@ -86,3 +86,4 @@ class SelectTest extends AnyFlatSpec with Matchers:
     val ch = Channel.newBufferedChannel[Int](1)
     an[IllegalArgumentException] should be thrownBy
       Select.selectOrClosed(ch.receiveClause(), ch.receiveClause())
+end SelectTest

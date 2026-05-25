@@ -98,3 +98,4 @@ class ChannelTrySendReceiveTest extends AnyFlatSpec with Matchers:
   "trySend with null" should "throw NPE" in:
     val ch = Channel.newBufferedChannel[String](1)
     a[NullPointerException] should be thrownBy ch.trySendOrClosed(null.asInstanceOf[String])
+end ChannelTrySendReceiveTest

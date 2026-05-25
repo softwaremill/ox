@@ -23,7 +23,13 @@ class ChannelRendezvousTest extends AnyFlatSpec with Matchers:
     val s = new ConcurrentSkipListSet[Int]()
 
     for i <- 1 to n do forkVoid(scope, () => channel.send(i))
-    val fs = (1 to n).map(_ => forkVoid(scope, () => { s.add(channel.receive()); () }))
+    val fs = (1 to n).map(_ =>
+      forkVoid(
+        scope,
+        () =>
+          s.add(channel.receive()); ()
+      )
+    )
     fs.foreach(_.get())
     s.size() shouldBe n
   }
@@ -41,16 +47,26 @@ class ChannelRendezvousTest extends AnyFlatSpec with Matchers:
     val channel = Channel.newRendezvousChannel[Int]()
     val trail = new ConcurrentLinkedQueue[String]()
 
-    forkVoid(scope, () => { channel.send(1); trail.add("S"); () })
-    forkVoid(scope, () => { channel.send(2); trail.add("S"); () })
-    forkVoid(scope, () => {
-      Thread.sleep(100L)
-      trail.add("R1")
-      channel.receive()
-      Thread.sleep(100L)
-      trail.add("R2")
-      channel.receive()
-    }).get()
+    forkVoid(
+      scope,
+      () =>
+        channel.send(1); trail.add("S"); ()
+    )
+    forkVoid(
+      scope,
+      () =>
+        channel.send(2); trail.add("S"); ()
+    )
+    forkVoid(
+      scope,
+      () =>
+        Thread.sleep(100L)
+        trail.add("R1")
+        channel.receive()
+        Thread.sleep(100L)
+        trail.add("R2")
+        channel.receive()
+    ).get()
 
     Thread.sleep(100L)
     import scala.jdk.CollectionConverters.*
@@ -76,3 +92,4 @@ class ChannelRendezvousTest extends AnyFlatSpec with Matchers:
     f.get() shouldBe a[ChannelError]
     c.sendOrClosed(2) shouldBe a[ChannelError]
   }
+end ChannelRendezvousTest

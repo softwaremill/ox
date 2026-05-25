@@ -8,32 +8,45 @@ import scala.collection.mutable
 object TestUtil:
   def scoped(f: Scope => Unit): Unit =
     val scope = new Scope
-    val mainTask = Thread.ofVirtual().start(() =>
-      try f(scope)
-      catch case e: Exception => scope.completeExceptionally(e)
-    )
+    val mainTask = Thread
+      .ofVirtual()
+      .start(() =>
+        try f(scope)
+        catch case e: Exception => scope.completeExceptionally(e)
+      )
     mainTask.join()
     scope.waitForCompletion()
+  end scoped
 
   def fork[T](scope: Scope, f: () => T): Future[T] =
     val cf = new CompletableFuture[T]()
-    Thread.ofVirtual().start(() =>
-      try cf.complete(f())
-      catch case ex: Exception => cf.completeExceptionally(ex)
-    )
+    Thread
+      .ofVirtual()
+      .start(() =>
+        try cf.complete(f())
+        catch case ex: Exception => cf.completeExceptionally(ex)
+      )
     scope.addFuture(cf)
     cf
+  end fork
 
   def forkVoid(scope: Scope, f: () => Unit): Future[Void] =
-    fork(scope, () => { f(); null })
+    fork(
+      scope,
+      () =>
+        f(); null
+    )
 
   def forkCancelable[T](scope: Scope, f: () => T): CancelableFork[T] =
     val cf = new CompletableFuture[T]()
-    val t = Thread.ofVirtual().start(() =>
-      try cf.complete(f())
-      catch case ex: Exception => cf.completeExceptionally(ex)
-    )
+    val t = Thread
+      .ofVirtual()
+      .start(() =>
+        try cf.complete(f())
+        catch case ex: Exception => cf.completeExceptionally(ex)
+      )
     new CancelableFork(t, cf)
+  end forkCancelable
 
   class Scope:
     private val futures = mutable.ArrayBuffer.empty[CompletableFuture[?]]
@@ -48,10 +61,13 @@ object TestUtil:
       synchronized {
         for f <- futures do
           try f.get()
-          catch case e: ExecutionException =>
-            if exception == null then exception = e.getCause.asInstanceOf[Exception]
+          catch
+            case e: ExecutionException =>
+              if exception == null then exception = e.getCause.asInstanceOf[Exception]
       }
       if exception != null then throw new ExecutionException(exception)
+    end waitForCompletion
+  end Scope
 
   class CancelableFork[T](thread: Thread, future: CompletableFuture[T]):
     def get(): T = future.get()

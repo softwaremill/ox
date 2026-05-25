@@ -49,3 +49,4 @@ class ChannelClosedTest extends AnyFlatSpec with Matchers:
     c.error(new RuntimeException())
     c.isClosedForReceive shouldBe true
     c.isClosedForSend shouldBe true
+end ChannelClosedTest

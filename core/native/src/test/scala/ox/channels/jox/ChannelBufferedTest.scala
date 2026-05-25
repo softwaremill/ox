@@ -23,7 +23,11 @@ class ChannelBufferedTest extends AnyFlatSpec with Matchers:
     ch.send(1)
     ch.send(2)
     @volatile var sent = false
-    forkVoid(scope, () => { ch.send(3); sent = true })
+    forkVoid(
+      scope,
+      () =>
+        ch.send(3); sent = true
+    )
     Thread.sleep(50)
     sent shouldBe false
     ch.receive() shouldBe 1
@@ -40,7 +44,13 @@ class ChannelBufferedTest extends AnyFlatSpec with Matchers:
     val s = new ConcurrentSkipListSet[Int]()
 
     for i <- 1 to n do forkVoid(scope, () => ch.send(i))
-    val fs = (1 to n).map(_ => forkVoid(scope, () => { s.add(ch.receive()); () }))
+    val fs = (1 to n).map(_ =>
+      forkVoid(
+        scope,
+        () =>
+          s.add(ch.receive()); ()
+      )
+    )
     fs.foreach(_.get())
     s.size() shouldBe n
   }
@@ -61,3 +71,4 @@ class ChannelBufferedTest extends AnyFlatSpec with Matchers:
     val ex = new RuntimeException("test error")
     ch.error(ex)
     ch.receiveOrClosed() shouldBe a[ChannelError]
+end ChannelBufferedTest

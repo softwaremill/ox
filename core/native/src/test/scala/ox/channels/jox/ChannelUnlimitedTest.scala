@@ -21,3 +21,4 @@ class ChannelUnlimitedTest extends AnyFlatSpec with Matchers:
     ch.receive() shouldBe 2
     ch.receive() shouldBe 3
     ch.receiveOrClosed() shouldBe a[ChannelDone]
+end ChannelUnlimitedTest
