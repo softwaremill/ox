@@ -76,8 +76,6 @@ lazy val core = (projectMatrix in file("core"))
     scalaVersions = Seq(scala3),
     settings = Seq(
       Test / fork := false,
-      // Only include native-specific tests; shared Ox tests use JVM-only APIs (java.time, java.net, etc.)
-      Test / unmanagedSourceDirectories := Seq((Test / sourceDirectory).value / "scalanative"),
       nativeConfig ~= { _.withMultithreading(true) }
     )
   )
