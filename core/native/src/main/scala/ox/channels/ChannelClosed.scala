@@ -1,6 +1,6 @@
 package ox.channels
 
-import ox.channels.{jox => j}
+import ox.channels.jox as j
 
 /** Returned by channel methods (e.g. [[Source.receiveOrClosed]], [[Sink.sendOrClosed]], [[selectOrClosed]]) when the channel is closed. */
 sealed trait ChannelClosed:

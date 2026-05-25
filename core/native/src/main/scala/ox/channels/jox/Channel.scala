@@ -42,6 +42,7 @@ final class Channel[T] private (val capacity: Int) extends Source[T] with Sink[T
         if rem == 0 then SEGMENT_SIZE else rem
       currentSegment.setup_markCellsProcessed(cellsToProcess)
       segmentId += 1
+  end processInitialBuffer
 
   // *******
   // Sending
@@ -77,36 +78,38 @@ final class Channel[T] private (val capacity: Int) extends Source[T] with Sink[T
         if seg.getId != id then
           sendersAndClosedFlag.compareAndSet(s, seg.getId * SEGMENT_SIZE)
           // continue - skipping interrupted cells
-        else if isClosed(scf) then
-          return closedReason.get().nn
+        else if isClosed(scf) then return closedReason.get().nn
         else
           val sendResult = updateCellSend(seg, i, s, value, select, selectClause, true)
           sendResult match
             case SendResult.BUFFERED | SendResult.AWAITED => return null
-            case SendResult.RESUMED =>
+            case SendResult.RESUMED                       =>
               seg.cleanPrev()
               return null
             case ss: StoredSelectClause => return ss
-            case SendResult.FAILED =>
+            case SendResult.FAILED      =>
               seg.cleanPrev()
               // continue - trying with a new cell
             case SendResult.CLOSED => return closedReason.get().nn
-            case _ => throw new IllegalStateException(s"Unexpected result: $sendResult in channel: $this")
-      else if isClosed(scf) then
-        return closedReason.get().nn
+            case _                 => throw new IllegalStateException(s"Unexpected result: $sendResult in channel: $this")
+          end match
+        end if
+      else if isClosed(scf) then return closedReason.get().nn
       else
         val sendResult = updateCellSend(seg, i, s, value, select, selectClause, true)
         sendResult match
           case SendResult.BUFFERED | SendResult.AWAITED => return null
-          case SendResult.RESUMED =>
+          case SendResult.RESUMED                       =>
             seg.cleanPrev()
             return null
           case ss: StoredSelectClause => return ss
-          case SendResult.FAILED =>
+          case SendResult.FAILED      =>
             seg.cleanPrev()
             // continue - trying with a new cell
           case SendResult.CLOSED => return closedReason.get().nn
-          case _ => throw new IllegalStateException(s"Unexpected result: $sendResult in channel: $this")
+          case _                 => throw new IllegalStateException(s"Unexpected result: $sendResult in channel: $this")
+        end match
+      end if
     end while
     throw new AssertionError("unreachable")
   end doSend
@@ -129,8 +132,7 @@ final class Channel[T] private (val capacity: Int) extends Source[T] with Sink[T
           if s >= r then return Channel.TRY_SEND_NOT_SENT
         else if s >= bufEnd && s >= r then return Channel.TRY_SEND_NOT_SENT
 
-      if !sendersAndClosedFlag.compareAndSet(scf, scf + 1) then
-        () // continue
+      if !sendersAndClosedFlag.compareAndSet(scf, scf + 1) then () // continue
       else
         val id = s / SEGMENT_SIZE
         val i = (s % SEGMENT_SIZE).toInt
@@ -148,8 +150,11 @@ final class Channel[T] private (val capacity: Int) extends Source[T] with Sink[T
         else
           val r = finishTrySend(seg, i, s, value)
           if r ne RETRY_SENTINEL then return r
+        end if
+      end if
     end while
     throw new AssertionError("unreachable")
+  end trySendOrClosed
 
   private val RETRY_SENTINEL: AnyRef = new AnyRef
 
@@ -160,15 +165,17 @@ final class Channel[T] private (val capacity: Int) extends Source[T] with Sink[T
       catch case e: InterruptedException => throw new AssertionError("unreachable: non-blocking send", e)
     sendResult match
       case SendResult.BUFFERED => null
-      case SendResult.RESUMED =>
+      case SendResult.RESUMED  =>
         segment.cleanPrev()
         null
       case SendResult.FAILED =>
         segment.cleanPrev()
         RETRY_SENTINEL
-      case SendResult.CLOSED => closedReason.get()
+      case SendResult.CLOSED                   => closedReason.get()
       case r if r eq Channel.TRY_SEND_NOT_SENT => Channel.TRY_SEND_NOT_SENT
-      case _ => throw new IllegalStateException(s"Unexpected result: $sendResult")
+      case _                                   => throw new IllegalStateException(s"Unexpected result: $sendResult")
+    end match
+  end finishTrySend
 
   // Non-blocking receive
   override def tryReceiveOrClosed(): AnyRef =
@@ -200,8 +207,11 @@ final class Channel[T] private (val capacity: Int) extends Source[T] with Sink[T
         else
           val res = finishTryReceive(seg, i)
           if res ne RETRY_SENTINEL then return res
+        end if
+      end if
     end while
     throw new AssertionError("unreachable")
+  end tryReceiveOrClosed
 
   /** Returns result, null (nothing available), or RETRY_SENTINEL to indicate the caller should loop. */
   private def finishTryReceive(segment: Segment, i: Int): AnyRef | Null =
@@ -217,6 +227,8 @@ final class Channel[T] private (val capacity: Int) extends Source[T] with Sink[T
     else
       segment.cleanPrev()
       result
+    end if
+  end finishTryReceive
 
   /** Core send logic. Returns SendResult, TRY_SEND_NOT_SENT, or StoredSelectClause. */
   @throws[InterruptedException]
@@ -270,8 +282,10 @@ final class Channel[T] private (val capacity: Int) extends Source[T] with Sink[T
             return SendResult.CLOSED
           case _ =>
             throw new IllegalStateException(s"Unexpected state: $state in channel: $this")
+      end if
     end while
     throw new AssertionError("unreachable")
+  end updateCellSend
 
   // *********
   // Receiving
@@ -309,14 +323,17 @@ final class Channel[T] private (val capacity: Int) extends Source[T] with Sink[T
           else
             if !result.isInstanceOf[StoredSelectClause] then seg.cleanPrev()
             if result ne ReceiveResult.FAILED then return result
+        end if
       else
         val result = updateCellReceive(seg, i, r, select, selectClause, true)
         if result eq ReceiveResult.CLOSED then return closedReason.get().nn
         else
           if !result.isInstanceOf[StoredSelectClause] then seg.cleanPrev()
           if result ne ReceiveResult.FAILED then return result
+      end if
     end while
     throw new AssertionError("unreachable")
+  end doReceive
 
   @throws[InterruptedException]
   private def updateCellReceive(
@@ -348,10 +365,9 @@ final class Channel[T] private (val capacity: Int) extends Source[T] with Sink[T
               val result = c.await(segment, i, isRendezvous)
               if result eq ChannelClosedMarker.CLOSED then return ReceiveResult.CLOSED
               else return result
-        else
-          if segment.casCell(i, state, BROKEN) then
-            expandBuffer()
-            return ReceiveResult.FAILED
+        else if segment.casCell(i, state, BROKEN) then
+          expandBuffer()
+          return ReceiveResult.FAILED
       else
         state match
           case c: Continuation =>
@@ -368,18 +384,21 @@ final class Channel[T] private (val capacity: Int) extends Source[T] with Sink[T
                 expandBuffer()
                 return ss.payload.asInstanceOf[AnyRef]
               else return ReceiveResult.FAILED
-          case cs: CellState => cs match
-            case CellState.INTERRUPTED_SEND => return ReceiveResult.FAILED
-            case CellState.RESUMING         => Thread.onSpinWait()
-            case CellState.CLOSED           => return ReceiveResult.CLOSED
-            case _ => throw new IllegalStateException(s"Unexpected state: $state in channel: $this")
+          case cs: CellState =>
+            cs match
+              case CellState.INTERRUPTED_SEND => return ReceiveResult.FAILED
+              case CellState.RESUMING         => Thread.onSpinWait()
+              case CellState.CLOSED           => return ReceiveResult.CLOSED
+              case _                          => throw new IllegalStateException(s"Unexpected state: $state in channel: $this")
           case _ =>
             // buffered value
             segment.setCell(i, DONE)
             expandBuffer()
             return state.asInstanceOf[AnyRef]
+      end if
     end while
     throw new AssertionError("unreachable")
+  end updateCellReceive
 
   // ****************
   // Buffer expansion
@@ -409,6 +428,7 @@ final class Channel[T] private (val capacity: Int) extends Source[T] with Sink[T
           else if result == ExpandBufferResult.CLOSED then
             seg.cellProcessed_notInterruptedSender()
             () // continue to mark other closed cells as processed
+        end if
       else
         val result = updateCellExpandBuffer(seg, i)
         if result == ExpandBufferResult.DONE then
@@ -417,6 +437,9 @@ final class Channel[T] private (val capacity: Int) extends Source[T] with Sink[T
         else if result == ExpandBufferResult.CLOSED then
           seg.cellProcessed_notInterruptedSender()
           () // continue
+      end if
+    end while
+  end expandBuffer
 
   private def updateCellExpandBuffer(segment: Segment, i: Int): ExpandBufferResult =
     while true do
@@ -425,14 +448,14 @@ final class Channel[T] private (val capacity: Int) extends Source[T] with Sink[T
         if segment.casCell(i, null, IN_BUFFER) then return ExpandBufferResult.DONE
       else
         state match
-          case DONE => return ExpandBufferResult.DONE
+          case DONE                          => return ExpandBufferResult.DONE
           case c: Continuation if c.isSender =>
             if segment.casCell(i, state, RESUMING) then
               if c.tryResume(0.asInstanceOf[AnyRef]) then
                 segment.setCell(i, c.payload)
                 return ExpandBufferResult.DONE
               else return ExpandBufferResult.FAILED
-          case _: Continuation => return ExpandBufferResult.DONE
+          case _: Continuation                       => return ExpandBufferResult.DONE
           case ss: StoredSelectClause if ss.isSender =>
             if segment.casCell(i, state, RESUMING) then
               if ss.select.trySelect(ss) then
@@ -440,18 +463,21 @@ final class Channel[T] private (val capacity: Int) extends Source[T] with Sink[T
                 return ExpandBufferResult.DONE
               else return ExpandBufferResult.FAILED
           case _: StoredSelectClause => return ExpandBufferResult.DONE
-          case cs: CellState => cs match
-            case CellState.INTERRUPTED_SEND    => return ExpandBufferResult.FAILED
-            case CellState.INTERRUPTED_RECEIVE => return ExpandBufferResult.DONE
-            case CellState.BROKEN              => return ExpandBufferResult.DONE
-            case CellState.RESUMING            => Thread.onSpinWait()
-            case CellState.CLOSED              => return ExpandBufferResult.CLOSED
-            case _ => throw new IllegalStateException(s"Unexpected state: $state in channel: $this")
+          case cs: CellState         =>
+            cs match
+              case CellState.INTERRUPTED_SEND    => return ExpandBufferResult.FAILED
+              case CellState.INTERRUPTED_RECEIVE => return ExpandBufferResult.DONE
+              case CellState.BROKEN              => return ExpandBufferResult.DONE
+              case CellState.RESUMING            => Thread.onSpinWait()
+              case CellState.CLOSED              => return ExpandBufferResult.CLOSED
+              case _                             => throw new IllegalStateException(s"Unexpected state: $state in channel: $this")
           case _ =>
             // buffered value
             return ExpandBufferResult.DONE
+      end if
     end while
     throw new AssertionError("unreachable")
+  end updateCellExpandBuffer
 
   // *******
   // Closing
@@ -516,6 +542,7 @@ final class Channel[T] private (val capacity: Int) extends Source[T] with Sink[T
       i -= 1
 
     closeCellsUntil(lastCellToClose, segment.getPrev)
+  end closeCellsUntil
 
   private def updateCellClose(segment: Segment, i: Int): Unit =
     while true do
@@ -535,16 +562,18 @@ final class Channel[T] private (val capacity: Int) extends Source[T] with Sink[T
           case ss: StoredSelectClause =>
             if ss.select.channelClosed(closedReason.get().nn) then return
             else Thread.onSpinWait()
-          case cs: CellState => cs match
-            case CellState.DONE | CellState.BROKEN                       => return
-            case CellState.INTERRUPTED_RECEIVE | CellState.INTERRUPTED_SEND => return
-            case CellState.RESUMING => Thread.onSpinWait()
-            case _ => throw new IllegalStateException(s"Unexpected state: $state in channel: $this")
+          case cs: CellState =>
+            cs match
+              case CellState.DONE | CellState.BROKEN                          => return
+              case CellState.INTERRUPTED_RECEIVE | CellState.INTERRUPTED_SEND => return
+              case CellState.RESUMING                                         => Thread.onSpinWait()
+              case _ => throw new IllegalStateException(s"Unexpected state: $state in channel: $this")
           case _ =>
             // buffered value: discarding
             if segment.casCell(i, state, CLOSED) then
               segment.cellInterruptedReceiver()
               return
+      end if
 
   override def closedForSend(): ChannelClosed | Null =
     if isClosed(sendersAndClosedFlag.get()) then closedReason.get() else null
@@ -582,8 +611,10 @@ final class Channel[T] private (val capacity: Int) extends Source[T] with Sink[T
         seg.cleanPrev()
         if hasValueToReceive(seg, i) then return true
         else receivers.compareAndSet(r, r + 1)
+      end if
     end while
     false
+  end hasValuesToReceive
 
   private def hasValueToReceive(segment: Segment, i: Int): Boolean =
     while true do
@@ -593,14 +624,18 @@ final class Channel[T] private (val capacity: Int) extends Source[T] with Sink[T
         state match
           case c: Continuation        => return c.isSender
           case ss: StoredSelectClause => return ss.isSender
-          case cs: CellState => cs match
-            case CellState.INTERRUPTED_SEND | CellState.INTERRUPTED_RECEIVE => return false
-            case CellState.RESUMING => Thread.onSpinWait()
-            case CellState.CLOSED   => return false
-            case CellState.DONE | CellState.BROKEN => return false
-            case _ => throw new IllegalStateException(s"Unexpected state: $state in channel: $this")
+          case cs: CellState          =>
+            cs match
+              case CellState.INTERRUPTED_SEND | CellState.INTERRUPTED_RECEIVE => return false
+              case CellState.RESUMING                                         => Thread.onSpinWait()
+              case CellState.CLOSED                                           => return false
+              case CellState.DONE | CellState.BROKEN                          => return false
+              case _ => throw new IllegalStateException(s"Unexpected state: $state in channel: $this")
           case _ => return true // buffered value
+      end if
+    end while
     false
+  end hasValueToReceive
 
   // **************
   // Select clauses
@@ -617,6 +652,7 @@ final class Channel[T] private (val capacity: Int) extends Source[T] with Sink[T
         catch case e: InterruptedException => throw new IllegalStateException(e)
       override private[jox] def transformedRawValue(rawValue: AnyRef): U =
         callback(rawValue.asInstanceOf[T])
+  end receiveClause
 
   override def sendClause(value: T): SelectClause[Null] = sendClause(value, () => null)
 
@@ -631,6 +667,8 @@ final class Channel[T] private (val capacity: Int) extends Source[T] with Sink[T
         catch case e: InterruptedException => throw new IllegalStateException(e)
       override private[jox] def transformedRawValue(rawValue: AnyRef): U =
         callback()
+    end new
+  end sendClause
 
   private[jox] def cleanupStoredSelectClause(segment: Segment, i: Int, isSender: Boolean): Unit =
     segment.setCell(i, if isSender then INTERRUPTED_SEND else INTERRUPTED_RECEIVE)

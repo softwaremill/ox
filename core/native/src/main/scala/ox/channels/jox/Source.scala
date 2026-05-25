@@ -12,3 +12,4 @@ trait Source[T] extends CloseableChannel:
   def receiveClause(): SelectClause[T]
 
   def receiveClause[U](callback: T => U): SelectClause[U]
+end Source

@@ -1,6 +1,6 @@
 package ox.channels
 
-import ox.channels.jox.{Select as JSelect}
+import ox.channels.jox.Select as JSelect
 
 import ox.channels.ChannelClosedUnion.{map, orThrow}
 import ox.{discard, forkUnsupervised, sleep, unsupervised}

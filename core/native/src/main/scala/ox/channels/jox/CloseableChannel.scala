@@ -11,3 +11,4 @@ trait CloseableChannel:
 
   def closedForSend(): ChannelClosed | Null
   def closedForReceive(): ChannelClosed | Null
+end CloseableChannel

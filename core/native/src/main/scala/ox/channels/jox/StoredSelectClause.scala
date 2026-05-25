@@ -11,3 +11,4 @@ private[jox] final class StoredSelectClause(
 ):
   def cleanup(): Unit =
     clause.getChannel.nn.cleanupStoredSelectClause(segment, cellIndex, isSender)
+end StoredSelectClause

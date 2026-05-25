@@ -56,8 +56,7 @@ final class Segment(
     val toAdd = -(1 << POINTERS_SHIFT)
     var currentP = pointersNotProcessedNotInterrupted.get()
     while true do
-      if pointersNotProcessedNotInterrupted.compareAndSet(currentP, currentP + toAdd) then
-        return (currentP + toAdd) == 0
+      if pointersNotProcessedNotInterrupted.compareAndSet(currentP, currentP + toAdd) then return (currentP + toAdd) == 0
       currentP = pointersNotProcessedNotInterrupted.get()
     false // unreachable
 
@@ -97,6 +96,7 @@ final class Segment(
       else if _prev != null && _prev.isRemoved then () // continue loop
       else continue = false
     end while
+  end remove
 
   def close(): Segment =
     var s: Segment = this
@@ -107,6 +107,7 @@ final class Segment(
       else if n eq CLOSED_SENTINEL then return s
       else s = n
     s // unreachable
+  end close
 
   private def aliveSegmentLeft(): Segment | Null =
     var s = prevRef.get()
@@ -131,6 +132,7 @@ final class Segment(
     val nextStr = if n == null then "null" else if n eq CLOSED_SENTINEL then "closed" else n.id.toString
     val prevStr = if p == null then "null" else p.id.toString
     s"Segment{id=$id, next=$nextStr, prev=$prevStr, pointers=$ptrs, notProcessed=$notProcessed, notInterrupted=$notInterrupted}"
+  end toString
 
 end Segment
 
@@ -163,10 +165,10 @@ object Segment:
       if n eq CLOSED_SENTINEL then return null
       else if n == null then
         val newSegment = new Segment(current.getId + 1, current, 0, start.isRendezvousOrUnlimited)
-        if current.setNextIfNull(newSegment) then
-          if current.isRemoved then current.remove()
+        if current.setNextIfNull(newSegment) then if current.isRemoved then current.remove()
       else current = n.nn
     current
+  end findSegment
 
   private def moveForward(ref: AtomicReference[Segment], to: Segment): Boolean =
     while true do
@@ -177,5 +179,7 @@ object Segment:
         if current.decPointers() then current.remove()
         return true
       else if to.decPointers() then to.remove()
+    end while
     false // unreachable
+  end moveForward
 end Segment

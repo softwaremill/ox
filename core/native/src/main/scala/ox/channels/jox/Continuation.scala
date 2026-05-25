@@ -34,9 +34,11 @@ final class Continuation(val payload: AnyRef):
             else segment.cellInterruptedReceiver()
             throw new InterruptedException()
           else Thread.currentThread().interrupt()
+        end if
     end while
     data.get()
   end await
+end Continuation
 
 object Continuation:
   val RENDEZVOUS_SPINS: Int =

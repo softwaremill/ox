@@ -12,3 +12,4 @@ trait Sink[T] extends CloseableChannel:
   def sendClause(value: T): SelectClause[Null]
 
   def sendClause[U](value: T, callback: () => U): SelectClause[U]
+end Sink

@@ -20,6 +20,7 @@ object Select:
       val r = doSelectOrClosed(clauses*)
       if r ne RestartSelectMarker.RESTART then return r
     throw new AssertionError("unreachable")
+  end selectOrClosed
 
   @throws[InterruptedException]
   def defaultClause[T](value: T): SelectClause[T] = new DefaultClauseValue(value)
@@ -44,6 +45,7 @@ object Select:
         case _ =>
       if !si.register(clause) then done = true
       i += 1
+    end while
     si.checkStateAndWait(allRendezvous)
   end doSelectOrClosed
 
@@ -59,7 +61,9 @@ object Select:
         j += 1
       allRendezvous = allRendezvous && (chi == null || chi.isRendezvous)
       i += 1
+    end while
     allRendezvous
+  end verifyChannelsUnique_getAreAllRendezvous
 
   private def getAnyChannelInError(clauses: Seq[SelectClause[?]]): ChannelError | Null =
     for clause <- clauses do
@@ -69,6 +73,7 @@ object Select:
           case ce: ChannelError => return ce
           case _                =>
     null
+  end getAnyChannelInError
 end Select
 
 private[jox] final class SelectInstance(clausesCount: Int):
@@ -90,6 +95,8 @@ private[jox] final class SelectInstance(clausesCount: Int):
         resultSelectedDuringRegistration = result
         state.set(clause)
         false
+    end match
+  end register
 
   @throws[InterruptedException]
   def checkStateAndWait(allRendezvous: Boolean): AnyRef =
@@ -111,6 +118,8 @@ private[jox] final class SelectInstance(clausesCount: Int):
                     cleanup(null)
                     throw new InterruptedException()
                   else Thread.currentThread().interrupt()
+            end while
+          end if
 
         case clausesToReRegister: java.util.List[?] =>
           if state.compareAndSet(currentState, SelectState.REGISTERING) then
@@ -131,6 +140,7 @@ private[jox] final class SelectInstance(clausesCount: Int):
               storedClauses ++= newStored
 
               if !register(clause) then done = true
+            end while
 
         case selectedClause: SelectClause[?] @unchecked =>
           cleanup(selectedClause)
@@ -147,12 +157,13 @@ private[jox] final class SelectInstance(clausesCount: Int):
 
         case _ =>
           throw new IllegalStateException(s"Unknown state: $currentState")
+      end match
     end while
     throw new AssertionError("unreachable")
+  end checkStateAndWait
 
   private def cleanup(selected: SelectClause[?] | Null): Unit =
-    for stored <- storedClauses do
-      if !(stored.clause eq selected) then stored.cleanup()
+    for stored <- storedClauses do if !(stored.clause eq selected) then stored.cleanup()
     storedClauses.clear()
 
   /** Called by another thread to try selecting this clause. */
@@ -183,7 +194,10 @@ private[jox] final class SelectInstance(clausesCount: Int):
           return false
         case _ =>
           throw new IllegalStateException(s"Unknown state: $currentState")
+      end match
+    end while
     false // unreachable
+  end trySelect
 
   /** Called when a channel is closed. */
   def channelClosed(channelClosed: ChannelClosed): Boolean =
@@ -204,5 +218,8 @@ private[jox] final class SelectInstance(clausesCount: Int):
           return false
         case _ =>
           throw new IllegalStateException(s"Unknown state: $currentState")
+      end match
+    end while
     false // unreachable
+  end channelClosed
 end SelectInstance

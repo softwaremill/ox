@@ -9,6 +9,7 @@ enum CellState:
   case IN_BUFFER // used to inform a potentially concurrent sender that the cell is now in the buffer
   case RESUMING // expandBuffer is resuming a sender
   case CLOSED
+end CellState
 
 enum SendResult:
   case AWAITED, BUFFERED, RESUMED, FAILED, CLOSED

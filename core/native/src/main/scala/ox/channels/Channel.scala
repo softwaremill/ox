@@ -1,6 +1,6 @@
 package ox.channels
 
-import ox.channels.{jox => j}
+import ox.channels.jox as j
 import ox.channels.jox.{Channel as JChannel, Select as JSelect, SelectClause as JSelectClause, Sink as JSink, Source as JSource}
 
 import ChannelClosedUnion.orThrow
