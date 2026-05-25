@@ -2,8 +2,8 @@ import ox.*
 
 import java.util.concurrent.atomic.AtomicLong
 
-/** Spawns 100,000 virtual threads in a supervised scope, each incrementing a shared counter,
-  * then joins all. Measures wall-clock time to compare JVM vs Scala Native performance.
+/** Spawns 100,000 virtual threads in a supervised scope, each incrementing a shared counter, then joins all. Measures wall-clock time to
+  * compare JVM vs Scala Native performance.
   *
   * Prerequisites: JDK 21+ (JVM), clang/LLVM 16+ (Native).
   *
@@ -40,3 +40,5 @@ object VirtualThreadsNativeJvmBenchmark:
 
     assert(counter.get() == n, s"Expected $n, got ${counter.get()}")
     println(s"Spawned and joined $n virtual threads in ${elapsed}ms")
+  end main
+end VirtualThreadsNativeJvmBenchmark
