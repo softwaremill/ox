@@ -1,5 +1,8 @@
 package ox.channels.jox
 
+// Ported from: https://github.com/softwaremill/jox/blob/v1.1.2-channels/channels/src/main/java/com/softwaremill/jox/Channel.java
+// (inner class Continuation, lines 1508-1622)
+
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.LockSupport
 

@@ -1,5 +1,9 @@
 package ox.channels.jox
 
+// Ported from: https://github.com/softwaremill/jox/blob/v1.1.2-channels/channels/src/main/java/com/softwaremill/jox/Channel.java
+// (inner enums/classes: CellState, SendResult, ReceiveResult, ExpandBufferResult, ContinuationMarker, ChannelClosedMarker, SentClauseMarker;
+//  plus RestartSelectMarker, SelectState, TimeoutMarker from Select.java)
+
 // Possible states of a cell: one of these enum constants, Continuation, StoredSelectClause, or a buffered value
 enum CellState:
   case DONE

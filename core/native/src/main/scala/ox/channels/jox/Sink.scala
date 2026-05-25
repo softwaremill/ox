@@ -1,5 +1,7 @@
 package ox.channels.jox
 
+// Ported from: https://github.com/softwaremill/jox/blob/v1.1.2-channels/channels/src/main/java/com/softwaremill/jox/Sink.java
+
 trait Sink[T] extends CloseableChannel:
   @throws[InterruptedException]
   def send(value: T): Unit

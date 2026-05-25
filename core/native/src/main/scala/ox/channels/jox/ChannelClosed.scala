@@ -1,5 +1,10 @@
 package ox.channels.jox
 
+// Ported from: https://github.com/softwaremill/jox/blob/v1.1.2-channels/channels/src/main/java/com/softwaremill/jox/ChannelClosed.java
+//              https://github.com/softwaremill/jox/blob/v1.1.2-channels/channels/src/main/java/com/softwaremill/jox/ChannelDone.java
+//              https://github.com/softwaremill/jox/blob/v1.1.2-channels/channels/src/main/java/com/softwaremill/jox/ChannelError.java
+//              https://github.com/softwaremill/jox/blob/v1.1.2-channels/channels/src/main/java/com/softwaremill/jox/ChannelClosedException.java
+
 sealed trait ChannelClosed:
   def toException(): ChannelClosedException
   def channel: Channel[?]
