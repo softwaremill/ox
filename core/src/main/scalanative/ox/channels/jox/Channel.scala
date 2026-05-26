@@ -374,7 +374,7 @@ final class Channel[T] private (val capacity: Int) extends Source[T] with Sink[T
         state match
           case c: Continuation =>
             if segment.casCell(i, state, RESUMING) then
-              if c.tryResume(0.asInstanceOf[AnyRef]) then
+              if c.tryResume(Integer.valueOf(0)) then
                 segment.setCell(i, DONE)
                 expandBuffer()
                 return c.payload
@@ -453,7 +453,7 @@ final class Channel[T] private (val capacity: Int) extends Source[T] with Sink[T
           case DONE                          => return ExpandBufferResult.DONE
           case c: Continuation if c.isSender =>
             if segment.casCell(i, state, RESUMING) then
-              if c.tryResume(0.asInstanceOf[AnyRef]) then
+              if c.tryResume(Integer.valueOf(0)) then
                 segment.setCell(i, c.payload)
                 return ExpandBufferResult.DONE
               else return ExpandBufferResult.FAILED
