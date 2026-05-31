@@ -210,4 +210,22 @@ class ImmediateRetryTest extends AnyFlatSpec with EitherValues with TryValues wi
     result.value shouldBe message
     counter shouldBe 6
 
+  it should "not pay failureCost if result E (Left) is going to be retried and shouldPayFailureCost returns false" in:
+    // given
+    var counter = 0
+    val errorMessage = "boom"
+
+    def f =
+      counter += 1
+      Left(errorMessage)
+
+    val adaptive = AdaptiveRetry(TokenBucket(2), 1, 1)
+    // when
+    val result = adaptive.retryEither(Schedule.immediate.maxRetries(5), _ => false)(f)
+
+    // then
+    result.left.value shouldBe errorMessage
+    // All attempts are made for free (1 initial + 5 retries); the bucket is never touched
+    counter shouldBe 6
+
 end ImmediateRetryTest
