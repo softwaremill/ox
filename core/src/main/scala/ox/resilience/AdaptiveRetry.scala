@@ -76,7 +76,7 @@ case class AdaptiveRetry(
           // If we want to retry we try to acquire tokens from bucket
           if config.resultPolicy.isWorthRetrying(value) then
             if shouldPayFailureCost(Left(value)) then ScheduleStop(!tokenBucket.tryAcquire(failureCost))
-            else ScheduleStop.Yes
+            else ScheduleStop.No
           else ScheduleStop.Yes
         case Right(value) =>
           // If we are successful, we release tokens to bucket and end schedule
