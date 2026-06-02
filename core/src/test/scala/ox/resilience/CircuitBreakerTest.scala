@@ -13,9 +13,10 @@ class CircuitBreakerTest extends AnyFlatSpec with Matchers with OptionValues wit
   // Scheduled state transitions (open -> half-open -> open) are driven by forked timers handed off to the breaker's
   // actor. The exact moment a transition becomes observable depends on thread scheduling, so on a loaded CI runner a
   // transition can land later than its nominal delay. Asserting against a single timed read is therefore racy (it was
-  // an intermittent CI failure); we poll for the expected state with a generous timeout instead.
-  private val transitionTimeout = timeout(Span(8, Seconds))
-  private val transitionInterval = interval(Span(50, Millis))
+  // an intermittent CI failure); the scheduled-state-change tests below poll with `eventually` instead. Each picks its
+  // own timeout/interval from that test's config: the timeout only bounds the wait before declaring failure (a passing
+  // assertion returns as soon as the state matches), and catching a transient state (HalfOpen) reliably depends on the
+  // poll interval being far smaller than that state's lifetime.
 
   behavior of "Circuit Breaker run operations"
 
@@ -124,13 +125,13 @@ class CircuitBreakerTest extends AnyFlatSpec with Matchers with OptionValues wit
 
     // then
     result1 shouldBe defined
-    // the failing call opens the breaker
-    eventually(transitionTimeout, transitionInterval) {
+    // the failing call opens the breaker (effectively immediate)
+    eventually(timeout(Span(2, Seconds)), interval(Span(50, Millis))) {
       circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.Open]
     }
-    // after waitDurationOpenState the breaker switches to half-open (and, with the default halfOpenTimeoutDuration of 0,
-    // stays there waiting for calls to complete)
-    eventually(transitionTimeout, transitionInterval) {
+    // after waitDurationOpenState (1s) the breaker switches to half-open and, with the default halfOpenTimeoutDuration
+    // of 0, stays there waiting for calls to complete - so a generous timeout that outlasts the 1s onset suffices.
+    eventually(timeout(Span(5, Seconds)), interval(Span(50, Millis))) {
       circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.HalfOpen]
     }
   }
@@ -146,7 +147,10 @@ class CircuitBreakerTest extends AnyFlatSpec with Matchers with OptionValues wit
         slidingWindow = SlidingWindow.CountBased(numberOfOperations),
         numberOfCallsInHalfOpenState = 1,
         waitDurationOpenState = 1.seconds,
-        halfOpenTimeoutDuration = 2.seconds
+        // Widened (from a tighter value) so HalfOpen is observable for a ~4s window. HalfOpen is transient here - it
+        // flips back to Open once this timeout elapses - so a wide window relative to the 50ms poll interval is what
+        // makes catching it reliable under load.
+        halfOpenTimeoutDuration = 4.seconds
       )
     )
     def f(): Either[String, String] =
@@ -157,12 +161,14 @@ class CircuitBreakerTest extends AnyFlatSpec with Matchers with OptionValues wit
 
     // then
     result1 shouldBe defined
-    // after waitDurationOpenState the breaker switches from open to half-open
-    eventually(transitionTimeout, transitionInterval) {
+    // after waitDurationOpenState (1s) the breaker switches from open to half-open; the timeout sits inside the ~4s
+    // half-open window so we catch this transient state, the 50ms interval samples it ~60x
+    eventually(timeout(Span(4, Seconds)), interval(Span(50, Millis))) {
       circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.HalfOpen]
     }
-    // no half-open call completes within halfOpenTimeoutDuration, so the breaker switches back to open
-    eventually(transitionTimeout, transitionInterval) {
+    // no half-open call completes within halfOpenTimeoutDuration (4s), so the breaker switches back to open; the
+    // recovery only happens after that timeout fully elapses, so this wait must outlast it
+    eventually(timeout(Span(8, Seconds)), interval(Span(50, Millis))) {
       circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.Open]
     }
   }
