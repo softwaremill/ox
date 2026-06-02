@@ -6,8 +6,17 @@ import org.scalatest.OptionValues
 import scala.concurrent.duration.*
 import ox.*
 import org.scalatest.EitherValues
+import org.scalatest.concurrent.Eventually
+import org.scalatest.time.{Millis, Seconds, Span}
 
-class CircuitBreakerTest extends AnyFlatSpec with Matchers with OptionValues with EitherValues:
+class CircuitBreakerTest extends AnyFlatSpec with Matchers with OptionValues with EitherValues with Eventually:
+  // Scheduled state transitions (open -> half-open -> open) are driven by forked timers handed off to the breaker's
+  // actor. The exact moment a transition becomes observable depends on thread scheduling, so on a loaded CI runner a
+  // transition can land later than its nominal delay. Asserting against a single timed read is therefore racy (it was
+  // an intermittent CI failure); we poll for the expected state with a generous timeout instead.
+  private val transitionTimeout = timeout(Span(8, Seconds))
+  private val transitionInterval = interval(Span(50, Millis))
+
   behavior of "Circuit Breaker run operations"
 
   it should "run operation when metrics are not exceeded" in supervised {
@@ -112,15 +121,18 @@ class CircuitBreakerTest extends AnyFlatSpec with Matchers with OptionValues wit
 
     // when
     val result1 = circuitBreaker.runOrDropEither(f())
-    sleep(100.millis) // wait for state to register
-    val state = circuitBreaker.stateMachine.state
-    sleep(1500.millis)
-    val stateAfterWait = circuitBreaker.stateMachine.state
 
     // then
     result1 shouldBe defined
-    state shouldBe a[CircuitBreakerState.Open]
-    stateAfterWait shouldBe a[CircuitBreakerState.HalfOpen]
+    // the failing call opens the breaker
+    eventually(transitionTimeout, transitionInterval) {
+      circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.Open]
+    }
+    // after waitDurationOpenState the breaker switches to half-open (and, with the default halfOpenTimeoutDuration of 0,
+    // stays there waiting for calls to complete)
+    eventually(transitionTimeout, transitionInterval) {
+      circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.HalfOpen]
+    }
   }
 
   it should "switch back to open after configured timeout in half open state" in supervised {
@@ -142,15 +154,17 @@ class CircuitBreakerTest extends AnyFlatSpec with Matchers with OptionValues wit
 
     // when
     val result1 = circuitBreaker.runOrDropEither(f()) // trigger switch to open
-    sleep(1500.millis) // wait for state to register, and for switch to half open
-    val state = circuitBreaker.stateMachine.state
-    sleep(2500.millis) // wait longer than half open timeout
-    val stateAfterWait = circuitBreaker.stateMachine.state
 
     // then
     result1 shouldBe defined
-    state shouldBe a[CircuitBreakerState.HalfOpen]
-    stateAfterWait shouldBe a[CircuitBreakerState.Open]
+    // after waitDurationOpenState the breaker switches from open to half-open
+    eventually(transitionTimeout, transitionInterval) {
+      circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.HalfOpen]
+    }
+    // no half-open call completes within halfOpenTimeoutDuration, so the breaker switches back to open
+    eventually(transitionTimeout, transitionInterval) {
+      circuitBreaker.stateMachine.state shouldBe a[CircuitBreakerState.Open]
+    }
   }
 
   it should "correctly transitions through states when there are concurrently running operations" in supervised {
