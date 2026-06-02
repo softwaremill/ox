@@ -24,6 +24,7 @@ metals.sbt
 /notes.md
 .devcontainer
 .orca
+.sandcat/settings.local.json
 
 # TraceVault — local only, do not commit
 .tracevault/
