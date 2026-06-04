@@ -2,10 +2,13 @@ import com.softwaremill.SbtSoftwareMillCommon.commonSmlBuildSettings
 import com.softwaremill.Publish.{ossPublishSettings, updateDocs}
 import com.softwaremill.UpdateVersionInDocs
 import com.typesafe.tools.mima.core.{MissingClassProblem, ProblemFilters}
+import scalanative.build._
+
+lazy val scala3 = "3.3.7"
 
 lazy val commonSettings = commonSmlBuildSettings ++ ossPublishSettings ++ Seq(
   organization := "com.softwaremill.ox",
-  scalaVersion := "3.3.7",
+  scalaVersion := scala3,
   updateDocs := Def.taskDyn {
     val files1 = UpdateVersionInDocs(sLog.value, organization.value, version.value)
     Def.task {
@@ -50,21 +53,53 @@ compileDocumentation := {
 lazy val rootProject = (project in file("."))
   .settings(commonSettings)
   .settings(publishArtifact := false, name := "ox")
-  .aggregate(core, kafka, mdcLogback, flowReactiveStreams, cron, otelContext)
+  .aggregate(core.projectRefs ++ examples.projectRefs ++ Seq[ProjectReference](kafka, mdcLogback, flowReactiveStreams, cron, otelContext): _*)
 
-lazy val core: Project = (project in file("core"))
+lazy val core = (projectMatrix in file("core"))
   .settings(commonSettings)
   .settings(
     name := "core",
-    libraryDependencies ++= Seq(
-      "com.softwaremill.jox" % "channels" % "1.1.2",
-      scalaTest,
-      "org.apache.pekko" %% "pekko-stream" % "1.6.0" % Test,
-      "org.reactivestreams" % "reactive-streams-tck-flow" % "1.0.4" % Test
-    ),
-    Test / fork := true
+    libraryDependencies += "org.scalatest" %%% "scalatest" % "3.2.20" % Test
   )
-  .settings(enableMimaSettings)
+  .jvmPlatform(
+    scalaVersions = Seq(scala3),
+    settings = enableMimaSettings ++ Seq(
+      Test / fork := true,
+      libraryDependencies ++= Seq(
+        "com.softwaremill.jox" % "channels" % "1.1.2",
+        "org.apache.pekko" %% "pekko-stream" % "1.6.0" % Test,
+        "org.reactivestreams" % "reactive-streams-tck-flow" % "1.0.4" % Test
+      )
+    )
+  )
+  .nativePlatform(
+    scalaVersions = Seq(scala3),
+    settings = Seq(
+      Test / fork := false,
+      nativeConfig ~= { _.withMultithreading(true) }
+    )
+  )
+
+lazy val examples = (projectMatrix in file("examples"))
+  .settings(commonSettings)
+  .settings(
+    name := "examples",
+    publishArtifact := false,
+    Compile / mainClass := Some("VirtualThreadsNativeJvmBenchmark")
+  )
+  .jvmPlatform(
+    scalaVersions = Seq(scala3),
+    settings = Seq(
+      assembly / assemblyJarName := "examples-assembly.jar"
+    )
+  )
+  .nativePlatform(
+    scalaVersions = Seq(scala3),
+    settings = Seq(
+      nativeConfig ~= { _.withMultithreading(true) }
+    )
+  )
+  .dependsOn(core)
 
 lazy val kafka: Project = (project in file("kafka"))
   .settings(commonSettings)
@@ -80,7 +115,7 @@ lazy val kafka: Project = (project in file("kafka"))
       scalaTest
     )
   )
-  .dependsOn(core)
+  .dependsOn(core.jvm(scala3))
 
 lazy val mdcLogback: Project = (project in file("mdc-logback"))
   .settings(commonSettings)
@@ -91,7 +126,7 @@ lazy val mdcLogback: Project = (project in file("mdc-logback"))
       scalaTest
     )
   )
-  .dependsOn(core)
+  .dependsOn(core.jvm(scala3))
 
 lazy val flowReactiveStreams: Project = (project in file("flow-reactive-streams"))
   .settings(commonSettings)
@@ -102,7 +137,7 @@ lazy val flowReactiveStreams: Project = (project in file("flow-reactive-streams"
       scalaTest
     )
   )
-  .dependsOn(core)
+  .dependsOn(core.jvm(scala3))
 
 lazy val cron: Project = (project in file("cron"))
   .settings(commonSettings)
@@ -113,7 +148,7 @@ lazy val cron: Project = (project in file("cron"))
       scalaTest
     )
   )
-  .dependsOn(core % "test->test;compile->compile")
+  .dependsOn(core.jvm(scala3) % "test->test;compile->compile")
 
 lazy val otelContext: Project = (project in file("otel-context"))
   .settings(commonSettings)
@@ -124,7 +159,7 @@ lazy val otelContext: Project = (project in file("otel-context"))
       scalaTest
     )
   )
-  .dependsOn(core % "test->test;compile->compile")
+  .dependsOn(core.jvm(scala3) % "test->test;compile->compile")
 
 lazy val documentation: Project = (project in file("generated-doc")) // important: it must not be doc/
   .enablePlugins(MdocPlugin)
@@ -142,7 +177,7 @@ lazy val documentation: Project = (project in file("generated-doc")) // importan
     libraryDependencies ++= Seq(logback % Test)
   )
   .dependsOn(
-    core,
+    core.jvm(scala3),
     kafka,
     mdcLogback,
     flowReactiveStreams,
