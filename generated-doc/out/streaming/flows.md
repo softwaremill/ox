@@ -9,9 +9,9 @@ An introduction to Ox's Flow, along with some code samples is available [as a vi
 ```
 
 As a companion to this guide, refer to the ScalaDoc for a comprehensive list of:
-* [ways to create Flows](https://www.javadoc.io/static/com.softwaremill.ox/core_3/1.0.4/ox/flow/FlowCompanionOps.html#)
-* [ways to transform Flows](https://www.javadoc.io/static/com.softwaremill.ox/core_3/1.0.4/ox/flow/FlowOps.html#)
-* [ways to run Flows](https://www.javadoc.io/static/com.softwaremill.ox/core_3/1.0.4/ox/flow/FlowRunOps.html#)
+* [ways to create Flows](https://www.javadoc.io/static/com.softwaremill.ox/core_3/1.0.5/ox/flow/FlowCompanionOps.html#)
+* [ways to transform Flows](https://www.javadoc.io/static/com.softwaremill.ox/core_3/1.0.5/ox/flow/FlowOps.html#)
+* [ways to run Flows](https://www.javadoc.io/static/com.softwaremill.ox/core_3/1.0.5/ox/flow/FlowRunOps.html#)
 
 ## Creating flows
 
@@ -196,7 +196,7 @@ To obtain a `org.reactivestreams.Publisher` instance, you'll need to add the fol
 bring the `toReactiveStreamsPublisher` method into scope:
 
 ```scala
-// sbt dependency: "com.softwaremill.ox" %% "flow-reactive-streams" % "1.0.4"
+// sbt dependency: "com.softwaremill.ox" %% "flow-reactive-streams" % "1.0.5"
 
 import ox.supervised
 import ox.flow.Flow
