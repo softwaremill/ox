@@ -85,13 +85,18 @@ trait FlowCompanionOps:
       emit(t)
       t = f(t)
 
-  /** Creates a flow which emits a range of numbers, from `from`, to `to` (inclusive), stepped by `step`. */
-  def range(from: Int, to: Int, step: Int): Flow[Int] = usingEmitInline: emit =>
-    var t = from
-    repeatWhile:
-      emit(t)
-      t = t + step
-      t <= to
+  /** Creates a flow which emits a range of numbers, from `from`, to `to` (inclusive), stepped by `step`. A negative `step` produces a
+    * descending range, e.g. `range(5, 1, -1)` emits `5, 4, 3, 2, 1`. The `step` must be non-zero.
+    */
+  def range(from: Int, to: Int, step: Int): Flow[Int] =
+    require(step != 0, "step must be non-zero")
+    usingEmitInline: emit =>
+      var t = from
+      repeatWhile:
+        emit(t)
+        t = t + step
+        if step >= 0 then t <= to else t >= to
+  end range
 
   /** Creates a flow which emits the first element of tuples returned by repeated applications of `f`. The `initial` state is used for the
     * first application, and then the state is updated with the second element of the tuple. Emission stops when `f` returns `None`,
