@@ -55,24 +55,26 @@ class SupervisedTest extends AnyFlatSpec with Matchers:
   it should "interrupt once any fork ends with an exception" in {
     val trail = Trail()
 
-    val result = Try(supervised {
-      forkUser {
-        sleep(300.millis)
-        trail.add("a")
-      }.discard
+    val result = Try(
+      supervised {
+        forkUser {
+          sleep(300.millis)
+          trail.add("a")
+        }.discard
 
-      forkUser {
-        sleep(200.millis)
-        throw new RuntimeException("x")
-      }.discard
+        forkUser {
+          sleep(200.millis)
+          throw new RuntimeException("x")
+        }.discard
 
-      forkUser {
-        sleep(100.millis)
-        trail.add("b")
-      }.discard
+        forkUser {
+          sleep(100.millis)
+          trail.add("b")
+        }.discard
 
-      2
-    })
+        2
+      }
+    )
 
     result should matchPattern { case Failure(e) if e.getMessage == "x" => }
     trail.add("done")
