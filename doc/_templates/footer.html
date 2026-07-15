@@ -1,0 +1,7 @@
+{% extends "!footer.html" %}
+
+{# Inject the Scarf tracking pixel on every page (analytics for ox usage). #}
+{% block extrafooter %}
+  {{ super() }}
+  <img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=ca3b823f-0fa8-4614-bdfd-528a794fa0c6" />
+{% endblock %}
