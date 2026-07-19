@@ -37,6 +37,11 @@ Errors:
 Other:
 * **computation combinator**: a method which takes user-provided functions and manages their execution, e.g. using 
   concurrency, interruption, and appropriately handling errors; examples include `par`, `race`, `retry`, `timeout`
+* **detached thread**: an unmanaged virtual thread, running outside of any concurrency scope, which is never joined;
+  used to perform uninterruptible blocking operations on behalf of forks (see `abandonOnInterrupt`)
+* **abandoning** an operation: when a fork waiting for the result of a blocking, uninterruptible operation is
+  interrupted, the operation's result is given up: the operation keeps running on its detached thread (as it can't be
+  interrupted), and its eventual result, or exception, is discarded
 
 Channels:
 * **values** can be **sent** to a channel, or **received** from a channel
