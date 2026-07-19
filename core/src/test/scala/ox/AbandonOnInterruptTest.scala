@@ -75,9 +75,11 @@ class AbandonOnInterruptTest extends AnyFlatSpec with Matchers with Eventually:
     private var pos = 0
     override def read(): Int =
       uninterruptible(release.await())
-      if pos < data.length then { val b = data(pos) & 0xff; pos += 1; b }
+      if pos < data.length then
+        val b = data(pos) & 0xff; pos += 1; b
       else -1
     override def close(): Unit = closed.set(true)
+  end BlockingInputStream
 
   "abandonOnInterruptReads" should "read the content through, in chunks" in {
     val data = Array.tabulate[Byte](100)(_.toByte)
@@ -123,7 +125,8 @@ class AbandonOnInterruptTest extends AnyFlatSpec with Matchers with Eventually:
     val underlying = ByteArrayInputStream(Array[Byte](1, 2, 3))
     val closed = AtomicBoolean(false)
     val tracking = new FilterInputStream(underlying):
-      override def close(): Unit = { closed.set(true); super.close() }
+      override def close(): Unit =
+        closed.set(true); super.close()
     val wrapped = abandonOnInterruptReads(tracking)
     wrapped.read() shouldBe 1
     wrapped.close()
@@ -163,7 +166,8 @@ class AbandonOnInterruptTest extends AnyFlatSpec with Matchers with Eventually:
     val underlying = ByteArrayOutputStream()
     val closed = AtomicBoolean(false)
     val tracking = new FilterOutputStream(underlying):
-      override def close(): Unit = { closed.set(true); super.close() }
+      override def close(): Unit =
+        closed.set(true); super.close()
       override def write(b: Array[Byte], off: Int, len: Int): Unit =
         // rejecting out-of-order writes, so that a close happening before draining queued writes is observable
         if closed.get() then throw new IOException("write after close")
@@ -189,7 +193,8 @@ class AbandonOnInterruptTest extends AnyFlatSpec with Matchers with Eventually:
     val flushed = AtomicBoolean(false)
     val underlying = new OutputStream:
       override def write(b: Int): Unit = ()
-      override def flush(): Unit = { uninterruptible(release.await()); flushed.set(true) }
+      override def flush(): Unit =
+        uninterruptible(release.await()); flushed.set(true)
     val wrapped = abandonOnInterruptWrites(underlying)
 
     supervised {
@@ -206,7 +211,8 @@ class AbandonOnInterruptTest extends AnyFlatSpec with Matchers with Eventually:
     val closeCount = AtomicInteger(0)
     val underlying = new OutputStream:
       override def write(b: Int): Unit = ()
-      override def close(): Unit = { uninterruptible(release.await()); closeCount.incrementAndGet().discard }
+      override def close(): Unit =
+        uninterruptible(release.await()); closeCount.incrementAndGet().discard
     val wrapped = abandonOnInterruptWrites(underlying, closeOnAbandon = true)
 
     supervised {

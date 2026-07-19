@@ -23,8 +23,8 @@ import java.util.concurrent.atomic.AtomicReference
   */
 def abandonOnInterrupt[T](op: => T): T = abandonOnInterrupt(op)(())
 
-/** As [[abandonOnInterrupt]]; additionally, when the wait is abandoned, `onAbandon` is started fire-and-forget on another detached
-  * thread — never on the interrupted caller, as cleanup (e.g. closing a resource) might itself block. Exceptions thrown by `onAbandon` are
+/** As [[abandonOnInterrupt]]; additionally, when the wait is abandoned, `onAbandon` is started fire-and-forget on another detached thread —
+  * never on the interrupted caller, as cleanup (e.g. closing a resource) might itself block. Exceptions thrown by `onAbandon` are
   * discarded.
   *
   * Use `onAbandon` to release the underlying resource, e.g. `abandonOnInterrupt(statement.execute())(connection.close())`: for resources
@@ -47,6 +47,7 @@ def abandonOnInterrupt[T](op: => T)(onAbandon: => Unit): T =
       val cause = e.getCause
       cause.addSuppressed(e) // so that no context is lost
       throw cause
+  end try
 end abandonOnInterrupt
 
 private[ox] def startDetachedThread(name: String)(body: => Unit): Unit =
@@ -98,6 +99,8 @@ def abandonOnInterruptReads(is: InputStream, chunkSize: Int = 8192, closeOnAband
           // avoiding a copy when the buffer came back full (a fresh buffer is allocated each iteration)
           val chunk = Chunk.fromArray(if n == chunkSize then buf else buf.take(n))
           if chan.sendOrClosed(chunk).isInstanceOf[ChannelClosed] then running = false
+        end if
+      end while
     catch case t: Throwable => chan.errorOrClosed(t).discard
   }
 
@@ -115,7 +118,7 @@ def abandonOnInterruptReads(is: InputStream, chunkSize: Int = 8192, closeOnAband
       else
         try
           chan.receiveOrClosed() match
-            case ChannelClosed.Done => eof = true; false
+            case ChannelClosed.Done     => eof = true; false
             case ChannelClosed.Error(t) => throw asIOException(t)
             case c                      => current = c.asInstanceOf[Chunk[Byte]]; pos = 0; true
         catch
@@ -147,6 +150,8 @@ def abandonOnInterruptReads(is: InputStream, chunkSize: Int = 8192, closeOnAband
           i += 1
         pos += n
         n
+      end if
+    end read
 
     override def available(): Int = if closed || eof then 0 else current.length - pos
 
@@ -155,6 +160,7 @@ def abandonOnInterruptReads(is: InputStream, chunkSize: Int = 8192, closeOnAband
         closed = true
         chan.doneOrClosed().discard // signals the detached thread to stop at its next send
         is.close()
+  end new
 end abandonOnInterruptReads
 
 private enum WriteCommand:
@@ -165,8 +171,8 @@ private enum WriteCommand:
 /** Wraps `os` so that writes and flushes become interruptible: a detached virtual thread performs the actual writes. Writes are passed
   * through a rendezvous channel, providing backpressure: if a write to `os` blocks, the wrapper's operations eventually block as well — but
   * interruptibly. `flush()` and `close()` await completion by the detached thread, interruptibly; `close()` closes `os` after completing
-  * the writes queued before it. If an operation is abandoned before its command is handed over to the detached thread (and
-  * `closeOnAbandon` is not set), `os` remains open, and `close()` can be retried.
+  * the writes queued before it. If an operation is abandoned before its command is handed over to the detached thread (and `closeOnAbandon`
+  * is not set), `os` remains open, and `close()` can be retried.
   *
   * An error thrown by an (asynchronously performed) underlying write surfaces, as an [[IOException]], on the next write/flush/close call;
   * the wrapper is then permanently broken.
@@ -191,7 +197,8 @@ def abandonOnInterruptWrites(os: OutputStream, closeOnAbandon: Boolean = false):
         case WriteCommand.Flush(ack) =>
           pendingError.get() match
             case null =>
-              try { os.flush(); ack.complete(()).discard }
+              try
+                os.flush(); ack.complete(()).discard
               catch
                 case t: Throwable =>
                   pendingError.set(t)
@@ -199,11 +206,14 @@ def abandonOnInterruptWrites(os: OutputStream, closeOnAbandon: Boolean = false):
             case t => ack.completeExceptionally(t).discard
         case WriteCommand.Close(ack) =>
           // a pending write error surfaces on close as well, so that a successful close guarantees all writes landed
-          val closeError = try { os.close(); null } catch case t: Throwable => t
+          val closeError = try
+            os.close(); null
+          catch case t: Throwable => t
           val error = if pendingError.get() != null then pendingError.get() else closeError
           if error == null then ack.complete(()).discard else ack.completeExceptionally(error).discard
           running = false
         case _: ChannelClosed => running = false
+    end while
   }
 
   new OutputStream:
@@ -264,4 +274,5 @@ def abandonOnInterruptWrites(os: OutputStream, closeOnAbandon: Boolean = false):
         sendCommand(WriteCommand.Close(ack))
         closed = true
         await(ack, alreadyClosing = true)
+  end new
 end abandonOnInterruptWrites
