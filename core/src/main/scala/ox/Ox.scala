@@ -8,7 +8,7 @@ import ox.internal.ThreadHerd
 import java.util.concurrent.atomic.AtomicReference
 import scala.annotation.implicitNotFound
 
-/** Capability granted by a [[resourceScope]], as well as, via subtyping, by any concurrency scope ([[supervised]], [[supervisedError]],
+/** Capability granted by a [[resourceScope]] and, via subtyping, by any concurrency scope ([[supervised]], [[supervisedError]],
   * [[unsupervised]]).
   *
   * Represents a capability to register resources (e.g. using [[useInScope]] or [[releaseAfterScope]]) to be released when the scope
@@ -18,7 +18,7 @@ import scala.annotation.implicitNotFound
   *   [[OxUnsupervised]], [[Ox]]
   */
 @implicitNotFound(
-  "This operation must be run within a `resourceScope`, or any concurrency scope (`supervised`, `supervisedError`, `unsupervised`). " +
+  "This operation must be run within a `resourceScope`, or any concurrency scope (`supervised`, `supervisedError` or `unsupervised`). " +
     "Alternatively, you must require that the enclosing method is run within a scope, by adding a `using ResourceScope` parameter list."
 )
 trait ResourceScope:
@@ -51,7 +51,7 @@ trait OxUnsupervised extends ResourceScope:
   private[ox] def locals: ForkLocalMap
 end OxUnsupervised
 
-/** Capability granted by an [[supervised]] or [[supervisedError]] concurrency scope.
+/** Capability granted by a [[supervised]] or [[supervisedError]] concurrency scope.
   *
   * Represents a capability to:
   *   - fork supervised or unsupervised, asynchronously running computations in a concurrency scope. Such forks can be created using

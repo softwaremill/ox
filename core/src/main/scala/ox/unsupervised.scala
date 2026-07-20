@@ -46,9 +46,10 @@ private[ox] def scopedWithCapability[T](capability: Ox)(f: Ox ?=> T): T =
   finally currentScope.set(previousScope)
 end scopedWithCapability
 
-/** Runs the scope's finalizers (in reverse registration order, uninterruptibly), freezing the finalizer list, so that later registrations
-  * fail with an exception (see [[ResourceScope.addFinalizer]]) instead of being silently lost. Returns the scope's result: the body
-  * exception is re-thrown with finalizer errors suppressed; finalizer errors alone fail the scope.
+/** Runs the scope's finalizers (in reverse registration order, uninterruptibly), first freezing the finalizer list (by setting it to
+  * `null`), so that later registrations fail with an exception (see [[ResourceScope.addFinalizer]]) instead of being silently lost. Must be
+  * called exactly once per scope. Returns the scope's result: the body exception is re-thrown with finalizer exceptions suppressed;
+  * finalizer exceptions alone fail the scope.
   */
 private[ox] def runFinalizers[T](scope: ResourceScope, result: Either[Throwable, T]): T =
   def throwWithSuppressed(es: List[Throwable]): Nothing =

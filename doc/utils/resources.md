@@ -13,10 +13,10 @@ useCloseable(new java.io.PrintWriter("test.txt")) { writer =>
 }
 ```
 
-If a concurrency scope is available (e.g. `supervised`), or there are multiple resources to allocate, consider using the
-approach described below, to avoid creating an additional syntactical scope.
+If a concurrency scope is available (e.g. `supervised`), or there are multiple resources to allocate, consider using a
+resource scope (described below), to avoid creating an additional syntactical scope.
 
-Alternatively, you can use `useInterruptibly`, where the releasing might be interrupted, and which is equivalent to a 
+Alternatively, you can use `useInterruptible`, where the releasing might be interrupted, and which is equivalent to a 
 `try`-`finally` block.
 
 ```{warning}

@@ -13,22 +13,20 @@ opaque type NoEnclosingConcurrencyScope = Unit
 
 object NoEnclosingConcurrencyScope:
   // in the companion, so that it's found via the implicit scope of the type, without any imports
-  inline given noEnclosingConcurrencyScope(using NotGiven[OxUnsupervised]): NoEnclosingConcurrencyScope = ()
+  given noEnclosingConcurrencyScope(using NotGiven[OxUnsupervised]): NoEnclosingConcurrencyScope = ()
 
 /** Starts a new resource scope: within the given code block `f`, resources can be registered using [[useInScope]] and
   * [[releaseAfterScope]]. They are released, in reverse registration order, once `f` completes (either successfully or with an exception).
-  * Releasing is [[uninterruptible]]. A resource scope is not a concurrency scope: no forks can be started, no threads are started while the
-  * body runs, and no [[ForkLocal]] values can be bound. The stdlib's analogue is `scala.util.Using.Manager`.
+  * Releasing is [[uninterruptible]]. A resource scope is not a concurrency scope: no forks can be started and no [[ForkLocal]] values can
+  * be bound. The stdlib's analogue is `scala.util.Using.Manager`.
   *
-  * Any concurrency scope ([[supervised]], [[supervisedError]], [[unsupervised]]) is also a resource scope. Hence, a resource scope can only
-  * be started where no concurrency scope is visible (this is verified at compile-time): within a concurrency scope, resources can be
-  * registered directly; and forks started within a lexically visible resource scope could outlive it, using or registering resources after
-  * they have been released. For the same reason, the [[ResourceScope]] capability and the registered resources must not leak out of the
-  * scope: registration after the scope ends throws an [[IllegalStateException]].
+  * Any concurrency scope ([[supervised]], [[supervisedError]], [[unsupervised]]) is also a resource scope, so within one you can register
+  * resources directly. Starting a resource scope there is disallowed (verified at compile-time), because forks started in a lexically
+  * visible resource scope could outlive it, using or registering resources after they've been released. For the same reason, the
+  * [[ResourceScope]] capability must not leak out of the scope: registration after the scope ends throws an [[IllegalStateException]].
   *
-  * When run within a concurrency scope created with a [[ForkLocal]] binding (via a capability-free method), the body and the finalizers see
-  * the fork-local values of the resource scope's level; finalizers registered from nested scopes (by explicitly passing the capability) do
-  * not see the nested scopes' bindings.
+  * Finalizers run with the [[ForkLocal]] values in effect where `resourceScope` was called — the same values the body sees. A finalizer
+  * registered through a leaked capability from a nested [[ForkLocal]] binding does not see that nested binding.
   */
 def resourceScope[T](f: ResourceScope ?=> T)(using NoEnclosingConcurrencyScope): T =
   val scope = new ResourceScope:
@@ -38,9 +36,9 @@ def resourceScope[T](f: ResourceScope ?=> T)(using NoEnclosingConcurrencyScope):
     catch case e: Throwable => Left(e)
   runFinalizers(scope, result)
 
-/** Use the given resource in the current scope. The resource is allocated using `acquire`, and released using `release` before the scope
+/** Use the given resource in the current scope. The resource is allocated using `acquire`, and released using `release` when the scope
   * completes, in reverse registration order. For concurrency scopes, release happens after all forks started within the scope have
-  * completed (either successfully or with an error). Releasing is [[uninterruptible]].
+  * completed (either successfully or with an exception). Releasing is [[uninterruptible]].
   *
   * If the scope has already ended (which can only happen when using a leaked, explicitly-passed capability), the resource is acquired,
   * immediately released — so that cleanup is never lost — and an [[IllegalStateException]] is thrown.
@@ -50,28 +48,19 @@ def useInScope[T](acquire: => T)(release: T => Unit)(using rs: ResourceScope): T
   try rs.addFinalizer(() => release(t))
   catch
     case e: Throwable =>
-      // the scope might have already ended (when using a leaked capability); not leaking the just-acquired resource
       try uninterruptible(release(t))
       catch case e2: Throwable => e.addSuppressed(e2)
       throw e
   t
 end useInScope
 
-/** Use the given resource, which implements [[AutoCloseable]], in the current scope. The resource is allocated using `acquire`, and closed
-  * before the scope completes, in reverse registration order. For concurrency scopes, closing happens after all forks started within the
-  * scope have completed (either successfully or with an error). Releasing is [[uninterruptible]].
-  */
+/** As [[useInScope]], but the resource, which implements [[AutoCloseable]], is released using [[AutoCloseable.close()]]. */
 def useCloseableInScope[T <: AutoCloseable](c: => T)(using rs: ResourceScope): T = useInScope(c)(_.close())
 
-/** Release the given resource, by running the `release` code block before the scope completes. For concurrency scopes, release happens
-  * after all forks started within the scope have completed (either successfully or with an error). Releasing is [[uninterruptible]].
-  */
+/** As [[useInScope]], but nothing is acquired — only the `release` code block is registered, to be run when the scope completes. */
 def releaseAfterScope(release: => Unit)(using rs: ResourceScope): Unit = useInScope(())(_ => release)
 
-/** Release the given resource, which implements [[AutoCloseable]], by running its `.close()` method before the scope completes. For
-  * concurrency scopes, closing happens after all forks started within the scope have completed (either successfully or with an error).
-  * Releasing is [[uninterruptible]].
-  */
+/** As [[releaseAfterScope]], but closes the given [[AutoCloseable]] resource. */
 def releaseCloseableAfterScope(toRelease: AutoCloseable)(using rs: ResourceScope): Unit = useInScope(())(_ => toRelease.close())
 
 // binary-compatibility bridges for callers compiled against previous ox versions; remove in 2.0. The Scala-level
