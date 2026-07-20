@@ -11,7 +11,9 @@ import scala.util.NotGiven
 )
 opaque type NoEnclosingConcurrencyScope = Unit
 
-inline given noEnclosingConcurrencyScope(using NotGiven[OxUnsupervised]): NoEnclosingConcurrencyScope = ()
+object NoEnclosingConcurrencyScope:
+  // in the companion, so that it's found via the implicit scope of the type, without any imports
+  inline given noEnclosingConcurrencyScope(using NotGiven[OxUnsupervised]): NoEnclosingConcurrencyScope = ()
 
 /** Starts a new resource scope: within the given code block `f`, resources can be registered using [[useInScope]] and
   * [[releaseAfterScope]]. They are released, in reverse registration order, once `f` completes (either successfully or with an exception).

@@ -24,10 +24,52 @@ To properly release resources when the entire application is interrupted, make s
 application's main entry point.
 ```
 
+## Resource scopes
+
+To manage multiple resources with a shared lifetime — without involving concurrency — use a **resource scope**.
+Resources registered within the scope are released, in reverse registration order, once the scope's body completes
+(successfully or with an exception). This is ox's analogue of `scala.util.Using.Manager`:
+
+```scala mdoc:compile-only
+import ox.{resourceScope, useCloseableInScope}
+import java.io.{FileReader, FileWriter}
+
+def process(): Unit = resourceScope {
+  val in = useCloseableInScope(new FileReader("in.txt"))
+  val out = useCloseableInScope(new FileWriter("out.txt"))
+  // both closed when the scope completes, out first
+  out.write(in.read())
+}
+```
+
+Any concurrency scope (e.g. `supervised`) is also a resource scope, so methods can declare exactly the capability
+they need: `using ResourceScope` for attaching cleanup, without claiming the ability to fork.
+
+A resource scope can only be started where no concurrency scope is visible — this is verified at compile-time. The
+reason: forks started within a lexically visible resource scope could outlive it, using resources after they have
+been released (a concurrency scope doesn't have this problem, as it waits for all forks before releasing). Within a
+concurrency scope, register resources directly instead. To use a resource scope e.g. in the body of a fork, extract
+it to a method which doesn't take a `using Ox` parameter — a good practice
+[in itself](../other/best-practices.md#use-using-ox-sparingly):
+
+```scala mdoc:compile-only
+import ox.{forkDiscard, resourceScope, supervised, useCloseableInScope}
+import java.io.FileReader
+
+def handleRequest(): Unit = resourceScope {
+  val in = useCloseableInScope(new FileReader("in.txt"))
+  println(s"Processing the request using: ${in.read()}")
+}
+
+supervised {
+  forkDiscard(handleRequest())
+}
+```
+
 ## Within a concurrency scope
 
-Resources can be allocated within a concurrency scope. They will be released in reverse acquisition order, after all 
-forks started within the scope finish (but before the scope completes). E.g.:
+Resources can also be allocated within a concurrency scope. They will be released in reverse acquisition order, after
+all forks started within the scope finish (but before the scope completes). E.g.:
 
 ```scala mdoc:compile-only
 import ox.{supervised, useInScope}

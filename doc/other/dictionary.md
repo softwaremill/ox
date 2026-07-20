@@ -28,6 +28,9 @@ Scope lifecycle:
   is reported. When the scope ends, all forks that are still running are cancelled
 * scope **completes**, once all forks complete and finalizers are run; then, the `supervised`, `supervisedError` or 
   `unsupervised` method returns.
+* a **resource scope** (created using `resourceScope`) allows registering resources, which are released when the 
+  scope completes; it is not a concurrency scope: forks cannot be started, and there's no cancellation. Every 
+  concurrency scope is also a resource scope
 
 Errors:
 * fork **failure**: when a fork fails with an exception
