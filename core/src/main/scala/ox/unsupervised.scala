@@ -25,30 +25,6 @@ private[ox] def unsupervised[T](locals: ForkLocalMap, f: OxUnsupervised ?=> T): 
   scopedWithCapability(OxError(NoOpSupervisor, NoErrorMode, Option(currentScope.get()), locals))(f)
 
 private[ox] def scopedWithCapability[T](capability: Ox)(f: Ox ?=> T): T =
-  def throwWithSuppressed(es: List[Throwable]): Nothing =
-    val e = es.head
-    es.tail.foreach(e.addSuppressed)
-    throw e
-
-  def runFinalizers(result: Either[Throwable, T]): T =
-    val fs = capability.finalizers.get
-    if fs.isEmpty then result.fold(throw _, identity)
-    else
-      val es = uninterruptible {
-        fs.flatMap { f =>
-          try
-            f(); None
-          catch case e: Throwable => Some(e)
-        }
-      }
-
-      result match
-        case Left(e)                => throwWithSuppressed(e :: es)
-        case Right(t) if es.isEmpty => t
-        case _                      => throwWithSuppressed(es)
-    end if
-  end runFinalizers
-
   def runWithCurrentScopeSet =
     val result =
       try
@@ -59,8 +35,8 @@ private[ox] def scopedWithCapability[T](capability: Ox)(f: Ox ?=> T): T =
       catch case e: Throwable => Left(e)
 
     // running the finalizers only once we are sure that all child threads have been terminated, so that no new
-    // finalizers are added, and none are lost
-    runFinalizers(result)
+    // finalizers are added, and none are lost; registrations after the freeze (via leaked capabilities) throw
+    runFinalizers(capability, result)
   end runWithCurrentScopeSet
 
   val previousScope = currentScope.get()
@@ -69,3 +45,31 @@ private[ox] def scopedWithCapability[T](capability: Ox)(f: Ox ?=> T): T =
     runWithCurrentScopeSet
   finally currentScope.set(previousScope)
 end scopedWithCapability
+
+/** Runs the scope's finalizers (in reverse registration order, uninterruptibly), freezing the finalizer list, so that later registrations
+  * fail with an exception (see [[ResourceScope.addFinalizer]]) instead of being silently lost. Returns the scope's result: the body
+  * exception is re-thrown with finalizer errors suppressed; finalizer errors alone fail the scope.
+  */
+private[ox] def runFinalizers[T](scope: ResourceScope, result: Either[Throwable, T]): T =
+  def throwWithSuppressed(es: List[Throwable]): Nothing =
+    val e = es.head
+    es.tail.foreach(e.addSuppressed)
+    throw e
+
+  val fs = scope.finalizers.getAndSet(null)
+  val es =
+    if fs.isEmpty then Nil
+    else
+      uninterruptible {
+        fs.flatMap { f =>
+          try
+            f(); None
+          catch case e: Throwable => Some(e)
+        }
+      }
+
+  result match
+    case Left(e)                => throwWithSuppressed(e :: es)
+    case Right(t) if es.isEmpty => t
+    case _                      => throwWithSuppressed(es)
+end runFinalizers

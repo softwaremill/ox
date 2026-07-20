@@ -162,4 +162,16 @@ class ResourceTest extends AnyFlatSpec with Matchers:
 
     trail.get shouldBe Vector("allocate", "in scope", "release", "exception e2 (e1)")
   }
+
+  "a leaked scope capability" should "throw when registering a resource after the scope ended" in {
+    val trail = Trail()
+    var leaked: OxUnsupervised = null
+    unsupervised {
+      leaked = summon[OxUnsupervised]
+      trail.add("in scope")
+    }
+    val e = the[IllegalStateException] thrownBy releaseAfterScope(trail.add("late"))(using leaked)
+    e.getMessage should include("has already ended")
+    trail.get shouldBe Vector("in scope")
+  }
 end ResourceTest
