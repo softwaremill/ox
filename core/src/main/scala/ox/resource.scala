@@ -15,18 +15,18 @@ inline given noEnclosingConcurrencyScope(using NotGiven[OxUnsupervised]): NoEncl
 
 /** Starts a new resource scope: within the given code block `f`, resources can be registered using [[useInScope]] and
   * [[releaseAfterScope]]. They are released, in reverse registration order, once `f` completes (either successfully or with an exception).
-  * Releasing is [[uninterruptible]]. A resource scope is not a concurrency scope: no forks can be started, no threads are started while
-  * the body runs, and no [[ForkLocal]] values can be bound. The stdlib's analogue is `scala.util.Using.Manager`.
+  * Releasing is [[uninterruptible]]. A resource scope is not a concurrency scope: no forks can be started, no threads are started while the
+  * body runs, and no [[ForkLocal]] values can be bound. The stdlib's analogue is `scala.util.Using.Manager`.
   *
-  * Any concurrency scope ([[supervised]], [[supervisedError]], [[unsupervised]]) is also a resource scope. Hence, a resource scope can
-  * only be started where no concurrency scope is visible (this is verified at compile-time): within a concurrency scope, resources can be
-  * registered directly; and forks started within a lexically visible resource scope could outlive it, using or registering resources
-  * after they have been released. For the same reason, the [[ResourceScope]] capability and the registered resources must not leak out of
-  * the scope: registration after the scope ends throws an [[IllegalStateException]].
+  * Any concurrency scope ([[supervised]], [[supervisedError]], [[unsupervised]]) is also a resource scope. Hence, a resource scope can only
+  * be started where no concurrency scope is visible (this is verified at compile-time): within a concurrency scope, resources can be
+  * registered directly; and forks started within a lexically visible resource scope could outlive it, using or registering resources after
+  * they have been released. For the same reason, the [[ResourceScope]] capability and the registered resources must not leak out of the
+  * scope: registration after the scope ends throws an [[IllegalStateException]].
   *
-  * When run within a concurrency scope created with a [[ForkLocal]] binding (via a capability-free method), the body and the finalizers
-  * see the fork-local values of the resource scope's level; finalizers registered from nested scopes (by explicitly passing the
-  * capability) do not see the nested scopes' bindings.
+  * When run within a concurrency scope created with a [[ForkLocal]] binding (via a capability-free method), the body and the finalizers see
+  * the fork-local values of the resource scope's level; finalizers registered from nested scopes (by explicitly passing the capability) do
+  * not see the nested scopes' bindings.
   */
 def resourceScope[T](f: ResourceScope ?=> T)(using NoEnclosingConcurrencyScope): T =
   val scope = new ResourceScope:
@@ -53,6 +53,7 @@ def useInScope[T](acquire: => T)(release: T => Unit)(using rs: ResourceScope): T
       catch case e2: Throwable => e.addSuppressed(e2)
       throw e
   t
+end useInScope
 
 /** Use the given resource, which implements [[AutoCloseable]], in the current scope. The resource is allocated using `acquire`, and closed
   * before the scope completes, in reverse registration order. For concurrency scopes, closing happens after all forks started within the
