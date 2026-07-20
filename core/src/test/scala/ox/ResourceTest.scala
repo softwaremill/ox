@@ -111,6 +111,29 @@ class ResourceTest extends AnyFlatSpec with Matchers:
     "resourceScope { forkDiscard { } }" shouldNot typeCheck
   }
 
+  it should "see fork local values of its level, in body and finalizers" in {
+    val fl = ForkLocal("default")
+    val trail = Trail()
+    def scoped(): Unit = resourceScope {
+      releaseAfterScope(trail.add(s"release ${fl.get()}"))
+      trail.add(s"body ${fl.get()}")
+    }
+    fl.supervisedWhere("modified") { scoped() }
+    trail.get shouldBe Vector("body modified", "release modified")
+  }
+
+  it should "not see nested scopes' fork local values in finalizers registered with an explicit capability" in {
+    val fl = ForkLocal("default")
+    val trail = Trail()
+    resourceScope {
+      val rs = summon[ResourceScope]
+      fl.supervisedWhere("modified") {
+        releaseAfterScope(trail.add(s"release ${fl.get()}"))(using rs)
+      }
+    }
+    trail.get shouldBe Vector("release default")
+  }
+
   it should "release resources when there's an exception during releasing (normal resutl)" in {
     val trail = Trail()
 
