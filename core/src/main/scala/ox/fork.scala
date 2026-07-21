@@ -227,7 +227,7 @@ private[ox] inline def unwrapExecutionException[T](f: => T): T =
     case e: ExecutionException => throw causeWithSelfAsSuppressed(e)
     case e: Throwable          => throw e
 
-private inline def causeWithSelfAsSuppressed(e: ExecutionException): Throwable =
+private[ox] inline def causeWithSelfAsSuppressed(e: ExecutionException): Throwable =
   val cause = e.getCause
   // adding the original as suppressed, so that no context is lost
   // we cannot simply throw the EE, as it might wrap e.g. boundary-break, which has to be thrown unchanged

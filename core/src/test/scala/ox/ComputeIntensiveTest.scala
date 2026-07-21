@@ -84,4 +84,11 @@ class ComputeIntensiveTest extends AnyFlatSpec with Matchers:
     finally executor.shutdownNow().discard
     end try
   }
+
+  it should "rethrow an InterruptedException thrown by the computation itself" in {
+    val e = new InterruptedException("from computation")
+    val thrown = intercept[InterruptedException](computeIntensive(throw e))
+    (thrown eq e) shouldBe true
+    Thread.currentThread().isInterrupted shouldBe false // the caller was not interrupted
+  }
 end ComputeIntensiveTest

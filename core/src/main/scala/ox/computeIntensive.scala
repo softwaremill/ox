@@ -80,8 +80,13 @@ private class ComputeIntensiveTask[T](executor: ExecutorService, f: () => T):
 
   def submitAndAwait(): T =
     executor.execute(() => run())
-    try unwrapExecutionException(result.get())
-    catch case e: InterruptedException => onCallerInterrupted(e)
+    try result.get()
+    catch
+      // a direct InterruptedException means the caller was interrupted while waiting; a task-thrown exception
+      // (including a task-thrown InterruptedException) arrives wrapped in an ExecutionException, and is unwrapped below
+      case e: InterruptedException => onCallerInterrupted(e)
+      case e: ExecutionException   => throw causeWithSelfAsSuppressed(e)
+  end submitAndAwait
 
   private def run(): Unit =
     val proceed = lock.synchronized {
@@ -130,7 +135,9 @@ private class ComputeIntensiveTask[T](executor: ExecutorService, f: () => T):
         catch
           case e2: InterruptedException => e.addSuppressed(e2)
           case _: ExecutionException    => done = true
-      if result.isCompletedExceptionally then e.addSuppressed(result.exceptionNow())
+      if result.isCompletedExceptionally then
+        val taskException = result.exceptionNow()
+        if taskException ne e then e.addSuppressed(taskException)
     end if
     throw e
   end onCallerInterrupted
