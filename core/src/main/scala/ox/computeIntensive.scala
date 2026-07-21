@@ -1,6 +1,7 @@
 package ox
 
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ExecutionException
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.ThreadFactory
@@ -63,9 +64,74 @@ def computeIntensive[T](f: => T): T = computeIntensive(oxComputeExecutor)(f)
 
 /** As [[computeIntensive]], but runs `f` on the given `executor`, instead of the default [[oxComputeExecutor]]. */
 def computeIntensive[T](executor: ExecutorService)(f: => T): T =
-  val result = new CompletableFuture[T]()
-  executor.execute { () =>
-    try result.complete(f).discard
-    catch case t: Throwable => result.completeExceptionally(t).discard
-  }
-  unwrapExecutionException(result.get())
+  checkInterrupt()
+  new ComputeIntensiveTask(executor, () => f).submitAndAwait()
+
+private enum ComputeTaskState:
+  case Pending, Running, Done, CancelledBeforeStart
+
+private class ComputeIntensiveTask[T](executor: ExecutorService, f: () => T):
+  private val lock = new Object
+  // both fields guarded by lock
+  private var state: ComputeTaskState = ComputeTaskState.Pending
+  private var worker: Thread = null
+
+  private val result = new CompletableFuture[T]()
+
+  def submitAndAwait(): T =
+    executor.execute(() => run())
+    try unwrapExecutionException(result.get())
+    catch case e: InterruptedException => onCallerInterrupted(e)
+
+  private def run(): Unit =
+    val proceed = lock.synchronized {
+      if state == ComputeTaskState.CancelledBeforeStart then false
+      else
+        state = ComputeTaskState.Running
+        worker = Thread.currentThread()
+        true
+    }
+    if proceed then
+      try
+        val r = f()
+        completing(result.complete(r).discard)
+      catch case t: Throwable => completing(result.completeExceptionally(t).discard)
+  end run
+
+  // completes the result while holding the lock, clearing the worker's interrupt flag: an interrupt delivered by an
+  // (interrupted) caller must never leak to a subsequent task executing on the reused pool thread
+  private def completing(c: => Unit): Unit =
+    lock.synchronized {
+      state = ComputeTaskState.Done
+      worker = null
+      Thread.interrupted().discard
+      c
+    }
+
+  private def onCallerInterrupted(e: InterruptedException): Nothing =
+    val cancelledBeforeStart = lock.synchronized {
+      state match
+        case ComputeTaskState.Pending =>
+          state = ComputeTaskState.CancelledBeforeStart
+          true
+        case ComputeTaskState.Running =>
+          worker.interrupt()
+          false
+        case ComputeTaskState.Done                 => false
+        case ComputeTaskState.CancelledBeforeStart => true
+    }
+    if !cancelledBeforeStart then
+      // strict structure: the computation must complete before we return; recording, but not acting on, further interrupts
+      var done = false
+      while !done do
+        try
+          result.get().discard
+          done = true
+        catch
+          case e2: InterruptedException => e.addSuppressed(e2)
+          case _: ExecutionException    => done = true
+      if result.isCompletedExceptionally then e.addSuppressed(result.exceptionNow())
+    end if
+    throw e
+  end onCallerInterrupted
+end ComputeIntensiveTask
