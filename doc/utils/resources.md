@@ -26,9 +26,13 @@ application's main entry point.
 
 ## Resource scopes
 
-To manage multiple resources with a shared lifetime - without involving concurrency - use a **resource scope**.
-Resources registered within the scope are released, in reverse registration order, once the scope's body completes
-(successfully or with an exception). This is ox's analogue of `scala.util.Using.Manager`:
+Resources can be attached to a **resource scope**: they are then released when the scope completes (successfully or
+with an exception), in reverse registration order. Releasing is uninterruptible. Resources are registered using
+`useInScope` (with acquire & release logic) or `useCloseableInScope` (for `AutoCloseable`s). A resource scope can be
+obtained in two ways:
+
+* `resourceScope` starts a dedicated, resource-only scope - without involving concurrency. This is ox's analogue of
+  `scala.util.Using.Manager`:
 
 ```scala mdoc:compile-only
 import ox.{resourceScope, useCloseableInScope}
@@ -42,34 +46,8 @@ def process(): Unit = resourceScope {
 }
 ```
 
-Any concurrency scope (e.g. `supervised`) is also a resource scope, so methods can declare exactly the capability
-they need: `using ResourceScope` for attaching cleanup, without claiming the ability to fork.
-
-A resource scope can only be started where no concurrency scope is visible — this is verified at compile-time. The
-reason: forks started within a lexically visible resource scope could outlive it, using resources after they have
-been released (a concurrency scope doesn't have this problem, as it waits for all forks before releasing). Within a
-concurrency scope, register resources directly instead. To use a resource scope e.g. in the body of a fork, extract
-it to a method which doesn't take a `using Ox` parameter — a good practice
-[in itself](../other/best-practices.md#use-using-ox-sparingly):
-
-```scala mdoc:compile-only
-import ox.{forkDiscard, resourceScope, supervised, useCloseableInScope}
-import java.io.FileReader
-
-def handleRequest(): Unit = resourceScope {
-  val in = useCloseableInScope(new FileReader("in.txt"))
-  println(s"Processing the request using: ${in.read()}")
-}
-
-supervised {
-  forkDiscard(handleRequest())
-}
-```
-
-## Within a concurrency scope
-
-Resources can also be allocated within a concurrency scope. They will be released in reverse acquisition order, after
-all forks started within the scope finish (but before the scope completes). E.g.:
+* every concurrency scope (e.g. `supervised`) is also a resource scope; resources registered within one are released
+  after all forks started within the scope finish (but before the scope completes):
 
 ```scala mdoc:compile-only
 import ox.{supervised, useInScope}
@@ -88,6 +66,30 @@ supervised {
   val resource2 = useInScope(acquire(20))(release)
   println(s"Using $resource1 ...")
   println(s"Using $resource2 ...")
+}
+```
+
+Methods which only register resources can declare exactly the capability they need - `using ResourceScope` - without
+claiming the ability to fork.
+
+A resource scope can only be started where no concurrency scope is visible - this is verified at compile-time. The
+reason: forks started within a lexically visible resource scope could outlive it, using resources after they have
+been released (a concurrency scope doesn't have this problem, as it waits for all forks before releasing). Within a
+concurrency scope, register resources directly instead. To use a resource scope e.g. in the body of a fork, extract
+it to a method which doesn't take a `using Ox` parameter - a good practice
+[in itself](../other/best-practices.md#use-using-ox-sparingly):
+
+```scala mdoc:compile-only
+import ox.{forkDiscard, resourceScope, supervised, useCloseableInScope}
+import java.io.FileReader
+
+def handleRequest(): Unit = resourceScope {
+  val in = useCloseableInScope(new FileReader("in.txt"))
+  println(s"Processing the request using: ${in.read()}")
+}
+
+supervised {
+  forkDiscard(handleRequest())
 }
 ```
 
