@@ -43,6 +43,9 @@ inline def checkInterrupt(): Unit =
   * distribution of CPU time. If strict fairness between CPU-bound threads is required, `LockSupport.parkNanos(1)` yields near-round-robin
   * scheduling, at a much higher cost (about 40µs per call, as it involves a timer round-trip).
   *
+  * For long-running computations, or code which can't be instrumented with yields, consider [[computeIntensive]], which runs the
+  * computation on a pool of OS-preempted platform threads.
+  *
   * @throws InterruptedException
   *   if the current thread is interrupted.
   */
