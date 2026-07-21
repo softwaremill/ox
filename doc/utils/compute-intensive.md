@@ -49,6 +49,10 @@ well: `computeIntensive(executor)(f)`.
 Nested `computeIntensive` calls targeting the same executor run inline, on the current (pool) thread; calls targeting a
 different executor are submitted to that executor.
 
+Note that the lifecycle of a custom executor is the caller's responsibility: shutting it down while calls are in
+flight results in a `RejectedExecutionException` on submission, and tasks dropped by `shutdownNow` never start (their
+callers keep waiting, until interrupted).
+
 ## Cancellation
 
 If the calling thread is interrupted — typically because the enclosing scope ends, e.g. due to an error in another
@@ -60,6 +64,10 @@ occurs, it will never run.
 
 Note that consequently, `timeout(...)(computeIntensive(f))` can't return before the computation notices the
 interruption — with a non-cooperating computation, the timeout will overshoot arbitrarily.
+
+To return early on interruption instead of waiting, the call can be wrapped as `abandonOnInterrupt(computeIntensive(f))`
+— note the precise semantics: the wait then runs on a detached thread which is never interrupted, so the computation
+runs to full completion, uninterrupted, holding a compute-pool slot even after the wait was abandoned.
 
 ## Scope context
 

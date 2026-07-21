@@ -66,7 +66,13 @@ end oxComputeExecutor
   */
 def computeIntensive[T](f: => T): T = computeIntensive(oxComputeExecutor)(f)
 
-/** As [[computeIntensive]], but runs `f` on the given `executor`, instead of the default [[oxComputeExecutor]]. */
+/** As [[computeIntensive]], but runs `f` on the given `executor`, instead of the default [[oxComputeExecutor]].
+  *
+  * Nested `computeIntensive` calls targeting the same executor (compared by reference) run inline, avoiding a deadlock, which could
+  * otherwise occur when all threads of a fixed-size pool block on nested tasks, queued behind them. Note that wrapping/decorating an
+  * executor defeats this detection: nested calls through a wrapper of the current executor are submitted normally, and can deadlock a
+  * fixed-size pool.
+  */
 def computeIntensive[T](executor: ExecutorService)(f: => T): T =
   checkInterrupt()
   if currentComputeExecutor.get() eq executor then f
