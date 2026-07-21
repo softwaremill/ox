@@ -2,6 +2,7 @@ package ox
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
+import ox.either.ok
 
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
@@ -111,5 +112,43 @@ class ComputeIntensiveTest extends AnyFlatSpec with Matchers:
       val innerThreadName = computeIntensive(computeIntensive(custom)(Thread.currentThread().getName))
       innerThreadName should startWith("custom-compute-")
     finally custom.shutdownNow().discard
+  }
+
+  it should "not propagate fork locals to the computation" in {
+    val l = ForkLocal("default")
+    l.supervisedWhere("changed") {
+      computeIntensive(l.get()) shouldBe "default"
+    }
+  }
+
+  it should "not allow forking from within the computation" in {
+    supervised {
+      intercept[IllegalStateException](computeIntensive(fork(1).discard)).discard
+    }
+  }
+
+  it should "work within either blocks" in {
+    val result = either {
+      computeIntensive {
+        val e: Either[String, Int] = Left("boom")
+        e.ok()
+      }
+    }
+    result shouldBe Left("boom")
+  }
+
+  it should "not starve virtual threads when the compute pool is saturated" in {
+    val stop = new AtomicBoolean(false)
+    val completed = new AtomicInteger(0)
+    supervised {
+      for _ <- 1 to Runtime.getRuntime.availableProcessors() do
+        forkDiscard(computeIntensive {
+          while !stop.get() && !Thread.currentThread().isInterrupted do () // busy-spin, hogging a compute-pool thread
+        })
+      val vts = (1 to 100).map(_ => fork { sleep(10.millis); completed.incrementAndGet() })
+      vts.foreach(_.join().discard)
+      completed.get() shouldBe 100
+      stop.set(true)
+    }
   }
 end ComputeIntensiveTest
