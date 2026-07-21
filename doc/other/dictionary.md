@@ -4,7 +4,9 @@ How we use various terms throughout the codebase and the documentation (or at le
 
 Scopes:
 * **concurrency scope**: either `supervised` (default), `supervisedError` (permitting application errors), 
-  or `unsupervised`
+  or `unsupervised`. Allow starting forks. Every  concurrency scope is also a resource scope.
+* **resource scope**: created using `resourceScope`, allow registering resources, which are released when the 
+  scope completes
 * scope **body**: the code block passed to a concurrency scope (the `supervised`, `supervisedError` or `unsupervised` 
   method)
 
@@ -28,9 +30,6 @@ Scope lifecycle:
   is reported. When the scope ends, all forks that are still running are cancelled
 * scope **completes**, once all forks complete and finalizers are run; then, the `supervised`, `supervisedError` or 
   `unsupervised` method returns.
-* a **resource scope** (created using `resourceScope`) allows registering resources, which are released when the 
-  scope completes; it is not a concurrency scope: forks cannot be started, and there's no cancellation. Every 
-  concurrency scope is also a resource scope
 
 Errors:
 * fork **failure**: when a fork fails with an exception

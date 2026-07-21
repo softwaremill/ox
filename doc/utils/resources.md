@@ -26,7 +26,7 @@ application's main entry point.
 
 ## Resource scopes
 
-To manage multiple resources with a shared lifetime — without involving concurrency — use a **resource scope**.
+To manage multiple resources with a shared lifetime - without involving concurrency - use a **resource scope**.
 Resources registered within the scope are released, in reverse registration order, once the scope's body completes
 (successfully or with an exception). This is ox's analogue of `scala.util.Using.Manager`:
 
