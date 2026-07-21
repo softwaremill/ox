@@ -3,6 +3,7 @@ package ox
 import scala.util.boundary.*
 import scala.util.control.NonFatal
 import java.util.concurrent.ThreadFactory
+import java.util.concurrent.ExecutorService
 import scala.concurrent.duration.*
 
 enum ExitCode(val code: Int):
@@ -34,6 +35,7 @@ trait OxApp:
 
   final def main(args: Array[String]): Unit =
     settings.threadFactory.foreach(setOxThreadFactory)
+    settings.computeExecutor.foreach(setOxComputeExecutor)
     try
       unsupervised {
         val cancellableMainFork = forkCancellable {
@@ -98,13 +100,18 @@ object OxApp:
     * @param shutdownTimeout
     *   The maximum amount of time a clean shutdown might take. This might prevent deadlocks due to usage of `System.exit` in the user's
     *   code. After the timeout passes, the application will forcibly exit.
+    * @param computeExecutor
+    *   The executor used to run computations passed to [[computeIntensive]]. Platform (OS-preempted) threads should be used, so that
+    *   CPU-intensive computations don't monopolize the virtual thread scheduler's carrier threads. If left unspecified, the default fixed
+    *   pool, sized to the number of available processors, is used.
     */
   case class Settings(
       interruptedExitCode: ExitCode,
       handleInterruptedException: InterruptedException => Unit,
       handleException: Throwable => Unit,
       threadFactory: Option[ThreadFactory],
-      shutdownTimeout: FiniteDuration
+      shutdownTimeout: FiniteDuration,
+      computeExecutor: Option[ExecutorService]
   ):
     // required for binary compatibility
     def this(
@@ -112,7 +119,16 @@ object OxApp:
         handleInterruptedException: InterruptedException => Unit,
         handleException: Throwable => Unit,
         threadFactory: Option[ThreadFactory]
-    ) = this(interruptedExitCode, handleInterruptedException, handleException, threadFactory, 10.seconds)
+    ) = this(interruptedExitCode, handleInterruptedException, handleException, threadFactory, 10.seconds, None)
+
+    // required for binary compatibility
+    def this(
+        interruptedExitCode: ExitCode,
+        handleInterruptedException: InterruptedException => Unit,
+        handleException: Throwable => Unit,
+        threadFactory: Option[ThreadFactory],
+        shutdownTimeout: FiniteDuration
+    ) = this(interruptedExitCode, handleInterruptedException, handleException, threadFactory, shutdownTimeout, None)
 
     // required for binary compatibility
     def copy(
@@ -120,7 +136,18 @@ object OxApp:
         handleInterruptedException: InterruptedException => Unit,
         handleException: Throwable => Unit,
         threadFactory: Option[ThreadFactory]
-    ): Settings = Settings(interruptedExitCode, handleInterruptedException, handleException, threadFactory, shutdownTimeout)
+    ): Settings =
+      Settings(interruptedExitCode, handleInterruptedException, handleException, threadFactory, shutdownTimeout, computeExecutor)
+
+    // required for binary compatibility
+    def copy(
+        interruptedExitCode: ExitCode,
+        handleInterruptedException: InterruptedException => Unit,
+        handleException: Throwable => Unit,
+        threadFactory: Option[ThreadFactory],
+        shutdownTimeout: FiniteDuration
+    ): Settings =
+      Settings(interruptedExitCode, handleInterruptedException, handleException, threadFactory, shutdownTimeout, computeExecutor)
   end Settings
 
   object Settings:
@@ -131,7 +158,17 @@ object OxApp:
         handleException: Throwable => Unit,
         threadFactory: Option[ThreadFactory]
     ): Settings =
-      Settings(interruptedExitCode, handleInterruptedException, handleException, threadFactory, 10.seconds)
+      Settings(interruptedExitCode, handleInterruptedException, handleException, threadFactory, 10.seconds, None)
+
+    // required for binary compatibility
+    def apply(
+        interruptedExitCode: ExitCode,
+        handleInterruptedException: InterruptedException => Unit,
+        handleException: Throwable => Unit,
+        threadFactory: Option[ThreadFactory],
+        shutdownTimeout: FiniteDuration
+    ): Settings =
+      Settings(interruptedExitCode, handleInterruptedException, handleException, threadFactory, shutdownTimeout, None)
 
     val DefaultLogException: Throwable => Unit = (t: Throwable) =>
       val defaultHandler = Thread.getDefaultUncaughtExceptionHandler
@@ -145,7 +182,7 @@ object OxApp:
           case _                       => logException(t2)
 
     val Default: Settings =
-      Settings(ExitCode.Success, defaultHandleInterruptedException(DefaultLogException), DefaultLogException, None, 10.seconds)
+      Settings(ExitCode.Success, defaultHandleInterruptedException(DefaultLogException), DefaultLogException, None, 10.seconds, None)
   end Settings
 
   /** Simple variant of OxApp does not pass command line arguments and exits with exit code 0 if no exceptions were thrown. */
