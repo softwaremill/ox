@@ -9,6 +9,10 @@ import java.util.concurrent.atomic.AtomicInteger
 
 private var customComputeExecutor: ExecutorService = _
 
+// the executor which is running the current thread's computeIntensive task, if any: nested computeIntensive calls
+// targeting the same executor run inline (a fixed pool would deadlock, when all workers block on tasks queued behind them)
+private val currentComputeExecutor = new ThreadLocal[ExecutorService]()
+
 /** @see [[oxComputeExecutor]] */
 def setOxComputeExecutor(executor: ExecutorService): Unit =
   customComputeExecutor = executor
@@ -65,7 +69,8 @@ def computeIntensive[T](f: => T): T = computeIntensive(oxComputeExecutor)(f)
 /** As [[computeIntensive]], but runs `f` on the given `executor`, instead of the default [[oxComputeExecutor]]. */
 def computeIntensive[T](executor: ExecutorService)(f: => T): T =
   checkInterrupt()
-  new ComputeIntensiveTask(executor, () => f).submitAndAwait()
+  if currentComputeExecutor.get() eq executor then f
+  else new ComputeIntensiveTask(executor, () => f).submitAndAwait()
 
 private enum ComputeTaskState:
   case Pending, Running, Done, CancelledBeforeStart
@@ -97,10 +102,12 @@ private class ComputeIntensiveTask[T](executor: ExecutorService, f: () => T):
         true
     }
     if proceed then
+      currentComputeExecutor.set(executor)
       try
         val r = f()
         completing(result.complete(r).discard)
       catch case t: Throwable => completing(result.completeExceptionally(t).discard)
+      finally currentComputeExecutor.remove()
   end run
 
   // completes the result while holding the lock, clearing the worker's interrupt flag: an interrupt delivered by an

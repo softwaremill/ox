@@ -4,6 +4,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -90,5 +91,25 @@ class ComputeIntensiveTest extends AnyFlatSpec with Matchers:
     val thrown = intercept[InterruptedException](computeIntensive(throw e))
     (thrown eq e) shouldBe true
     Thread.currentThread().isInterrupted shouldBe false // the caller was not interrupted
+  }
+
+  it should "run a nested computation targeting the same executor inline, on the same thread" in {
+    val (outer, inner) = computeIntensive((Thread.currentThread(), computeIntensive(Thread.currentThread())))
+    (inner eq outer) shouldBe true
+  }
+
+  it should "not deadlock nested computations, even on a single-threaded executor" in {
+    val executor = Executors.newSingleThreadExecutor()
+    try computeIntensive(executor)(computeIntensive(executor)(42)) shouldBe 42
+    finally executor.shutdownNow().discard
+  }
+
+  it should "run a nested computation targeting a different executor on that executor" in {
+    val counter = new AtomicInteger(0)
+    val custom = Executors.newFixedThreadPool(1, r => new Thread(r, s"custom-compute-${counter.getAndIncrement()}"))
+    try
+      val innerThreadName = computeIntensive(computeIntensive(custom)(Thread.currentThread().getName))
+      innerThreadName should startWith("custom-compute-")
+    finally custom.shutdownNow().discard
   }
 end ComputeIntensiveTest
