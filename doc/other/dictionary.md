@@ -4,7 +4,9 @@ How we use various terms throughout the codebase and the documentation (or at le
 
 Scopes:
 * **concurrency scope**: either `supervised` (default), `supervisedError` (permitting application errors), 
-  or `unsupervised`
+  or `unsupervised`. Allow starting forks. Every  concurrency scope is also a resource scope.
+* **resource scope**: created using `resourceScope`, allow registering resources, which are released when the 
+  scope completes
 * scope **body**: the code block passed to a concurrency scope (the `supervised`, `supervisedError` or `unsupervised` 
   method)
 

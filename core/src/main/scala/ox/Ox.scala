@@ -8,6 +8,29 @@ import ox.internal.ThreadHerd
 import java.util.concurrent.atomic.AtomicReference
 import scala.annotation.implicitNotFound
 
+/** Capability granted by a [[resourceScope]] and, via subtyping, by any concurrency scope ([[supervised]], [[supervisedError]],
+  * [[unsupervised]]).
+  *
+  * Represents a capability to register resources (e.g. using [[useInScope]] or [[releaseAfterScope]]) to be released when the scope
+  * completes. Does not allow forking.
+  *
+  * @see
+  *   [[OxUnsupervised]], [[Ox]]
+  */
+@implicitNotFound(
+  "This operation must be run within a `resourceScope`, or any concurrency scope (`supervised`, `supervisedError` or `unsupervised`). " +
+    "Alternatively, you must require that the enclosing method is run within a scope, by adding a `using ResourceScope` parameter list."
+)
+trait ResourceScope:
+  // contains null once the scope's finalizers have been run; registration then throws (see addFinalizer)
+  private[ox] def finalizers: AtomicReference[List[() => Unit]]
+  private[ox] def addFinalizer(f: () => Unit): Unit =
+    finalizers.updateAndGet {
+      case null => throw new IllegalStateException("Cannot register a resource: the scope to which it would be attached has already ended")
+      case fs   => f :: fs
+    }.discard
+end ResourceScope
+
 /** Capability granted by an [[unsupervised]] concurrency scope (as well as, via subtyping, by [[supervised]] and [[supervisedError]]).
   *
   * Represents a capability to:
@@ -21,16 +44,14 @@ import scala.annotation.implicitNotFound
 @implicitNotFound(
   "This operation must be run within a `supervised`, `supervisedError` or `unsupervised` block. Alternatively, you must require that the enclosing method is run within a scope, by adding a `using OxUnsupervised` parameter list."
 )
-trait OxUnsupervised:
+trait OxUnsupervised extends ResourceScope:
   private[ox] def herd: ThreadHerd
-  private[ox] def finalizers: AtomicReference[List[() => Unit]]
   private[ox] def supervisor: Supervisor[Nothing]
-  private[ox] def addFinalizer(f: () => Unit): Unit = finalizers.updateAndGet(f :: _).discard
   private[ox] def parent: Option[OxUnsupervised]
   private[ox] def locals: ForkLocalMap
 end OxUnsupervised
 
-/** Capability granted by an [[supervised]] or [[supervisedError]] concurrency scope.
+/** Capability granted by a [[supervised]] or [[supervisedError]] concurrency scope.
   *
   * Represents a capability to:
   *   - fork supervised or unsupervised, asynchronously running computations in a concurrency scope. Such forks can be created using

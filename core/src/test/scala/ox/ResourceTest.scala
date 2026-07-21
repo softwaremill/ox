@@ -6,55 +6,62 @@ import ox.*
 import ox.util.Trail
 
 class ResourceTest extends AnyFlatSpec with Matchers:
-  "useInScope" should "release resources after allocation" in {
-    val trail = Trail()
+  private val scopeKinds: List[(String, (ResourceScope ?=> Unit) => Unit)] = List(
+    "unsupervised" -> (f => unsupervised(f)),
+    "resourceScope" -> (f => resourceScope(f))
+  )
 
-    unsupervised {
-      val r = useInScope { trail.add("allocate"); 1 }(n => trail.add(s"release $n"))
-      r shouldBe 1
-      trail.get shouldBe Vector("allocate")
-    }
-    trail.get shouldBe Vector("allocate", "release 1")
-  }
+  for (kind, runScope) <- scopeKinds do
+    s"useInScope in $kind" should "release resources in reverse order" in {
+      val trail = Trail()
 
-  it should "release resources in reverse order" in {
-    val trail = Trail()
-
-    unsupervised {
-      val r1 = useInScope { trail.add("allocate 1"); 1 }(n => trail.add(s"release $n"))
-      val r2 = useInScope { trail.add("allocate 2"); 2 }(n => trail.add(s"release $n"))
-      r1 shouldBe 1
-      r2 shouldBe 2
-      trail.get shouldBe Vector("allocate 1", "allocate 2")
-    }
-    trail.get shouldBe Vector("allocate 1", "allocate 2", "release 2", "release 1")
-  }
-
-  it should "release resources when there's an exception" in {
-    val trail = Trail()
-
-    try
-      unsupervised {
-        val r1 = useInScope {
-          trail.add("allocate 1"); 1
-        }(n => trail.add(s"release $n"))
-        val r2 = useInScope {
-          trail.add("allocate 2"); 2
-        }(n => trail.add(s"release $n"))
+      runScope {
+        val r1 = useInScope { trail.add("allocate 1"); 1 }(n => trail.add(s"release $n"))
+        val r2 = useInScope { trail.add("allocate 2"); 2 }(n => trail.add(s"release $n"))
         r1 shouldBe 1
         r2 shouldBe 2
-        throw new RuntimeException
+        trail.get shouldBe Vector("allocate 1", "allocate 2")
       }
-    catch case _ => trail.add("exception")
-    end try
-    trail.get shouldBe Vector("allocate 1", "allocate 2", "release 2", "release 1", "exception")
+      trail.get shouldBe Vector("allocate 1", "allocate 2", "release 2", "release 1")
+    }
+
+    it should "release resources when there's an exception" in {
+      val trail = Trail()
+
+      try
+        runScope {
+          val r1 = useInScope {
+            trail.add("allocate 1"); 1
+          }(n => trail.add(s"release $n"))
+          val r2 = useInScope {
+            trail.add("allocate 2"); 2
+          }(n => trail.add(s"release $n"))
+          r1 shouldBe 1
+          r2 shouldBe 2
+          throw new RuntimeException
+        }
+      catch case _ => trail.add("exception")
+      end try
+      trail.get shouldBe Vector("allocate 1", "allocate 2", "release 2", "release 1", "exception")
+    }
+
+  end for
+
+  "releaseAfterScope" should "release registered resources" in {
+    val trail = Trail()
+
+    resourceScope {
+      releaseAfterScope(trail.add("release"))
+      trail.add("in scope")
+    }
+    trail.get shouldBe Vector("in scope", "release")
   }
 
-  it should "release resources when there's an exception during releasing (normal resutl)" in {
+  "useInScope" should "release resources when there's an exception during releasing (normal result)" in {
     val trail = Trail()
 
     try
-      unsupervised {
+      resourceScope {
         val r1 = useInScope {
           trail.add("allocate 1");
           1
@@ -71,18 +78,17 @@ class ResourceTest extends AnyFlatSpec with Matchers:
         }
         r1 shouldBe 1
         r2 shouldBe 2
-        r1 + r2
       }
     catch case e => trail.add(s"exception ${e.getMessage}")
     end try
     trail.get shouldBe Vector("allocate 1", "allocate 2", "release 2", "release 1", "exception e2")
   }
 
-  it should "release resources when there's an exception during releasing (exceptional resutl)" in {
+  it should "release resources when there's an exception during releasing (exceptional result)" in {
     val trail = Trail()
 
     try
-      unsupervised {
+      resourceScope {
         val r1 = useInScope {
           trail.add("allocate 1");
           1
@@ -106,14 +112,71 @@ class ResourceTest extends AnyFlatSpec with Matchers:
     trail.get shouldBe Vector("allocate 1", "allocate 2", "release 2", "release 1", "exception e3")
   }
 
-  it should "release registered resources" in {
+  "resourceScope" should "attach resources to the nearest scope when nested in a concurrency scope" in {
     val trail = Trail()
-
-    unsupervised {
-      releaseAfterScope(trail.add("release"))
-      trail.add("in scope")
+    def inner(): Unit = resourceScope {
+      releaseAfterScope(trail.add("inner release"))
+      trail.add("inner body")
     }
-    trail.get shouldBe Vector("in scope", "release")
+    supervised {
+      releaseAfterScope(trail.add("outer release"))
+      inner()
+      trail.add("outer body")
+    }
+    trail.get shouldBe Vector("inner body", "inner release", "outer body", "outer release")
+  }
+
+  it should "attach resources to the nearest scope when a concurrency scope is nested inside" in {
+    val trail = Trail()
+    resourceScope {
+      releaseAfterScope(trail.add("outer release"))
+      supervised {
+        releaseAfterScope(trail.add("inner release"))
+        trail.add("inner body")
+      }
+      trail.add("outer body")
+    }
+    trail.get shouldBe Vector("inner body", "inner release", "outer body", "outer release")
+  }
+
+  it should "throw when registering via a leaked capability after the scope ended" in {
+    var leaked: ResourceScope = null
+    resourceScope { leaked = summon[ResourceScope] }
+    an[IllegalStateException] shouldBe thrownBy(releaseAfterScope(())(using leaked))
+  }
+
+  it should "not compile within a visible concurrency scope, but compile via a capability-free method" in {
+    "supervised { resourceScope { } }" shouldNot typeCheck
+    "def m()(using Ox): Unit = resourceScope { }" shouldNot typeCheck
+    "def m(): Unit = resourceScope { }" should compile
+    "resourceScope { resourceScope { } }" should compile
+  }
+
+  it should "not allow forking without a concurrency scope" in {
+    "resourceScope { forkDiscard { } }" shouldNot typeCheck
+  }
+
+  it should "see fork local values of its level, in body and finalizers" in {
+    val fl = ForkLocal("default")
+    val trail = Trail()
+    def scoped(): Unit = resourceScope {
+      releaseAfterScope(trail.add(s"release ${fl.get()}"))
+      trail.add(s"body ${fl.get()}")
+    }
+    fl.supervisedWhere("modified") { scoped() }
+    trail.get shouldBe Vector("body modified", "release modified")
+  }
+
+  it should "not see nested scopes' fork local values in finalizers registered with an explicit capability" in {
+    val fl = ForkLocal("default")
+    val trail = Trail()
+    resourceScope {
+      val rs = summon[ResourceScope]
+      fl.supervisedWhere("modified") {
+        releaseAfterScope(trail.add(s"release ${fl.get()}"))(using rs)
+      }
+    }
+    trail.get shouldBe Vector("release default")
   }
 
   it should "use a resource" in {
@@ -161,5 +224,16 @@ class ResourceTest extends AnyFlatSpec with Matchers:
     catch case e => trail.add(s"exception ${e.getMessage} (${e.getSuppressed.map(_.getMessage).mkString(", ")})")
 
     trail.get shouldBe Vector("allocate", "in scope", "release", "exception e2 (e1)")
+  }
+
+  "a leaked scope capability" should "throw when registering after the scope ended, releasing the acquired resource" in {
+    val trail = Trail()
+    var leaked: OxUnsupervised = null
+    unsupervised { leaked = summon[OxUnsupervised] }
+    val e = the[IllegalStateException] thrownBy {
+      useInScope { trail.add("allocate"); 1 }(n => trail.add(s"release $n"))(using leaked)
+    }
+    e.getMessage should include("has already ended")
+    trail.get shouldBe Vector("allocate", "release 1")
   }
 end ResourceTest
