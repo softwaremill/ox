@@ -68,6 +68,27 @@ class ControlTest extends AnyFlatSpec with Matchers:
     trail.get shouldBe Vector("done")
   }
 
+  "cede" should "throw InterruptedException and clear the interrupt flag when the thread is interrupted" in {
+    Thread.currentThread().interrupt()
+    intercept[InterruptedException](cede())
+    Thread.currentThread().isInterrupted() shouldBe false
+  }
+
+  it should "return normally when the thread is not interrupted" in {
+    noException should be thrownBy cede()
+  }
+
+  it should "make a compute-intensive fork responsive to cancellation" in {
+    val r = supervised {
+      val f = forkCancellable {
+        forever(cede())
+      }
+      sleep(100.millis) // making sure the fork starts
+      f.cancel()
+    }
+    r should matchPattern { case Left(_: InterruptedException) => }
+  }
+
   "timeoutOption" should "pass through the exception of failed computation" in {
     val myException = new Throwable("failed computation")
 
