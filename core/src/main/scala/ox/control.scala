@@ -31,3 +31,21 @@ inline def never: Nothing = forever {
   */
 inline def checkInterrupt(): Unit =
   if Thread.interrupted() then throw new InterruptedException()
+
+/** Yields the current (virtual) thread back to the scheduler, allowing other threads to run. Useful in compute-intensive code, which
+  * doesn't otherwise call any blocking operations: virtual threads are not preempted, so without yielding, a CPU-bound loop can starve
+  * other virtual threads. As a rule of thumb, call `cede()` about once every millisecond of computation (a single call costs about 1µs).
+  *
+  * Additionally, checks if the current thread is interrupted (as [[checkInterrupt]] does), making the surrounding computation cooperate in
+  * the cancellation protocol, e.g. when run in a [[supervised]] scope.
+  *
+  * Yielding is implemented using `Thread.yield`, which prevents complete starvation of other threads, but doesn't guarantee a fair
+  * distribution of CPU time. If strict fairness between CPU-bound threads is required, `LockSupport.parkNanos(1)` yields near-round-robin
+  * scheduling, at a much higher cost (about 40µs per call, as it involves a timer round-trip).
+  *
+  * @throws InterruptedException
+  *   if the current thread is interrupted.
+  */
+inline def cede(): Unit =
+  checkInterrupt()
+  Thread.`yield`()
