@@ -1,7 +1,12 @@
 package ox
 
+import org.scalatest.concurrent.Signaler
+import org.scalatest.concurrent.ThreadSignaler
+import org.scalatest.concurrent.TimeLimits
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
+import org.scalatest.time.Seconds
+import org.scalatest.time.Span
 import ox.either.ok
 
 import java.util.concurrent.atomic.AtomicBoolean
@@ -11,7 +16,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import scala.concurrent.duration.*
 
-class ComputeIntensiveTest extends AnyFlatSpec with Matchers:
+class ComputeIntensiveTest extends AnyFlatSpec with Matchers with TimeLimits:
   "computeIntensive" should "return the result of the computation" in {
     computeIntensive(2 + 2) shouldBe 4
   }
@@ -138,17 +143,20 @@ class ComputeIntensiveTest extends AnyFlatSpec with Matchers:
   }
 
   it should "not starve virtual threads when the compute pool is saturated" in {
-    val stop = new AtomicBoolean(false)
-    val completed = new AtomicInteger(0)
-    supervised {
-      for _ <- 1 to Runtime.getRuntime.availableProcessors() do
-        forkDiscard(computeIntensive {
-          while !stop.get() && !Thread.currentThread().isInterrupted do () // busy-spin, hogging a compute-pool thread
-        })
-      val vts = (1 to 100).map(_ => fork { sleep(10.millis); completed.incrementAndGet() })
-      vts.foreach(_.join().discard)
-      completed.get() shouldBe 100
-      stop.set(true)
+    implicit val signaler: Signaler = ThreadSignaler // a platform timer thread, fires even if virtual-thread carriers are starved
+    failAfter(Span(30, Seconds)) {
+      val stop = new AtomicBoolean(false)
+      val completed = new AtomicInteger(0)
+      supervised {
+        for _ <- 1 to Runtime.getRuntime.availableProcessors() do
+          forkDiscard(computeIntensive {
+            while !stop.get() && !Thread.currentThread().isInterrupted do () // busy-spin, hogging a compute-pool thread
+          })
+        val vts = (1 to 100).map(_ => fork { sleep(10.millis); completed.incrementAndGet() })
+        vts.foreach(_.join().discard)
+        completed.get() shouldBe 100
+        stop.set(true)
+      }
     }
   }
 end ComputeIntensiveTest
