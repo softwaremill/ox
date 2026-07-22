@@ -13,6 +13,6 @@ There are some helper methods which might be useful when writing code using ox's
   operations: virtual threads are not preempted, so without yielding, a CPU-bound loop can starve other virtual threads.
   As a rule of thumb, call `cede()` about once every millisecond of computation (a single call costs about 1µs).
   For long-running computations, or code which can't be instrumented with yields, see
-  [CPU-intensive operations](compute-intensive.md)
+  [CPU-intensive operations](compute-intensive.md).
 
 All of these are `inline` methods, imposing no runtime overhead.

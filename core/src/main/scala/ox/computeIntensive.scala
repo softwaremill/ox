@@ -13,9 +13,16 @@ private var customComputeExecutor: ExecutorService = _
 // targeting the same executor run inline (a fixed pool would deadlock, when all workers block on tasks queued behind them)
 private val currentComputeExecutor = new ThreadLocal[ExecutorService]()
 
-/** @see [[oxComputeExecutor]] */
+/** Sets the executor used to run computations passed to [[computeIntensive]]. Should be called once, at the start of the application,
+  * before any [[computeIntensive]] calls; the executor's lifecycle (shutdown) is then the responsibility of the caller.
+  *
+  * @see
+  *   [[oxComputeExecutor]]
+  */
 def setOxComputeExecutor(executor: ExecutorService): Unit =
   customComputeExecutor = executor
+  // forcing the lazy val: if it wasn't yet initialized, it is now initialized to the executor just set above (so the check passes);
+  // otherwise, it's already frozen to the default (or a previously set custom executor), and the new executor would never be used
   if !oxComputeExecutor.eq(customComputeExecutor) then
     throw new RuntimeException("The compute executor was already used before setting a custom one!")
 
@@ -46,10 +53,10 @@ end oxComputeExecutor
 /** Runs `f` on the compute-intensive executor ([[oxComputeExecutor]]), blocking the calling (virtual) thread until it completes. Returns
   * the result of `f`, or rethrows the exception with which it failed.
   *
-  * Use for long-running, CPU-intensive computations: virtual threads are not preempted, so run directly in a fork, such a computation would
-  * monopolize a carrier thread of the virtual thread scheduler, potentially starving other virtual threads. The computation is instead run
-  * on a pool of platform threads (by default sized to the number of available processors), which the OS schedules preemptively. For short
-  * computation bursts, which can be instrumented with periodic yields, see [[cede]] as a lighter-weight alternative.
+  * Use for long-running, CPU-intensive computations: virtual threads are not preempted, so such a computation, if run directly in a fork,
+  * would monopolize a carrier thread of the virtual thread scheduler, potentially starving other virtual threads. The computation is
+  * instead run on a pool of platform threads (by default sized to the number of available processors), which the OS schedules preemptively.
+  * For short computation bursts, which can be instrumented with periodic yields, see [[cede]] as a lighter-weight alternative.
   *
   * As the calling thread blocks until the computation completes, the computation never outlives the enclosing concurrency scope (if any):
   * usage remains structured. To evaluate `f` in parallel with other code, combine with a fork, e.g. `fork(computeIntensive(f))`.
@@ -78,13 +85,13 @@ def computeIntensive[T](executor: ExecutorService)(f: => T): T =
   if currentComputeExecutor.get() eq executor then f
   else new ComputeIntensiveTask(executor, () => f).submitAndAwait()
 
-private enum ComputeTaskState:
+private enum ComputeIntensiveTaskState:
   case Pending, Running, Done, CancelledBeforeStart
 
 private class ComputeIntensiveTask[T](executor: ExecutorService, f: () => T):
   private val lock = new Object
   // both fields guarded by lock
-  private var state: ComputeTaskState = ComputeTaskState.Pending
+  private var state: ComputeIntensiveTaskState = ComputeIntensiveTaskState.Pending
   private var worker: Thread = null
 
   private val result = new CompletableFuture[T]()
@@ -101,9 +108,9 @@ private class ComputeIntensiveTask[T](executor: ExecutorService, f: () => T):
 
   private def run(): Unit =
     val proceed = lock.synchronized {
-      if state == ComputeTaskState.CancelledBeforeStart then false
+      if state == ComputeIntensiveTaskState.CancelledBeforeStart then false
       else
-        state = ComputeTaskState.Running
+        state = ComputeIntensiveTaskState.Running
         worker = Thread.currentThread()
         true
     }
@@ -116,27 +123,31 @@ private class ComputeIntensiveTask[T](executor: ExecutorService, f: () => T):
       finally currentComputeExecutor.remove()
   end run
 
-  // completes the result while holding the lock, clearing the worker's interrupt flag: an interrupt delivered by an
-  // (interrupted) caller must never leak to a subsequent task executing on the reused pool thread
-  private def completing(c: => Unit): Unit =
+  // completes the result while holding the lock, which serializes completion against onCallerInterrupted's Running
+  // branch: a caller's interrupt either targets the still-running worker (and its flag is cleared below, before the
+  // pool thread is reused), or finds the task already Done, and doesn't interrupt at all. That way, an interrupt
+  // delivered by an (interrupted) caller never leaks to a subsequent task executing on the reused pool thread.
+  private def completing(op: => Unit): Unit =
     lock.synchronized {
-      state = ComputeTaskState.Done
+      state = ComputeIntensiveTaskState.Done
       worker = null
       Thread.interrupted().discard
-      c
+      op
     }
 
   private def onCallerInterrupted(e: InterruptedException): Nothing =
     val cancelledBeforeStart = lock.synchronized {
       state match
-        case ComputeTaskState.Pending =>
-          state = ComputeTaskState.CancelledBeforeStart
+        case ComputeIntensiveTaskState.Pending =>
+          state = ComputeIntensiveTaskState.CancelledBeforeStart
           true
-        case ComputeTaskState.Running =>
+        case ComputeIntensiveTaskState.Running =>
           worker.interrupt()
           false
-        case ComputeTaskState.Done                 => false
-        case ComputeTaskState.CancelledBeforeStart => true
+        case ComputeIntensiveTaskState.Done => false
+        // structurally unreachable (kept for match exhaustiveness): this method runs at most once per task, and is the
+        // only writer of this state
+        case ComputeIntensiveTaskState.CancelledBeforeStart => true
     }
     if !cancelledBeforeStart then
       // strict structure: the computation must complete before we return; recording, but not acting on, further interrupts
@@ -147,10 +158,10 @@ private class ComputeIntensiveTask[T](executor: ExecutorService, f: () => T):
           done = true
         catch
           case e2: InterruptedException => e.addSuppressed(e2)
-          case _: ExecutionException    => done = true
-      if result.isCompletedExceptionally then
-        val taskException = result.exceptionNow()
-        if taskException ne e then e.addSuppressed(taskException)
+          case e2: ExecutionException   =>
+            e.addSuppressed(e2.getCause) // the task's exception; never `e` itself, as that comes from the caller's `get()`
+            done = true
+      end while
     end if
     throw e
   end onCallerInterrupted

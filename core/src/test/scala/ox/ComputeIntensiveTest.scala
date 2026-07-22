@@ -105,8 +105,9 @@ class ComputeIntensiveTest extends AnyFlatSpec with Matchers with TimeLimits:
   }
 
   it should "not deadlock nested computations, even on a single-threaded executor" in {
+    implicit val signaler: Signaler = ThreadSignaler // if inline-nesting detection regresses, fail fast instead of hanging
     val executor = Executors.newSingleThreadExecutor()
-    try computeIntensive(executor)(computeIntensive(executor)(42)) shouldBe 42
+    try failAfter(Span(30, Seconds))(computeIntensive(executor)(computeIntensive(executor)(42))) shouldBe 42
     finally executor.shutdownNow().discard
   }
 

@@ -19,7 +19,7 @@ There are two remedies, depending on the kind of computation:
 until it completes; the result is returned (or the computation's exception rethrown). Platform threads are scheduled
 preemptively by the operating system, so however long the computation runs, virtual threads keep making progress.
 
-```scala
+```scala mdoc:compile-only
 import ox.*
 
 def expensive(): BigInt = (1 to 1_000_000).map(BigInt(_)).product
@@ -30,7 +30,11 @@ val result: BigInt = computeIntensive(expensive())
 Because the caller blocks until the computation completes, `computeIntensive` is structured: the computation never
 outlives the enclosing concurrency scope. To run computations in parallel with other code, combine with forks:
 
-```scala
+```scala mdoc:compile-only
+import ox.*
+
+def expensive(): BigInt = (1 to 1_000_000).map(BigInt(_)).product
+
 supervised {
   val f1 = fork(computeIntensive(expensive()))
   val f2 = fork(computeIntensive(expensive()))
@@ -49,9 +53,9 @@ well: `computeIntensive(executor)(f)`.
 Nested `computeIntensive` calls targeting the same executor run inline, on the current (pool) thread; calls targeting a
 different executor are submitted to that executor.
 
-Note that the lifecycle of a custom executor is the caller's responsibility: shutting it down while calls are in
-flight results in a `RejectedExecutionException` on submission, and tasks dropped by `shutdownNow` never start (their
-callers keep waiting, until interrupted).
+Note that the lifecycle of a custom executor is the caller's responsibility: once it is shut down, further submissions
+fail with a `RejectedExecutionException`, and tasks dropped by `shutdownNow` never start (their callers keep waiting,
+until interrupted).
 
 ## Cancellation
 
