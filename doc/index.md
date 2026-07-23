@@ -79,6 +79,7 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
    utils/rate-limiter
    utils/resources
    utils/control-flow
+   utils/compute-intensive
    utils/actors
    utils/circuit-breaker
    utils/utility
