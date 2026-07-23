@@ -22,13 +22,13 @@ preserving developer-friendly stack traces, and without compromising performance
 To use Ox, add the following dependency, using either [sbt](https://www.scala-sbt.org):
 
 ```scala
-"com.softwaremill.ox" %% "core" % "1.0.5"
+"com.softwaremill.ox" %% "core" % "1.0.6"
 ```
 
 Or [scala-cli](https://scala-cli.virtuslab.org):
 
 ```scala
-//> using dep "com.softwaremill.ox::core:1.0.5"
+//> using dep "com.softwaremill.ox::core:1.0.6"
 ```
 
 Documentation is available at [https://ox.softwaremill.com](https://ox.softwaremill.com), ScalaDocs can be browsed at [https://javadoc.io](https://www.javadoc.io/doc/com.softwaremill.ox).
