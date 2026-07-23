@@ -7,11 +7,11 @@ import java.util.concurrent.Executors
 import java.util.concurrent.ThreadFactory
 import java.util.concurrent.atomic.AtomicInteger
 
-private var customComputeExecutor: ExecutorService = _
+//
+// setting & computing the executor
+//
 
-// the executor which is running the current thread's computeIntensive task, if any: nested computeIntensive calls
-// targeting the same executor run inline (a fixed pool would deadlock, when all workers block on tasks queued behind them)
-private val currentComputeExecutor = new ThreadLocal[ExecutorService]()
+private var customComputeExecutor: ExecutorService = _
 
 /** Sets the executor used to run computations passed to [[computeIntensive]]. Should be called once, at the start of the application,
   * before any [[computeIntensive]] calls; the executor's lifecycle (shutdown) is then the responsibility of the caller.
@@ -49,6 +49,19 @@ lazy val oxComputeExecutor: ExecutorService =
   else custom
   end if
 end oxComputeExecutor
+
+//
+// nested-call deadlock prevention
+//
+
+// the executor which is running the current thread's computeIntensive task, if any: nested computeIntensive calls targeting the same
+// executor run inline. Otherwise, a fixed-size pool could deadlock: the outer task's worker would block, waiting for the nested task,
+// which is queued behind it (and behind the tasks occupying the pool's other threads).
+private val currentComputeExecutor = new ThreadLocal[ExecutorService]()
+
+//
+// the computeIntensive functions
+//
 
 /** Runs `f` on the compute-intensive executor ([[oxComputeExecutor]]), blocking the calling (virtual) thread until it completes. Returns
   * the result of `f`, or rethrows the exception with which it failed.
