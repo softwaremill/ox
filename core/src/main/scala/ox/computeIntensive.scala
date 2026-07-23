@@ -99,13 +99,15 @@ def computeIntensive[T](executor: ExecutorService)(f: => T): T =
   else new ComputeIntensiveTask(executor, () => f).submitAndAwait()
 
 private enum ComputeIntensiveTaskState:
-  case Pending, Running, Done, CancelledBeforeStart
+  case Pending
+  case Running(worker: Thread)
+  case Done
+  case CancelledBeforeStart
 
 private class ComputeIntensiveTask[T](executor: ExecutorService, f: () => T):
   private val lock = new Object
-  // both fields guarded by lock
+  // guarded by lock
   private var state: ComputeIntensiveTaskState = ComputeIntensiveTaskState.Pending
-  private var worker: Thread = null
 
   private val result = new CompletableFuture[T]()
 
@@ -123,8 +125,7 @@ private class ComputeIntensiveTask[T](executor: ExecutorService, f: () => T):
     val proceed = lock.synchronized {
       if state == ComputeIntensiveTaskState.CancelledBeforeStart then false
       else
-        state = ComputeIntensiveTaskState.Running
-        worker = Thread.currentThread()
+        state = ComputeIntensiveTaskState.Running(Thread.currentThread())
         true
     }
     if proceed then
@@ -143,7 +144,6 @@ private class ComputeIntensiveTask[T](executor: ExecutorService, f: () => T):
   private def completing(op: => Unit): Unit =
     lock.synchronized {
       state = ComputeIntensiveTaskState.Done
-      worker = null
       Thread.interrupted().discard
       op
     }
@@ -154,7 +154,7 @@ private class ComputeIntensiveTask[T](executor: ExecutorService, f: () => T):
         case ComputeIntensiveTaskState.Pending =>
           state = ComputeIntensiveTaskState.CancelledBeforeStart
           true
-        case ComputeIntensiveTaskState.Running =>
+        case ComputeIntensiveTaskState.Running(worker) =>
           worker.interrupt()
           false
         case ComputeIntensiveTaskState.Done => false
