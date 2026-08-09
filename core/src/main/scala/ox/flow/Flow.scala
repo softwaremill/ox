@@ -46,7 +46,7 @@ object FlowStage:
   * part of [[Flow.usingEmit]] or [[Flow.mapUsingEmit]].
   */
 trait FlowEmit[-T]:
-  /** Emit a value to be processed downstream. Blocks until the value is fully processed, or throws an exception if an error occured. */
+  /** Emit a value to be processed downstream. Blocks until the value is fully processed, or throws an exception if an error occurred. */
   def apply(t: T): Unit
 
 object FlowEmit:
