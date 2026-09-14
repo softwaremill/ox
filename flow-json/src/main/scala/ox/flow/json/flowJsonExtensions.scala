@@ -8,13 +8,8 @@ import com.github.plokhotnyuk.jsoniter_scala.core.scanJsonArrayFromStreamReentra
 import com.github.plokhotnyuk.jsoniter_scala.core.writeToArray
 import ox.Chunk
 import ox.channels.BufferCapacity
-import ox.channels.ChannelClosed
 import ox.channels.ChannelClosedException
-import ox.channels.forkPropagate
-import ox.discard
 import ox.flow.Flow
-import ox.repeatWhile
-import ox.supervised
 import ox.unsupervised
 
 import java.util.Arrays
@@ -59,7 +54,7 @@ extension (flow: Flow[Chunk[Byte]])
     * `ReaderConfig`, content after the array fails the flow, so the flow completes only once the source ends.
     *
     * Creates an asynchronous boundary: the input is read through [[ox.flow.FlowIOOps.runToInputStream]], so chunks are consumed ahead of
-    * downstream demand. Elements are buffered using a buffer of capacity given by the [[BufferCapacity]] in scope.
+    * downstream demand, up to the [[BufferCapacity]] in scope.
     *
     * @param config
     *   the jsoniter configuration used to read the array.
@@ -68,26 +63,19 @@ extension (flow: Flow[Chunk[Byte]])
     */
   def parseJsonArray[T: JsonValueCodec](config: ReaderConfig = ReaderConfig)(using BufferCapacity): Flow[T] =
     Flow.usingEmit: emit =>
-      val elements = BufferCapacity.newChannel[T]
-      def sendElement(t: T): Boolean =
-        elements.send(t)
-        true // keep scanning
+      // the body of `unsupervised` runs on the calling thread, so `emit` is called from it as well (as required),
+      // while the flow producing the bytes is run in a fork by `runToInputStream`
       unsupervised:
-        forkPropagate(elements):
-          // runToInputStream needs a supervised scope
-          supervised:
-            val in = flow.runToInputStream()
-            try scanJsonArrayFromStreamReentrant[T](in, config)(sendElement)
-            // the input stream wraps a failure of `flow`; unwrapped, it propagates as-is
-            catch case ChannelClosedException.Error(reason) => throw reason
-          elements.doneOrClosed().discard
-        // receiving in the main body, so that `emit` runs on the calling thread; not using FlowEmit.channelToEmit,
-        // as that wraps the error in a ChannelClosedException, while here failures propagate as-is
-        repeatWhile:
-          elements.receiveOrClosed() match
-            case ChannelClosed.Done          => false
-            case ChannelClosed.Error(reason) => throw reason
-            case element: T @unchecked       => emit(element); true
+        val in = flow.runToInputStream()
+        try
+          // reentrant, as downstream code runs inside the callback and might itself use jsoniter's pooled reader
+          scanJsonArrayFromStreamReentrant[T](in, config): t =>
+            emit(t)
+            true // keep scanning
+        // the input stream wraps a failure of `flow`; unwrapped, it propagates as-is (a downstream failure arriving this way
+        // carries the same cause)
+        catch case ChannelClosedException.Error(reason) => throw reason
+        end try
 end extension
 
 extension [T](flow: Flow[T])

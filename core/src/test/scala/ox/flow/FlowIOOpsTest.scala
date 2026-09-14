@@ -28,6 +28,11 @@ class FlowIOOpsTest extends AnyWordSpec with Matchers:
       val stream = useInScope(source.runToInputStream())(_.close())
       inputStreamToString(stream) shouldBe ""
 
+    "work in an unsupervised scope" in unsupervised:
+      val source = Flow.fromValues(Chunk.fromArray("chunk1".getBytes), Chunk.fromArray("chunk2".getBytes))
+      val stream = useCloseableInScope(source.runToInputStream())
+      new String(stream.readAllBytes()) shouldBe "chunk1chunk2"
+
     "return an InputStream for a simple source" in supervised:
       val source = Flow.fromValues(Chunk.fromArray("chunk1".getBytes), Chunk.fromArray("chunk2".getBytes))
       val stream = useInScope(source.runToInputStream())(_.close())

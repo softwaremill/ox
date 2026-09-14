@@ -24,7 +24,7 @@ trait FlowIOOps[+T]:
     *
     * Bulk reads block only until at least one byte is available; they may return fewer bytes than requested.
     */
-  def runToInputStream()(using T <:< Chunk[Byte])(using Ox, BufferCapacity): InputStream =
+  def runToInputStream()(using T <:< Chunk[Byte])(using OxUnsupervised, BufferCapacity): InputStream =
     val ch = this.runToChannel()
     new InputStream:
       // Current state for efficient reading from backing arrays
@@ -114,6 +114,10 @@ trait FlowIOOps[+T]:
       override def available: Int = availableBytes
     end new
   end runToInputStream
+
+  // retained so that code compiled against 1.x keeps linking; core is stable, so it can only be removed in 2.0.0
+  private[ox] def runToInputStream(using ev: T <:< Chunk[Byte])(using ox: Ox, capacity: BufferCapacity): InputStream =
+    runToInputStream()(using ev)(using ox: OxUnsupervised, capacity)
 
   /** Writes content of this flow to an [[java.io.OutputStream]].
     *
