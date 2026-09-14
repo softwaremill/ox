@@ -12,7 +12,9 @@ import java.nio.file.Files
 import java.nio.file.NoSuchFileException
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicBoolean
+import scala.concurrent.duration.*
 
 class FlowIOOpsTest extends AnyWordSpec with Matchers:
   def inputStreamToString(is: InputStream)(using Ox): String =
@@ -60,7 +62,7 @@ class FlowIOOpsTest extends AnyWordSpec with Matchers:
       bytesRead2 shouldBe (content.length - 20)
       new String(buffer2, 0, bytesRead2) shouldBe "s a test for bulk reading operations."
 
-    "handle bulk read operations across multiple chunks" in supervised:
+    "return at most one chunk per bulk read" in supervised:
       val chunk1 = "Hello, "
       val chunk2 = "World! "
       val chunk3 = "This is a test."
@@ -71,18 +73,20 @@ class FlowIOOpsTest extends AnyWordSpec with Matchers:
       )
       val stream = useInScope(source.runToInputStream())(_.close())
 
-      // Read across chunk boundaries
-      val buffer = new Array[Byte](12)
+      val buffer = new Array[Byte](100)
       val bytesRead = stream.read(buffer)
-      bytesRead shouldBe 12
-      new String(buffer) shouldBe "Hello, World"
+      bytesRead shouldBe chunk1.length
+      new String(buffer, 0, bytesRead) shouldBe chunk1
 
-      // Read the rest
-      val remainingContent = "! This is a test."
-      val buffer2 = new Array[Byte](100)
-      val bytesRead2 = stream.read(buffer2)
-      bytesRead2 shouldBe remainingContent.length
-      new String(buffer2, 0, bytesRead2) shouldBe remainingContent
+      val bytesRead2 = stream.read(buffer)
+      bytesRead2 shouldBe chunk2.length
+      new String(buffer, 0, bytesRead2) shouldBe chunk2
+
+      val bytesRead3 = stream.read(buffer)
+      bytesRead3 shouldBe chunk3.length
+      new String(buffer, 0, bytesRead3) shouldBe chunk3
+
+      stream.read(buffer) shouldBe -1
 
     "handle bulk read with concatenated chunks (multiple backing arrays)" in supervised:
       val chunk1 = Chunk.fromArray("Part1".getBytes)
@@ -242,11 +246,32 @@ class FlowIOOpsTest extends AnyWordSpec with Matchers:
 
       val buffer = new Array[Byte](50)
       val bytesRead = stream.read(buffer)
-      bytesRead shouldBe 16 // "Start-Middle-End".length is actually 16, not 17
-      new String(buffer, 0, bytesRead) shouldBe "Start-Middle-End"
+      bytesRead shouldBe 5
+      new String(buffer, 0, bytesRead) shouldBe "Start"
+
+      val bytesRead2 = stream.read(buffer)
+      bytesRead2 shouldBe 8
+      new String(buffer, 0, bytesRead2) shouldBe "-Middle-"
+
+      val bytesRead3 = stream.read(buffer)
+      bytesRead3 shouldBe 3
+      new String(buffer, 0, bytesRead3) shouldBe "End"
 
       // Should be at end of stream
-      stream.read() shouldBe -1
+      stream.read(buffer) shouldBe -1
+
+    "return a bulk read without waiting for the next chunk" in supervised:
+      val release = new CountDownLatch(1)
+      val source = Flow.usingEmit[Chunk[Byte]]: emit =>
+        emit(Chunk.fromArray("hello".getBytes))
+        release.await()
+      try
+        val stream = useInScope(source.runToInputStream())(_.close())
+        val buffer = new Array[Byte](10)
+        val bytesRead = ox.timeout(2.seconds)(stream.read(buffer))
+        bytesRead shouldBe 5
+        new String(buffer, 0, bytesRead) shouldBe "hello"
+      finally release.countDown() // unblocks the producer, so that the scope can complete
 
   "toOutputStream" should:
 

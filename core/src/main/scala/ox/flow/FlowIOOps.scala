@@ -21,6 +21,8 @@ trait FlowIOOps[+T]:
   /** Runs the flow into a [[java.io.InputStream]].
     *
     * Must be run within a concurrency scope, as under the hood the flow is run in the background.
+    *
+    * Bulk reads block only until at least one byte is available; they may return fewer bytes than requested.
     */
   def runToInputStream()(using T <:< Chunk[Byte])(using Ox, BufferCapacity): InputStream =
     val ch = this.runToChannel()
@@ -32,8 +34,8 @@ trait FlowIOOps[+T]:
       private var availableBytes: Int = 0
       private var isEndOfStream: Boolean = false
 
-      /** Ensure we have data available to read. Returns false if no more data is available. */
-      private def ensureDataAvailable(): Boolean =
+      /** Positions the state at the next byte which is already buffered in the current chunk, if any. Never blocks for the next chunk. */
+      private def advanceToBufferedByte(): Boolean =
         // Keep trying to find a non-empty array with available data
         while currentArrays.nonEmpty && currentArrayIndex < currentArrays.length do
           val currentArray = currentArrays(currentArrayIndex)
@@ -42,6 +44,13 @@ trait FlowIOOps[+T]:
           // Current array is exhausted or empty, move to next array
           currentArrayIndex += 1
           currentByteIndex = 0
+
+        false
+      end advanceToBufferedByte
+
+      /** Ensure we have data available to read, receiving the next chunk if needed. Returns false if no more data is available. */
+      private def ensureDataAvailable(): Boolean =
+        if advanceToBufferedByte() then return true
 
         // No more data in current arrays, try to get next chunk
         if !isEndOfStream then
@@ -77,12 +86,14 @@ trait FlowIOOps[+T]:
         if b == null then throw new NullPointerException
         if off < 0 || len < 0 || len > b.length - off then throw new IndexOutOfBoundsException
         if len == 0 then return 0
+        // blocks until at least one byte is buffered; the rest of the loop only copies what's already there
+        if !ensureDataAvailable() then return -1
 
         var totalBytesRead = 0
         var remaining = len
         var offset = off
 
-        while remaining > 0 && ensureDataAvailable() do
+        while remaining > 0 && advanceToBufferedByte() do
           val currentArray = currentArrays(currentArrayIndex)
           val availableInCurrentArray = currentArray.length - currentByteIndex
           val bytesToRead = math.min(remaining, availableInCurrentArray)
@@ -95,15 +106,9 @@ trait FlowIOOps[+T]:
           remaining -= bytesToRead
           totalBytesRead += bytesToRead
           availableBytes -= bytesToRead
-
-          // If we've exhausted current array, move to next one
-          if currentByteIndex >= currentArray.length then
-            currentArrayIndex += 1
-            currentByteIndex = 0
         end while
 
-        // Return -1 if no bytes were read and stream is at end-of-file
-        if totalBytesRead == 0 then -1 else totalBytesRead
+        totalBytesRead
       end read
 
       override def available: Int = availableBytes
