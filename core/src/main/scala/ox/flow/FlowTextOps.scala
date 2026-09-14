@@ -20,7 +20,8 @@ trait FlowTextOps[+T]:
     *   a flow emitting lines read from the input byte chunks, assuming they represent text.
     */
   def lines(charset: Charset)(using T <:< Chunk[Byte]): Flow[String] =
-    // buffer == null is a special state for handling empty chunks in onComplete, in order to tell them apart from empty lines
+    // buffer == null means that no bytes were received yet, and nothing is emitted on complete; an empty non-null buffer means a
+    // trailing empty line, which is emitted on complete
     outer
       .mapStatefulConcat(null: Chunk[Byte])(
         { case (buffer, nextChunk) =>
@@ -33,7 +34,7 @@ trait FlowTextOps[+T]:
               splitChunksAtNewLine(Chunk.empty, chunk2.drop(1), acc :+ (buf ++ chunk1))
 
           val (newBuffer, toEmit) =
-            if nextChunk.length == 0 then (null, Vector.empty)
+            if nextChunk.length == 0 then (buffer, Vector.empty)
             else splitChunksAtNewLine(if buffer == null then Empty else buffer, nextChunk, Vector.empty)
 
           (newBuffer, toEmit)

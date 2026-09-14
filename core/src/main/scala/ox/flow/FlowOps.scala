@@ -777,7 +777,7 @@ class FlowOps[+T]:
   /** Applies the given mapping function `f`, using additional state, to each element emitted by this flow. The results are emitted by the
     * returned flow. Optionally the returned flow emits an additional element, possibly based on the final state, once this flow is done.
     *
-    * The `initializeState` function is called once when `statefulMap` is called.
+    * The `initializeState` function is evaluated at the start of each run of the returned flow.
     *
     * The `onComplete` function is called once when this flow is done. If it returns a non-empty value, the value will be emitted by the
     * flow, while an empty value will be ignored.
@@ -803,7 +803,7 @@ class FlowOps[+T]:
     * results one by one. Optionally the returned flow emits an additional element, possibly based on the final state, once this flow is
     * done.
     *
-    * The `initializeState` function is called once when `statefulMap` is called.
+    * The `initializeState` function is evaluated at the start of each run of the returned flow.
     *
     * The `onComplete` function is called once when this flow is done. If it returns a non-empty value, the value will be emitted by the
     * returned flow, while an empty value will be ignored.
