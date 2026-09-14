@@ -2,7 +2,7 @@ package ox.flow.json
 
 import ox.Chunk
 
-import java.io.ByteArrayOutputStream
+import java.util.Arrays
 
 /** Splits byte chunks into LF-delimited NDJSON records. A CR before the LF stays in the record, a UTF-8 BOM is dropped from the first
   * record, and the final record needs no LF. Stateful, so one instance per flow run.
@@ -16,7 +16,8 @@ import java.io.ByteArrayOutputStream
 private class NdjsonFramer(maxRecordBytes: Int, onRecord: (Array[Byte], Int, Int) => Unit):
   import NdjsonFramer.*
 
-  private val buffer = ByteArrayOutputStream()
+  private var buffer = Array.emptyByteArray
+  private var buffered = 0
   private var firstRecord = true
 
   /** Reports every record completed by this chunk; buffers the rest. */
@@ -34,20 +35,22 @@ private class NdjsonFramer(maxRecordBytes: Int, onRecord: (Array[Byte], Int, Int
 
   /** Reports the final record, if the input didn't end with an LF. */
   def flush(): Unit =
-    if buffer.size() > 0 then emitBuffered()
+    if buffered > 0 then emitBuffered()
 
   // a record contained in one array is reported as a view of it, without copying
   private def completeRecord(bytes: Array[Byte], from: Int, to: Int): Unit =
-    requireWithinLimit(to - from)
-    if buffer.size() == 0 then emitRecord(bytes, from, to)
+    if buffered == 0 then
+      requireWithinLimit(to - from)
+      emitRecord(bytes, from, to)
     else
-      buffer.write(bytes, from, to - from)
+      append(bytes, from, to)
       emitBuffered()
 
+  // the buffer is handed out as is and reused for the next record; onRecord doesn't retain it
   private def emitBuffered(): Unit =
-    val bytes = buffer.toByteArray
-    buffer.reset()
-    emitRecord(bytes, 0, bytes.length)
+    val length = buffered
+    buffered = 0
+    emitRecord(buffer, 0, length)
 
   private def emitRecord(bytes: Array[Byte], from: Int, to: Int): Unit =
     val start = if firstRecord && startsWithBom(bytes, from, to) then from + utf8Bom.length else from
@@ -60,15 +63,25 @@ private class NdjsonFramer(maxRecordBytes: Int, onRecord: (Array[Byte], Int, Int
     i == to
 
   private def append(bytes: Array[Byte], from: Int, to: Int): Unit =
-    requireWithinLimit(to - from)
-    buffer.write(bytes, from, to - from)
+    val moreBytes = to - from
+    if moreBytes > 0 then
+      requireWithinLimit(moreBytes)
+      if buffer.length < buffered + moreBytes then
+        var size = math.max(buffer.length, initialBufferBytes).toLong
+        while size < buffered + moreBytes do size *= 2
+        buffer = Arrays.copyOf(buffer, math.min(size, maxRecordBytes.toLong).toInt)
+      System.arraycopy(bytes, from, buffer, buffered, moreBytes)
+      buffered += moreBytes
+    end if
+  end append
 
   private def requireWithinLimit(moreBytes: Int): Unit =
-    if buffer.size().toLong + moreBytes > maxRecordBytes then
+    if buffered.toLong + moreBytes > maxRecordBytes then
       throw new IllegalStateException(s"NDJSON record exceeds the maximum of $maxRecordBytes bytes")
 end NdjsonFramer
 
 private object NdjsonFramer:
+  private val initialBufferBytes = 64
   private val utf8Bom: IArray[Byte] = IArray(0xef.toByte, 0xbb.toByte, 0xbf.toByte)
 
   private def startsWithBom(bytes: Array[Byte], from: Int, to: Int): Boolean =

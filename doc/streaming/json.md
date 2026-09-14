@@ -12,17 +12,18 @@ Ox can parse a `Flow[Chunk[Byte]]` into values, and render values back into byte
 Codecs are derived at compile time, which needs one more dependency:
 
 ```scala
-"com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "@JSONITER_VERSION@" % "compile-internal"
+"com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "@JSONITER_VERSION@"
 ```
 
 ```scala mdoc:silent
-import com.github.plokhotnyuk.jsoniter_scala.core.JsonValueCodec
-import com.github.plokhotnyuk.jsoniter_scala.macros.JsonCodecMaker
+import com.github.plokhotnyuk.jsoniter_scala.macros.ConfiguredJsonValueCodec
 
-case class Event(id: Long, message: String)
-
-given JsonValueCodec[Event] = JsonCodecMaker.make
+case class Event(id: Long, message: String) derives ConfiguredJsonValueCodec
 ```
+
+`ConfiguredJsonValueCodec` extends `JsonValueCodec`, so the derived instance is used by all operations below. `derives`
+needs jsoniter-scala-macros at runtime; to keep it compile-only, scope it as `compile-internal` and write
+`given JsonValueCodec[Event] = JsonCodecMaker.make` instead.
 
 A derived codec rejects a JSON `null`. To read one, derive the codec for `Option[T]`, which maps `null` to `None`.
 
@@ -36,6 +37,9 @@ exactly one JSON value; content after the value fails the flow.
 
 A record is buffered until its LF, or until the end of the input for the final one. Records may be at most
 `maxRecordBytes` long, 32 MiB by default; a longer one fails the flow.
+
+A record which fits in a single incoming chunk is parsed straight from it, without buffering. To get this, set the
+source's chunk size above the typical record size, e.g. `Flow.fromFile(path, chunkSize = 65536)` (8 KB by default).
 
 ```scala mdoc:compile-only
 import ox.flow.Flow
@@ -53,6 +57,9 @@ Flow
 
 Writes each value followed by an LF, including the last one. The `WriterConfig` must not indent, so that each value stays
 on one line; line breaks inside strings are escaped anyway.
+
+Each value becomes one chunk, and `runToFile`/`runToOutputStream` do one write per chunk. With many small records, write
+to a `BufferedOutputStream` using `runToOutputStream`, instead of writing to a file directly.
 
 ```scala mdoc:compile-only
 import ox.flow.Flow
@@ -101,3 +108,17 @@ Flow
   .renderJsonArray()
   .runToFile(Paths.get("events.json"))
 ```
+
+## Compared to jsoniter's own streaming
+
+jsoniter-scala-core already streams: `scanJsonValuesFromStream` and `scanJsonArrayFromStream` call back for each value
+of a whitespace-separated sequence or of one array. The callback runs inside the parse loop over a blocking
+`InputStream` and can only return `false` to stop, while a flow is pulled, so its values can be filtered, mapped,
+buffered, merged with other flows and cancelled.
+
+Framing differs too: `scanJsonValuesFromStream` splits on whitespace, not on lines, so two values on one line and one
+value spanning several lines are both accepted; there is no per-record size limit, and no jsoniter reader skips a
+leading byte-order mark. `parseNdjson` adds all three, and parses each record out of the incoming chunk, without
+running the flow into an `InputStream` first.
+
+Use jsoniter directly when no flow is involved: a whole document read into memory, or a plain `InputStream` to scan.
