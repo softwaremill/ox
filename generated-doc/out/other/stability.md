@@ -22,3 +22,4 @@ The patch version is increased when there are binary-compatible changes in **sta
 | mdc-logback           | stabilizing  |
 | cron                  | stabilizing  |
 | otel-context          | stabilizing  |
+| flow-json             | experimental |
