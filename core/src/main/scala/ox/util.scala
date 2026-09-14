@@ -1,5 +1,7 @@
 package ox
 
+import ox.internal.ResourceRuntime
+
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.*
 import scala.util.control.NonFatal
@@ -109,18 +111,34 @@ extension [T](inline f: Future[T])
 
 /** Prevent `f` from being interrupted. Any interrupted exceptions that occur while evaluating `f` will be re-thrown once it completes. */
 inline def uninterruptible[T](inline f: T): T =
-  unsupervised {
-    val t = forkUnsupervised(f)
+  uninterruptibleInScope(() => f)
 
-    def joinDespiteInterrupted: T =
-      try t.join()
-      catch
-        case e: InterruptedException =>
-          joinDespiteInterrupted.discard
-          throw e
+// A non-inline boundary is required so that expansion of the public `uninterruptible` method doesn't expose ResourceRuntime.
+private[ox] def uninterruptibleInScope[T](f: () => T): T =
+  var awaited: ResourceRuntime.Awaited[T] = null
 
-    joinDespiteInterrupted
-  }
+  try
+    unsupervised {
+      val fork = forkUnsupervised(f())
+      awaited = ResourceRuntime.awaitCompletion(fork.joinEither())
+    }
+  catch
+    case e: InterruptedException =>
+      if awaited == null then throw e
+      else if awaited.interruption == null then
+        awaited.completed.left.foreach(e.addSuppressed)
+        awaited = awaited.copy(interruption = e)
+      else awaited.interruption.addSuppressed(e)
+    case e: Throwable =>
+      if awaited == null then throw e
+      else if awaited.interruption != null then awaited.interruption.addSuppressed(e)
+      else
+        awaited.completed.left.foreach(e.addSuppressed)
+        awaited = awaited.copy(completed = Left(e))
+  end try
+
+  ResourceRuntime.resolve(awaited)
+end uninterruptibleInScope
 
 /** Sleep (block the current thread/fork) for the provided amount of time. */
 inline def sleep(inline howLong: Duration): Unit = Thread.sleep(howLong.toMillis)

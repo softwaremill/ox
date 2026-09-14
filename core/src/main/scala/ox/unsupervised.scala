@@ -2,6 +2,8 @@ package ox
 
 import ox.internal.currentLocals
 import ox.internal.currentScope
+import ox.internal.ResourceRuntime
+import ox.internal.withCurrentScope
 
 /** Starts a new concurrency scope, which allows starting forks in the given code block `f`. Forks can be started using
   * [[forkUnsupervised]], and [[forkCancellable]]. All forks are guaranteed to complete before this scope completes.
@@ -36,41 +38,8 @@ private[ox] def scopedWithCapability[T](capability: Ox)(f: Ox ?=> T): T =
 
     // running the finalizers only once we are sure that all child threads have been terminated, so that no new
     // finalizers are added, and none are lost; registrations after the freeze (via leaked capabilities) throw
-    runFinalizers(capability, result)
+    ResourceRuntime.runFinalizers(capability, result)
   end runWithCurrentScopeSet
 
-  val previousScope = currentScope.get()
-  try
-    currentScope.set(capability)
-    runWithCurrentScopeSet
-  finally currentScope.set(previousScope)
+  withCurrentScope(capability)(runWithCurrentScopeSet)
 end scopedWithCapability
-
-/** Runs the scope's finalizers (in reverse registration order, uninterruptibly), first freezing the finalizer list (by setting it to
-  * `null`), so that later registrations fail with an exception (see [[ResourceScope.addFinalizer]]) instead of being silently lost. Must be
-  * called exactly once per scope. Returns the scope's result: the body exception is re-thrown with finalizer exceptions suppressed;
-  * finalizer exceptions alone fail the scope.
-  */
-private[ox] def runFinalizers[T](scope: ResourceScope, result: Either[Throwable, T]): T =
-  def throwWithSuppressed(es: List[Throwable]): Nothing =
-    val e = es.head
-    es.tail.foreach(e.addSuppressed)
-    throw e
-
-  val fs = scope.finalizers.getAndSet(null)
-  val es =
-    if fs.isEmpty then Nil
-    else
-      uninterruptible {
-        fs.flatMap { f =>
-          try
-            f(); None
-          catch case e: Throwable => Some(e)
-        }
-      }
-
-  result match
-    case Left(e)                => throwWithSuppressed(e :: es)
-    case Right(t) if es.isEmpty => t
-    case _                      => throwWithSuppressed(es)
-end runFinalizers

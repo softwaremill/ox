@@ -1,5 +1,9 @@
 # Resources
 
+The APIs on this page are available from the lightweight `com.softwaremill.ox::resources` module and remain in the
+`ox` package. The `core` module includes `resources` transitively; applications which only need resource management
+can depend on `resources` directly, without pulling in Jox. See [Dependency](../info/dependency.md) for setup.
+
 ## Single scoped resource
 
 Ox provides convenience inline methods to allocate, use and (uninterruptibly) release resources with a try-finally 

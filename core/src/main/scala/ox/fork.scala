@@ -1,6 +1,6 @@
 package ox
 
-import ox.internal.currentScope
+import ox.internal.withCurrentScope
 
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Semaphore
@@ -40,23 +40,24 @@ def forkError[E, F[_], T](using OxError[E, F])(f: => F[T]): Fork[T] =
   val result = new CompletableFuture[T]()
 
   oxError.herd.startThread {
-    currentScope.set(oxError) // propagating the current scope
-    val supervisor = oxError.supervisor
-    try
-      val resultOrError = f
-      val errorMode = oxError.errorMode
-      if errorMode.isError(resultOrError) then
-        // result is never completed, the supervisor should end the scope
-        supervisor.forkAppError(errorMode.getError(resultOrError))
-      else result.complete(errorMode.getT(resultOrError)).discard
-    catch
-      case e: Throwable =>
-        // we notify the supervisor first, so that if this is the first failing fork in the scope, the supervisor will
-        // get first notified of the exception by the "original" (this) fork
-        // if the supervisor doesn't end the scope, the exception will be thrown when joining the result; otherwise, not
-        // completing the result; any joins will end up being interrupted
-        if !supervisor.forkException(e) then result.completeExceptionally(e).discard
-    end try
+    withCurrentScope(oxError) {
+      val supervisor = oxError.supervisor
+      try
+        val resultOrError = f
+        val errorMode = oxError.errorMode
+        if errorMode.isError(resultOrError) then
+          // result is never completed, the supervisor should end the scope
+          supervisor.forkAppError(errorMode.getError(resultOrError))
+        else result.complete(errorMode.getT(resultOrError)).discard
+      catch
+        case e: Throwable =>
+          // we notify the supervisor first, so that if this is the first failing fork in the scope, the supervisor will
+          // get first notified of the exception by the "original" (this) fork
+          // if the supervisor doesn't end the scope, the exception will be thrown when joining the result; otherwise, not
+          // completing the result; any joins will end up being interrupted
+          if !supervisor.forkException(e) then result.completeExceptionally(e).discard
+      end try
+    }
   }
 
   new ForkUsingResult(result) {}
@@ -90,21 +91,22 @@ def forkUserError[E, F[_], T](using OxError[E, F])(f: => F[T]): Fork[T] =
   oxError.supervisor.forkStarts()
 
   oxError.herd.startThread:
-    currentScope.set(oxError) // propagating the current scope
-    val supervisor = oxError.supervisor.asInstanceOf[DefaultSupervisor[E]]
-    try
-      val resultOrError = f
-      val errorMode = oxError.errorMode
-      if errorMode.isError(resultOrError) then
-        // result is never completed, the supervisor should end the scope
-        supervisor.forkAppError(errorMode.getError(resultOrError))
-      else
-        result.complete(errorMode.getT(resultOrError))
-        supervisor.forkSuccess()
-    catch
-      case e: Throwable =>
-        if !supervisor.forkException(e) then result.completeExceptionally(e).discard
-    end try
+    withCurrentScope(oxError) {
+      val supervisor = oxError.supervisor.asInstanceOf[DefaultSupervisor[E]]
+      try
+        val resultOrError = f
+        val errorMode = oxError.errorMode
+        if errorMode.isError(resultOrError) then
+          // result is never completed, the supervisor should end the scope
+          supervisor.forkAppError(errorMode.getError(resultOrError))
+        else
+          result.complete(errorMode.getT(resultOrError))
+          supervisor.forkSuccess()
+      catch
+        case e: Throwable =>
+          if !supervisor.forkException(e) then result.completeExceptionally(e).discard
+      end try
+    }
 
   new ForkUsingResult(result) {}
 end forkUserError
@@ -124,9 +126,10 @@ def forkUnsupervised[T](f: => T)(using OxUnsupervised): UnsupervisedFork[T] =
   val result = new CompletableFuture[T]()
 
   oxUnsupervised.herd.startThread:
-    currentScope.set(oxUnsupervised) // propagating the current scope
-    try result.complete(f).discard
-    catch case e: Throwable => result.completeExceptionally(e).discard
+    withCurrentScope(oxUnsupervised) {
+      try result.complete(f).discard
+      catch case e: Throwable => result.completeExceptionally(e).discard
+    }
 
   new ForkUsingResult(result) with UnsupervisedFork[T] {}
 end forkUnsupervised
@@ -168,13 +171,14 @@ def forkCancellable[T](f: => T)(using OxUnsupervised): CancellableFork[T] =
       val nestedOx = OxError(NoOpSupervisor, NoErrorMode, Some(ox), ox.locals)
       scopedWithCapability(nestedOx) {
         nestedOx.herd.startThread {
-          currentScope.set(nestedOx) // propagating the nested scope, which has the current scope set as a parent
-          // "else" means that the fork is already cancelled, so doing nothing in that case
-          if !started.getAndSet(true) then
-            try result.complete(f).discard
-            catch case e: Throwable => result.completeExceptionally(e).discard
+          withCurrentScope(nestedOx) {
+            // "else" means that the fork is already cancelled, so doing nothing in that case
+            if !started.getAndSet(true) then
+              try result.complete(f).discard
+              catch case e: Throwable => result.completeExceptionally(e).discard
 
-          done.release() // the nested scope can now finish
+            done.release() // the nested scope can now finish
+          }
         }.discard
 
         done.acquire()

@@ -8,29 +8,6 @@ import ox.internal.ThreadHerd
 import java.util.concurrent.atomic.AtomicReference
 import scala.annotation.implicitNotFound
 
-/** Capability granted by a [[resourceScope]] and, via subtyping, by any concurrency scope ([[supervised]], [[supervisedError]],
-  * [[unsupervised]]).
-  *
-  * Represents a capability to register resources (e.g. using [[useInScope]] or [[releaseAfterScope]]) to be released when the scope
-  * completes. Does not allow forking.
-  *
-  * @see
-  *   [[OxUnsupervised]], [[Ox]]
-  */
-@implicitNotFound(
-  "This operation must be run within a `resourceScope`, or any concurrency scope (`supervised`, `supervisedError` or `unsupervised`). " +
-    "Alternatively, you must require that the enclosing method is run within a scope, by adding a `using ResourceScope` parameter list."
-)
-trait ResourceScope:
-  // contains null once the scope's finalizers have been run; registration then throws (see addFinalizer)
-  private[ox] def finalizers: AtomicReference[List[() => Unit]]
-  private[ox] def addFinalizer(f: () => Unit): Unit =
-    finalizers.updateAndGet {
-      case null => throw new IllegalStateException("Cannot register a resource: the scope to which it would be attached has already ended")
-      case fs   => f :: fs
-    }.discard
-end ResourceScope
-
 /** Capability granted by an [[unsupervised]] concurrency scope (as well as, via subtyping, by [[supervised]] and [[supervisedError]]).
   *
   * Represents a capability to:
@@ -44,11 +21,12 @@ end ResourceScope
 @implicitNotFound(
   "This operation must be run within a `supervised`, `supervisedError` or `unsupervised` block. Alternatively, you must require that the enclosing method is run within a scope, by adding a `using OxUnsupervised` parameter list."
 )
-trait OxUnsupervised extends ResourceScope:
+trait OxUnsupervised extends ResourceScope.Concurrent:
   private[ox] def herd: ThreadHerd
   private[ox] def supervisor: Supervisor[Nothing]
   private[ox] def parent: Option[OxUnsupervised]
   private[ox] def locals: ForkLocalMap
+  override private[ox] def runUninterruptibly[T](f: => T): T = uninterruptible(f)
 end OxUnsupervised
 
 /** Capability granted by a [[supervised]] or [[supervisedError]] concurrency scope.

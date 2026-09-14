@@ -15,17 +15,18 @@ lazy val commonSettings = commonSmlBuildSettings ++ ossPublishSettings ++ Seq(
   }.value,
   Test / scalacOptions += "-Wconf:msg=unused value of type org.scalatest.Assertion:s",
   Test / scalacOptions += "-Wconf:msg=unused value of type org.scalatest.compatible.Assertion:s",
-  mimaPreviousArtifacts := Set.empty // we only use MiMa for `core` for now, using enableMimaSettings
+  mimaPreviousArtifacts := Set.empty // enabled per published library using enableMimaSettings
 )
 
-val enableMimaSettings = Seq(
+def enableMimaSettings(unpublishedPreviousVersions: Set[String] = Set.empty) = Seq(
   mimaPreviousArtifacts := {
     val current = version.value
     val isRcOrMilestone = current.contains("M") || current.contains("RC")
     if (!isRcOrMilestone) {
       val previous = previousStableVersion.value
-      println(s"[info] Not a M or RC version, using previous version for MiMa check: $previous")
-      previousStableVersion.value.map(organization.value %% moduleName.value % _).toSet
+      val publishedPrevious = previous.filterNot(unpublishedPreviousVersions)
+      println(s"[info] Not a M or RC version, using previous version for MiMa check: $publishedPrevious")
+      publishedPrevious.map(organization.value %% moduleName.value % _).toSet
     } else {
       println(s"[info] $current is an M or RC version, no previous version to check with MiMa")
       Set.empty
@@ -50,7 +51,16 @@ compileDocumentation := {
 lazy val rootProject = (project in file("."))
   .settings(commonSettings)
   .settings(publishArtifact := false, name := "ox")
-  .aggregate(core, kafka, mdcLogback, flowReactiveStreams, cron, otelContext)
+  .aggregate(resources, core, kafka, mdcLogback, flowReactiveStreams, cron, otelContext)
+
+lazy val resources: Project = (project in file("resources"))
+  .settings(commonSettings)
+  // resources is new after 1.0.1; subsequent releases are checked normally.
+  .settings(enableMimaSettings(Set("1.0.1")))
+  .settings(
+    name := "resources",
+    libraryDependencies += scalaTest
+  )
 
 lazy val core: Project = (project in file("core"))
   .settings(commonSettings)
@@ -64,7 +74,8 @@ lazy val core: Project = (project in file("core"))
     ),
     Test / fork := true
   )
-  .settings(enableMimaSettings)
+  .settings(enableMimaSettings())
+  .dependsOn(resources % "compile->compile;test->test")
 
 lazy val kafka: Project = (project in file("kafka"))
   .settings(commonSettings)
