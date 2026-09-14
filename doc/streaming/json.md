@@ -108,17 +108,3 @@ Flow
   .renderJsonArray()
   .runToFile(Paths.get("events.json"))
 ```
-
-## Compared to jsoniter's own streaming
-
-jsoniter-scala-core already streams: `scanJsonValuesFromStream` and `scanJsonArrayFromStream` call back for each value
-of a whitespace-separated sequence or of one array. The callback runs inside the parse loop over a blocking
-`InputStream` and can only return `false` to stop, while a flow is pulled, so its values can be filtered, mapped,
-buffered, merged with other flows and cancelled.
-
-Framing differs too: `scanJsonValuesFromStream` splits on whitespace, not on lines, so two values on one line and one
-value spanning several lines are both accepted; there is no per-record size limit, and no jsoniter reader skips a
-leading byte-order mark. `parseNdjson` adds all three, and parses each record out of the incoming chunk, without
-running the flow into an `InputStream` first.
-
-Use jsoniter directly when no flow is involved: a whole document read into memory, or a plain `InputStream` to scan.
