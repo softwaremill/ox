@@ -40,6 +40,9 @@ val enableMimaSettings = Seq(
 val scalaTest = "org.scalatest" %% "scalatest" % "3.2.20" % Test
 val slf4j = "org.slf4j" % "slf4j-api" % "2.0.19"
 val logback = "ch.qos.logback" % "logback-classic" % "1.6.3"
+val jsoniterVersion = "2.40.1"
+val jsoniterCore = "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core" % jsoniterVersion
+val jsoniterMacros = "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % jsoniterVersion
 
 // used during CI to verify that the documentation compiles
 val compileDocumentation: TaskKey[Unit] = taskKey[Unit]("Compiles documentation throwing away its output")
@@ -50,7 +53,7 @@ compileDocumentation := {
 lazy val rootProject = (project in file("."))
   .settings(commonSettings)
   .settings(publishArtifact := false, name := "ox")
-  .aggregate(core, kafka, mdcLogback, flowReactiveStreams, cron, otelContext)
+  .aggregate(core, kafka, mdcLogback, flowReactiveStreams, flowJson, cron, otelContext)
 
 lazy val core: Project = (project in file("core"))
   .settings(commonSettings)
@@ -104,6 +107,18 @@ lazy val flowReactiveStreams: Project = (project in file("flow-reactive-streams"
   )
   .dependsOn(core)
 
+lazy val flowJson: Project = (project in file("flow-json"))
+  .settings(commonSettings)
+  .settings(
+    name := "flow-json",
+    libraryDependencies ++= Seq(
+      jsoniterCore,
+      jsoniterMacros % Test,
+      scalaTest
+    )
+  )
+  .dependsOn(core)
+
 lazy val cron: Project = (project in file("cron"))
   .settings(commonSettings)
   .settings(
@@ -133,19 +148,21 @@ lazy val documentation: Project = (project in file("generated-doc")) // importan
     mdocIn := file("doc"),
     moduleName := "ox-doc",
     mdocVariables := Map(
-      "VERSION" -> version.value
+      "VERSION" -> version.value,
+      "JSONITER_VERSION" -> jsoniterVersion
     ),
     mdocOut := file("generated-doc/out"),
     mdocExtraArguments := Seq("--clean-target"),
     publishArtifact := false,
     name := "doc",
-    libraryDependencies ++= Seq(logback % Test)
+    libraryDependencies ++= Seq(logback % Test, jsoniterMacros)
   )
   .dependsOn(
     core,
     kafka,
     mdcLogback,
     flowReactiveStreams,
+    flowJson,
     cron,
     otelContext
   )

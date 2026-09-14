@@ -57,6 +57,7 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
    streaming/index
    streaming/flows
    streaming/io
+   streaming/json
    streaming/channels
    streaming/transforming-channels
    streaming/selecting-from-channels
