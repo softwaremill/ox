@@ -135,7 +135,7 @@ lazy val otelContext: Project = (project in file("otel-context"))
   .settings(
     name := "otel-context",
     libraryDependencies ++= Seq(
-      "io.opentelemetry" % "opentelemetry-api" % "1.65.0",
+      "io.opentelemetry" % "opentelemetry-api" % "1.66.0",
       scalaTest
     )
   )
