@@ -11,7 +11,13 @@ import scala.util.NotGiven
 )
 opaque type NoEnclosingConcurrencyScope = Unit
 
-object NoEnclosingConcurrencyScope:
+/** Scala 3.9+ erases a result of type `NoEnclosingConcurrencyScope` to `void`, earlier versions to `BoxedUnit`. Overriding this method
+  * makes the compiler emit both signatures, so code compiled with 3.9+ links against Ox (https://github.com/scala/scala3/issues/24653).
+  */
+private[ox] trait NoEnclosingConcurrencyScopeVoidErasure:
+  def noEnclosingConcurrencyScope(using NotGiven[OxUnsupervised]): Unit
+
+object NoEnclosingConcurrencyScope extends NoEnclosingConcurrencyScopeVoidErasure:
   // in the companion, so that it's found via the implicit scope of the type, without any imports
   given noEnclosingConcurrencyScope(using NotGiven[OxUnsupervised]): NoEnclosingConcurrencyScope = ()
 
