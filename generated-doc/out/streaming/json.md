@@ -3,7 +3,7 @@
 Dependency:
 
 ```scala
-"com.softwaremill.ox" %% "flow-json" % "1.0.7"
+"com.softwaremill.ox" %% "flow-json" % "1.0.8"
 ```
 
 Ox can parse a `Flow[Chunk[Byte]]` into values, and render values back into byte chunks, either as newline-delimited JSON

@@ -3,7 +3,7 @@
 Dependency:
 
 ```scala
-"com.softwaremill.ox" %% "cron" % "1.0.7"
+"com.softwaremill.ox" %% "cron" % "1.0.8"
 ```
 
 This module allows to run schedules based on cron expressions from [cron4s](https://github.com/alonsodomin/cron4s).
