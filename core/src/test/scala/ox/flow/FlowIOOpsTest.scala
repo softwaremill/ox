@@ -404,7 +404,7 @@ class FlowIOOpsTest extends AnyWordSpec with Matchers:
       exception.getMessage shouldBe "expected source error"
 
     "throw an exception if path is a directory" in:
-      val path = Paths.get(getClass.getResource("/").toURI)
+      val path = Files.createTempDirectory("ox-test")
       val source = Flow.fromValues(Chunk.empty[Byte])
       val exception = intercept[IOException](source.runToFile(path))
       exception.getMessage should endWith("is a directory")

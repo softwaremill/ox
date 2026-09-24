@@ -3,34 +3,27 @@ import com.softwaremill.Publish.{ossPublishSettings, updateDocs}
 import com.softwaremill.UpdateVersionInDocs
 import com.typesafe.tools.mima.core.{MissingClassProblem, ProblemFilters}
 
-lazy val commonSettings = commonSmlBuildSettings ++ ossPublishSettings ++ Seq(
-  organization := "com.softwaremill.ox",
-  scalaVersion := "3.3.8",
-  scalacOptions ++= Seq("-Yfuture-lazy-vals", "-java-output-version", "21"),
-  updateDocs := Def.taskDyn {
-    val files1 = UpdateVersionInDocs(sLog.value, organization.value, version.value)
-    Def.task {
-      (documentation / mdoc).toTask("").value
-      files1 ++ Seq(file("generated-doc/out"))
-    }
-  }.value,
-  Test / scalacOptions += "-Wconf:msg=unused value of type org.scalatest.Assertion:s",
-  Test / scalacOptions += "-Wconf:msg=unused value of type org.scalatest.compatible.Assertion:s",
-  mimaPreviousArtifacts := Set.empty // we only use MiMa for `core` for now, using enableMimaSettings
-)
+commonSmlBuildSettings
+ossPublishSettings
+
+organization := "com.softwaremill.ox"
+scalaVersion := "3.3.8"
+scalacOptions ++= Seq("-Yfuture-lazy-vals", "-java-output-version", "21")
+Test / scalacOptions += "-Wconf:msg=unused value of type org.scalatest.Assertion:s"
+Test / scalacOptions += "-Wconf:msg=unused value of type org.scalatest.compatible.Assertion:s"
+mimaPreviousArtifacts := Set.empty // we only use MiMa for `core` for now, using enableMimaSettings
 
 val enableMimaSettings = Seq(
   mimaPreviousArtifacts := {
     val current = version.value
     val isRcOrMilestone = current.contains("M") || current.contains("RC")
-    if (!isRcOrMilestone) {
+    if !isRcOrMilestone then
       val previous = previousStableVersion.value
       println(s"[info] Not a M or RC version, using previous version for MiMa check: $previous")
       previousStableVersion.value.map(organization.value %% moduleName.value % _).toSet
-    } else {
+    else
       println(s"[info] $current is an M or RC version, no previous version to check with MiMa")
       Set.empty
-    }
   },
   mimaBinaryIssueFilters ++= Seq(
     // GroupingTimeout is only ever used within the groupWithin method, never exposed externally
@@ -47,17 +40,23 @@ val jsoniterMacros = "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-
 
 // used during CI to verify that the documentation compiles
 val compileDocumentation: TaskKey[Unit] = taskKey[Unit]("Compiles documentation throwing away its output")
-compileDocumentation := {
-  (documentation / mdoc).toTask(" --out target/ox-doc").value
-}
 
 lazy val rootProject = (project in file("."))
-  .settings(commonSettings)
-  .settings(publishArtifact := false, name := "ox")
+  .settings(
+    publishArtifact := false,
+    name := "ox",
+    updateDocs := Def.uncached(Def.taskDyn {
+      val files1 = UpdateVersionInDocs(sLog.value, organization.value, version.value)
+      Def.task {
+        (documentation / mdoc).toTask("").value
+        files1 ++ Seq(file("generated-doc/out"))
+      }
+    }.value),
+    compileDocumentation := (documentation / mdoc).toTask(" --out target/ox-doc").value
+  )
   .aggregate(core, kafka, mdcLogback, flowReactiveStreams, flowJson, cron, otelContext)
 
 lazy val core: Project = (project in file("core"))
-  .settings(commonSettings)
   .settings(
     name := "core",
     libraryDependencies ++= Seq(
@@ -71,7 +70,6 @@ lazy val core: Project = (project in file("core"))
   .settings(enableMimaSettings)
 
 lazy val kafka: Project = (project in file("kafka"))
-  .settings(commonSettings)
   .settings(
     name := "kafka",
     libraryDependencies ++= Seq(
@@ -82,12 +80,13 @@ lazy val kafka: Project = (project in file("kafka"))
       "org.apache.pekko" %% "pekko-connectors-kafka" % "1.2.0" % Test,
       "org.apache.pekko" %% "pekko-stream" % "1.7.0" % Test,
       scalaTest
-    )
+    ),
+    // in sbt 2's default (client) mode tests would hang in sbt 2.0.9
+    Test / fork := true
   )
   .dependsOn(core)
 
 lazy val mdcLogback: Project = (project in file("mdc-logback"))
-  .settings(commonSettings)
   .settings(
     name := "mdc-logback",
     libraryDependencies ++= Seq(
@@ -98,7 +97,6 @@ lazy val mdcLogback: Project = (project in file("mdc-logback"))
   .dependsOn(core)
 
 lazy val flowReactiveStreams: Project = (project in file("flow-reactive-streams"))
-  .settings(commonSettings)
   .settings(
     name := "flow-reactive-streams",
     libraryDependencies ++= Seq(
@@ -109,7 +107,6 @@ lazy val flowReactiveStreams: Project = (project in file("flow-reactive-streams"
   .dependsOn(core)
 
 lazy val flowJson: Project = (project in file("flow-json"))
-  .settings(commonSettings)
   .settings(
     name := "flow-json",
     libraryDependencies ++= Seq(
@@ -121,7 +118,6 @@ lazy val flowJson: Project = (project in file("flow-json"))
   .dependsOn(core)
 
 lazy val cron: Project = (project in file("cron"))
-  .settings(commonSettings)
   .settings(
     name := "cron",
     libraryDependencies ++= Seq(
@@ -132,7 +128,6 @@ lazy val cron: Project = (project in file("cron"))
   .dependsOn(core % "test->test;compile->compile")
 
 lazy val otelContext: Project = (project in file("otel-context"))
-  .settings(commonSettings)
   .settings(
     name := "otel-context",
     libraryDependencies ++= Seq(
@@ -144,7 +139,6 @@ lazy val otelContext: Project = (project in file("otel-context"))
 
 lazy val documentation: Project = (project in file("generated-doc")) // important: it must not be doc/
   .enablePlugins(MdocPlugin)
-  .settings(commonSettings)
   .settings(
     mdocIn := file("doc"),
     moduleName := "ox-doc",
