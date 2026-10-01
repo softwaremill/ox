@@ -54,7 +54,7 @@ lazy val root = rootProject
     }.value),
     compileDocumentation := (documentation / mdoc).toTask(" --out target/ox-doc").value
   )
-  .aggregate(core, kafka, mdcLogback, flowReactiveStreams, flowJson, cron, otelContext)
+  .autoAggregate
 
 lazy val core: Project = (project in file("core"))
   .settings(
