@@ -3,7 +3,7 @@
 Dependency:
 
 ```scala
-"com.softwaremill.ox" %% "flow-json" % "1.0.8"
+"com.softwaremill.ox" %% "flow-json" % "1.0.9"
 ```
 
 Ox can parse a `Flow[Chunk[Byte]]` into values, and render values back into byte chunks, either as newline-delimited JSON
@@ -12,7 +12,7 @@ Ox can parse a `Flow[Chunk[Byte]]` into values, and render values back into byte
 Codecs are derived at compile time, which needs one more dependency:
 
 ```scala
-"com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.40.1"
+"com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.41.2"
 ```
 
 ```scala
