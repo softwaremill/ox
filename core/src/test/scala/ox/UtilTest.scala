@@ -5,6 +5,10 @@ import org.scalatest.matchers.should.Matchers
 import ox.util.Trail
 import ox.*
 
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
+
 class UtilTest extends AnyFlatSpec with Matchers:
   "discard" should "do nothing" in {
     val t = Trail()
@@ -71,4 +75,70 @@ class UtilTest extends AnyFlatSpec with Matchers:
     val x = 10
     debug(x + 1) shouldBe ()
   }
+
+  "uninterruptible" should "complete the body and then rethrow an interruption received while waiting" in {
+    val trail = Trail()
+    val (waiting, allowBody, failure) = startUninterruptible {
+      trail.add("body completed")
+    }
+
+    interruptAndAwaitHandling(waiting)
+    allowBody.countDown()
+    waiting.join()
+
+    trail.get shouldBe Vector("body completed")
+    failure.get() shouldBe a[InterruptedException]
+  }
+
+  it should "rethrow the body's failure, when the body fails after an interruption was received while waiting" in {
+    val bodyError = new RuntimeException("body")
+    val (waiting, allowBody, failure) = startUninterruptible {
+      throw bodyError
+    }
+
+    interruptAndAwaitHandling(waiting)
+    allowBody.countDown()
+    waiting.join()
+
+    failure.get() shouldBe theSameInstanceAs(bodyError)
+  }
+
+  it should "rethrow an InterruptedException thrown by its body" in {
+    val bodyError = new InterruptedException("thrown by the body")
+
+    val thrown = the[InterruptedException] thrownBy uninterruptible[Unit](throw bodyError)
+
+    thrown shouldBe theSameInstanceAs(bodyError)
+  }
+
+  /** Starts `uninterruptible(body)` on a new thread, with `body` blocked until the returned latch is released. Returns once the body is
+    * running.
+    */
+  private def startUninterruptible(body: => Unit): (Thread, CountDownLatch, AtomicReference[Throwable]) =
+    val bodyStarted = new CountDownLatch(1)
+    val allowBody = new CountDownLatch(1)
+    val failure = new AtomicReference[Throwable]()
+
+    val waiting = Thread
+      .ofVirtual()
+      .start(() =>
+        try
+          uninterruptible {
+            bodyStarted.countDown()
+            allowBody.await()
+            body
+          }
+        catch case e: Throwable => failure.set(e)
+      )
+
+    bodyStarted.await(10, TimeUnit.SECONDS) shouldBe true
+    (waiting, allowBody, failure)
+  end startUninterruptible
+
+  private def interruptAndAwaitHandling(thread: Thread): Unit =
+    thread.interrupt()
+    val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
+    while thread.isInterrupted && System.nanoTime() < deadline do Thread.onSpinWait()
+    thread.isInterrupted shouldBe false
+    ()
 end UtilTest
