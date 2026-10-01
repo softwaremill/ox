@@ -41,7 +41,7 @@ val jsoniterMacros = "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-
 // used during CI to verify that the documentation compiles
 val compileDocumentation: TaskKey[Unit] = taskKey[Unit]("Compiles documentation throwing away its output")
 
-lazy val rootProject = (project in file("."))
+lazy val root = rootProject
   .settings(
     publishArtifact := false,
     name := "ox",
