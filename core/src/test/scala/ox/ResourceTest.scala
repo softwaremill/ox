@@ -226,6 +226,14 @@ class ResourceTest extends AnyFlatSpec with Matchers:
     trail.get shouldBe Vector("allocate", "in scope", "release", "exception e2 (e1)")
   }
 
+  it should "rethrow an InterruptedException thrown when releasing, after the body succeeds" in {
+    val releaseError = new InterruptedException("thrown by the release")
+
+    val thrown = the[InterruptedException] thrownBy use((), _ => throw releaseError)(_ => ())
+
+    thrown shouldBe theSameInstanceAs(releaseError)
+  }
+
   "a leaked scope capability" should "throw when registering after the scope ended, releasing the acquired resource" in {
     val trail = Trail()
     var leaked: OxUnsupervised = null

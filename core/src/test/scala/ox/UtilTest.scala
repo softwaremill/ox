@@ -111,14 +111,6 @@ class UtilTest extends AnyFlatSpec with Matchers:
     thrown shouldBe theSameInstanceAs(bodyError)
   }
 
-  it should "rethrow an InterruptedException thrown when releasing a resource" in {
-    val releaseError = new InterruptedException("thrown by the release")
-
-    val thrown = the[InterruptedException] thrownBy use((), _ => throw releaseError)(_ => ())
-
-    thrown shouldBe theSameInstanceAs(releaseError)
-  }
-
   /** Starts `uninterruptible(body)` on a new thread, with `body` blocked until the returned latch is released. Returns once the body is
     * running.
     */
