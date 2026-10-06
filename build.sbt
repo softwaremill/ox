@@ -80,9 +80,7 @@ lazy val kafka: Project = (project in file("kafka"))
       "org.apache.pekko" %% "pekko-connectors-kafka" % "1.2.0" % Test,
       "org.apache.pekko" %% "pekko-stream" % "1.7.0" % Test,
       scalaTest
-    ),
-    // in sbt 2's default (client) mode tests would hang in sbt 2.0.9
-    Test / fork := true
+    )
   )
   .dependsOn(core)
 
