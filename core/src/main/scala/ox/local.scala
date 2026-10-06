@@ -42,6 +42,6 @@ object ForkLocal:
   * stored in a map bound to the concurrency scope, and the binding can only be updated by starting a new concurrency scope (same as with
   * the `ScopedValue`-based implementation). That way locals never escape their scope.
   */
-private[ox] class ForkLocalMap(storage: Map[ForkLocal[_], Any]):
+private[ox] class ForkLocalMap(storage: Map[ForkLocal[?], Any]):
   def get[T](key: ForkLocal[T]): Option[T] = storage.get(key).asInstanceOf[Option[T]]
   def set[T](key: ForkLocal[T], value: T): ForkLocalMap = new ForkLocalMap(storage.updated(key, value))

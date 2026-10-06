@@ -13,7 +13,7 @@ class FlowOpsZipWithIndexTest extends AnyFlatSpec with Matchers with Eventually:
     s.runToList() shouldBe List.empty
 
   it should "zip flow with index" in:
-    val c = Flow.fromValues(1 to 5: _*)
+    val c = Flow.fromValues(1 to 5*)
     val s = c.zipWithIndex
     s.runToList() shouldBe List((1, 0), (2, 1), (3, 2), (4, 3), (5, 4))
 

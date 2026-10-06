@@ -80,7 +80,7 @@ are cancelled (using interruption). Once all forks complete, the exception is pr
 the `supervised` method invocation:
 
 ```scala mdoc:compile-only
-import ox.{fork, forkUser, Ox, sleep, supervised}
+import ox.{fork, forkUser, sleep, supervised}
 import scala.concurrent.duration.*
 
 supervised {

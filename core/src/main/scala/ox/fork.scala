@@ -182,7 +182,7 @@ def forkCancellable[T](f: => T)(using OxUnsupervised): CancellableFork[T] =
     catch
       // if this thread was interrupted, any context is already captured as part of the thread started in the nested scope
       // hence, ignoring this exception, so that it's not logged by the uncaught exception handler
-      case e: InterruptedException =>
+      case _: InterruptedException =>
 
   new ForkUsingResult(result) with CancellableFork[T]:
     override def cancel(): Either[Throwable, T] =

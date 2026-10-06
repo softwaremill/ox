@@ -147,11 +147,15 @@ private[flow] def groupByImpl[T, V, U](parent: Flow[T], parallelism: Int, predic
 
           case e: ChannelClosed.Error => throw e.toThrowable
 
-          case FromParent(t) =>
+          // TODO(scala-3.9): 3.9 warns that type tests for local classes can't be checked at runtime; safe here, as the
+          // channels are local to this invocation. Could be removed by moving `FromParent`/`ChildDone` out of the method.
+          case fp: FromParent @unchecked =>
+            val t = fp.v
             state = state.withFromParentCounterIncremented
             state = sendToChild_orRunChild_orBuffer(state, childOutput, t, predicate(t), state.fromParentCounter)
 
-          case ChildDone(v) =>
+          case cd: ChildDone @unchecked =>
+            val v = cd.v
             state = state.withChildRemoved(v)
 
             // Children should only be done because their `childChannel` was completed as done by

@@ -2,8 +2,6 @@ package ox.channels
 
 import ox.*
 
-import java.util
-
 trait SourceOps[+T]:
   outer: Source[T] =>
 

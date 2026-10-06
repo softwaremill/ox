@@ -2,6 +2,7 @@ package ox
 
 import java.nio.charset.Charset
 import java.nio.charset.StandardCharsets
+import scala.annotation.unused
 import scala.reflect.ClassTag
 
 /** An immutable finite indexed sequence of elements, backed by multiple IArrays. Optimized for efficient concatenation by maintaining a
@@ -184,10 +185,10 @@ case object Empty extends Chunk[Nothing]:
 object Chunk:
   def empty[A]: Chunk[A] = Empty
 
-  def fromArray[A: ClassTag](array: Array[A]): Chunk[A] =
+  def fromArray[A](array: Array[A])(using @unused ct: ClassTag[A]): Chunk[A] =
     if array.isEmpty then Empty else NonEmptyChunk(List(IArray.unsafeFromArray(array)))
 
-  def fromIArray[A: ClassTag](array: IArray[A]): Chunk[A] =
+  def fromIArray[A](array: IArray[A])(using @unused ct: ClassTag[A]): Chunk[A] =
     if array.isEmpty then Empty else NonEmptyChunk(List(array))
 
   /** Creates a chunk from elements */
