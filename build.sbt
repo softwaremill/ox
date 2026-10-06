@@ -7,7 +7,7 @@ commonSmlBuildSettings
 ossPublishSettings
 
 organization := "com.softwaremill.ox"
-scalaVersion := "3.3.8"
+scalaVersion := "3.9.0"
 scalacOptions ++= Seq("-Yfuture-lazy-vals", "-java-output-version", "21")
 Test / scalacOptions += "-Wconf:msg=unused value of type org.scalatest.Assertion:s"
 Test / scalacOptions += "-Wconf:msg=unused value of type org.scalatest.compatible.Assertion:s"
