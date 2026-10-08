@@ -2,6 +2,7 @@ package ox
 
 import java.util.concurrent.ThreadFactory
 
+private def defaultThreadFactory = Thread.ofVirtual().factory()
 private var customThreadFactory: ThreadFactory = _
 
 /** @see [[oxThreadFactory]] */
@@ -18,4 +19,5 @@ def setOxThreadFactory(tf: ThreadFactory): Unit =
   */
 lazy val oxThreadFactory: ThreadFactory =
   val custom = customThreadFactory
-  if custom == null then Thread.ofVirtual().factory() else custom
+  if custom == null then defaultThreadFactory else custom
+  

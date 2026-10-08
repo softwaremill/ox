@@ -26,8 +26,6 @@ class Flow[+T](protected val last: FlowStage[T])
 
 object Flow extends FlowCompanionOps with FlowCompanionIOOps with FlowCompanionReactiveOps
 
-//
-
 /** Contains the logic for running a single flow stage. As part of `run`s implementation, previous flow stages might be run, either
   * synchronously or asynchronously.
   */
