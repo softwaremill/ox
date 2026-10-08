@@ -657,8 +657,7 @@ class FlowOps[+T]:
 
           case ChildDone => runningChannelCount -= 1
 
-          // TODO(scala-3.9): 3.9 warns that type tests for local classes can't be checked at runtime; safe here, as the
-          // channels are local to this invocation. Could be removed by moving `Nested` out of the method.
+          // safe: these values never leave this invocation
           case n: Nested @unchecked =>
             forkUnsupervised:
               n.child.onDone(childDoneChannel.send(ChildDone)).runPipeToSink(childOutputChannel, propagateDone = false)
