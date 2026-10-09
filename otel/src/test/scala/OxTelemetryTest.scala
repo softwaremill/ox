@@ -17,7 +17,7 @@ import java.util.UUID
 import scala.collection.JavaConverters.asScalaBufferConverter
 
 
-class OtelTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
+class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
   setOxThreadFactory(new PropagatingVirtualThreadFactory)
 
   class My extends OxApp.WithEitherErrors[String] /* , OtelOxApp.WithOtelSupport */:
@@ -443,4 +443,4 @@ class OtelTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
 
   }
 
-end OtelTest
+end OxTelemetryTest

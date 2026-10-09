@@ -1,5 +1,5 @@
-import com.softwaremill.Publish.{ossPublishSettings, updateDocs}
 import com.softwaremill.SbtSoftwareMillCommon.commonSmlBuildSettings
+import com.softwaremill.Publish.{ossPublishSettings, updateDocs}
 import com.softwaremill.UpdateVersionInDocs
 import com.typesafe.tools.mima.core.{MissingClassProblem, ProblemFilters}
 
@@ -136,9 +136,8 @@ lazy val otelContext: Project = (project in file("otel-context"))
   .dependsOn(core % "test->test;compile->compile")
 
 lazy val otel: Project = (project in file("otel"))
-  .settings(commonSettings)
   .settings(
-    name := "otel",
+    name := "ox-telemetry",
     Test / fork := true,
     Test / javaOptions += "-Dio.opentelemetry.context.enableStrictContext=true",
     libraryDependencies ++= Seq(

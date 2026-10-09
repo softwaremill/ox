@@ -48,9 +48,8 @@ has to return an `ox.ExitCode` value which translates to the exit code returned 
 defined as:
 
 ```scala
-
 enum ExitCode(val code: Int):
-  case Success extends ox.ExitCode(0)
+  case Success extends ExitCode(0)
   case Failure(exitCode: Int = 1) extends ExitCode(exitCode)
 ```
 
