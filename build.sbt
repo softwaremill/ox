@@ -135,6 +135,20 @@ lazy val otelContext: Project = (project in file("otel-context"))
   )
   .dependsOn(core % "test->test;compile->compile")
 
+lazy val otel: Project = (project in file("otel"))
+  .settings(
+    name := "ox-telemetry",
+    Test / fork := true,
+    Test / javaOptions += "-Dio.opentelemetry.context.enableStrictContext=true",
+    libraryDependencies ++= Seq(
+      "io.opentelemetry" % "opentelemetry-api" % "1.66.0",
+      "io.opentelemetry" % "opentelemetry-sdk" % "1.66.0",
+      scalaTest,
+      "io.opentelemetry" % "opentelemetry-sdk-testing" % "1.66.0" % Test
+    )
+  )
+  .dependsOn(core % "test->test;compile->compile", otelContext % "test->test;compile->compile")
+
 lazy val documentation: Project = (project in file("generated-doc")) // important: it must not be doc/
   .enablePlugins(MdocPlugin)
   .settings(
