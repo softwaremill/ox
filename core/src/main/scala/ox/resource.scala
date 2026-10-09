@@ -11,6 +11,7 @@ import scala.util.NotGiven
 )
 opaque type NoEnclosingConcurrencyScope = Unit
 
+// Scala 3.9+ erases NoEnclosingConcurrencyScope results to void, older versions to BoxedUnit;
 // kept for binary compatibility (https://github.com/scala/scala3/issues/24653)
 private[ox] trait NoEnclosingConcurrencyScopeVoidErasure:
   def noEnclosingConcurrencyScope(using NotGiven[OxUnsupervised]): Unit
@@ -19,7 +20,8 @@ object NoEnclosingConcurrencyScope extends NoEnclosingConcurrencyScopeVoidErasur
   // in the companion, so that it's found via the implicit scope of the type, without any imports
   given noEnclosingConcurrencyScope(using NotGiven[OxUnsupervised]): NoEnclosingConcurrencyScope = ()
 
-  // binary compatibility with code compiled against Ox built with Scala 3.3 (https://github.com/scala/scala3/issues/24653)
+  // the BoxedUnit variant (the pre-3.9 erasure of the given above, which is now void), for binary compatibility with code
+  // compiled against Ox built with Scala 3.3 (https://github.com/scala/scala3/issues/24653)
   @targetName("noEnclosingConcurrencyScope")
   private[ox] def noEnclosingConcurrencyScopeBoxedUnit(using NotGiven[OxUnsupervised]): scala.runtime.BoxedUnit =
     scala.runtime.BoxedUnit.UNIT
