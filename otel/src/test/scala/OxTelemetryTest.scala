@@ -16,7 +16,6 @@ import ox.telemetry.tracing.OxTracing
 import java.util.UUID
 import scala.collection.JavaConverters.asScalaBufferConverter
 
-
 class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
   setOxThreadFactory(new PropagatingVirtualThreadFactory)
 
@@ -25,23 +24,18 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
 
     override def handleError(e: String): ExitCode = ???
 
-
   val exporter = InMemorySpanExporter.create()
 
   val tracerProvider =
-
-    SdkTracerProvider.builder()
-
+    SdkTracerProvider
+      .builder()
       .addSpanProcessor(SimpleSpanProcessor.create(exporter))
-
       .build()
 
   val openTelemetry =
-
-    OpenTelemetrySdk.builder()
-
+    OpenTelemetrySdk
+      .builder()
       .setTracerProvider(tracerProvider)
-
       .build()
 
   val tracer = openTelemetry.getTracer("test")
@@ -57,7 +51,6 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
 
     val flow = Flow.fromValues(1, 2, 3)
 
-
     val spans = exporter.getFinishedSpanItems
 
     val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
@@ -69,7 +62,6 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
     val prefix = UUID.randomUUID().toString
 
     val flow = Flow.fromValues(1, 2, 3)
-
 
     val spannedFlow = flow.span(s"$prefix-span")
 
@@ -105,7 +97,6 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
     assert(thisTestSpans(1).getName == s"$prefix-span2")
   }
 
-
   "flow.spanned" should "open only one span despite parralelized map" in {
 
     val prefix = UUID.randomUUID().toString
@@ -127,18 +118,18 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
     assert(span.getName == s"$prefix-span")
   }
 
-
   "flow.spanned" should "properly end span in case of error" in {
 
     val prefix = UUID.randomUUID().toString
 
     val flow = Flow.fromValues(1, 2, 3)
 
-
-    try {
-      flow.tap { case 2 => throw new Exception("boom"); case _ => () }.span(s"$prefix-span", beforeClose = (s, thr) => s.addEvent(thr.toString)).runToList()
-    } catch case _ => ()
-
+    try
+      flow
+        .tap { case 2 => throw new Exception("boom"); case _ => () }
+        .span(s"$prefix-span", beforeClose = (s, thr) => s.addEvent(thr.toString))
+        .runToList()
+    catch case _ => ()
 
     val spans = exporter.getFinishedSpanItems
 
@@ -158,10 +149,8 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
 
     val spanned = flow.span(s"$prefix-span", beforeClose = (s, thr) => s.addEvent(thr.toString))
 
-    try {
-      spanned.map { case 2 => throw new Exception("boom"); case n => n }.runToList()
-    } catch case _ => ()
-
+    try spanned.map { case 2 => throw new Exception("boom"); case n => n }.runToList()
+    catch case _ => ()
 
     val spans = exporter.getFinishedSpanItems
 
@@ -200,11 +189,8 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
     assert(childrenSpans.size == 1)
     val parentSpan = parentSpans.head
 
-    for {
-      span <- childrenSpans
-    } yield {
-      assert(span.getParentSpanId == parentSpan.getSpanId)
-    }
+    for span <- childrenSpans
+    yield assert(span.getParentSpanId == parentSpan.getSpanId)
   }
 
   "flow.spanned" should "open several spans if flatMapped" in {
@@ -229,11 +215,8 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
     assert(childrenSpans.size == 3)
     val parentSpan = parentSpans.head
 
-    for {
-      span <- childrenSpans
-    } yield {
-      assert(span.getParentSpanId == parentSpan.getSpanId)
-    }
+    for span <- childrenSpans
+    yield assert(span.getParentSpanId == parentSpan.getSpanId)
   }
 
   "flow.spanned" should "properly end span in case of error2" in {
@@ -244,9 +227,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
 
     val spanned = flow.span(s"$prefix-span")
 
-
     spanned.map { case 2 => throw new Exception("boom"); case x => x }.recover(_ => 5).runToList()
-
 
     val spans = exporter.getFinishedSpanItems
 
@@ -266,7 +247,9 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
 
     val spanned = span(flow)(s"$prefix-span")
 
-    val _ = span(spanned.map { case 2 => throw new Exception("boom"); case x => currentSpanUnsafe().addEvent(x.toString); x }.recover { x => currentSpanUnsafe().addEvent("recovery"); 5 })(s"$prefix-recover").runToList()
+    val _ = span(spanned.map { case 2 => throw new Exception("boom"); case x => currentSpanUnsafe().addEvent(x.toString); x }.recover { x =>
+      currentSpanUnsafe().addEvent("recovery"); 5
+    })(s"$prefix-recover").runToList()
 
     val spans = exporter.getFinishedSpanItems
 
@@ -288,7 +271,6 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
 
     val spanned = span(flow)(s"$prefix-span")
 
-
     val finalinzer = spanUnsafe(s"$prefix-parent")
 
     supervised {
@@ -298,12 +280,13 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
     finalinzer.close()
     val spans = exporter.getFinishedSpanItems
 
-    val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix)).filterNot(s => s.getSpanId == finalinzer.span.getSpanContext.getSpanId)
+    val thisTestSpans =
+      spans.asScala.filter(_.getName.startsWith(prefix)).filterNot(s => s.getSpanId == finalinzer.span.getSpanContext.getSpanId)
 
     assert(thisTestSpans.size == 10)
 
-    thisTestSpans.foreach {
-      s => assert(s.getParentSpanId == finalinzer.span.getSpanContext.getSpanId)
+    thisTestSpans.foreach { s =>
+      assert(s.getParentSpanId == finalinzer.span.getSpanContext.getSpanId)
     }
   }
 
@@ -327,12 +310,13 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
     finalinzer.close()
     val spans = exporter.getFinishedSpanItems
 
-    val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix)).filterNot(s => s.getSpanId == finalinzer.span.getSpanContext.getSpanId)
+    val thisTestSpans =
+      spans.asScala.filter(_.getName.startsWith(prefix)).filterNot(s => s.getSpanId == finalinzer.span.getSpanContext.getSpanId)
 
     assert(thisTestSpans.size == 10)
 
-    thisTestSpans.foreach {
-      s => assert(s.getParentSpanId == finalinzer.span.getSpanContext.getSpanId)
+    thisTestSpans.foreach { s =>
+      assert(s.getParentSpanId == finalinzer.span.getSpanContext.getSpanId)
     }
   }
 
@@ -350,13 +334,16 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
     supervised {
       (1 to 10).map {
         case 1 =>
-          forkUser(span(flow)(s"$prefix-1-level1").flatMap {
-            el =>
-              val innerFlow = supervised {
-                flow.span(s"$prefix-level2", beforeClose = _._1.addEvent("boomed"))
+          forkUser(
+            span(flow)(s"$prefix-1-level1")
+              .flatMap { el =>
+                val innerFlow = supervised {
+                  flow.span(s"$prefix-level2", beforeClose = _._1.addEvent("boomed"))
+                }
+                innerFlow
               }
-              innerFlow
-          }.runToList())
+              .runToList()
+          )
 
         case _ => forkUser(spanned.runToList())
       }
@@ -374,12 +361,12 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
     val level1Span = level1Spans.head
     assert(level2Spans.size == 3)
 
-    level1Spans.foreach {
-      s => assert(s.getParentSpanId == finalinzer.span.getSpanContext.getSpanId)
+    level1Spans.foreach { s =>
+      assert(s.getParentSpanId == finalinzer.span.getSpanContext.getSpanId)
     }
 
-    level2Spans.foreach {
-      s => assert(s.getParentSpanId == level1_1.getSpanContext.getSpanId)
+    level2Spans.foreach { s =>
+      assert(s.getParentSpanId == level1_1.getSpanContext.getSpanId)
     }
 
   }
@@ -399,23 +386,28 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
       println:
         supervised {
           (1 to 10).map {
-            case 1 => forkUser {
-              println:
-                (span(flow)(s"$prefix-1-level1").flatMap {
-                  el => {
-                    supervisedError(em):
-                      either:
-                        val innerFlow = {
-                          em.pure(flow.span(s"$prefix-level2", beforeClose = _._1.addEvent(s"boomed at $el")).map { case 1 => em.pureError("ops").ok(); case x => x })
-                        }
-                        innerFlow.ok()
-                  }.toOption.getOrElse(Flow.empty)
-                }.runToList())
-            }
+            case 1 =>
+              forkUser {
+                println:
+                  (span(flow)(s"$prefix-1-level1")
+                    .flatMap { el =>
+                      {
+                        supervisedError(em):
+                          either:
+                            val innerFlow =
+                              em.pure(flow.span(s"$prefix-level2", beforeClose = _._1.addEvent(s"boomed at $el")).map {
+                                case 1 => em.pureError("ops").ok(); case x => x
+                              })
+                            innerFlow.ok()
+                      }.toOption.getOrElse(Flow.empty)
+                    }
+                    .runToList())
+              }
             case _ => forkUser(spanned.runToList())
           }
         }
     catch case _ => ()
+    end try
 
     finalinzer.close()
     val spans = exporter.getFinishedSpanItems
@@ -427,19 +419,17 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
 
     assert(level1Spans.size == 10)
     val level1Span = level1Spans.head
-    assert(level2Spans.size == 1) //because flow.flatMap is evaluated sequentially and exception ends whole flow
+    assert(level2Spans.size == 1) // because flow.flatMap is evaluated sequentially and exception ends whole flow
 
-    level1Spans.foreach {
-      s => assert(s.getParentSpanId == finalinzer.span.getSpanContext.getSpanId)
+    level1Spans.foreach { s =>
+      assert(s.getParentSpanId == finalinzer.span.getSpanContext.getSpanId)
     }
 
-    level2Spans.foreach {
-      s =>
-        assert(s.getParentSpanId == level1_1.getSpanContext.getSpanId)
-        assert(s.getEvents().get(0).getName.startsWith("boomed"))
+    level2Spans.foreach { s =>
+      assert(s.getParentSpanId == level1_1.getSpanContext.getSpanId)
+      assert(s.getEvents().get(0).getName.startsWith("boomed"))
 
     }
-
 
   }
 

@@ -20,3 +20,4 @@ object OxTracing:
   private class Impl(base: OxTracingBase, flow: OxFlowTracing) extends OxTracing:
     export flow.*
     export base.*
+end OxTracing

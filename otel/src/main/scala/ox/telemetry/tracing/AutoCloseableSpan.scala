@@ -8,7 +8,8 @@ sealed trait AutoCloseableSpan extends AutoCloseable:
   def span: Span
 
 private object AutoCloseableSpan:
-  private [ox] final class ContextHolderBased(val span: Span, contextHolder: ContextHolder, previousContext: Context) extends AutoCloseableSpan:
+  private[ox] final class ContextHolderBased(val span: Span, contextHolder: ContextHolder, previousContext: Context)
+      extends AutoCloseableSpan:
     def close(): Unit =
       span.end()
       contextHolder.set(previousContext)

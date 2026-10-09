@@ -3,7 +3,6 @@ package ox.telemetry
 import io.opentelemetry.context.Context
 import ox.otel.context.PropagatingVirtualThreadFactory
 
-
 trait ContextHolder:
   def get(): Context
 
@@ -23,5 +22,8 @@ object ContextHolder:
 
     private def checkThreadFactory() =
       if !checked then
-        if !ox.oxThreadFactory.isInstanceOf[PropagatingVirtualThreadFactory] then System.err.println(s"Otel should use ${classOf[PropagatingVirtualThreadFactory].getName}")
+        if !ox.oxThreadFactory.isInstanceOf[PropagatingVirtualThreadFactory] then
+          System.err.println(s"Otel should use ${classOf[PropagatingVirtualThreadFactory].getName}")
         checked = true
+  end Native
+end ContextHolder
