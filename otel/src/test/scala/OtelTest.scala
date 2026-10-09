@@ -1,5 +1,3 @@
-package ox.kafka
-
 import io.opentelemetry.api.metrics.Meter
 import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
@@ -12,11 +10,8 @@ import ox.*
 import ox.channels.BufferCapacity
 import ox.either.ok
 import ox.flow.Flow
-import ox.flow.otel.*
 import ox.otel.context.PropagatingVirtualThreadFactory
-import ox.telemetry.AdaptiveOxTracing
 import ox.telemetry.tracing.OxTracing
-import ox.telemetry.tracing.impl.OxTracingBase
 
 import java.util.UUID
 import scala.collection.JavaConverters.asScalaBufferConverter
@@ -25,7 +20,7 @@ import scala.collection.JavaConverters.asScalaBufferConverter
 class OtelTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
   setOxThreadFactory(new PropagatingVirtualThreadFactory)
 
-  class My extends OxApp.WithEitherErrors[String]/* , OtelOxApp.WithOtelSupport */:
+  class My extends OxApp.WithEitherErrors[String] /* , OtelOxApp.WithOtelSupport */:
     override def run(args: Vector[String])(using Ox, EitherError[String]): ExitCode = ???
 
     override def handleError(e: String): ExitCode = ???
@@ -62,7 +57,6 @@ class OtelTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
 
     val flow = Flow.fromValues(1, 2, 3)
 
-    val spannedFlow = flow.span(s"$prefix-span")
 
     val spans = exporter.getFinishedSpanItems
 
@@ -321,7 +315,6 @@ class OtelTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
 
     val spanned = span(flow)(s"$prefix-span")
 
-
     val finalinzer = spanUnsafe(s"$prefix-parent")
 
     supervised {
@@ -449,47 +442,5 @@ class OtelTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
 
 
   }
-
-  case class ContextAccess[C](c: C):
-    def use[C1, T](f: C => C1): C1 ?=> T = ???
-  //  object ContextState:
-  //    given refl[C](using c:ContextState[C]):ContextState[C]   = c
-  //      val newC = ContextState(f(c))
-
-
-  //    extension [C](c:C)
-  //      def use(f: () => C1): C1 =
-
-
-  def useContext[C, CC, T](using ContextAccess[C])(use: C => CC): ContextAccess[CC] ?=> T = ???
-
-  //  case class FFF[C, T](c: C, x: T):
-  //    transparent inline def map[U](inline f: ContextAccess[C] ?=> T => U): FFF[Any, U] =
-  //      val ca  = ContextAccess(c)
-  //      f(using ca).apply(x)
-  //
-  //  //      given cu: ContextUser[C1] = new ContextUser[C1]
-  //
-  //  //      f.apply()
-  //
-  //
-  //  val s: Span = ???
-  //  s.addEvent("fs")
-  //
-  //  val ff = FFF[Span, Int](???, ???)
-  //  val mapped = ff.map: c ?=>
-  //    _ + 1
-
-  //  val ffT :FFF[Span,Int]  = mapped
-
-
-  //  val mapped2 = ff.map: ctx ?=>
-  //    ctx.end()
-  //    _ + 1
-
-  //  val ff: Flow[Span ?=> Int] = ???
-  //  val fff = ff.map { x =>
-  //    x + 1
-  //  }
 
 end OtelTest
