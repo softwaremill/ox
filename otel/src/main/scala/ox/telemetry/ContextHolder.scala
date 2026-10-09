@@ -25,4 +25,3 @@ object ContextHolder:
       if !checked then
         if !ox.oxThreadFactory.isInstanceOf[PropagatingVirtualThreadFactory] then System.err.println(s"Otel should use ${classOf[PropagatingVirtualThreadFactory].getName}")
         checked = true
-

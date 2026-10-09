@@ -22,4 +22,3 @@ private[tracing] object OxFlowTracing:
           base.byNameSpan(flow.runToEmit(
             emit
           ))(spanName, spanKind, attributes, links, beforeClose)
-
