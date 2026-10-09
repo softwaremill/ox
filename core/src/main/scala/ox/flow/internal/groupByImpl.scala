@@ -147,11 +147,14 @@ private[flow] def groupByImpl[T, V, U](parent: Flow[T], parallelism: Int, predic
 
           case e: ChannelClosed.Error => throw e.toThrowable
 
-          case FromParent(t) =>
+          // safe: these values never leave this invocation
+          case fp: FromParent @unchecked =>
+            val t = fp.v
             state = state.withFromParentCounterIncremented
             state = sendToChild_orRunChild_orBuffer(state, childOutput, t, predicate(t), state.fromParentCounter)
 
-          case ChildDone(v) =>
+          case cd: ChildDone @unchecked =>
+            val v = cd.v
             state = state.withChildRemoved(v)
 
             // Children should only be done because their `childChannel` was completed as done by

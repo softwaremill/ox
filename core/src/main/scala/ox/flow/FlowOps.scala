@@ -2,7 +2,6 @@ package ox.flow
 
 import ox.CancellableFork
 import ox.Fork
-import ox.Ox
 import ox.OxUnsupervised
 import ox.channels.BufferCapacity
 import ox.channels.Channel
@@ -658,9 +657,10 @@ class FlowOps[+T]:
 
           case ChildDone => runningChannelCount -= 1
 
-          case Nested(t) =>
+          // safe: these values never leave this invocation
+          case n: Nested @unchecked =>
             forkUnsupervised:
-              t.onDone(childDoneChannel.send(ChildDone)).runPipeToSink(childOutputChannel, propagateDone = false)
+              n.child.onDone(childDoneChannel.send(ChildDone)).runPipeToSink(childOutputChannel, propagateDone = false)
             .discard
 
             runningChannelCount += 1
@@ -918,7 +918,7 @@ class FlowOps[+T]:
     require(elements > 0, "elements must be > 0")
     require(per.toMillis > 0, "per time must be >= 1 ms")
     val emitEveryMillis = (per.toMillis / elements).millis
-    tap(t => sleep(emitEveryMillis))
+    tap(_ => sleep(emitEveryMillis))
   end throttle
 
   /** If this flow has no elements then elements from an `alternative` flow are emitted by the returned flow. If this flow is failed then
@@ -1249,7 +1249,7 @@ class FlowOps[+T]:
 
   /** Discard all elements emitted by this flow. The returned flow completes only when this flow completes (successfully or with an error).
     */
-  def drain(): Flow[Nothing] = Flow.usingEmitInline: emit =>
+  def drain(): Flow[Nothing] = Flow.usingEmitInline: _ =>
     last.run(FlowEmit.fromInline(_ => ()))
 
   /** Always runs `f` after the flow completes, whether it's because all elements are emitted, or when there's an error. */

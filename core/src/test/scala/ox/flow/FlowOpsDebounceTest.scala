@@ -13,7 +13,7 @@ class FlowOpsDebounceTest extends AnyFlatSpec with Matchers:
     s.runToList() shouldBe List.empty
 
   it should "not debounce if applied on a flow containing only distinct values" in:
-    val c = Flow.fromValues(1 to 10: _*)
+    val c = Flow.fromValues(1 to 10*)
     val s = c.debounce
     s.runToList() shouldBe (1 to 10)
 
