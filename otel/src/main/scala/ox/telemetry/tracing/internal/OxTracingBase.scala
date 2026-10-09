@@ -18,10 +18,10 @@ private[tracing] trait OxTracingBase:
   extension [T](t: => T)
     def byNameSpan(
         spanName: String,
-        spanKind: SpanKind,
-        attributes: Attributes,
-        links: Seq[SpanContext],
-        beforeClose: ((Span, Option[Throwable])) => Span
+        spanKind: SpanKind = SpanKind.INTERNAL,
+        attributes: Attributes = Attributes.empty(),
+        links: Seq[SpanContext] = Seq.empty,
+        beforeClose: ((Span, Option[Throwable])) => Span = _._1
     ): T
   end extension
 end OxTracingBase

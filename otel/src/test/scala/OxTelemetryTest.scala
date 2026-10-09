@@ -329,8 +329,6 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
 
     val spanned = span(flow)(s"$prefix-level1")
 
-    val finalinzer = spanUnsafe(s"$prefix-level0")
-
     supervised {
       (1 to 10).map {
         case 1 =>
@@ -347,12 +345,12 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
 
         case _ => forkUser(spanned.runToList())
       }
-    }
+    }.byNameSpan(s"$prefix-level0")
 
-    finalinzer.close()
     val spans = exporter.getFinishedSpanItems
 
     val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
+    val level0Spans = thisTestSpans.find(s => s.getName.endsWith("level0")).get
     val level1Spans = thisTestSpans.filter(s => s.getName.endsWith("level1"))
     val level2Spans = thisTestSpans.filter(s => s.getName.endsWith("level2"))
 
@@ -362,7 +360,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
     assert(level2Spans.size == 3)
 
     level1Spans.foreach { s =>
-      assert(s.getParentSpanId == finalinzer.span.getSpanContext.getSpanId)
+      assert(s.getParentSpanId == level0Spans.getSpanContext.getSpanId)
     }
 
     level2Spans.foreach { s =>
