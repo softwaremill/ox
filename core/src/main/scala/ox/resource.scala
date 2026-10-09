@@ -11,11 +11,7 @@ import scala.util.NotGiven
 )
 opaque type NoEnclosingConcurrencyScope = Unit
 
-/** Scala 3.9+ erases a result of type `NoEnclosingConcurrencyScope` to `void`, earlier versions to `BoxedUnit`. When Ox was compiled with
-  * Scala 3.3, overriding this method made the compiler emit both signatures, so that code compiled with 3.9+ links against Ox
-  * (https://github.com/scala/scala3/issues/24653). Now that Ox is compiled with 3.9, the `BoxedUnit` version is provided explicitly in
-  * [[NoEnclosingConcurrencyScope]]; this trait is kept for binary compatibility.
-  */
+// kept for binary compatibility (https://github.com/scala/scala3/issues/24653)
 private[ox] trait NoEnclosingConcurrencyScopeVoidErasure:
   def noEnclosingConcurrencyScope(using NotGiven[OxUnsupervised]): Unit
 
@@ -23,10 +19,7 @@ object NoEnclosingConcurrencyScope extends NoEnclosingConcurrencyScopeVoidErasur
   // in the companion, so that it's found via the implicit scope of the type, without any imports
   given noEnclosingConcurrencyScope(using NotGiven[OxUnsupervised]): NoEnclosingConcurrencyScope = ()
 
-  /** Since Ox is compiled with Scala 3.9, [[noEnclosingConcurrencyScope]] above is emitted returning `void`. Code compiled with Scala < 3.9
-    * (against an Ox version built with Scala 3.3) links against a version returning `BoxedUnit`, which is provided here for binary
-    * compatibility (https://github.com/scala/scala3/issues/24653).
-    */
+  // binary compatibility with code compiled against Ox built with Scala 3.3 (https://github.com/scala/scala3/issues/24653)
   @targetName("noEnclosingConcurrencyScope")
   private[ox] def noEnclosingConcurrencyScopeBoxedUnit(using NotGiven[OxUnsupervised]): scala.runtime.BoxedUnit =
     scala.runtime.BoxedUnit.UNIT
