@@ -18,20 +18,7 @@ import java.util.concurrent.atomic.AtomicReference
 trait FlowCompanionReactiveOps:
   this: Flow.type =>
 
-  /** Creates a [[Flow]] from a [[Publisher]], that is, which emits the elements received by subscribing to the publisher. A new
-    * subscription is created every time this flow is run.
-    *
-    * The data is passed from a subscription to the flow using a [[ox.channel.Channel]], with a capacity given by the [[BufferCapacity]] in
-    * scope. That's also how many elements will be at most requested from the publisher at a time.
-    *
-    * If the publisher signals an error, elements received before the error are emitted first, and then the error is rethrown.
-    *
-    * Elements received from the publisher, but not emitted (e.g. because the flow failed, was interrupted or stopped early) are dropped. To
-    * release resources held by such elements, use the variant with an `onDiscard` callback.
-    *
-    * The publisher parameter should implement the JDK 9+ `Flow.Publisher` API. To create a flow from a publisher implementing
-    * `com.reactivestreams.Publisher`, use the `flow-reactive-streams` module.
-    */
+  /** Same as the overload with `onDiscard`, except that elements received from the publisher, but not emitted, are dropped. */
   def fromPublisher[T](p: Publisher[T])(using BufferCapacity): Flow[T] = fromPublisher(p, (_: T) => ())
 
   /** Creates a [[Flow]] from a [[Publisher]], that is, which emits the elements received by subscribing to the publisher. A new

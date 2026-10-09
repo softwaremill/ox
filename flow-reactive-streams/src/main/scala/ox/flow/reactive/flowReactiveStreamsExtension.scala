@@ -28,10 +28,7 @@ object FlowReactiveStreams:
     */
   def fromPublisher[T](p: Publisher[T])(using BufferCapacity): Flow[T] = Flow.fromPublisher(FlowAdapters.toFlowPublisher(p))
 
-  /** This variant accepts an implementation of `org.reactivestreams.Publisher`, as opposed to `java.util.concurrent.Flow.Publisher` which
-    * is supported in the core module.
-    *
-    * See the core overload with `onDiscard` for the callback's semantics.
+  /** Same as the overload without `onDiscard`, but passes elements which are received but not emitted to `onDiscard`.
     *
     * @see
     *   [[Flow.fromPublisher]]
