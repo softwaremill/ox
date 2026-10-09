@@ -215,5 +215,13 @@ A `java.util.concurrent.Flow.Publisher` can be converted to a `Flow` using `Flow
 Internally, elements published to the subscription are buffered, using a buffer of capacity given by the 
 `BufferCapacity` in scope. That's also how many elements will be at most requested from the publisher at a time.
 
+If the publisher fails, elements already received are emitted before the error is propagated.
+
+Some elements might be received from the publisher, but never emitted downstream: e.g. when the consumer stops early 
+(through an exception, interruption or `take`), or when they arrive after cancellation. To release such elements 
+(e.g. reference-counted buffers), pass an `onDiscard: T => Unit` callback as the second argument to 
+`Flow.fromPublisher` / `FlowReactiveStreams.fromPublisher`. It is called exactly once for each such element, possibly 
+from the publisher's thread, and should not throw.
+
 To convert a `org.reactivestreams.Publisher` instance, you'll need the same dependency as above and call the
 `FlowReactiveStreams.fromPublisher` method.
