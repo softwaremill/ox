@@ -185,6 +185,7 @@ case object Empty extends Chunk[Nothing]:
 object Chunk:
   def empty[A]: Chunk[A] = Empty
 
+  // keeping unused parameter for binary compatibility - deleting it triggered MiMa
   def fromArray[A](array: Array[A])(using @unused ct: ClassTag[A]): Chunk[A] =
     if array.isEmpty then Empty else NonEmptyChunk(List(IArray.unsafeFromArray(array)))
 
