@@ -303,13 +303,15 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
 
     val finalinzer = spanUnsafe(s"$prefix-parent")
 
-    supervised {
-      (1 to 10).foreach {
-        case 1 => fork(spanned.tap(_ => throw new Exception("fds")).runToList())
-        case _ => fork(spanned.runToList())
+    try
+      supervised {
+        (1 to 10).foreach {
+          case 1 => forkUser(spanned.tap(_ => throw new Exception("fds")).runToList())
+          case _ => forkUser(spanned.runToList())
+        }
       }
-    }
-
+    catch case _ => ()
+    end try
     finalinzer.close()
     val spans = exporter.getFinishedSpanItems
 
