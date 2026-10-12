@@ -390,10 +390,9 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
         (1 to 10).map {
           case 1 =>
             forkUser {
-              (span(flow)(s"$prefix-1-level1")
+              span(flow)(s"$prefix-1-level1")
                 .flatMap { el =>
                   {
-
                     val inner = supervisedError(em):
                       either:
                         val innerFlow =
@@ -402,11 +401,10 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
                             case x => x
                           })
                         innerFlow.ok()
-                    println(inner)
                     inner
                   }.toOption.getOrElse(Flow.empty)
                 }
-                .runToList())
+                .runToList()
             }
           case _ => forkUser(spanned.runToList())
         }
@@ -423,15 +421,14 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
     val level1_1 = level1Spans.find(s => s.getName.endsWith("1-level1")).get
 
     assert(level1Spans.size == 10)
-    val level1Span = level1Spans.head
     assert(level2Spans.size == 1) // because flow.flatMap is evaluated sequentially and exception ends whole flow
 
     level1Spans.foreach { s =>
-      assert(s.getParentSpanId == finalinzer.span.getSpanContext.getSpanId)
+      assert(s.getParentSpanId == finalinzer.span.getSpanContext.getSpanId, "level1 spans id")
     }
 
     level2Spans.foreach { s =>
-      assert(s.getParentSpanId == level1_1.getSpanContext.getSpanId)
+      assert(s.getParentSpanId == level1_1.getSpanContext.getSpanId, "level2 spans id")
       assert(s.getEvents().get(0).getName.startsWith("boomed"))
 
     }
