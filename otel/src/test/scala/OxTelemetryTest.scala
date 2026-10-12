@@ -15,9 +15,11 @@ import ox.telemetry.tracing.OxTracing
 
 import java.util.UUID
 import scala.collection.JavaConverters.asScalaBufferConverter
+import scala.util.boundary.Label
 
 class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
-  setOxThreadFactory(new PropagatingVirtualThreadFactory)
+  override def beforeAll(): Unit =
+    setOxThreadFactory(new PropagatingVirtualThreadFactory)
 
   class My extends OxApp.WithEitherErrors[String] /* , OtelOxApp.WithOtelSupport */:
     override def run(args: Vector[String])(using Ox, EitherError[String]): ExitCode = ???
@@ -47,6 +49,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
   import myTracing.*
 
   "flow.spanned" should "not open span if not runned" in {
+
     val prefix = UUID.randomUUID().toString
 
     val flow = Flow.fromValues(1, 2, 3)
@@ -381,29 +384,31 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
     val spanned = span(flow)(s"$prefix-level1")
 
     try
-      println:
-        supervised {
-          (1 to 10).map {
-            case 1 =>
-              forkUser {
-                println:
-                  (span(flow)(s"$prefix-1-level1")
-                    .flatMap { el =>
-                      {
-                        supervisedError(em):
-                          either:
-                            val innerFlow =
-                              em.pure(flow.span(s"$prefix-level2", beforeClose = _._1.addEvent(s"boomed at $el")).map {
-                                case 1 => em.pureError("ops").ok(); case x => x
-                              })
-                            innerFlow.ok()
-                      }.toOption.getOrElse(Flow.empty)
-                    }
-                    .runToList())
-              }
-            case _ => forkUser(spanned.runToList())
-          }
+      supervised {
+        (1 to 10).map {
+          case 1 =>
+            forkUser {
+              (span(flow)(s"$prefix-1-level1")
+                .flatMap { el =>
+                  {
+
+                    val inner = supervisedError(em):
+                      either:
+                        val innerFlow =
+                          em.pure(flow.span(s"$prefix-level2", beforeClose = _._1.addEvent(s"boomed at $el")).map {
+                            case 1 => em.pureError("ops").ok();
+                            case x => x
+                          })
+                        innerFlow.ok()
+                    println(inner)
+                    inner
+                  }.toOption.getOrElse(Flow.empty)
+                }
+                .runToList())
+            }
+          case _ => forkUser(spanned.runToList())
         }
+      }
     catch case _ => ()
     end try
 
@@ -431,4 +436,128 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
 
   }
 
+  "flow.spanned" should "properly end span in case of ejknfdssrror2fdffssfss" in {
+
+    val em = EitherMode[String]
+    val prefix = UUID.randomUUID().toString
+
+    val flow = Flow.fromValues(1, 2, 3)
+
+    val finalinzer = spanUnsafe(s"$prefix-level0")
+
+    val spanned = span(flow)(s"$prefix-level1")
+
+    try
+      supervised {
+        (1 to 10).map {
+          case 1 =>
+            forkUser {
+              (span(flow)(s"$prefix-1-level1")
+                .flatMap { el =>
+                  {
+                    val inner = supervisedError(em):
+                      either:
+                        val innerFlow =
+                          em.pure(flow.span(s"$prefix-level2", beforeClose = _._1.addEvent(s"boomed at $el")).map {
+                            case 1 => em.pureError("ops").ok();
+                            case x => x
+                          })
+                        innerFlow.ok()
+                    println(inner)
+                    inner
+                  }.toOption.getOrElse(Flow.empty)
+                }
+                .runToList())
+            }
+          case _ => forkUser(spanned.runToList())
+        }
+      }
+    catch case _ => ()
+    end try
+
+    finalinzer.close()
+    val spans = exporter.getFinishedSpanItems
+
+    val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
+    val level1Spans = thisTestSpans.filter(s => s.getName.endsWith("level1"))
+    val level2Spans = thisTestSpans.filter(s => s.getName.endsWith("level2"))
+    val level1_1 = level1Spans.find(s => s.getName.endsWith("1-level1")).get
+
+    assert(level1Spans.size == 10)
+    val level1Span = level1Spans.head
+    assert(level2Spans.size == 1) // because flow.flatMap is evaluated sequentially and exception ends whole flow
+
+    level1Spans.foreach { s =>
+      assert(s.getParentSpanId == finalinzer.span.getSpanContext.getSpanId)
+    }
+
+    level2Spans.foreach { s =>
+      assert(s.getParentSpanId == level1_1.getSpanContext.getSpanId)
+      assert(s.getEvents().get(0).getName.startsWith("boomed"))
+
+    }
+
+  }
+
+  "flow.spanned" should "properly end span in case of ejknrrorfdsd2fdffssfss" in {
+
+    val em = EitherMode[String]
+    val prefix = UUID.randomUUID().toString
+
+    val flow = Flow.fromValues(1, 2, 3)
+
+    val finalinzer = spanUnsafe(s"$prefix-level0")
+
+    val spanned = span(flow)(s"$prefix-level1")
+
+    try
+      supervisedError(em) {
+        either:
+          em.pure:
+            (1 to 10).map {
+              case 1 =>
+                forkUser {
+                  (span(flow)(s"$prefix-1-level1")
+                    .flatMap { el =>
+                      {
+                        supervisedError(em):
+                          val innerFlow =
+                            em.pure(flow.span(s"$prefix-level2", beforeClose = _._1.addEvent(s"boomed at $el")).map {
+                              case 1 => em.pureError("ops").ok();
+                              case x => x
+                            })
+                          innerFlow
+                      }.toOption.getOrElse(Flow.empty)
+                    }
+                    .runToList())
+                }
+              case _ => forkUser(spanned.runToList())
+            }
+      }
+    catch case _ => ()
+    end try
+
+    finalinzer.close()
+    val spans = exporter.getFinishedSpanItems
+
+    val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
+    val level1Spans = thisTestSpans.filter(s => s.getName.endsWith("level1"))
+    val level2Spans = thisTestSpans.filter(s => s.getName.endsWith("level2"))
+    val level1_1 = level1Spans.find(s => s.getName.endsWith("1-level1")).get
+
+    assert(level1Spans.size == 10)
+    val level1Span = level1Spans.head
+    assert(level2Spans.size == 1) // because flow.flatMap is evaluated sequentially and exception ends whole flow
+
+    level1Spans.foreach { s =>
+      assert(s.getParentSpanId == finalinzer.span.getSpanContext.getSpanId)
+    }
+
+    level2Spans.foreach { s =>
+      assert(s.getParentSpanId == level1_1.getSpanContext.getSpanId)
+      assert(s.getEvents().get(0).getName.startsWith("boomed"))
+
+    }
+
+  }
 end OxTelemetryTest
