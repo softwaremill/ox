@@ -325,7 +325,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
     }
   }
 
-  "flow.spanned" should "properly end span in case of ejknrror2fdsfsfdffssfss" in {
+  "flow.spanned" should "properly end span in case of ejknrror2fdsfsfdffssfss" in { // flaky
 
     val em = EitherMode[String]
     val prefix = UUID.randomUUID().toString
@@ -402,7 +402,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
                           })
                         innerFlow.ok()
                     inner
-                  }.toOption.getOrElse(Flow.empty)
+                  }.toOption.get
                 }
                 .runToList()
             }
@@ -498,7 +498,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
 
   }
 
-  "flow.spanned" should "properly end span in case of ejknrrorfdsd2fdffssfss" in {
+  "flow.spanned" should "properly end span in case of ejknrrorfdsd2fdffssfss" in { // flaky
 
     val em = EitherMode[String]
     val prefix = UUID.randomUUID().toString
