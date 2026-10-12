@@ -3,9 +3,8 @@ package ox.telemetry
 import io.opentelemetry.context.Context
 import ox.otel.context.PropagatingVirtualThreadFactory
 
-/**
- * Abstraction managing an OpenTelemetry [[Context]]
- */
+/** Abstraction managing an OpenTelemetry [[Context]]
+  */
 trait ContextHolder:
   def get(): Context
 
