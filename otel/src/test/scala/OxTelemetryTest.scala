@@ -195,7 +195,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
     val parentSpan = parentSpans.head
 
     for span <- childrenSpans
-      yield assert(span.getParentSpanId == parentSpan.getSpanId)
+    yield assert(span.getParentSpanId == parentSpan.getSpanId)
   }
 
   "flow.spanned" should "open several spans if flatMapped" in {
@@ -221,7 +221,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
     val parentSpan = parentSpans.head
 
     for span <- childrenSpans
-      yield assert(span.getParentSpanId == parentSpan.getSpanId)
+    yield assert(span.getParentSpanId == parentSpan.getSpanId)
   }
 
   "flow.spanned" should "properly end span in case of error2" in {
@@ -391,17 +391,18 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
           case 1 =>
             forkUser {
               span(flow)(s"$prefix-1-level1")
-                .flatMap { el => {
-                  val inner = supervisedError(em):
-                    either:
-                      val innerFlow =
-                        em.pure(flow.span(s"$prefix-level2", beforeClose = _._1.addEvent(s"boomed at $el")).map {
-                          case 1 => em.pureError("ops").ok();
-                          case x => x
-                        })
-                      innerFlow.ok()
-                  inner
-                }.toOption.get
+                .flatMap { el =>
+                  {
+                    val inner = supervisedError(em):
+                      either:
+                        val innerFlow =
+                          em.pure(flow.span(s"$prefix-level2", beforeClose = _._1.addEvent(s"boomed at $el")).map {
+                            case 1 => em.pureError("ops").ok();
+                            case x => x
+                          })
+                        innerFlow.ok()
+                    inner
+                  }.toOption.get
                 }
                 .runToList()
             }
@@ -450,18 +451,19 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
           case 1 =>
             forkUser {
               (span(flow)(s"$prefix-1-level1")
-                .flatMap { el => {
-                  val inner = supervisedError(em):
-                    either:
-                      val innerFlow =
-                        em.pure(flow.span(s"$prefix-level2", beforeClose = _._1.addEvent(s"boomed at $el")).map {
-                          case 1 => em.pureError("ops").ok();
-                          case x => x
-                        })
-                      innerFlow.ok()
-                  println(inner)
-                  inner
-                }.toOption.getOrElse(Flow.empty)
+                .flatMap { el =>
+                  {
+                    val inner = supervisedError(em):
+                      either:
+                        val innerFlow =
+                          em.pure(flow.span(s"$prefix-level2", beforeClose = _._1.addEvent(s"boomed at $el")).map {
+                            case 1 => em.pureError("ops").ok();
+                            case x => x
+                          })
+                        innerFlow.ok()
+                    println(inner)
+                    inner
+                  }.toOption.getOrElse(Flow.empty)
                 }
                 .runToList())
             }
@@ -513,15 +515,16 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
               case 1 =>
                 forkUser {
                   (span(flow)(s"$prefix-1-level1")
-                    .flatMap { el => {
-                      supervisedError(em):
-                        val innerFlow =
-                          em.pure(flow.span(s"$prefix-level2", beforeClose = _._1.addEvent(s"boomed at $el")).map {
-                            case 1 => em.pureError("ops").ok();
-                            case x => x
-                          })
-                        innerFlow
-                    }.toOption.get
+                    .flatMap { el =>
+                      {
+                        supervisedError(em):
+                          val innerFlow =
+                            em.pure(flow.span(s"$prefix-level2", beforeClose = _._1.addEvent(s"boomed at $el")).map {
+                              case 1 => em.pureError("ops").ok();
+                              case x => x
+                            })
+                          innerFlow
+                      }.toOption.get
                     }
                     .runToList())
                 }
@@ -554,13 +557,11 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
 
   }
 
-
   "flow.spanned" should "properly end span even if enclosing supervised scope fails before stream completion" in {
 
     val prefix = UUID.randomUUID().toString
 
     val semaphore = Semaphore(0)
-
 
     val flow = Flow.fromValues(1, 2, 3)
 
@@ -585,12 +586,9 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
 
     val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
 
-
     assert(thisTestSpans.size == 1)
 
-
   }
-
 
   "flow.spanned" should "properly end span even if cancelled" in {
 
@@ -598,26 +596,23 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
 
     val semaphore = Semaphore(0)
 
-
     val flow = Flow.fromValues(1, 2, 3)
 
-      supervised {
-        val forkWithSpan = forkCancellable {
-          span(flow)(s"$prefix-level1").tap { case 1 => semaphore.release(); case _ => sleep(100.seconds) }.runToList()
-
-        }
-        semaphore.acquire()
-        forkWithSpan.cancelNow()
+    supervised {
+      val forkWithSpan = forkCancellable {
+        span(flow)(s"$prefix-level1").tap { case 1 => semaphore.release(); case _ => sleep(100.seconds) }.runToList()
 
       }
+      semaphore.acquire()
+      forkWithSpan.cancelNow()
+
+    }
 
     val spans = exporter.getFinishedSpanItems
 
     val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
 
-
     assert(thisTestSpans.size == 1)
-
 
   }
 end OxTelemetryTest
