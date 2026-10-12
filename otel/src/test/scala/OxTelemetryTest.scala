@@ -52,7 +52,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
 
   "flow.spanned" should "not open span if not runned" in {
 
-    val prefix = UUID.randomUUID().toString
+    val prefix = s"[${UUID.randomUUID()}]"
 
     val flow = Flow.fromValues(1, 2, 3)
 
@@ -64,7 +64,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
   }
 
   "flow.spanned" should "open one span even if flow has multiple elements" in {
-    val prefix = UUID.randomUUID().toString
+    val prefix = s"[${UUID.randomUUID()}]"
 
     val flow = Flow.fromValues(1, 2, 3)
 
@@ -83,7 +83,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
   }
 
   "flow.spanned" should "open two spans for two invocations" in {
-    val prefix = UUID.randomUUID().toString
+    val prefix = s"[${UUID.randomUUID()}]"
 
     val flow = Flow.fromValues(1, 2, 3)
 
@@ -104,7 +104,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
 
   "flow.spanned" should "open only one span despite parralelized map" in {
 
-    val prefix = UUID.randomUUID().toString
+    val prefix = s"[${UUID.randomUUID()}]"
 
     val flow = Flow.fromValues(1, 2, 3)
 
@@ -125,7 +125,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
 
   "flow.spanned" should "properly end span in case of error" in {
 
-    val prefix = UUID.randomUUID().toString
+    val prefix = s"[${UUID.randomUUID()}]"
 
     val flow = Flow.fromValues(1, 2, 3)
 
@@ -148,7 +148,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
   }
   "flow.spanned" should "properly end span in case of error if mapped after span" in {
 
-    val prefix = UUID.randomUUID().toString
+    val prefix = s"[${UUID.randomUUID()}]"
 
     val flow = Flow.fromValues(1, 2, 3)
 
@@ -170,7 +170,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
 
   "flow.spanned" should "correctly picks parent span" in {
 
-    val prefix = UUID.randomUUID().toString
+    val prefix = s"[${UUID.randomUUID()}]"
 
     val flow = Flow.fromValues(1, 2, 3)
 
@@ -200,7 +200,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
 
   "flow.spanned" should "open several spans if flatMapped" in {
 
-    val prefix = UUID.randomUUID().toString
+    val prefix = s"[${UUID.randomUUID()}]"
 
     val flow = Flow.fromValues(1, 2, 3)
 
@@ -226,7 +226,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
 
   "flow.spanned" should "properly end span in case of error2" in {
 
-    val prefix = UUID.randomUUID().toString
+    val prefix = s"[${UUID.randomUUID()}]"
 
     val flow = Flow.fromValues(1, 2, 3)
 
@@ -246,7 +246,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
   }
   "flow.spanned" should "properly end span in case of error2fd" in {
 
-    val prefix = UUID.randomUUID().toString
+    val prefix = s"[${UUID.randomUUID()}]"
 
     val flow = Flow.fromValues(1, 2, 3)
 
@@ -270,7 +270,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
 
   "flow.spanned" should "properly end span in case of error2fdfs" in {
 
-    val prefix = UUID.randomUUID().toString
+    val prefix = s"[${UUID.randomUUID()}]"
 
     val flow = Flow.fromValues(1, 2, 3)
 
@@ -297,7 +297,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
 
   "flow.spanned" should "properly end span in case of ejknrror2fdfs" in {
 
-    val prefix = UUID.randomUUID().toString
+    val prefix = s"[${UUID.randomUUID()}]"
 
     val flow = Flow.fromValues(1, 2, 3)
 
@@ -328,7 +328,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
   "flow.spanned" should "properly end span in case of ejknrror2fdsfsfdffssfss" in { // flaky
 
     val em = EitherMode[String]
-    val prefix = UUID.randomUUID().toString
+    val prefix = s"[${UUID.randomUUID()}]"
 
     val flow = Flow.fromValues(1, 2, 3)
 
@@ -377,7 +377,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
   "flow.spanned" should "properly end span in case of ejknrror2fdffssfss" in {
 
     val em = EitherMode[String]
-    val prefix = UUID.randomUUID().toString
+    val prefix = s"[${UUID.randomUUID()}]"
 
     val flow = Flow.fromValues(1, 2, 3)
 
@@ -437,7 +437,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
   "flow.spanned" should "properly end span in case of ejknfdssrror2fdffssfss" in {
 
     val em = EitherMode[String]
-    val prefix = UUID.randomUUID().toString
+    val prefix = s"[${UUID.randomUUID()}]"
 
     val flow = Flow.fromValues(1, 2, 3)
 
@@ -481,7 +481,6 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
     val level2Spans = thisTestSpans.filter(s => s.getName.endsWith("level2"))
     val level1_1 = level1Spans.find(s => s.getName.endsWith("1-level1")).get
 
-    val level1Span = level1Spans.head
     assert(level2Spans.size == 1) // because flow.flatMap is evaluated sequentially and exception ends whole flow
 
     level1Spans.foreach { s =>
@@ -489,6 +488,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
     }
 
     level2Spans.foreach { s =>
+      if s.getParentSpanId != level1_1.getSpanContext.getSpanId then println("fsfd")
       assert(s.getParentSpanId == level1_1.getSpanContext.getSpanId)
       assert(s.getEvents().get(0).getName.startsWith("boomed"))
 
@@ -499,7 +499,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
   "flow.spanned" should "properly end span in case of ejknrrorfdsd2fdffssfss" in { // flaky
 
     val em = EitherMode[String]
-    val prefix = UUID.randomUUID().toString
+    val prefix = s"[${UUID.randomUUID()}]"
 
     val flow = Flow.fromValues(1, 2, 3)
 
@@ -559,7 +559,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
 
   "flow.spanned" should "properly end span even if enclosing supervised scope fails before stream completion" in {
 
-    val prefix = UUID.randomUUID().toString
+    val prefix = s"[${UUID.randomUUID()}]"
 
     val semaphore = Semaphore(0)
 
@@ -592,7 +592,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
 
   "flow.spanned" should "properly end span even if cancelled" in {
 
-    val prefix = UUID.randomUUID().toString
+    val prefix = s"[${UUID.randomUUID()}]"
 
     val semaphore = Semaphore(0)
 
