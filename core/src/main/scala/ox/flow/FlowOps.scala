@@ -622,17 +622,14 @@ class FlowOps[+T]:
     *   An upper bound on the number of child flows that run in parallel.
     */
   def flattenPar[U](parallelism: Int)(using T <:< Flow[U])(using BufferCapacity): Flow[U] = Flow.usingEmitInline: emit =>
-    case class Nested(child: Flow[U])
-    case object ChildDone
-
     unsupervised:
       val childOutputChannel = BufferCapacity.newChannel[U]
-      val childDoneChannel = Channel.unlimited[ChildDone.type]
+      val childDoneChannel = Channel.unlimited[Unit]
 
       // When an error occurs in the parent, propagating it also to `childOutputChannel`, from which we always
       // `select` in the main loop. That way, even if max parallelism is reached, errors in the parent will
       // be discovered without delay.
-      val parentChannel = outer.map(Nested(_)).onError(childOutputChannel.error(_).discard).runToChannel()
+      val parentChannel = outer.map(t => t: Flow[U]).onError(childOutputChannel.error(_).discard).runToChannel()
 
       var runningChannelCount = 1 // parent is running
       var parentDone = false
@@ -640,12 +637,13 @@ class FlowOps[+T]:
       while runningChannelCount > 0 do
         assert(runningChannelCount <= parallelism + 1)
 
-        val pool: List[Source[Nested] | Source[U] | Source[ChildDone.type]] =
+        val received =
           // +1, because of the parent channel.
-          if runningChannelCount == parallelism + 1 || parentDone then List(childOutputChannel, childDoneChannel)
-          else List(childOutputChannel, childDoneChannel, parentChannel)
+          if runningChannelCount == parallelism + 1 || parentDone
+          then selectOrClosed(childOutputChannel.receiveClause, childDoneChannel.receiveClause)
+          else selectOrClosed(childOutputChannel.receiveClause, childDoneChannel.receiveClause, parentChannel.receiveClause)
 
-        selectOrClosed(pool) match
+        received match
           // Only `parentChannel` might be done, child completion is signalled via `childDoneChannel`.
           case ChannelClosed.Done =>
             parentDone = isSourceDone(parentChannel)
@@ -655,17 +653,16 @@ class FlowOps[+T]:
 
           case e: ChannelClosed.Error => throw e.toThrowable
 
-          case ChildDone => runningChannelCount -= 1
+          case childDoneChannel.Received(_) => runningChannelCount -= 1
 
-          // safe: these values never leave this invocation
-          case n: Nested @unchecked =>
+          case parentChannel.Received(child) =>
             forkUnsupervised:
-              n.child.onDone(childDoneChannel.send(ChildDone)).runPipeToSink(childOutputChannel, propagateDone = false)
+              child.onDone(childDoneChannel.send(())).runPipeToSink(childOutputChannel, propagateDone = false)
             .discard
 
             runningChannelCount += 1
 
-          case u: U @unchecked => emit(u)
+          case childOutputChannel.Received(u) => emit(u)
         end match
       end while
   end flattenPar
