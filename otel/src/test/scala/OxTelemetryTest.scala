@@ -396,7 +396,6 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
     }
     assert(Context.current() == Context.root)
 
-
   }
 
   "flow.spanned" should "properly end span in case of ejknrror2fdffssfss" in {

@@ -13,13 +13,13 @@ sealed trait OxTracing extends OxTracingBase, OxFlowTracing
 object OxTracing:
 
   /** Tracing that relies on [[PropagatingVirtualThreadFactory]] and checks if its properly set
-   * */
+    */
   def native(tracer: Tracer): OxTracing =
     val base = OxTracingBase(tracer, ContextHolder.CheckingThreadFactory)
     Impl(base)
 
   /** Custom tracing that leaves propagation of [[Context]] to be implemented by user, for out of the box integration use [[native]]
-   * */
+    */
   def custom(tracer: Tracer): OxTracing =
     val base = OxTracingBase(tracer, ContextHolder.Delegating)
     Impl(base)
@@ -27,4 +27,3 @@ object OxTracing:
   private class Impl(base: OxTracingBase) extends OxTracing:
     export base.*
 end OxTracing
-
