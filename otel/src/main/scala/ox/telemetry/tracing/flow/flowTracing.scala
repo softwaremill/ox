@@ -6,6 +6,7 @@ import ox.flow.Flow
 import ox.telemetry.tracing.flow.OxFlowTracing
 
 extension [T](flow: Flow[T])
+  /** Opens a span around the run of this flow, using the given [[OxFlowTracing]], see [[OxFlowTracing.span]]. */
   def span(oxTracing: OxFlowTracing)(
       spanName: String,
       spanKind: SpanKind = SpanKind.INTERNAL,

@@ -11,19 +11,18 @@ sealed trait OxTracing extends OxFlowTracing:
 
   protected def tracer: Tracer
 
-  /** Gets current span, not unsafe per se, but bears user with responsibility of proper usage of obtained span
+  /** Returns the current span. This is not unsafe per se, but the caller is responsible for using the span properly, e.g. not ending a span
+    * that is managed elsewhere.
     */
   def currentSpanUnsafe(): Span = Span.fromContext(contextHolder.get())
 
-  /** Opens a new [[Span]] and make it child of current [[Span]], created [[Span]] becomes new current
+  /** Opens a new [[Span]] as a child of the current span. The new span becomes the current one.
     *
-    * Unsafe because caller is responsible for properly closing returned [[AutoCloseableSpan]], yet resource operations like
-    * [[useCloseableInScope]] can proper finalization
+    * Unsafe, because the caller is responsible for closing the returned [[AutoCloseableSpan]], which ends the span and restores the
+    * previously current one. Scoped usage, e.g. [[ox.useCloseableInScope]], guarantees that.
     *
-    * @see
-    *   [[useCloseableInScope]]
     * @return
-    *   [[AutoCloseableSpan]] which can be used to finalize opened span, this is close it and restore previous current
+    *   An [[AutoCloseableSpan]], which closes the opened span.
     */
   def spanUnsafe(
       spanName: String,
@@ -40,14 +39,18 @@ sealed trait OxTracing extends OxFlowTracing:
     AutoCloseableSpan.Impl(started, scope)
   end spanUnsafe
 
-  /** Span around execution of arbitrary code
-    * starts span before execution and ends it right after or in case of exception
-    * opened span is made a child of current [[Span]] and becomes new current
-    * on close span is closed, and previous current is restored
+  /** Evaluates `t` within a new [[Span]]. The span is opened before `t` is evaluated, as a child of the current span, and becomes the
+    * current one. It is ended once `t` completes, successfully or not, and the previously current span is restored.
     *
-    * for [[Flow]] specific spanning use [[OxFlowTracing.span]]
+    * If `t` throws, the exception is recorded on the span and the span's status is set to [[io.opentelemetry.api.trace.StatusCode.ERROR]],
+    * before `beforeClose` is called. The exception is then re-thrown.
     *
-    * @param beforeClose - operation to be executed right before closing opened span, in case exception was thrown, second argument will contain thrown exception, if execution of [[beforeClose]] itself throws, then exception is added as suppressed to original exception and span is closed
+    * To span a [[ox.flow.Flow]], use [[OxFlowTracing.span]].
+    *
+    * @param beforeClose
+    *   Run right before the span is closed, e.g. to set attributes or add events. The second element of the argument is the exception
+    *   thrown by `t`, if any. If `beforeClose` itself throws, the exception is added as suppressed to the one thrown by `t`, or thrown
+    *   if `t` succeeded. The span is closed in either case.
     */
   def byNameSpan[T](t: => T)(
       spanName: String,
@@ -84,12 +87,16 @@ end OxTracing
 
 object OxTracing:
 
-  /** Tracing that relies on [[PropagatingVirtualThreadFactory]] and checks if its properly set
+  /** Tracing that relies on the [[PropagatingVirtualThreadFactory]] to propagate the context to forks. A warning is printed to stderr on
+    * first use, if the thread factory is not set up.
+    *
+    * @see
+    *   [[ox.OxApp.Settings.threadFactory]], [[ox.setOxThreadFactory]]
     */
   def native(tracer: Tracer): OxTracing = Impl(tracer, ContextHolder.CheckingThreadFactory)
 
-  /** Custom tracing that leaves [[Context]] propagation to be implemented by user, for out of the box integration use [[native]] together
-    * with [[PropagatingVirtualThreadFactory]]
+  /** Tracing which leaves the propagation of the [[io.opentelemetry.context.Context]] to new threads to the user. For an out-of-the-box
+    * integration, use [[native]] together with the [[PropagatingVirtualThreadFactory]].
     */
   def custom(tracer: Tracer): OxTracing = Impl(tracer, ContextHolder.Delegating)
 

@@ -3,21 +3,29 @@ package ox.telemetry
 import io.opentelemetry.context.{Context, Scope}
 import ox.otel.context.PropagatingVirtualThreadFactory
 
-/** Abstraction managing an OpenTelemetry [[Context]]
+/** Abstraction over how [[OxTracing]] interacts with OpenTelemetry [[Context]].
   */
 sealed trait ContextHolder:
+  /** Returns the current [[Context]]. */
   def get(): Context
 
+  /** Makes the given `context` current. Closing the returned [[Scope]] restores the previously current context. */
   def set(context: Context): Scope
 
 private[telemetry] object ContextHolder:
 
+  /** Delegates to OpenTelemetry Context. Propagating the context to new (virtual) threads is
+    * left to the user.
+    */
   private[telemetry] object Delegating extends ContextHolder:
 
     override def get(): Context = Context.current()
 
     override def set(context: Context): Scope = context.makeCurrent()
 
+  /** As [[Delegating]], but warns when [[ox.oxThreadFactory]] is not a [[PropagatingVirtualThreadFactory]],
+    * as in that case the context won't be propagated to forks.
+    */
   private[telemetry] object CheckingThreadFactory extends ContextHolder:
     @volatile private var checked = false
     private val wrapped: ContextHolder = Delegating

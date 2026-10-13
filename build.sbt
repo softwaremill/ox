@@ -171,5 +171,6 @@ lazy val documentation: Project = (project in file("generated-doc")) // importan
     flowReactiveStreams,
     flowJson,
     cron,
-    otelContext
+    otelContext,
+    otel
   )

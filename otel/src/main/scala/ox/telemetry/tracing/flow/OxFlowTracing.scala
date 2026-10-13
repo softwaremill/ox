@@ -7,6 +7,12 @@ import ox.telemetry.tracing.OxTracing
 
 private[tracing] trait OxFlowTracing:
   self: OxTracing =>
+
+  /** Returns a flow, which when run, evaluates `flow` within a new span. The span is opened when the flow is run, as a child of the span current at that point. It is ended when the flow completes, fails or is interrupted. Exceptions are recorded on the span as
+    * in [[OxTracing.byNameSpan]].
+    *
+    * The parameters are the same as for [[OxTracing.byNameSpan]].
+    */
   def span[T](flow: Flow[T])(
       spanName: String,
       spanKind: SpanKind = SpanKind.INTERNAL,
