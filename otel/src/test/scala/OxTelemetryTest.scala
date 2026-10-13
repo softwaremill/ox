@@ -25,11 +25,6 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
   override def beforeAll(): Unit =
     setOxThreadFactory(new PropagatingVirtualThreadFactory)
 
-  class My extends OxApp.WithEitherErrors[String] /* , OtelOxApp.WithOtelSupport */:
-    override def run(args: Vector[String])(using Ox, EitherError[String]): ExitCode = ???
-
-    override def handleError(e: String): ExitCode = ???
-
   val exporter = InMemorySpanExporter.create()
 
   val tracerProvider =
@@ -45,208 +40,133 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
       .build()
 
   val tracer = openTelemetry.getTracer("test")
-  val tracer2 = openTelemetry.tracerBuilder("ftest").build()
-  val meter: Meter = openTelemetry.meterBuilder("ftest").build()
 
   val myTracing: OxTracing = OxTracing.native(tracer)
+
+  enum Level:
+    case Level0
+    case Level1
+    case Level1_First
+    case Level1_First_Child
+
+  import Level.*
+
+  class Fixture:
+    val prefix = s"[${UUID.randomUUID()}]"
+    val flow = Flow.fromValues(1, 2, 3)
+
+    def testSpans = exporter.getFinishedSpanItems.asScala.filter(_.getName.startsWith(prefix))
+
+    def spansOf(level: Level) = testSpans.filter(_.getName.endsWith(level.toString))
+
+    def assertContextIsRoot() = assert(Context.current() == Context.root)
+
+    def assertNesting(): Unit =
+      val level0 = spansOf(Level0)
+      val level1First = spansOf(Level1_First)
+
+      level0.foreach { s =>
+        assert(!s.getParentSpanContext.isValid)
+      }
+
+      (spansOf(Level1) ++ level1First).foreach { s =>
+        assert(level0.exists(_.getSpanId == s.getParentSpanId))
+      }
+
+      spansOf(Level1_First_Child).foreach { s =>
+        assert(level1First.exists(_.getSpanId == s.getParentSpanId))
+      }
+    end assertNesting
+
+    def assertNestingAndRoot(): Unit =
+      assertNesting()
+      assertContextIsRoot()
+  end Fixture
+
   "Flow.span" when {
     "run normally" should {
-      "not open a span until the flow is run" in {
+      "not open a span until the flow is run" in new Fixture:
+        assert(testSpans.isEmpty)
+        assertNestingAndRoot()
 
-        val prefix = s"[${UUID.randomUUID()}]"
+      "open a single span for a multi-element flow" in new Fixture:
+        flow.span(myTracing)(s"$prefix-$Level0").runDrain()
 
-        val flow = Flow.fromValues(1, 2, 3)
+        assert(spansOf(Level0).size == 1)
+        assert(testSpans.size == 1)
+        assertNestingAndRoot()
 
-        val spans = exporter.getFinishedSpanItems
-
-        val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
-        assert(Context.current() == Context.root)
-
-        assert(thisTestSpans.isEmpty)
-
-      }
-
-      "open a single span for a multi-element flow" in {
-        val prefix = s"[${UUID.randomUUID()}]"
-
-        val flow = Flow.fromValues(1, 2, 3)
-
-        val spannedFlow = flow.span(myTracing)(s"$prefix-span")
-
-        spannedFlow.runDrain()
-
-        val spans = exporter.getFinishedSpanItems
-        val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
-
-        assert(thisTestSpans.size == 1)
-
-        val span = spans.get(0)
-        assert(Context.current() == Context.root)
-
-        assert(span.getName == s"$prefix-span")
-      }
-
-      "open one span per span() call when spans are nested" in {
+      "open one span per span() call when spans are nested" in new Fixture:
         supervised {
-          val prefix = s"[${UUID.randomUUID()}]"
+          val spanned1 = flow.span(myTracing)(s"$prefix-$Level1") ++ Flow.fromValues(4, 2)
 
-          val flow = Flow.fromValues(1, 2, 3)
+          spanned1.span(myTracing)(s"$prefix-$Level0").runDrain()
 
-          val spanned1 = flow.span(myTracing)(s"$prefix-span") ++ Flow.fromValues(4, 2)
-
-          val spanned2 = spanned1.span(myTracing)(s"$prefix-span2")
-
-          spanned2.runDrain()
-
-          val spans = exporter.getFinishedSpanItems
-          val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
-
-          assert(thisTestSpans.size == 2)
-
-          assert(Context.current() == Context.root)
-          assert(thisTestSpans.head.getName == s"$prefix-span")
-          assert(thisTestSpans(1).getName == s"$prefix-span2")
+          assert(spansOf(Level0).size == 1)
+          assert(spansOf(Level1).size == 1)
+          assert(testSpans.size == 2)
+          assertNestingAndRoot()
         }
 
-      }
+      "open a single span when downstream uses mapPar" in new Fixture:
+        flow.span(myTracing)(s"$prefix-$Level0").mapPar(3)(_ + 1).runDrain()
 
-      "open a single span when downstream uses mapPar" in {
+        assert(testSpans.size == 1)
 
-        val prefix = s"[${UUID.randomUUID()}]"
-
-        val flow = Flow.fromValues(1, 2, 3)
-
-        val spanned = flow.span(myTracing)(s"$prefix-span")
-
-        spanned.mapPar(3)(_ + 1).runDrain()
-
-        val spans = exporter.getFinishedSpanItems
-
-        val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
-
-        assert(thisTestSpans.size == 1)
-
-        val span = thisTestSpans(0)
-
-        assert(Context.current() == Context.root)
-        assert(span.getName == s"$prefix-span")
-        assert(span.getStatus.getStatusCode == StatusCode.UNSET)
-        assert(span.getEvents.isEmpty)
-      }
+        val only = spansOf(Level0).head
+        assert(only.getStatus.getStatusCode == StatusCode.UNSET)
+        assert(only.getEvents.isEmpty)
+        assertNestingAndRoot()
     }
 
     "used under parent spans" should {
-      "use the current span as parent" in {
+      "use the current span as parent" in new Fixture:
+        val parent = myTracing.spanUnsafe(s"$prefix-$Level0")
 
-        val prefix = s"[${UUID.randomUUID()}]"
+        flow.span(myTracing)(s"$prefix-$Level1").runToList(): Unit
 
-        val flow = Flow.fromValues(1, 2, 3)
+        parent.close()
 
-        val finalizer = myTracing.spanUnsafe(s"$prefix-parentSpan")
+        assert(spansOf(Level0).size == 1)
+        assert(spansOf(Level1).size == 1)
+        assertNestingAndRoot()
 
-        val spanned = flow.span(myTracing)(s"$prefix-span")
+      "open one child span per element when flatMapped under a parent span" in new Fixture:
+        val spanned = flow.span(myTracing)(s"$prefix-$Level1")
 
-        spanned.runToList(): Unit
+        flow.flatMap { _ => spanned }.span(myTracing)(s"$prefix-$Level0").runToList(): Unit
 
-        finalizer.close()
+        assert(spansOf(Level0).size == 1)
+        assert(spansOf(Level1).size == 3)
+        assertNestingAndRoot()
 
-        val spans = exporter.getFinishedSpanItems
+      "parent spans of concurrently run flows under the enclosing span" in new Fixture:
+        val spanned = flow.span(myTracing)(s"$prefix-$Level1")
 
-        val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
-
-        assert(thisTestSpans.size == 2)
-
-        val (parentSpans, childrenSpans) = thisTestSpans.partitionMap { s =>
-          if s.getName.endsWith("parentSpan") then Left(s) else Right(s)
-        }
-
-        assert(parentSpans.size == 1)
-        assert(childrenSpans.size == 1)
-        val parentSpan = parentSpans.head
-
-        for span <- childrenSpans
-        yield assert(span.getParentSpanId == parentSpan.getSpanId)
-        assert(Context.current() == Context.root)
-
-      }
-
-      "open one child span per element when flatMapped under a parent span" in {
-
-        val prefix = s"[${UUID.randomUUID()}]"
-
-        val flow = Flow.fromValues(1, 2, 3)
-
-        val spanned = flow.span(myTracing)(s"$prefix-span")
-
-        flow.flatMap { _ => spanned }.span(myTracing)(s"$prefix-parentSpan").runToList(): Unit
-
-        val spans = exporter.getFinishedSpanItems
-
-        val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
-
-        assert(thisTestSpans.size == 4)
-
-        val (parentSpans, childrenSpans) = thisTestSpans.partitionMap { s =>
-          if s.getName.endsWith("parentSpan") then Left(s) else Right(s)
-        }
-
-        assert(parentSpans.size == 1)
-        assert(childrenSpans.size == 3)
-        val parentSpan = parentSpans.head
-
-        for span <- childrenSpans
-        yield assert(span.getParentSpanId == parentSpan.getSpanId)
-        assert(Context.current() == Context.root)
-
-      }
-
-      "parent spans of concurrently run flows under the enclosing span" in {
-
-        val prefix = s"[${UUID.randomUUID()}]"
-
-        val flow = Flow.fromValues(1, 2, 3)
-
-        val spanned = span(flow)(myTracing)(s"$prefix-span")
-
-        val finalinzer = spanUnsafe(myTracing)(s"$prefix-parent")
+        val parent = spanUnsafe(myTracing)(s"$prefix-$Level0")
 
         supervised {
           (1 to 10).foreach(_ => fork(spanned.runToList()))
-
         }
 
-        finalinzer.close()
-        val spans = exporter.getFinishedSpanItems
+        parent.close()
 
-        val thisTestSpans =
-          spans.asScala.filter(_.getName.startsWith(prefix)).filterNot(s => s.getSpanId == finalinzer.span.getSpanContext.getSpanId)
+        assert(spansOf(Level0).size == 1)
+        assert(spansOf(Level1).size == 10)
+        assertNestingAndRoot()
 
-        assert(thisTestSpans.size == 10)
-
-        thisTestSpans.foreach { s =>
-          assert(s.getParentSpanId == finalinzer.span.getSpanContext.getSpanId)
-        }
-        assert(Context.current() == Context.root)
-
-      }
-
-      "nest spans across forks and inner supervised scopes" in {
-
-        val em = EitherMode[String]
-        val prefix = s"[${UUID.randomUUID()}]"
-
-        val flow = Flow.fromValues(1, 2, 3)
-
-        val spanned = span(flow)(myTracing)(s"$prefix-level1")
+      "nest spans across forks and inner supervised scopes" in new Fixture:
+        val spanned = flow.span(myTracing)(s"$prefix-$Level1")
 
         supervised {
           (1 to 10).map {
             case 1 =>
               forkUser(
-                span(flow)(myTracing)(s"$prefix-1-level1")
+                flow
+                  .span(myTracing)(s"$prefix-$Level1_First")
                   .flatMap { el =>
                     val innerFlow = supervised {
-                      flow.span(myTracing)(s"$prefix-level2", beforeClose = _._1.addEvent("boomed"))
+                      flow.span(myTracing)(s"$prefix-$Level1_First_Child", beforeClose = _._1.addEvent("boomed"))
                     }
                     innerFlow
                   }
@@ -255,146 +175,68 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
 
             case _ => forkUser(spanned.runToList())
           }
-        }.byNameSpan(myTracing)(s"$prefix-level0")
+        }.byNameSpan(myTracing)(s"$prefix-$Level0")
 
-        val spans = exporter.getFinishedSpanItems
+        assert(spansOf(Level1).size == 9)
+        assert(spansOf(Level1_First).size == 1)
+        assert(spansOf(Level1_First_Child).size == 3)
 
-        val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
-        val level0Spans = thisTestSpans.find(s => s.getName.endsWith("level0")).get
-        val level1Spans = thisTestSpans.filter(s => s.getName.endsWith("level1"))
-        val level2Spans = thisTestSpans.filter(s => s.getName.endsWith("level2"))
-
-        val level1_1 = level1Spans.find(s => s.getName.endsWith("1-level1")).get
-        assert(level1Spans.size == 10)
-        val level1Span = level1Spans.head
-        assert(level2Spans.size == 3)
-
-        level1Spans.foreach { s =>
-          assert(s.getParentSpanId == level0Spans.getSpanContext.getSpanId)
-        }
-
-        level2Spans.foreach { s =>
-          assert(s.getParentSpanId == level1_1.getSpanContext.getSpanId)
-        }
-        assert(Context.current() == Context.root)
-
-      }
+        assertNestingAndRoot()
     }
 
     "a stage fails" should {
-      "record exception and set ERROR status when the flow fails" in {
-
-        val prefix = s"[${UUID.randomUUID()}]"
-
-        val flow = Flow.fromValues(1, 2, 3)
-
+      "record exception and set ERROR status when the flow fails" in new Fixture:
         try
           flow
             .tap { case 2 => throw new Exception("boom"); case _ => () }
-            .span(myTracing)(s"$prefix-span", beforeClose = (s, thr) => s.addEvent(thr.toString))
+            .span(myTracing)(s"$prefix-$Level0", beforeClose = (s, thr) => s.addEvent(thr.toString))
             .runToList()
         catch case _ => ()
 
-        val spans = exporter.getFinishedSpanItems
+        assert(testSpans.size == 1)
 
-        val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
+        val failed = spansOf(Level0).head
+        assert(failed.getStatus.getStatusCode == StatusCode.ERROR)
+        assert(failed.getStatus.getDescription == "boom")
+        assert(failed.getEvents.asScala.exists(_.getName == "exception"))
+        assertNestingAndRoot()
 
-        assert(thisTestSpans.size == 1)
-
-        val span = thisTestSpans(0)
-        assert(Context.current() == Context.root)
-
-        assert(span.getName == s"$prefix-span")
-        assert(span.getStatus.getStatusCode == StatusCode.ERROR)
-        assert(span.getStatus.getDescription == "boom")
-        assert(span.getEvents.asScala.exists(_.getName == "exception"))
-      }
-
-      "end span when a downstream stage fails after span" in {
-
-        val prefix = s"[${UUID.randomUUID()}]"
-
-        val flow = Flow.fromValues(1, 2, 3)
-
-        val spanned = flow.span(myTracing)(s"$prefix-span", beforeClose = (s, thr) => s.addEvent(thr.toString))
+      "end span when a downstream stage fails after span" in new Fixture:
+        val spanned = flow.span(myTracing)(s"$prefix-$Level0", beforeClose = (s, thr) => s.addEvent(thr.toString))
 
         try spanned.map { case 2 => throw new Exception("boom"); case n => n }.runToList()
         catch case _ => ()
 
-        val spans = exporter.getFinishedSpanItems
+        assert(spansOf(Level0).size == 1)
+        assert(testSpans.size == 1)
+        assertNestingAndRoot()
 
-        val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
+      "end span when downstream failure is recovered" in new Fixture:
+        flow.span(myTracing)(s"$prefix-$Level0").map { case 2 => throw new Exception("boom"); case x => x }.recover(_ => 5).runToList()
 
-        assert(thisTestSpans.size == 1)
+        assert(spansOf(Level0).size == 1)
+        assert(testSpans.size == 1)
+        assertNestingAndRoot()
 
-        val span = thisTestSpans(0)
-        assert(Context.current() == Context.root)
+      "keep the flow span as a child of the recovery span when failure is recovered" in new Fixture:
+        val spanned = flow.span(myTracing)(s"$prefix-$Level1")
 
-        assert(span.getName == s"$prefix-span")
-      }
+        spanned
+          .map { case 2 => throw new Exception("boom"); case x => currentSpanUnsafe(myTracing).addEvent(x.toString); x }
+          .recover { x =>
+            currentSpanUnsafe(myTracing).addEvent("recovery"); 5
+          }
+          .span(myTracing)(s"$prefix-$Level0")
+          .runToList(): Unit
 
-      "end span when downstream failure is recovered" in {
+        assert(spansOf(Level0).size == 1)
+        assert(spansOf(Level1).size == 1)
+        assertNestingAndRoot()
 
-        val prefix = s"[${UUID.randomUUID()}]"
+      "end spans of concurrent flows when one of them fails" in new Fixture:
+        val spanned = flow.span(myTracing)(s"$prefix-$Level1")
 
-        val flow = Flow.fromValues(1, 2, 3)
-
-        val spanned = flow.span(myTracing)(s"$prefix-span")
-
-        spanned.map { case 2 => throw new Exception("boom"); case x => x }.recover(_ => 5).runToList()
-
-        val spans = exporter.getFinishedSpanItems
-
-        val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
-
-        assert(thisTestSpans.size == 1)
-
-        val span = thisTestSpans(0)
-
-        assert(span.getName == s"$prefix-span")
-        assert(Context.current() == Context.root)
-
-      }
-
-      "keep the flow span as a child of the recovery span when failure is recovered" in {
-
-        val prefix = s"[${UUID.randomUUID()}]"
-
-        val flow = Flow.fromValues(1, 2, 3)
-
-        val spanned = span(flow)(myTracing)(s"$prefix-span")
-
-        val _ =
-          span(
-            spanned.map { case 2 => throw new Exception("boom"); case x => currentSpanUnsafe(myTracing).addEvent(x.toString); x }.recover {
-              x =>
-                currentSpanUnsafe(myTracing).addEvent("recovery"); 5
-            }
-          )(myTracing)(s"$prefix-recover").runToList()
-
-        val spans = exporter.getFinishedSpanItems
-
-        val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
-
-        assert(thisTestSpans.size == 2)
-
-        val recoverySpan = thisTestSpans.find(_.getName.endsWith("recover")).get
-        val flowSpan = thisTestSpans.find(_.getName.endsWith("span")).get
-
-        assert(flowSpan.getParentSpanId == recoverySpan.getSpanId)
-        assert(Context.current() == Context.root)
-
-      }
-
-      "end spans of concurrent flows when one of them fails" in {
-
-        val prefix = s"[${UUID.randomUUID()}]"
-
-        val flow = Flow.fromValues(1, 2, 3)
-
-        val spanned = span(flow)(myTracing)(s"$prefix-span")
-
-        val finalinzer = spanUnsafe(myTracing)(s"$prefix-parent")
+        val parent = spanUnsafe(myTracing)(s"$prefix-$Level0")
 
         try
           supervised {
@@ -405,45 +247,36 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
           }
         catch case _ => ()
         end try
-        finalinzer.close()
-        val spans = exporter.getFinishedSpanItems
+        parent.close()
 
-        val thisTestSpans =
-          spans.asScala.filter(_.getName.startsWith(prefix)).filterNot(s => s.getSpanId == finalinzer.span.getSpanContext.getSpanId)
+        assert(spansOf(Level0).size == 1)
+        assertNestingAndRoot()
 
-        thisTestSpans.foreach { s =>
-          assert(s.getParentSpanId == finalinzer.span.getSpanContext.getSpanId)
-        }
-        assert(Context.current() == Context.root)
-
-      }
-
-      "end inner spans with event when nested flow fails in supervisedError" in {
-
+      "end inner spans with event when nested flow fails in supervisedError" in new Fixture:
         val em = EitherMode[String]
-        val prefix = s"[${UUID.randomUUID()}]"
 
-        val flow = Flow.fromValues(1, 2, 3)
+        val level0 = spanUnsafe(myTracing)(s"$prefix-$Level0")
 
-        val finalinzer = spanUnsafe(myTracing)(s"$prefix-level0")
-
-        val spanned = span(flow)(myTracing)(s"$prefix-level1")
+        val spanned = flow.span(myTracing)(s"$prefix-$Level1")
 
         try
           supervised {
             (1 to 10).map {
               case 1 =>
                 forkUser {
-                  span(flow)(myTracing)(s"$prefix-1-level1")
+                  flow
+                    .span(myTracing)(s"$prefix-$Level1_First")
                     .flatMap { el =>
                       {
                         val inner = supervisedError(em):
                           either:
                             val innerFlow =
-                              em.pure(flow.span(myTracing)(s"$prefix-level2", beforeClose = _._1.addEvent(s"boomed at $el")).map {
-                                case 1 => em.pureError("ops").ok();
-                                case x => x
-                              })
+                              em.pure(
+                                flow.span(myTracing)(s"$prefix-$Level1_First_Child", beforeClose = _._1.addEvent(s"boomed at $el")).map {
+                                  case 1 => em.pureError("ops").ok();
+                                  case x => x
+                                }
+                              )
                             innerFlow.ok()
                         inner
                       }.toOption.get
@@ -456,60 +289,40 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         catch case _ => ()
         end try
 
-        finalinzer.close()
-        val spans = exporter.getFinishedSpanItems
+        level0.close()
+        assert(spansOf(Level1_First_Child).size == 1) // because flow.flatMap is evaluated sequentially and exception ends whole flow
+        assertNestingAndRoot()
 
-        val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
-        val level1Spans = thisTestSpans.filter(s => s.getName.endsWith("level1"))
-        val level2Spans = thisTestSpans.filter(s => s.getName.endsWith("level2"))
-        val level1_1 = level1Spans.find(s => s.getName.endsWith("1-level1")).get
-
-        assert(level2Spans.size == 1) // because flow.flatMap is evaluated sequentially and exception ends whole flow
-
-        level1Spans.foreach { s =>
-          assert(s.getParentSpanId == finalinzer.span.getSpanContext.getSpanId, "level1 spans id")
-        }
-
-        level2Spans.foreach { s =>
-          assert(s.getParentSpanId == level1_1.getSpanContext.getSpanId, "level2 spans id")
-          assert(s.getEvents.asScala.exists(_.getName.startsWith("boomed")))
-
-        }
-        assert(Context.current() == Context.root)
-
-      }
-
-      "end inner spans with event when nested flow fails and failure is replaced by empty flow" in {
-
+      "end inner spans with event when nested flow fails and failure is replaced by empty flow" in new Fixture:
         val em = EitherMode[String]
-        val prefix = s"[${UUID.randomUUID()}]"
 
-        val flow = Flow.fromValues(1, 2, 3)
+        val level0 = spanUnsafe(myTracing)(s"$prefix-$Level0")
 
-        val finalinzer = spanUnsafe(myTracing)(s"$prefix-level0")
-
-        val spanned = span(flow)(myTracing)(s"$prefix-level1")
+        val spanned = flow.span(myTracing)(s"$prefix-$Level1")
 
         try
           supervised {
             (1 to 10).map {
               case 1 =>
                 forkUser {
-                  (span(flow)(myTracing)(s"$prefix-1-level1")
+                  flow
+                    .span(myTracing)(s"$prefix-$Level1_First")
                     .flatMap { el =>
                       {
                         val inner = supervisedError(em):
                           either:
                             val innerFlow =
-                              em.pure(flow.span(myTracing)(s"$prefix-level2", beforeClose = _._1.addEvent(s"boomed at $el")).map {
-                                case 1 => em.pureError("ops").ok();
-                                case x => x
-                              })
+                              em.pure(
+                                flow.span(myTracing)(s"$prefix-$Level1_First_Child", beforeClose = _._1.addEvent(s"boomed at $el")).map {
+                                  case 1 => em.pureError("ops").ok();
+                                  case x => x
+                                }
+                              )
                             innerFlow.ok()
                         inner
                       }.toOption.getOrElse(Flow.empty)
                     }
-                    .runToList())
+                    .runToList()
                 }
               case _ => forkUser(spanned.runToList())
             }
@@ -517,39 +330,16 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         catch case _ => ()
         end try
 
-        finalinzer.close()
-        val spans = exporter.getFinishedSpanItems
+        level0.close()
+        assert(spansOf(Level1_First_Child).size == 1) // because flow.flatMap is evaluated sequentially and exception ends whole flow
+        assertNestingAndRoot()
 
-        val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
-        val level1Spans = thisTestSpans.filter(s => s.getName.endsWith("level1"))
-        val level2Spans = thisTestSpans.filter(s => s.getName.endsWith("level2"))
-        val level1_1 = level1Spans.find(s => s.getName.endsWith("1-level1")).get
-
-        assert(level2Spans.size == 1) // because flow.flatMap is evaluated sequentially and exception ends whole flow
-
-        level1Spans.foreach { s =>
-          assert(s.getParentSpanId == finalinzer.span.getSpanContext.getSpanId)
-        }
-
-        level2Spans.foreach { s =>
-          assert(s.getParentSpanId == level1_1.getSpanContext.getSpanId)
-          assert(s.getEvents.asScala.exists(_.getName.startsWith("boomed")))
-
-        }
-        assert(Context.current() == Context.root)
-
-      }
-
-      "end inner spans with event when nested flow fails inside enclosing supervisedError" in {
-
+      "end inner spans with event when nested flow fails inside enclosing supervisedError" in new Fixture:
         val em = EitherMode[String]
-        val prefix = s"[${UUID.randomUUID()}]"
 
-        val flow = Flow.fromValues(1, 2, 3)
+        val level0 = spanUnsafe(myTracing)(s"$prefix-$Level0")
 
-        val finalinzer = spanUnsafe(myTracing)(s"$prefix-level0")
-
-        val spanned = span(flow)(myTracing)(s"$prefix-level1")
+        val spanned = flow.span(myTracing)(s"$prefix-$Level1")
 
         try
           supervisedError(em) {
@@ -558,19 +348,22 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
                 (1 to 10).map {
                   case 1 =>
                     forkUser {
-                      (span(flow)(myTracing)(s"$prefix-1-level1")
+                      flow
+                        .span(myTracing)(s"$prefix-$Level1_First")
                         .flatMap { el =>
                           {
                             supervisedError(em):
                               val innerFlow =
-                                em.pure(flow.span(myTracing)(s"$prefix-level2", beforeClose = _._1.addEvent(s"boomed at $el")).map {
-                                  case 1 => em.pureError("ops").ok();
-                                  case x => x
-                                })
+                                em.pure(
+                                  flow.span(myTracing)(s"$prefix-$Level1_First_Child", beforeClose = _._1.addEvent(s"boomed at $el")).map {
+                                    case 1 => em.pureError("ops").ok();
+                                    case x => x
+                                  }
+                                )
                               innerFlow
                           }.toOption.get
                         }
-                        .runToList())
+                        .runToList()
                     }
                   case _ => forkUser(spanned.runToList())
                 }
@@ -578,93 +371,46 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         catch case _ => ()
         end try
 
-        finalinzer.close()
-        val spans = exporter.getFinishedSpanItems
-
-        val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
-        val level1Spans = thisTestSpans.filter(s => s.getName.endsWith("level1"))
-        val level2Spans = thisTestSpans.filter(s => s.getName.endsWith("level2"))
-        val level1_1 = level1Spans.find(s => s.getName.endsWith("1-level1")).get
-
-        val level1Span = level1Spans.head
-        assert(level2Spans.size == 1) // because flow.flatMap is evaluated sequentially and exception ends whole flow
-
-        level1Spans.foreach { s =>
-          assert(s.getParentSpanId == finalinzer.span.getSpanContext.getSpanId)
-        }
-
-        level2Spans.foreach { s =>
-          assert(s.getParentSpanId == level1_1.getSpanContext.getSpanId)
-          assert(s.getEvents.asScala.exists(_.getName.startsWith("boomed")))
-
-        }
-        assert(Context.current() == Context.root)
-
-      }
+        level0.close()
+        assert(spansOf(Level1_First_Child).size == 1) // because flow.flatMap is evaluated sequentially and exception ends whole flow
+        assertNestingAndRoot()
     }
 
     "cancelled" should {
-      "end span when enclosing supervised scope fails before stream completion" in {
-
-        val prefix = s"[${UUID.randomUUID()}]"
-
+      "end span when enclosing supervised scope fails before stream completion" in new Fixture:
         val semaphore = Semaphore(0)
-
-        val flow = Flow.fromValues(1, 2, 3)
 
         try
           supervised {
-            val failingFork = forkUser {
+            forkUser {
               semaphore.acquire()
               throw new Exception("oops")
-
             }
-            val forkWithSpan = forkUser {
-              span(flow)(myTracing)(s"$prefix-level1").tap { case 1 => semaphore.release(); case _ => sleep(100.seconds) }.runToList()
-
+            forkUser {
+              flow.span(myTracing)(s"$prefix-$Level0").tap { case 1 => semaphore.release(); case _ => sleep(100.seconds) }.runToList()
             }
-
           }
-
         catch case err => ()
         end try
 
-        val spans = exporter.getFinishedSpanItems
+        assert(spansOf(Level0).size == 1)
+        assert(testSpans.size == 1)
+        assertNestingAndRoot()
 
-        val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
-
-        assert(thisTestSpans.size == 1)
-        assert(Context.current() == Context.root)
-
-      }
-
-      "end span when the enclosing fork is cancelled" in {
-
-        val prefix = s"[${UUID.randomUUID()}]"
-
+      "end span when the enclosing fork is cancelled" in new Fixture:
         val semaphore = Semaphore(0)
-
-        val flow = Flow.fromValues(1, 2, 3)
 
         supervised {
           val forkWithSpan = forkCancellable {
-            span(flow)(myTracing)(s"$prefix-level1").tap { case 1 => semaphore.release(); case _ => sleep(100.seconds) }.runToList()
-
+            flow.span(myTracing)(s"$prefix-$Level0").tap { case 1 => semaphore.release(); case _ => sleep(100.seconds) }.runToList()
           }
           semaphore.acquire()
           forkWithSpan.cancelNow()
-
         }
 
-        val spans = exporter.getFinishedSpanItems
-
-        val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
-
-        assert(thisTestSpans.size == 1)
-        assert(Context.current() == Context.root)
-
-      }
+        assert(spansOf(Level0).size == 1)
+        assert(testSpans.size == 1)
+        assertNestingAndRoot()
     }
   }
-
 end OxTelemetryTest
