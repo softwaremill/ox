@@ -19,7 +19,7 @@ private[telemetry] object ContextHolder:
     override def set(context: Context): Scope = context.makeCurrent()
 
   private[telemetry] object CheckingThreadFactory extends ContextHolder:
-    private var checked = false
+    @volatile private var checked = false
     private val wrapped: ContextHolder = Delegating
 
     override def get(): Context =
