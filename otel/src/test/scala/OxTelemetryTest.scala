@@ -1,4 +1,5 @@
 import io.opentelemetry.api.metrics.Meter
+import io.opentelemetry.context.Context
 import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import io.opentelemetry.sdk.trace.SdkTracerProvider
@@ -59,6 +60,8 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
     val spans = exporter.getFinishedSpanItems
 
     val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
+    assert(Context.current() == Context.root)
+
     assert(thisTestSpans.isEmpty)
 
   }
@@ -78,28 +81,33 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
     assert(thisTestSpans.size == 1)
 
     val span = spans.get(0)
+    assert(Context.current() == Context.root)
 
     assert(span.getName == s"$prefix-span")
   }
 
   "flow.spanned" should "open two spans for two invocations" in {
-    val prefix = s"[${UUID.randomUUID()}]"
+    supervised {
+      val prefix = s"[${UUID.randomUUID()}]"
 
-    val flow = Flow.fromValues(1, 2, 3)
+      val flow = Flow.fromValues(1, 2, 3)
 
-    val spanned1 = flow.span(s"$prefix-span") ++ Flow.fromValues(4, 2)
+      val spanned1 = flow.span(s"$prefix-span") ++ Flow.fromValues(4, 2)
 
-    val spanned2 = spanned1.span(s"$prefix-span2")
+      val spanned2 = spanned1.span(s"$prefix-span2")
 
-    spanned2.runDrain()
+      spanned2.runDrain()
 
-    val spans = exporter.getFinishedSpanItems
-    val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
+      val spans = exporter.getFinishedSpanItems
+      val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
 
-    assert(thisTestSpans.size == 2)
+      assert(thisTestSpans.size == 2)
 
-    assert(thisTestSpans.head.getName == s"$prefix-span")
-    assert(thisTestSpans(1).getName == s"$prefix-span2")
+      assert(Context.current() == Context.root)
+      assert(thisTestSpans.head.getName == s"$prefix-span")
+      assert(thisTestSpans(1).getName == s"$prefix-span2")
+    }
+
   }
 
   "flow.spanned" should "open only one span despite parralelized map" in {
@@ -120,6 +128,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
 
     val span = thisTestSpans(0)
 
+    assert(Context.current() == Context.root)
     assert(span.getName == s"$prefix-span")
   }
 
@@ -143,6 +152,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
     assert(thisTestSpans.size == 1)
 
     val span = thisTestSpans(0)
+    assert(Context.current() == Context.root)
 
     assert(span.getName == s"$prefix-span")
   }
@@ -164,6 +174,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
     assert(thisTestSpans.size == 1)
 
     val span = thisTestSpans(0)
+    assert(Context.current() == Context.root)
 
     assert(span.getName == s"$prefix-span")
   }
@@ -196,6 +207,8 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
 
     for span <- childrenSpans
     yield assert(span.getParentSpanId == parentSpan.getSpanId)
+    assert(Context.current() == Context.root)
+
   }
 
   "flow.spanned" should "open several spans if flatMapped" in {
@@ -222,6 +235,8 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
 
     for span <- childrenSpans
     yield assert(span.getParentSpanId == parentSpan.getSpanId)
+    assert(Context.current() == Context.root)
+
   }
 
   "flow.spanned" should "properly end span in case of error2" in {
@@ -243,6 +258,8 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
     val span = thisTestSpans(0)
 
     assert(span.getName == s"$prefix-span")
+    assert(Context.current() == Context.root)
+
   }
   "flow.spanned" should "properly end span in case of error2fd" in {
 
@@ -266,6 +283,8 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
     val flowSpan = thisTestSpans.find(_.getName.endsWith("span")).get
 
     assert(flowSpan.getParentSpanId == recoverySpan.getSpanId)
+    assert(Context.current() == Context.root)
+
   }
 
   "flow.spanned" should "properly end span in case of error2fdfs" in {
@@ -293,6 +312,8 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
     thisTestSpans.foreach { s =>
       assert(s.getParentSpanId == finalinzer.span.getSpanContext.getSpanId)
     }
+    assert(Context.current() == Context.root)
+
   }
 
   "flow.spanned" should "properly end span in case of ejknrror2fdfs" in {
@@ -323,6 +344,8 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
     thisTestSpans.foreach { s =>
       assert(s.getParentSpanId == finalinzer.span.getSpanContext.getSpanId)
     }
+    assert(Context.current() == Context.root)
+
   }
 
   "flow.spanned" should "properly end span in case of ejknrror2fdsfsfdffssfss" in { // flaky
@@ -371,6 +394,8 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
     level2Spans.foreach { s =>
       assert(s.getParentSpanId == level1_1.getSpanContext.getSpanId)
     }
+    assert(Context.current() == Context.root)
+
 
   }
 
@@ -431,6 +456,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
       assert(s.getEvents().get(0).getName.startsWith("boomed"))
 
     }
+    assert(Context.current() == Context.root)
 
   }
 
@@ -493,6 +519,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
       assert(s.getEvents().get(0).getName.startsWith("boomed"))
 
     }
+    assert(Context.current() == Context.root)
 
   }
 
@@ -554,6 +581,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
       assert(s.getEvents().get(0).getName.startsWith("boomed"))
 
     }
+    assert(Context.current() == Context.root)
 
   }
 
@@ -587,6 +615,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
     val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
 
     assert(thisTestSpans.size == 1)
+    assert(Context.current() == Context.root)
 
   }
 
@@ -613,6 +642,7 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
     val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
 
     assert(thisTestSpans.size == 1)
+    assert(Context.current() == Context.root)
 
   }
 end OxTelemetryTest

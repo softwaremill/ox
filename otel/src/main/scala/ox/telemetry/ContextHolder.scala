@@ -1,32 +1,40 @@
 package ox.telemetry
 
-import io.opentelemetry.context.Context
+import io.opentelemetry.context.{Context, Scope}
 import ox.otel.context.PropagatingVirtualThreadFactory
 
 /** Abstraction managing an OpenTelemetry [[Context]]
-  */
-trait ContextHolder:
+ */
+sealed trait ContextHolder:
   def get(): Context
 
-  def set(context: Context): Unit
+  def set(context: Context): Scope
 
-object ContextHolder:
+private[telemetry] object ContextHolder:
 
-  object Native extends ContextHolder:
+  private[telemetry] object Delegating extends ContextHolder:
+
+    override def get(): Context = Context.current()
+
+    override def set(context: Context): Scope = context.makeCurrent()
+
+
+  private[telemetry] object CheckingThreadFactory extends ContextHolder:
     private var checked = false
+    private val wrapped: ContextHolder = Delegating
 
     override def get(): Context =
       checkThreadFactory()
-      Context.current()
+      wrapped.get()
 
-    override def set(context: Context): Unit =
+    override def set(context: Context): Scope =
       checkThreadFactory()
-      context.makeCurrent(): Unit
+      wrapped.set(context)
 
     private def checkThreadFactory() =
       if !checked then
         if !ox.oxThreadFactory.isInstanceOf[PropagatingVirtualThreadFactory] then
-          System.err.println(s"Otel should use ${classOf[PropagatingVirtualThreadFactory].getName}")
+          System.err.println(s"Default OpenTelemetry integration should use ${classOf[PropagatingVirtualThreadFactory].getName}, if you want to use OpenTelemetry with your own oxThreadFactory, you need to take care of propagation of OpenTelemetry context to newly created VirtualThreads")
         checked = true
-  end Native
+  end CheckingThreadFactory
 end ContextHolder

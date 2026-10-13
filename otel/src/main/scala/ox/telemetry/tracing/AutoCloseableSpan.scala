@@ -1,15 +1,18 @@
 package ox.telemetry.tracing
 
 import io.opentelemetry.api.trace.Span
-import io.opentelemetry.context.Context
-import ox.telemetry.ContextHolder
+import io.opentelemetry.context.Scope
 
+/** [[AutoCloseable]] wrapper over a [[Span]]
+ *
+ * calling [[close]] will end wrapped [[Span]] and [[Scope]] created when opening a [[Span]], restoring previous current [[Span]]
+ * */
 sealed trait AutoCloseableSpan extends AutoCloseable:
   def span: Span
 
 private object AutoCloseableSpan:
-  private[ox] final class ContextHolderBased(val span: Span, contextHolder: ContextHolder, previousContext: Context)
-      extends AutoCloseableSpan:
+  private[ox] final class Impl(val span: Span, openedScope: Scope)
+    extends AutoCloseableSpan:
     def close(): Unit =
       span.end()
-      contextHolder.set(previousContext)
+      openedScope.close()
