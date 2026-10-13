@@ -1,7 +1,7 @@
 package ox.telemetry.tracing
 
 import io.opentelemetry.api.common.Attributes
-import io.opentelemetry.api.trace.{Span, SpanContext, SpanKind, Tracer}
+import io.opentelemetry.api.trace.{Span, SpanContext, SpanKind, StatusCode, Tracer}
 import ox.telemetry.ContextHolder
 import ox.telemetry.tracing.flow.OxFlowTracing
 
@@ -65,6 +65,9 @@ sealed trait OxTracing extends OxFlowTracing:
     catch
       case e: Throwable =>
         error = e
+        if finalizer ne null then
+          finalizer.nn.span.recordException(e)
+          finalizer.nn.span.setStatus(StatusCode.ERROR, e.getMessage): Unit
         throw e
     finally
       try if finalizer ne null then beforeClose(finalizer.nn.span, Option(error)): Unit
