@@ -19,3 +19,4 @@ private[tracing] trait OxFlowTracing:
         emit
       )
     )(spanName, spanKind, attributes, links, beforeClose)
+end OxFlowTracing
