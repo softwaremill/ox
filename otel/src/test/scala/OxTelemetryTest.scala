@@ -1,19 +1,19 @@
 import io.opentelemetry.api.metrics.Meter
+import io.opentelemetry.api.trace.StatusCode
 import io.opentelemetry.context.Context
 import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.`export`.SimpleSpanProcessor
 import org.scalatest.BeforeAndAfterAll
-import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.SpanSugar.convertIntToGrainOfTime
+import org.scalatest.wordspec.AnyWordSpec
 import ox.*
 import ox.channels.BufferCapacity
 import ox.either.ok
 import ox.flow.Flow
 import ox.otel.context.PropagatingVirtualThreadFactory
-import ox.telemetry.tracing.OxTracing
 import ox.telemetry.tracing.*
 
 import java.util.UUID
@@ -21,7 +21,7 @@ import java.util.concurrent.Semaphore
 import scala.collection.JavaConverters.asScalaBufferConverter
 import scala.util.boundary.Label
 
-class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
+class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
   override def beforeAll(): Unit =
     setOxThreadFactory(new PropagatingVirtualThreadFactory)
 
@@ -49,599 +49,622 @@ class OxTelemetryTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
   val meter: Meter = openTelemetry.meterBuilder("ftest").build()
 
   val myTracing: OxTracing = OxTracing.native(tracer)
-  "flow.spanned" should "not open span if not runned" in {
+  "Flow.span" when {
+    "run normally" should {
+      "not open a span until the flow is run" in {
 
-    val prefix = s"[${UUID.randomUUID()}]"
+        val prefix = s"[${UUID.randomUUID()}]"
 
-    val flow = Flow.fromValues(1, 2, 3)
+        val flow = Flow.fromValues(1, 2, 3)
 
-    val spans = exporter.getFinishedSpanItems
+        val spans = exporter.getFinishedSpanItems
 
-    val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
-    assert(Context.current() == Context.root)
+        val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
+        assert(Context.current() == Context.root)
 
-    assert(thisTestSpans.isEmpty)
+        assert(thisTestSpans.isEmpty)
 
-  }
+      }
 
-  "flow.spanned" should "open one span even if flow has multiple elements" in {
-    val prefix = s"[${UUID.randomUUID()}]"
+      "open a single span for a multi-element flow" in {
+        val prefix = s"[${UUID.randomUUID()}]"
 
-    val flow = Flow.fromValues(1, 2, 3)
+        val flow = Flow.fromValues(1, 2, 3)
 
-    val spannedFlow = flow.span(myTracing)(s"$prefix-span")
+        val spannedFlow = flow.span(myTracing)(s"$prefix-span")
 
-    spannedFlow.runDrain()
+        spannedFlow.runDrain()
 
-    val spans = exporter.getFinishedSpanItems
-    val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
+        val spans = exporter.getFinishedSpanItems
+        val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
 
-    assert(thisTestSpans.size == 1)
+        assert(thisTestSpans.size == 1)
 
-    val span = spans.get(0)
-    assert(Context.current() == Context.root)
+        val span = spans.get(0)
+        assert(Context.current() == Context.root)
 
-    assert(span.getName == s"$prefix-span")
-  }
+        assert(span.getName == s"$prefix-span")
+      }
 
-  "flow.spanned" should "open two spans for two invocations" in {
-    supervised {
-      val prefix = s"[${UUID.randomUUID()}]"
+      "open one span per span() call when spans are nested" in {
+        supervised {
+          val prefix = s"[${UUID.randomUUID()}]"
 
-      val flow = Flow.fromValues(1, 2, 3)
+          val flow = Flow.fromValues(1, 2, 3)
 
-      val spanned1 = flow.span(myTracing)(s"$prefix-span") ++ Flow.fromValues(4, 2)
+          val spanned1 = flow.span(myTracing)(s"$prefix-span") ++ Flow.fromValues(4, 2)
 
-      val spanned2 = spanned1.span(myTracing)(s"$prefix-span2")
+          val spanned2 = spanned1.span(myTracing)(s"$prefix-span2")
 
-      spanned2.runDrain()
+          spanned2.runDrain()
 
-      val spans = exporter.getFinishedSpanItems
-      val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
+          val spans = exporter.getFinishedSpanItems
+          val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
 
-      assert(thisTestSpans.size == 2)
+          assert(thisTestSpans.size == 2)
 
-      assert(Context.current() == Context.root)
-      assert(thisTestSpans.head.getName == s"$prefix-span")
-      assert(thisTestSpans(1).getName == s"$prefix-span2")
-    }
-
-  }
-
-  "flow.spanned" should "open only one span despite parralelized map" in {
-
-    val prefix = s"[${UUID.randomUUID()}]"
-
-    val flow = Flow.fromValues(1, 2, 3)
-
-    val spanned = flow.span(myTracing)(s"$prefix-span")
-
-    spanned.mapPar(3)(_ + 1).runDrain()
-
-    val spans = exporter.getFinishedSpanItems
-
-    val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
-
-    assert(thisTestSpans.size == 1)
-
-    val span = thisTestSpans(0)
-
-    assert(Context.current() == Context.root)
-    assert(span.getName == s"$prefix-span")
-  }
-
-  "flow.spanned" should "properly end span in case of error" in {
-
-    val prefix = s"[${UUID.randomUUID()}]"
-
-    val flow = Flow.fromValues(1, 2, 3)
-
-    try
-      flow
-        .tap { case 2 => throw new Exception("boom"); case _ => () }
-        .span(myTracing)(s"$prefix-span", beforeClose = (s, thr) => s.addEvent(thr.toString))
-        .runToList()
-    catch case _ => ()
-
-    val spans = exporter.getFinishedSpanItems
-
-    val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
-
-    assert(thisTestSpans.size == 1)
-
-    val span = thisTestSpans(0)
-    assert(Context.current() == Context.root)
-
-    assert(span.getName == s"$prefix-span")
-  }
-  "flow.spanned" should "properly end span in case of error if mapped after span" in {
-
-    val prefix = s"[${UUID.randomUUID()}]"
-
-    val flow = Flow.fromValues(1, 2, 3)
-
-    val spanned = flow.span(myTracing)(s"$prefix-span", beforeClose = (s, thr) => s.addEvent(thr.toString))
-
-    try spanned.map { case 2 => throw new Exception("boom"); case n => n }.runToList()
-    catch case _ => ()
-
-    val spans = exporter.getFinishedSpanItems
-
-    val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
-
-    assert(thisTestSpans.size == 1)
-
-    val span = thisTestSpans(0)
-    assert(Context.current() == Context.root)
-
-    assert(span.getName == s"$prefix-span")
-  }
-
-  "flow.spanned" should "correctly picks parent span" in {
-
-    val prefix = s"[${UUID.randomUUID()}]"
-
-    val flow = Flow.fromValues(1, 2, 3)
-
-    val finalizer = myTracing.spanUnsafe(s"$prefix-parentSpan")
-
-    val spanned = flow.span(myTracing)(s"$prefix-span")
-
-    spanned.runToList(): Unit
-
-    finalizer.close()
-
-    val spans = exporter.getFinishedSpanItems
-
-    val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
-
-    assert(thisTestSpans.size == 2)
-
-    val (parentSpans, childrenSpans) = thisTestSpans.partitionMap { s => if s.getName.endsWith("parentSpan") then Left(s) else Right(s) }
-
-    assert(parentSpans.size == 1)
-    assert(childrenSpans.size == 1)
-    val parentSpan = parentSpans.head
-
-    for span <- childrenSpans
-    yield assert(span.getParentSpanId == parentSpan.getSpanId)
-    assert(Context.current() == Context.root)
-
-  }
-
-  "flow.spanned" should "open several spans if flatMapped" in {
-
-    val prefix = s"[${UUID.randomUUID()}]"
-
-    val flow = Flow.fromValues(1, 2, 3)
-
-    val spanned = flow.span(myTracing)(s"$prefix-span")
-
-    flow.flatMap { _ => spanned }.span(myTracing)(s"$prefix-parentSpan").runToList(): Unit
-
-    val spans = exporter.getFinishedSpanItems
-
-    val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
-
-    assert(thisTestSpans.size == 4)
-
-    val (parentSpans, childrenSpans) = thisTestSpans.partitionMap { s => if s.getName.endsWith("parentSpan") then Left(s) else Right(s) }
-
-    assert(parentSpans.size == 1)
-    assert(childrenSpans.size == 3)
-    val parentSpan = parentSpans.head
-
-    for span <- childrenSpans
-    yield assert(span.getParentSpanId == parentSpan.getSpanId)
-    assert(Context.current() == Context.root)
-
-  }
-
-  "flow.spanned" should "properly end span in case of error2" in {
-
-    val prefix = s"[${UUID.randomUUID()}]"
-
-    val flow = Flow.fromValues(1, 2, 3)
-
-    val spanned = flow.span(myTracing)(s"$prefix-span")
-
-    spanned.map { case 2 => throw new Exception("boom"); case x => x }.recover(_ => 5).runToList()
-
-    val spans = exporter.getFinishedSpanItems
-
-    val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
-
-    assert(thisTestSpans.size == 1)
-
-    val span = thisTestSpans(0)
-
-    assert(span.getName == s"$prefix-span")
-    assert(Context.current() == Context.root)
-
-  }
-  "flow.spanned" should "properly end span in case of error2fd" in {
-
-    val prefix = s"[${UUID.randomUUID()}]"
-
-    val flow = Flow.fromValues(1, 2, 3)
-
-    val spanned = span(flow)(myTracing)(s"$prefix-span")
-
-    val _ =
-      span(spanned.map { case 2 => throw new Exception("boom"); case x => currentSpanUnsafe(myTracing).addEvent(x.toString); x }.recover {
-        x =>
-          currentSpanUnsafe(myTracing).addEvent("recovery"); 5
-      })(myTracing)(s"$prefix-recover").runToList()
-
-    val spans = exporter.getFinishedSpanItems
-
-    val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
-
-    assert(thisTestSpans.size == 2)
-
-    val recoverySpan = thisTestSpans.find(_.getName.endsWith("recover")).get
-    val flowSpan = thisTestSpans.find(_.getName.endsWith("span")).get
-
-    assert(flowSpan.getParentSpanId == recoverySpan.getSpanId)
-    assert(Context.current() == Context.root)
-
-  }
-
-  "flow.spanned" should "properly end span in case of error2fdfs" in {
-
-    val prefix = s"[${UUID.randomUUID()}]"
-
-    val flow = Flow.fromValues(1, 2, 3)
-
-    val spanned = span(flow)(myTracing)(s"$prefix-span")
-
-    val finalinzer = spanUnsafe(myTracing)(s"$prefix-parent")
-
-    supervised {
-      (1 to 10).foreach(_ => fork(println(spanned.runToList())))
-    }
-
-    finalinzer.close()
-    val spans = exporter.getFinishedSpanItems
-
-    val thisTestSpans =
-      spans.asScala.filter(_.getName.startsWith(prefix)).filterNot(s => s.getSpanId == finalinzer.span.getSpanContext.getSpanId)
-
-    assert(thisTestSpans.size == 10)
-
-    thisTestSpans.foreach { s =>
-      assert(s.getParentSpanId == finalinzer.span.getSpanContext.getSpanId)
-    }
-    assert(Context.current() == Context.root)
-
-  }
-
-  "flow.spanned" should "properly end span in case of ejknrror2fdfs" in {
-
-    val prefix = s"[${UUID.randomUUID()}]"
-
-    val flow = Flow.fromValues(1, 2, 3)
-
-    val spanned = span(flow)(myTracing)(s"$prefix-span")
-
-    val finalinzer = spanUnsafe(myTracing)(s"$prefix-parent")
-
-    try
-      supervised {
-        (1 to 10).foreach {
-          case 1 => forkUser(spanned.tap(_ => throw new Exception("fds")).runToList())
-          case _ => forkUser(spanned.runToList())
+          assert(Context.current() == Context.root)
+          assert(thisTestSpans.head.getName == s"$prefix-span")
+          assert(thisTestSpans(1).getName == s"$prefix-span2")
         }
+
       }
-    catch case _ => ()
-    end try
-    finalinzer.close()
-    val spans = exporter.getFinishedSpanItems
 
-    val thisTestSpans =
-      spans.asScala.filter(_.getName.startsWith(prefix)).filterNot(s => s.getSpanId == finalinzer.span.getSpanContext.getSpanId)
+      "open a single span when downstream uses mapPar" in {
 
-    thisTestSpans.foreach { s =>
-      assert(s.getParentSpanId == finalinzer.span.getSpanContext.getSpanId)
-    }
-    assert(Context.current() == Context.root)
+        val prefix = s"[${UUID.randomUUID()}]"
 
-  }
+        val flow = Flow.fromValues(1, 2, 3)
 
-  "flow.spanned" should "properly end span in case of ejknrror2fdsfsfdffssfss" in { // flaky
+        val spanned = flow.span(myTracing)(s"$prefix-span")
 
-    val em = EitherMode[String]
-    val prefix = s"[${UUID.randomUUID()}]"
+        spanned.mapPar(3)(_ + 1).runDrain()
 
-    val flow = Flow.fromValues(1, 2, 3)
+        val spans = exporter.getFinishedSpanItems
 
-    val spanned = span(flow)(myTracing)(s"$prefix-level1")
+        val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
 
-    supervised {
-      (1 to 10).map {
-        case 1 =>
-          forkUser(
-            span(flow)(myTracing)(s"$prefix-1-level1")
-              .flatMap { el =>
-                val innerFlow = supervised {
-                  flow.span(myTracing)(s"$prefix-level2", beforeClose = _._1.addEvent("boomed"))
-                }
-                innerFlow
-              }
-              .runToList()
-          )
+        assert(thisTestSpans.size == 1)
 
-        case _ => forkUser(spanned.runToList())
+        val span = thisTestSpans(0)
+
+        assert(Context.current() == Context.root)
+        assert(span.getName == s"$prefix-span")
+        assert(span.getStatus.getStatusCode == StatusCode.UNSET)
+        assert(span.getEvents.isEmpty)
       }
-    }.byNameSpan(myTracing)(s"$prefix-level0")
-
-    val spans = exporter.getFinishedSpanItems
-
-    val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
-    val level0Spans = thisTestSpans.find(s => s.getName.endsWith("level0")).get
-    val level1Spans = thisTestSpans.filter(s => s.getName.endsWith("level1"))
-    val level2Spans = thisTestSpans.filter(s => s.getName.endsWith("level2"))
-
-    val level1_1 = level1Spans.find(s => s.getName.endsWith("1-level1")).get
-    assert(level1Spans.size == 10)
-    val level1Span = level1Spans.head
-    assert(level2Spans.size == 3)
-
-    level1Spans.foreach { s =>
-      assert(s.getParentSpanId == level0Spans.getSpanContext.getSpanId)
     }
 
-    level2Spans.foreach { s =>
-      assert(s.getParentSpanId == level1_1.getSpanContext.getSpanId)
+    "used under parent spans" should {
+      "use the current span as parent" in {
+
+        val prefix = s"[${UUID.randomUUID()}]"
+
+        val flow = Flow.fromValues(1, 2, 3)
+
+        val finalizer = myTracing.spanUnsafe(s"$prefix-parentSpan")
+
+        val spanned = flow.span(myTracing)(s"$prefix-span")
+
+        spanned.runToList(): Unit
+
+        finalizer.close()
+
+        val spans = exporter.getFinishedSpanItems
+
+        val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
+
+        assert(thisTestSpans.size == 2)
+
+        val (parentSpans, childrenSpans) = thisTestSpans.partitionMap { s =>
+          if s.getName.endsWith("parentSpan") then Left(s) else Right(s)
+        }
+
+        assert(parentSpans.size == 1)
+        assert(childrenSpans.size == 1)
+        val parentSpan = parentSpans.head
+
+        for span <- childrenSpans
+        yield assert(span.getParentSpanId == parentSpan.getSpanId)
+        assert(Context.current() == Context.root)
+
+      }
+
+      "open one child span per element when flatMapped under a parent span" in {
+
+        val prefix = s"[${UUID.randomUUID()}]"
+
+        val flow = Flow.fromValues(1, 2, 3)
+
+        val spanned = flow.span(myTracing)(s"$prefix-span")
+
+        flow.flatMap { _ => spanned }.span(myTracing)(s"$prefix-parentSpan").runToList(): Unit
+
+        val spans = exporter.getFinishedSpanItems
+
+        val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
+
+        assert(thisTestSpans.size == 4)
+
+        val (parentSpans, childrenSpans) = thisTestSpans.partitionMap { s =>
+          if s.getName.endsWith("parentSpan") then Left(s) else Right(s)
+        }
+
+        assert(parentSpans.size == 1)
+        assert(childrenSpans.size == 3)
+        val parentSpan = parentSpans.head
+
+        for span <- childrenSpans
+        yield assert(span.getParentSpanId == parentSpan.getSpanId)
+        assert(Context.current() == Context.root)
+
+      }
+
+      "parent spans of concurrently run flows under the enclosing span" in {
+
+        val prefix = s"[${UUID.randomUUID()}]"
+
+        val flow = Flow.fromValues(1, 2, 3)
+
+        val spanned = span(flow)(myTracing)(s"$prefix-span")
+
+        val finalinzer = spanUnsafe(myTracing)(s"$prefix-parent")
+
+        supervised {
+          (1 to 10).foreach(_ => fork(spanned.runToList()))
+
+        }
+
+        finalinzer.close()
+        val spans = exporter.getFinishedSpanItems
+
+        val thisTestSpans =
+          spans.asScala.filter(_.getName.startsWith(prefix)).filterNot(s => s.getSpanId == finalinzer.span.getSpanContext.getSpanId)
+
+        assert(thisTestSpans.size == 10)
+
+        thisTestSpans.foreach { s =>
+          assert(s.getParentSpanId == finalinzer.span.getSpanContext.getSpanId)
+        }
+        assert(Context.current() == Context.root)
+
+      }
+
+      "nest spans across forks and inner supervised scopes" in {
+
+        val em = EitherMode[String]
+        val prefix = s"[${UUID.randomUUID()}]"
+
+        val flow = Flow.fromValues(1, 2, 3)
+
+        val spanned = span(flow)(myTracing)(s"$prefix-level1")
+
+        supervised {
+          (1 to 10).map {
+            case 1 =>
+              forkUser(
+                span(flow)(myTracing)(s"$prefix-1-level1")
+                  .flatMap { el =>
+                    val innerFlow = supervised {
+                      flow.span(myTracing)(s"$prefix-level2", beforeClose = _._1.addEvent("boomed"))
+                    }
+                    innerFlow
+                  }
+                  .runToList()
+              )
+
+            case _ => forkUser(spanned.runToList())
+          }
+        }.byNameSpan(myTracing)(s"$prefix-level0")
+
+        val spans = exporter.getFinishedSpanItems
+
+        val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
+        val level0Spans = thisTestSpans.find(s => s.getName.endsWith("level0")).get
+        val level1Spans = thisTestSpans.filter(s => s.getName.endsWith("level1"))
+        val level2Spans = thisTestSpans.filter(s => s.getName.endsWith("level2"))
+
+        val level1_1 = level1Spans.find(s => s.getName.endsWith("1-level1")).get
+        assert(level1Spans.size == 10)
+        val level1Span = level1Spans.head
+        assert(level2Spans.size == 3)
+
+        level1Spans.foreach { s =>
+          assert(s.getParentSpanId == level0Spans.getSpanContext.getSpanId)
+        }
+
+        level2Spans.foreach { s =>
+          assert(s.getParentSpanId == level1_1.getSpanContext.getSpanId)
+        }
+        assert(Context.current() == Context.root)
+
+      }
     }
-    assert(Context.current() == Context.root)
 
-  }
+    "a stage fails" should {
+      "record exception and set ERROR status when the flow fails" in {
 
-  "flow.spanned" should "properly end span in case of ejknrror2fdffssfss" in {
+        val prefix = s"[${UUID.randomUUID()}]"
 
-    val em = EitherMode[String]
-    val prefix = s"[${UUID.randomUUID()}]"
+        val flow = Flow.fromValues(1, 2, 3)
 
-    val flow = Flow.fromValues(1, 2, 3)
+        try
+          flow
+            .tap { case 2 => throw new Exception("boom"); case _ => () }
+            .span(myTracing)(s"$prefix-span", beforeClose = (s, thr) => s.addEvent(thr.toString))
+            .runToList()
+        catch case _ => ()
 
-    val finalinzer = spanUnsafe(myTracing)(s"$prefix-level0")
+        val spans = exporter.getFinishedSpanItems
 
-    val spanned = span(flow)(myTracing)(s"$prefix-level1")
+        val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
 
-    try
-      supervised {
-        (1 to 10).map {
-          case 1 =>
-            forkUser {
-              span(flow)(myTracing)(s"$prefix-1-level1")
-                .flatMap { el =>
-                  {
-                    val inner = supervisedError(em):
-                      either:
-                        val innerFlow =
-                          em.pure(flow.span(myTracing)(s"$prefix-level2", beforeClose = _._1.addEvent(s"boomed at $el")).map {
-                            case 1 => em.pureError("ops").ok();
-                            case x => x
-                          })
-                        innerFlow.ok()
-                    inner
-                  }.toOption.get
-                }
-                .runToList()
+        assert(thisTestSpans.size == 1)
+
+        val span = thisTestSpans(0)
+        assert(Context.current() == Context.root)
+
+        assert(span.getName == s"$prefix-span")
+        assert(span.getStatus.getStatusCode == StatusCode.ERROR)
+        assert(span.getStatus.getDescription == "boom")
+        assert(span.getEvents.asScala.exists(_.getName == "exception"))
+      }
+
+      "end span when a downstream stage fails after span" in {
+
+        val prefix = s"[${UUID.randomUUID()}]"
+
+        val flow = Flow.fromValues(1, 2, 3)
+
+        val spanned = flow.span(myTracing)(s"$prefix-span", beforeClose = (s, thr) => s.addEvent(thr.toString))
+
+        try spanned.map { case 2 => throw new Exception("boom"); case n => n }.runToList()
+        catch case _ => ()
+
+        val spans = exporter.getFinishedSpanItems
+
+        val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
+
+        assert(thisTestSpans.size == 1)
+
+        val span = thisTestSpans(0)
+        assert(Context.current() == Context.root)
+
+        assert(span.getName == s"$prefix-span")
+      }
+
+      "end span when downstream failure is recovered" in {
+
+        val prefix = s"[${UUID.randomUUID()}]"
+
+        val flow = Flow.fromValues(1, 2, 3)
+
+        val spanned = flow.span(myTracing)(s"$prefix-span")
+
+        spanned.map { case 2 => throw new Exception("boom"); case x => x }.recover(_ => 5).runToList()
+
+        val spans = exporter.getFinishedSpanItems
+
+        val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
+
+        assert(thisTestSpans.size == 1)
+
+        val span = thisTestSpans(0)
+
+        assert(span.getName == s"$prefix-span")
+        assert(Context.current() == Context.root)
+
+      }
+
+      "keep the flow span as a child of the recovery span when failure is recovered" in {
+
+        val prefix = s"[${UUID.randomUUID()}]"
+
+        val flow = Flow.fromValues(1, 2, 3)
+
+        val spanned = span(flow)(myTracing)(s"$prefix-span")
+
+        val _ =
+          span(
+            spanned.map { case 2 => throw new Exception("boom"); case x => currentSpanUnsafe(myTracing).addEvent(x.toString); x }.recover {
+              x =>
+                currentSpanUnsafe(myTracing).addEvent("recovery"); 5
             }
-          case _ => forkUser(spanned.runToList())
-        }
+          )(myTracing)(s"$prefix-recover").runToList()
+
+        val spans = exporter.getFinishedSpanItems
+
+        val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
+
+        assert(thisTestSpans.size == 2)
+
+        val recoverySpan = thisTestSpans.find(_.getName.endsWith("recover")).get
+        val flowSpan = thisTestSpans.find(_.getName.endsWith("span")).get
+
+        assert(flowSpan.getParentSpanId == recoverySpan.getSpanId)
+        assert(Context.current() == Context.root)
+
       }
-    catch case _ => ()
-    end try
 
-    finalinzer.close()
-    val spans = exporter.getFinishedSpanItems
+      "end spans of concurrent flows when one of them fails" in {
 
-    val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
-    val level1Spans = thisTestSpans.filter(s => s.getName.endsWith("level1"))
-    val level2Spans = thisTestSpans.filter(s => s.getName.endsWith("level2"))
-    val level1_1 = level1Spans.find(s => s.getName.endsWith("1-level1")).get
+        val prefix = s"[${UUID.randomUUID()}]"
 
-    assert(level2Spans.size == 1) // because flow.flatMap is evaluated sequentially and exception ends whole flow
+        val flow = Flow.fromValues(1, 2, 3)
 
-    level1Spans.foreach { s =>
-      assert(s.getParentSpanId == finalinzer.span.getSpanContext.getSpanId, "level1 spans id")
-    }
+        val spanned = span(flow)(myTracing)(s"$prefix-span")
 
-    level2Spans.foreach { s =>
-      assert(s.getParentSpanId == level1_1.getSpanContext.getSpanId, "level2 spans id")
-      assert(s.getEvents().get(0).getName.startsWith("boomed"))
+        val finalinzer = spanUnsafe(myTracing)(s"$prefix-parent")
 
-    }
-    assert(Context.current() == Context.root)
-
-  }
-
-  "flow.spanned" should "properly end span in case of ejknfdssrror2fdffssfss" in {
-
-    val em = EitherMode[String]
-    val prefix = s"[${UUID.randomUUID()}]"
-
-    val flow = Flow.fromValues(1, 2, 3)
-
-    val finalinzer = spanUnsafe(myTracing)(s"$prefix-level0")
-
-    val spanned = span(flow)(myTracing)(s"$prefix-level1")
-
-    try
-      supervised {
-        (1 to 10).map {
-          case 1 =>
-            forkUser {
-              (span(flow)(myTracing)(s"$prefix-1-level1")
-                .flatMap { el =>
-                  {
-                    val inner = supervisedError(em):
-                      either:
-                        val innerFlow =
-                          em.pure(flow.span(myTracing)(s"$prefix-level2", beforeClose = _._1.addEvent(s"boomed at $el")).map {
-                            case 1 => em.pureError("ops").ok();
-                            case x => x
-                          })
-                        innerFlow.ok()
-                    println(inner)
-                    inner
-                  }.toOption.getOrElse(Flow.empty)
-                }
-                .runToList())
+        try
+          supervised {
+            (1 to 10).foreach {
+              case 1 => forkUser(spanned.tap(_ => throw new Exception("fds")).runToList())
+              case _ => forkUser(spanned.runToList())
             }
-          case _ => forkUser(spanned.runToList())
+          }
+        catch case _ => ()
+        end try
+        finalinzer.close()
+        val spans = exporter.getFinishedSpanItems
+
+        val thisTestSpans =
+          spans.asScala.filter(_.getName.startsWith(prefix)).filterNot(s => s.getSpanId == finalinzer.span.getSpanContext.getSpanId)
+
+        thisTestSpans.foreach { s =>
+          assert(s.getParentSpanId == finalinzer.span.getSpanContext.getSpanId)
         }
+        assert(Context.current() == Context.root)
+
       }
-    catch case _ => ()
-    end try
 
-    finalinzer.close()
-    val spans = exporter.getFinishedSpanItems
+      "end inner spans with event when nested flow fails in supervisedError" in {
 
-    val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
-    val level1Spans = thisTestSpans.filter(s => s.getName.endsWith("level1"))
-    val level2Spans = thisTestSpans.filter(s => s.getName.endsWith("level2"))
-    val level1_1 = level1Spans.find(s => s.getName.endsWith("1-level1")).get
+        val em = EitherMode[String]
+        val prefix = s"[${UUID.randomUUID()}]"
 
-    assert(level2Spans.size == 1) // because flow.flatMap is evaluated sequentially and exception ends whole flow
+        val flow = Flow.fromValues(1, 2, 3)
 
-    level1Spans.foreach { s =>
-      assert(s.getParentSpanId == finalinzer.span.getSpanContext.getSpanId)
-    }
+        val finalinzer = spanUnsafe(myTracing)(s"$prefix-level0")
 
-    level2Spans.foreach { s =>
-      if s.getParentSpanId != level1_1.getSpanContext.getSpanId then println("fsfd")
-      assert(s.getParentSpanId == level1_1.getSpanContext.getSpanId)
-      assert(s.getEvents().get(0).getName.startsWith("boomed"))
+        val spanned = span(flow)(myTracing)(s"$prefix-level1")
 
-    }
-    assert(Context.current() == Context.root)
+        try
+          supervised {
+            (1 to 10).map {
+              case 1 =>
+                forkUser {
+                  span(flow)(myTracing)(s"$prefix-1-level1")
+                    .flatMap { el =>
+                      {
+                        val inner = supervisedError(em):
+                          either:
+                            val innerFlow =
+                              em.pure(flow.span(myTracing)(s"$prefix-level2", beforeClose = _._1.addEvent(s"boomed at $el")).map {
+                                case 1 => em.pureError("ops").ok();
+                                case x => x
+                              })
+                            innerFlow.ok()
+                        inner
+                      }.toOption.get
+                    }
+                    .runToList()
+                }
+              case _ => forkUser(spanned.runToList())
+            }
+          }
+        catch case _ => ()
+        end try
 
-  }
+        finalinzer.close()
+        val spans = exporter.getFinishedSpanItems
 
-  "flow.spanned" should "properly end span in case of ejknrrorfdsd2fdffssfss" in { // flaky
+        val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
+        val level1Spans = thisTestSpans.filter(s => s.getName.endsWith("level1"))
+        val level2Spans = thisTestSpans.filter(s => s.getName.endsWith("level2"))
+        val level1_1 = level1Spans.find(s => s.getName.endsWith("1-level1")).get
 
-    val em = EitherMode[String]
-    val prefix = s"[${UUID.randomUUID()}]"
+        assert(level2Spans.size == 1) // because flow.flatMap is evaluated sequentially and exception ends whole flow
 
-    val flow = Flow.fromValues(1, 2, 3)
+        level1Spans.foreach { s =>
+          assert(s.getParentSpanId == finalinzer.span.getSpanContext.getSpanId, "level1 spans id")
+        }
 
-    val finalinzer = spanUnsafe(myTracing)(s"$prefix-level0")
+        level2Spans.foreach { s =>
+          assert(s.getParentSpanId == level1_1.getSpanContext.getSpanId, "level2 spans id")
+          assert(s.getEvents.asScala.exists(_.getName.startsWith("boomed")))
 
-    val spanned = span(flow)(myTracing)(s"$prefix-level1")
+        }
+        assert(Context.current() == Context.root)
 
-    try
-      supervisedError(em) {
-        either:
-          em.pure:
+      }
+
+      "end inner spans with event when nested flow fails and failure is replaced by empty flow" in {
+
+        val em = EitherMode[String]
+        val prefix = s"[${UUID.randomUUID()}]"
+
+        val flow = Flow.fromValues(1, 2, 3)
+
+        val finalinzer = spanUnsafe(myTracing)(s"$prefix-level0")
+
+        val spanned = span(flow)(myTracing)(s"$prefix-level1")
+
+        try
+          supervised {
             (1 to 10).map {
               case 1 =>
                 forkUser {
                   (span(flow)(myTracing)(s"$prefix-1-level1")
                     .flatMap { el =>
                       {
-                        supervisedError(em):
-                          val innerFlow =
-                            em.pure(flow.span(myTracing)(s"$prefix-level2", beforeClose = _._1.addEvent(s"boomed at $el")).map {
-                              case 1 => em.pureError("ops").ok();
-                              case x => x
-                            })
-                          innerFlow
-                      }.toOption.get
+                        val inner = supervisedError(em):
+                          either:
+                            val innerFlow =
+                              em.pure(flow.span(myTracing)(s"$prefix-level2", beforeClose = _._1.addEvent(s"boomed at $el")).map {
+                                case 1 => em.pureError("ops").ok();
+                                case x => x
+                              })
+                            innerFlow.ok()
+                        inner
+                      }.toOption.getOrElse(Flow.empty)
                     }
                     .runToList())
                 }
               case _ => forkUser(spanned.runToList())
             }
+          }
+        catch case _ => ()
+        end try
+
+        finalinzer.close()
+        val spans = exporter.getFinishedSpanItems
+
+        val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
+        val level1Spans = thisTestSpans.filter(s => s.getName.endsWith("level1"))
+        val level2Spans = thisTestSpans.filter(s => s.getName.endsWith("level2"))
+        val level1_1 = level1Spans.find(s => s.getName.endsWith("1-level1")).get
+
+        assert(level2Spans.size == 1) // because flow.flatMap is evaluated sequentially and exception ends whole flow
+
+        level1Spans.foreach { s =>
+          assert(s.getParentSpanId == finalinzer.span.getSpanContext.getSpanId)
+        }
+
+        level2Spans.foreach { s =>
+          assert(s.getParentSpanId == level1_1.getSpanContext.getSpanId)
+          assert(s.getEvents.asScala.exists(_.getName.startsWith("boomed")))
+
+        }
+        assert(Context.current() == Context.root)
+
       }
-    catch case _ => ()
-    end try
 
-    finalinzer.close()
-    val spans = exporter.getFinishedSpanItems
+      "end inner spans with event when nested flow fails inside enclosing supervisedError" in {
 
-    val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
-    val level1Spans = thisTestSpans.filter(s => s.getName.endsWith("level1"))
-    val level2Spans = thisTestSpans.filter(s => s.getName.endsWith("level2"))
-    val level1_1 = level1Spans.find(s => s.getName.endsWith("1-level1")).get
+        val em = EitherMode[String]
+        val prefix = s"[${UUID.randomUUID()}]"
 
-    val level1Span = level1Spans.head
-    assert(level2Spans.size == 1) // because flow.flatMap is evaluated sequentially and exception ends whole flow
+        val flow = Flow.fromValues(1, 2, 3)
 
-    level1Spans.foreach { s =>
-      assert(s.getParentSpanId == finalinzer.span.getSpanContext.getSpanId)
+        val finalinzer = spanUnsafe(myTracing)(s"$prefix-level0")
+
+        val spanned = span(flow)(myTracing)(s"$prefix-level1")
+
+        try
+          supervisedError(em) {
+            either:
+              em.pure:
+                (1 to 10).map {
+                  case 1 =>
+                    forkUser {
+                      (span(flow)(myTracing)(s"$prefix-1-level1")
+                        .flatMap { el =>
+                          {
+                            supervisedError(em):
+                              val innerFlow =
+                                em.pure(flow.span(myTracing)(s"$prefix-level2", beforeClose = _._1.addEvent(s"boomed at $el")).map {
+                                  case 1 => em.pureError("ops").ok();
+                                  case x => x
+                                })
+                              innerFlow
+                          }.toOption.get
+                        }
+                        .runToList())
+                    }
+                  case _ => forkUser(spanned.runToList())
+                }
+          }
+        catch case _ => ()
+        end try
+
+        finalinzer.close()
+        val spans = exporter.getFinishedSpanItems
+
+        val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
+        val level1Spans = thisTestSpans.filter(s => s.getName.endsWith("level1"))
+        val level2Spans = thisTestSpans.filter(s => s.getName.endsWith("level2"))
+        val level1_1 = level1Spans.find(s => s.getName.endsWith("1-level1")).get
+
+        val level1Span = level1Spans.head
+        assert(level2Spans.size == 1) // because flow.flatMap is evaluated sequentially and exception ends whole flow
+
+        level1Spans.foreach { s =>
+          assert(s.getParentSpanId == finalinzer.span.getSpanContext.getSpanId)
+        }
+
+        level2Spans.foreach { s =>
+          assert(s.getParentSpanId == level1_1.getSpanContext.getSpanId)
+          assert(s.getEvents.asScala.exists(_.getName.startsWith("boomed")))
+
+        }
+        assert(Context.current() == Context.root)
+
+      }
     }
 
-    level2Spans.foreach { s =>
-      assert(s.getParentSpanId == level1_1.getSpanContext.getSpanId)
-      assert(s.getEvents().get(0).getName.startsWith("boomed"))
+    "cancelled" should {
+      "end span when enclosing supervised scope fails before stream completion" in {
 
-    }
-    assert(Context.current() == Context.root)
+        val prefix = s"[${UUID.randomUUID()}]"
 
-  }
+        val semaphore = Semaphore(0)
 
-  "flow.spanned" should "properly end span even if enclosing supervised scope fails before stream completion" in {
+        val flow = Flow.fromValues(1, 2, 3)
 
-    val prefix = s"[${UUID.randomUUID()}]"
+        try
+          supervised {
+            val failingFork = forkUser {
+              semaphore.acquire()
+              throw new Exception("oops")
 
-    val semaphore = Semaphore(0)
+            }
+            val forkWithSpan = forkUser {
+              span(flow)(myTracing)(s"$prefix-level1").tap { case 1 => semaphore.release(); case _ => sleep(100.seconds) }.runToList()
 
-    val flow = Flow.fromValues(1, 2, 3)
+            }
 
-    try
-      supervised {
-        val failingFork = forkUser {
+          }
+
+        catch case err => ()
+        end try
+
+        val spans = exporter.getFinishedSpanItems
+
+        val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
+
+        assert(thisTestSpans.size == 1)
+        assert(Context.current() == Context.root)
+
+      }
+
+      "end span when the enclosing fork is cancelled" in {
+
+        val prefix = s"[${UUID.randomUUID()}]"
+
+        val semaphore = Semaphore(0)
+
+        val flow = Flow.fromValues(1, 2, 3)
+
+        supervised {
+          val forkWithSpan = forkCancellable {
+            span(flow)(myTracing)(s"$prefix-level1").tap { case 1 => semaphore.release(); case _ => sleep(100.seconds) }.runToList()
+
+          }
           semaphore.acquire()
-          throw new Exception("oops")
-
-        }
-        val forkWithSpan = forkUser {
-          span(flow)(myTracing)(s"$prefix-level1").tap { case 1 => semaphore.release(); case _ => sleep(100.seconds) }.runToList()
+          forkWithSpan.cancelNow()
 
         }
 
-      }
+        val spans = exporter.getFinishedSpanItems
 
-    catch case err => ()
-    end try
+        val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
 
-    val spans = exporter.getFinishedSpanItems
-
-    val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
-
-    assert(thisTestSpans.size == 1)
-    assert(Context.current() == Context.root)
-
-  }
-
-  "flow.spanned" should "properly end span even if cancelled" in {
-
-    val prefix = s"[${UUID.randomUUID()}]"
-
-    val semaphore = Semaphore(0)
-
-    val flow = Flow.fromValues(1, 2, 3)
-
-    supervised {
-      val forkWithSpan = forkCancellable {
-        span(flow)(myTracing)(s"$prefix-level1").tap { case 1 => semaphore.release(); case _ => sleep(100.seconds) }.runToList()
+        assert(thisTestSpans.size == 1)
+        assert(Context.current() == Context.root)
 
       }
-      semaphore.acquire()
-      forkWithSpan.cancelNow()
-
     }
-
-    val spans = exporter.getFinishedSpanItems
-
-    val thisTestSpans = spans.asScala.filter(_.getName.startsWith(prefix))
-
-    assert(thisTestSpans.size == 1)
-    assert(Context.current() == Context.root)
-
   }
+
 end OxTelemetryTest
