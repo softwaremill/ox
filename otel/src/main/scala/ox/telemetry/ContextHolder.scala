@@ -3,7 +3,7 @@ package ox.telemetry
 import io.opentelemetry.context.{Context, Scope}
 import ox.otel.context.PropagatingVirtualThreadFactory
 
-/** Abstraction over how [[OxTracing]] interacts with OpenTelemetry [[Context]].
+/** Abstraction over how [[ox.telemetry.tracing.OxTracing]] interacts with OpenTelemetry [[Context]].
   */
 sealed trait ContextHolder:
   /** Returns the current [[Context]]. */

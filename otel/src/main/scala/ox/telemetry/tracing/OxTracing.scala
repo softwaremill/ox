@@ -87,7 +87,7 @@ end OxTracing
 
 object OxTracing:
 
-  /** Tracing that relies on the [[PropagatingVirtualThreadFactory]] to propagate the context to forks. A warning is printed to stderr on
+  /** Tracing that relies on the [[ox.otel.context.PropagatingVirtualThreadFactory]] to propagate the context to forks. A warning is printed to stderr on
     * first use, if the thread factory is not set up.
     *
     * @see
@@ -96,7 +96,7 @@ object OxTracing:
   def native(tracer: Tracer): OxTracing = Impl(tracer, ContextHolder.CheckingThreadFactory)
 
   /** Tracing which leaves the propagation of the [[io.opentelemetry.context.Context]] to new threads to the user. For an out-of-the-box
-    * integration, use [[native]] together with the [[PropagatingVirtualThreadFactory]].
+    * integration, use [[native]] together with the [[ox.otel.context.PropagatingVirtualThreadFactory]].
     */
   def custom(tracer: Tracer): OxTracing = Impl(tracer, ContextHolder.Delegating)
 
