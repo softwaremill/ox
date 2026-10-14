@@ -49,8 +49,8 @@ sealed trait OxTracing extends OxFlowTracing:
     *
     * @param beforeClose
     *   Run right before the span is closed, e.g. to set attributes or add events. The second element of the argument is the exception
-    *   thrown by `t`, if any. If `beforeClose` itself throws, the exception is added as suppressed to the one thrown by `t`, or thrown
-    *   if `t` succeeded. The span is closed in either case.
+    *   thrown by `t`, if any. If `beforeClose` itself throws, the exception is added as suppressed to the one thrown by `t`, or thrown if
+    *   `t` succeeded. The span is closed in either case.
     */
   def byNameSpan[T](t: => T)(
       spanName: String,
@@ -87,8 +87,8 @@ end OxTracing
 
 object OxTracing:
 
-  /** Tracing that relies on the [[ox.otel.context.PropagatingVirtualThreadFactory]] to propagate the context to forks. A warning is printed to stderr on
-    * first use, if the thread factory is not set up.
+  /** Tracing that relies on the [[ox.otel.context.PropagatingVirtualThreadFactory]] to propagate the context to forks. A warning is printed
+    * to stderr on first use, if the thread factory is not set up.
     *
     * @see
     *   [[ox.OxApp.Settings.threadFactory]], [[ox.setOxThreadFactory]]

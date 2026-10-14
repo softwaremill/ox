@@ -14,8 +14,7 @@ sealed trait ContextHolder:
 
 private[telemetry] object ContextHolder:
 
-  /** Delegates to OpenTelemetry Context. Propagating the context to new (virtual) threads is
-    * left to the user.
+  /** Delegates to OpenTelemetry Context. Propagating the context to new (virtual) threads is left to the user.
     */
   private[telemetry] object Delegating extends ContextHolder:
 
@@ -23,8 +22,8 @@ private[telemetry] object ContextHolder:
 
     override def set(context: Context): Scope = context.makeCurrent()
 
-  /** As [[Delegating]], but warns when [[ox.oxThreadFactory]] is not a [[PropagatingVirtualThreadFactory]],
-    * as in that case the context won't be propagated to forks.
+  /** As [[Delegating]], but warns when [[ox.oxThreadFactory]] is not a [[PropagatingVirtualThreadFactory]], as in that case the context
+    * won't be propagated to forks.
     */
   private[telemetry] object CheckingThreadFactory extends ContextHolder:
     @volatile private var checked = false
