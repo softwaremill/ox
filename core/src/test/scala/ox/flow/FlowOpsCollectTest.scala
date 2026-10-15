@@ -8,7 +8,7 @@ class FlowOpsCollectTest extends AnyFlatSpec with Matchers:
   behavior of "collect"
 
   it should "collect over a source" in:
-    val c = Flow.fromValues(1 to 10: _*)
+    val c = Flow.fromValues(1 to 10*)
 
     val s = c.collect:
       case i if i % 2 == 0 => i * 10

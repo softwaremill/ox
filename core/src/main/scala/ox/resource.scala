@@ -11,15 +11,21 @@ import scala.util.NotGiven
 )
 opaque type NoEnclosingConcurrencyScope = Unit
 
-/** Scala 3.9+ erases a result of type `NoEnclosingConcurrencyScope` to `void`, earlier versions to `BoxedUnit`. Overriding this method
-  * makes the compiler emit both signatures, so code compiled with 3.9+ links against Ox (https://github.com/scala/scala3/issues/24653).
-  */
+// Scala 3.9+ erases NoEnclosingConcurrencyScope results to void, older versions to BoxedUnit;
+// kept for binary compatibility (https://github.com/scala/scala3/issues/24653)
 private[ox] trait NoEnclosingConcurrencyScopeVoidErasure:
   def noEnclosingConcurrencyScope(using NotGiven[OxUnsupervised]): Unit
 
 object NoEnclosingConcurrencyScope extends NoEnclosingConcurrencyScopeVoidErasure:
   // in the companion, so that it's found via the implicit scope of the type, without any imports
   given noEnclosingConcurrencyScope(using NotGiven[OxUnsupervised]): NoEnclosingConcurrencyScope = ()
+
+  // the BoxedUnit variant (the pre-3.9 erasure of the given above, which is now void), for binary compatibility with code
+  // compiled against Ox built with Scala 3.3 (https://github.com/scala/scala3/issues/24653)
+  @targetName("noEnclosingConcurrencyScope")
+  private[ox] def noEnclosingConcurrencyScopeBoxedUnit(using NotGiven[OxUnsupervised]): scala.runtime.BoxedUnit =
+    scala.runtime.BoxedUnit.UNIT
+end NoEnclosingConcurrencyScope
 
 /** Starts a new resource scope: within the given code block `f`, resources can be registered using [[useInScope]] and
   * [[releaseAfterScope]]. They are released, in reverse registration order, once `f` completes (either successfully or with an exception).

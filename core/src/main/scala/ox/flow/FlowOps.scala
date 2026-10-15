@@ -2,7 +2,6 @@ package ox.flow
 
 import ox.CancellableFork
 import ox.Fork
-import ox.Ox
 import ox.OxUnsupervised
 import ox.channels.BufferCapacity
 import ox.channels.Channel
@@ -623,17 +622,14 @@ class FlowOps[+T]:
     *   An upper bound on the number of child flows that run in parallel.
     */
   def flattenPar[U](parallelism: Int)(using T <:< Flow[U])(using BufferCapacity): Flow[U] = Flow.usingEmitInline: emit =>
-    case class Nested(child: Flow[U])
-    case object ChildDone
-
     unsupervised:
       val childOutputChannel = BufferCapacity.newChannel[U]
-      val childDoneChannel = Channel.unlimited[ChildDone.type]
+      val childDoneChannel = Channel.unlimited[Unit]
 
       // When an error occurs in the parent, propagating it also to `childOutputChannel`, from which we always
       // `select` in the main loop. That way, even if max parallelism is reached, errors in the parent will
       // be discovered without delay.
-      val parentChannel = outer.map(Nested(_)).onError(childOutputChannel.error(_).discard).runToChannel()
+      val parentChannel = outer.map(t => t: Flow[U]).onError(childOutputChannel.error(_).discard).runToChannel()
 
       var runningChannelCount = 1 // parent is running
       var parentDone = false
@@ -641,12 +637,13 @@ class FlowOps[+T]:
       while runningChannelCount > 0 do
         assert(runningChannelCount <= parallelism + 1)
 
-        val pool: List[Source[Nested] | Source[U] | Source[ChildDone.type]] =
+        val received =
           // +1, because of the parent channel.
-          if runningChannelCount == parallelism + 1 || parentDone then List(childOutputChannel, childDoneChannel)
-          else List(childOutputChannel, childDoneChannel, parentChannel)
+          if runningChannelCount == parallelism + 1 || parentDone
+          then selectOrClosed(childOutputChannel.receiveClause, childDoneChannel.receiveClause)
+          else selectOrClosed(childOutputChannel.receiveClause, childDoneChannel.receiveClause, parentChannel.receiveClause)
 
-        selectOrClosed(pool) match
+        received match
           // Only `parentChannel` might be done, child completion is signalled via `childDoneChannel`.
           case ChannelClosed.Done =>
             parentDone = isSourceDone(parentChannel)
@@ -656,16 +653,16 @@ class FlowOps[+T]:
 
           case e: ChannelClosed.Error => throw e.toThrowable
 
-          case ChildDone => runningChannelCount -= 1
+          case childDoneChannel.Received(_) => runningChannelCount -= 1
 
-          case Nested(t) =>
+          case parentChannel.Received(child) =>
             forkUnsupervised:
-              t.onDone(childDoneChannel.send(ChildDone)).runPipeToSink(childOutputChannel, propagateDone = false)
+              child.onDone(childDoneChannel.send(())).runPipeToSink(childOutputChannel, propagateDone = false)
             .discard
 
             runningChannelCount += 1
 
-          case u: U @unchecked => emit(u)
+          case childOutputChannel.Received(u) => emit(u)
         end match
       end while
   end flattenPar
@@ -918,7 +915,7 @@ class FlowOps[+T]:
     require(elements > 0, "elements must be > 0")
     require(per.toMillis > 0, "per time must be >= 1 ms")
     val emitEveryMillis = (per.toMillis / elements).millis
-    tap(t => sleep(emitEveryMillis))
+    tap(_ => sleep(emitEveryMillis))
   end throttle
 
   /** If this flow has no elements then elements from an `alternative` flow are emitted by the returned flow. If this flow is failed then
@@ -1249,7 +1246,7 @@ class FlowOps[+T]:
 
   /** Discard all elements emitted by this flow. The returned flow completes only when this flow completes (successfully or with an error).
     */
-  def drain(): Flow[Nothing] = Flow.usingEmitInline: emit =>
+  def drain(): Flow[Nothing] = Flow.usingEmitInline: _ =>
     last.run(FlowEmit.fromInline(_ => ()))
 
   /** Always runs `f` after the flow completes, whether it's because all elements are emitted, or when there's an error. */

@@ -13,7 +13,7 @@ class CollectParTest extends AnyFlatSpec with Matchers:
   "collectPar" should "output the same type as input" in {
     val input = List(1, 2, 3)
     val result = input.collectPar(1)(x => x)
-    result shouldBe a[List[_]]
+    result shouldBe a[List[?]]
   }
 
   it should "run computations in parallel" in {

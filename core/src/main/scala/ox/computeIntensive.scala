@@ -1,5 +1,6 @@
 package ox
 
+import scala.compiletime.uninitialized
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.ExecutorService
@@ -11,7 +12,7 @@ import java.util.concurrent.atomic.AtomicInteger
 // setting & computing the executor
 //
 
-private var customComputeExecutor: ExecutorService = _
+private var customComputeExecutor: ExecutorService = uninitialized
 
 /** Sets the executor used to run computations passed to [[computeIntensive]]. Should be called once, at the start of the application,
   * before any [[computeIntensive]] calls; the executor's lifecycle (shutdown) is then the responsibility of the caller.

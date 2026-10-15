@@ -13,7 +13,7 @@ class MapParTest extends AnyFlatSpec with Matchers:
   "mapPar" should "output the same type as input" in {
     val input = List(1, 2, 3)
     val result = input.mapPar(1)(identity)
-    result shouldBe a[List[_]]
+    result shouldBe a[List[?]]
   }
 
   it should "run computations in parallel" in {

@@ -120,26 +120,24 @@ private[resilience] object CircuitBreakerResults:
     private val results = new collection.mutable.ArrayDeque[CircuitBreakerResult](windowSize + 1)
     private var slowCalls = 0
     private var failedCalls = 0
-    private var successCalls = 0
 
     private def clearResults(): Unit =
       results.clear()
       slowCalls = 0
       failedCalls = 0
-      successCalls = 0
 
     def onStateChange(oldState: CircuitBreakerState, newState: CircuitBreakerState): Unit =
       if !oldState.isSameState(newState) then clearResults()
 
     def updateResults(result: CircuitBreakerResult): Unit =
       result match
-        case CircuitBreakerResult.Success => successCalls += 1
+        case CircuitBreakerResult.Success => ()
         case CircuitBreakerResult.Failure => failedCalls += 1
         case CircuitBreakerResult.Slow    => slowCalls += 1
       val resultingQueue = results.addOne(result)
       if resultingQueue.length > windowSize then
         resultingQueue.removeHeadOption(false) match
-          case Some(CircuitBreakerResult.Success) => successCalls -= 1
+          case Some(CircuitBreakerResult.Success) => ()
           case Some(CircuitBreakerResult.Failure) => failedCalls -= 1
           case Some(CircuitBreakerResult.Slow)    => slowCalls -= 1
           case None                               => ()
@@ -164,20 +162,18 @@ private[resilience] object CircuitBreakerResults:
     private val results = collection.mutable.ArrayDeque[(Long, CircuitBreakerResult)]()
     private var slowCalls = 0
     private var failedCalls = 0
-    private var successCalls = 0
 
     private def clearResults(): Unit =
       results.clear()
       slowCalls = 0
       failedCalls = 0
-      successCalls = 0
 
     def calculateMetrics(lastAcquisitionResult: Option[AcquireResult], timestamp: Long): Metrics =
       // filter all entries that happened outside sliding window
       val removed = results.removeHeadWhile((time, _) => timestamp > time + windowDuration.toMillis)
       removed.foreach { (_, result) =>
         result match
-          case CircuitBreakerResult.Success => successCalls -= 1
+          case CircuitBreakerResult.Success => ()
           case CircuitBreakerResult.Failure => failedCalls -= 1
           case CircuitBreakerResult.Slow    => slowCalls -= 1
       }
@@ -195,7 +191,7 @@ private[resilience] object CircuitBreakerResults:
 
     def updateResults(result: CircuitBreakerResult): Unit =
       result match
-        case CircuitBreakerResult.Success => successCalls += 1
+        case CircuitBreakerResult.Success => ()
         case CircuitBreakerResult.Failure => failedCalls += 1
         case CircuitBreakerResult.Slow    => slowCalls += 1
       results.addOne((System.currentTimeMillis(), result))
