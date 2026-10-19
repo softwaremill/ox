@@ -147,7 +147,7 @@ trait FlowTextOps[+T]:
       if str != null then output.apply(str)
       (newBuf, State.Pull)
 
-    def processByteOrderMark(bytes: T, buffer: Chunk[Byte], output: FlowEmit[String]): (Chunk[Byte], State) =
+    def processByteOrderMark(bytes: T, buffer: Chunk[Byte]): (Chunk[Byte], State) =
       // A common case, worth checking in advance
       if buffer == null && bytes.length >= bomSize && !bytes.startsWith(bomUtf8) then (bytes, State.Pull)
       else
@@ -168,7 +168,7 @@ trait FlowTextOps[+T]:
       last.run(
         FlowEmit.fromInline: t =>
           val (newBuffer, newState) = state match
-            case State.ProcessBOM => processByteOrderMark(t, buffer, emit)
+            case State.ProcessBOM => processByteOrderMark(t, buffer)
             case State.Pull       => doPull(t, buffer, emit)
 
           buffer = newBuffer
