@@ -19,17 +19,17 @@ Spans are created using an `OxTracing` instance, wrapping an OpenTelemetry `Trac
 import io.opentelemetry.api.trace.Tracer
 import ox.telemetry.tracing.OxTracing
 
-def tracing(tracer: Tracer): OxTracing = OxTracing.native(tracer)
+def tracing(tracer: Tracer): OxTracing = OxTracing(tracer)
 ```
 
 ## Propagating the context
 
 The current span is kept in the OpenTelemetry `Context`, which by default isn't propagated to new virtual threads, e.g.
-forks created in [`supervised`](../structured-concurrency/fork-join.md) scopes. `OxTracing.native` relies on the
-`PropagatingVirtualThreadFactory` from [otel-context](otel-context.md) to do that, and prints a warning to stderr if
-it's not set up. The factory can be set for the whole app when using [`OxApp`](../utils/oxapp.md), or manually through
-`setOxThreadFactory`, before the thread factory is first used (that is, before any scope is started, or `OxTracing.native`
-is used):
+forks created in [`supervised`](../structured-concurrency/fork-join.md) scopes. `OxTracing` therefore **requires** the
+`PropagatingVirtualThreadFactory` from [otel-context](otel-context.md) to be used; without it, spans created in forks
+won't be children of the span active when the fork was created. The factory can be set for the whole app when using
+[`OxApp`](../utils/oxapp.md), or manually through `setOxThreadFactory`, before the thread factory is first used (that
+is, before any scope is started):
 
 ```scala mdoc:compile-only
 import ox.*
@@ -43,15 +43,19 @@ object MyApp extends OxApp:
   def run(args: Vector[String])(using Ox): ExitCode = ExitCode.Success
 ```
 
-If you want to take care of context propagation yourself, use `OxTracing.custom`.
-
 ## Spans around code and flows
 
 `byNameSpan` evaluates a code block within a span. The span is ended once the block completes, and if the block throws,
-the exception is recorded on the span, and its status is set to `ERROR` (this includes an interruption). `Flow.span`
+the exception is recorded on the span, and its status is set to `ERROR`. An interruption and control-flow exits
+(`boundary.break`) end the span normally, as they aren't failures. `Flow.spanned`
 does the same for a [`Flow`](../streaming/flows.md): the span is opened when the flow is run, and ended when the flow
-completes, fails, or is interrupted. Downstream stages are run within the span as well, and running the flow multiple
-times opens a new span each time.
+completes, fails, or is interrupted. Running the flow multiple times opens a new span each time.
+
+The span covers the whole execution of the flow: from when it is run until it completes. This includes the stages placed
+after `spanned` that run synchronously (e.g. `map`, `flatMap`): they are called from within the span, so their duration
+is counted, and spans created there are its children. Stages after an asynchronous boundary, e.g.
+`.spanned(...).buffer().map(...)`, run concurrently, so they don't extend the span, which ends once its upstream
+completes. Put `spanned` last to cover the whole pipeline.
 
 In the example below, the `process-numbers` span is created in a fork, and thanks to the context being propagated, it's
 a child of the `request` span:
@@ -63,7 +67,7 @@ import ox.telemetry.tracing.*
 
 def example(tracing: OxTracing): Unit =
   val result = supervised {
-    fork(Flow.fromValues(1, 2, 3).span(tracing)("process-numbers").runToList()).join()
+    fork(Flow.fromValues(1, 2, 3).spanned(tracing)("process-numbers").runToList()).join()
   }.byNameSpan(tracing)("request")
   println(result)
 ```
@@ -80,9 +84,38 @@ import ox.telemetry.tracing.*
 def withAttributes(tracing: OxTracing): List[Int] =
   Flow
     .fromValues(1, 2, 3)
-    .span(tracing)("process-numbers", beforeClose = (span, error) => span.setAttribute("failed", error.isDefined))
+    .spanned(tracing)("process-numbers", beforeClose = s => s.span.setAttribute("failed", s.errorOpt.isDefined))
     .runToList()
 ```
+
+## Spans per element
+
+`Flow.spanned` opens a single span for the whole run. To have a span per element, open it in the stage that processes the
+element. For a single stage, use `byNameSpan` inside it; it's a child of the current span, so it nests under a
+`Flow.spanned` placed earlier in the flow. To span several stages per element, run them in an inner flow, and span that
+flow. `flatMap` processes the elements one after another, while `mapPar` runs the inner flows in parallel:
+
+```scala mdoc:compile-only
+import ox.flow.Flow
+import ox.telemetry.tracing.*
+
+def perElement(tracing: OxTracing, flow: Flow[Int]): Unit =
+  // one stage
+  flow.map(x => tracing.byNameSpan(x + 1)("increment")).runDrain()
+
+  // several stages, sequentially
+  flow
+    .flatMap(x => Flow.fromValues(x).map(_ + 1).filter(_ % 2 == 0).spanned(tracing)("element"))
+    .runDrain()
+
+  // several stages, in parallel
+  flow
+    .mapPar(4)(x => Flow.fromValues(x).map(_ + 1).filter(_ % 2 == 0).spanned(tracing)("element").runToList())
+    .runDrain()
+```
+
+The inner flow can use any stages, e.g. `grouped`: the span is opened when the inner flow is run, and closed after its
+last element is processed, or when it fails.
 
 ## Manual spans
 

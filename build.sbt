@@ -142,9 +142,9 @@ lazy val otel: Project = (project in file("otel"))
     Test / javaOptions += "-Dio.opentelemetry.context.enableStrictContext=true",
     libraryDependencies ++= Seq(
       "io.opentelemetry" % "opentelemetry-api" % "1.67.0",
-      "io.opentelemetry" % "opentelemetry-sdk" % "1.67.0",
       scalaTest,
-      "io.opentelemetry" % "opentelemetry-sdk-testing" % "1.67.0" % Test
+      "io.opentelemetry" % "opentelemetry-sdk-testing" % "1.67.0" % Test,
+      "io.opentelemetry" % "opentelemetry-exporter-otlp" % "1.67.0" % Test
     )
   )
   .dependsOn(core % "test->test;compile->compile", otelContext % "test->test;compile->compile")

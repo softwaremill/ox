@@ -15,7 +15,7 @@ extension [T](t: => T)
   ): T = oxTracing.byNameSpan(t)(spanName, spanKind, attributes, links, beforeClose)
 end extension
 
-export ox.telemetry.tracing.flow.span
+export ox.flow.tracing.{flatMapSpanned, mapSpanned, spanEachDownstream, spanEachStages, spanned}
 
 /** Returns the current span, see [[OxTracing.currentSpanUnsafe]]. */
 def currentSpanUnsafe(oxTracing: OxTracing) = oxTracing.currentSpanUnsafe()
