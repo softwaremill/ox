@@ -5,6 +5,8 @@ import io.opentelemetry.api.trace.{Span, SpanContext, SpanKind, StatusCode, Trac
 import io.opentelemetry.context.Context
 import ox.flow.tracing.OxFlowTracing
 
+import java.nio.channels.ClosedByInterruptException
+import java.util.concurrent.ExecutionException
 import scala.util.boundary
 import scala.util.control.ControlThrowable
 
@@ -45,36 +47,28 @@ sealed trait OxTracing extends OxFlowTracing:
     *
     * If `t` throws, the exception is recorded on the span and the span's status is set to [[io.opentelemetry.api.trace.StatusCode.ERROR]],
     * before `beforeClose` is called. The exception is then re-thrown. This doesn't apply to [[InterruptedException]] and
-    * [[scala.util.control.ControlThrowable]]s, as well as `boundary.break`: they are not failures, but a way of exiting early, so the
-    * span is ended without an error status, but `beforeClose` still receives them.
+    * [[java.nio.channels.ClosedByInterruptException]] (an interruption during I/O), [[scala.util.control.ControlThrowable]]s, as well as
+    * `boundary.break`: they are not failures, but a way of exiting early, so the span is ended without an error status, and `beforeClose`
+    * doesn't receive them, as if `t` succeeded. The same applies to a [[java.util.concurrent.ExecutionException]] wrapping one of them, as
+    * when a cancelled fork is joined. Fatal errors, e.g. [[OutOfMemoryError]], are failures and are recorded.
     *
-    * To span a [[ox.flow.Flow]], use [[OxFlowTracing.spanned]].
+    * To span a [[ox.flow.Flow]], use [[OxFlowTracing.span]].
     *
     * @param beforeClose
-    *   Run right before the span is closed, e.g. to set attributes or add events. The second element of the argument is the exception
-    *   thrown by `t`, if any. If `beforeClose` itself throws, the exception is added as suppressed to the one thrown by `t`, or thrown if
-    *   `t` succeeded. The span is closed in either case.
+    *   Run right before the span is closed, e.g. to set attributes or add events. The second element of the argument is the failure of `t`,
+    *   if any, that is the exception it threw, other than the ones which are not failures. If `beforeClose` itself throws, the exception is
+    *   added as suppressed to the one thrown by `t`, including the ones which are not failures, or thrown if `t` succeeded. The span is
+    *   closed in either case.
     */
-  def byNameSpan[T](t: => T)(
+  private[ox] def byNameSpan[T](t: => T)(
       spanName: String,
       spanKind: SpanKind = SpanKind.INTERNAL,
       attributes: Attributes = Attributes.empty(),
       links: Seq[SpanContext] = Seq.empty,
       beforeClose: SpanWithError => Span = _.span
-  ): T = byNameSpanIgnoring(t)(_ => false)(spanName, spanKind, attributes, links, beforeClose)
-
-  /** As [[byNameSpan]], but exceptions for which `ignored` returns `true` are not treated as failures of `t`: they are re-thrown, but not
-    * recorded on the span, don't set its status, and `beforeClose` doesn't receive them. Used to exclude exceptions, which originate
-    * outside of `t`, e.g. in the stages downstream of a flow.
-    */
-  private[ox] def byNameSpanIgnoring[T](t: => T)(ignored: Throwable => Boolean)(
-      spanName: String,
-      spanKind: SpanKind,
-      attributes: Attributes,
-      links: Seq[SpanContext],
-      beforeClose: SpanWithError => Span
   ): T =
     var error: Throwable | Null = null
+    var actionableError: Throwable | Null = null
     var finalizer: AutoCloseableSpan | Null = null
     try
       val finalize = spanUnsafe(spanName, spanKind, attributes, links)
@@ -82,14 +76,15 @@ sealed trait OxTracing extends OxFlowTracing:
       t
     catch
       case e: Throwable =>
-        if !ignored(e) then
-          error = e
-          if (finalizer ne null) && shouldRecord(e) then
+        error = e
+        if shouldRecord(e) then
+          actionableError = e
+          if finalizer ne null then
             finalizer.nn.span.recordException(e)
             finalizer.nn.span.setStatus(StatusCode.ERROR, e.getMessage): Unit
         throw e
     finally
-      try if finalizer ne null then beforeClose(SpanWithError(finalizer.nn.span, error)): Unit
+      try if finalizer ne null then beforeClose(SpanWithError(finalizer.nn.span, actionableError)): Unit
       catch
         case e: Throwable =>
           if error ne null then error.nn.addSuppressed(e)
@@ -98,9 +93,12 @@ sealed trait OxTracing extends OxFlowTracing:
       end try
     end try
 
-  end byNameSpanIgnoring
+  end byNameSpan
 
-  private def shouldRecord(e: Throwable): Boolean = !(e.isInstanceOf[InterruptedException] || e.isInstanceOf[ControlThrowable] || e.isInstanceOf[boundary.Break[?]])
+  private def shouldRecord(e: Throwable): Boolean = e match
+    case _: InterruptedException | _: ClosedByInterruptException | _: ControlThrowable | _: boundary.Break[?] => false
+    case e: ExecutionException if e.getCause ne null                                                          => shouldRecord(e.getCause)
+    case _                                                                                                    => true
 end OxTracing
 
 object OxTracing:

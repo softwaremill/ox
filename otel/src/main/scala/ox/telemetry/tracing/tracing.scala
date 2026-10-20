@@ -4,18 +4,7 @@ import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.{Span, SpanContext, SpanKind}
 import ox.telemetry.tracing.OxTracing
 
-extension [T](t: => T)
-  /** Evaluates the by-name argument within a new span, see [[OxTracing.byNameSpan]]. */
-  def byNameSpan(oxTracing: OxTracing)(
-      spanName: String,
-      spanKind: SpanKind = SpanKind.INTERNAL,
-      attributes: Attributes = Attributes.empty(),
-      links: Seq[SpanContext] = Seq.empty,
-      beforeClose: ((Span, Option[Throwable])) => Span = _._1
-  ): T = oxTracing.byNameSpan(t)(spanName, spanKind, attributes, links, beforeClose)
-end extension
-
-export ox.flow.tracing.{flatMapSpanned, mapSpanned, spanEachDownstream, spanEachStages, spanned}
+export ox.flow.tracing.{flatMapSpanned, mapSpanned, span}
 
 /** Returns the current span, see [[OxTracing.currentSpanUnsafe]]. */
 def currentSpanUnsafe(oxTracing: OxTracing) = oxTracing.currentSpanUnsafe()

@@ -43,19 +43,18 @@ object MyApp extends OxApp:
   def run(args: Vector[String])(using Ox): ExitCode = ExitCode.Success
 ```
 
-## Spans around code and flows
+## Spans around flows
 
-`byNameSpan` evaluates a code block within a span. The span is ended once the block completes, and if the block throws,
-the exception is recorded on the span, and its status is set to `ERROR`. An interruption and control-flow exits
-(`boundary.break`) end the span normally, as they aren't failures. `Flow.spanned`
-does the same for a [`Flow`](../streaming/flows.md): the span is opened when the flow is run, and ended when the flow
-completes, fails, or is interrupted. Running the flow multiple times opens a new span each time.
+`Flow.span` evaluates a [`Flow`](../streaming/flows.md) within a span: the span is opened when the flow is run, and ended
+when the flow completes, fails, or is interrupted. If the flow fails, the exception is recorded on the span, and its
+status is set to `ERROR`. An interruption and control-flow exits (`boundary.break`) end the span normally, as they
+aren't failures. Running the flow multiple times opens a new span each time.
 
-The span covers the whole execution of the flow: from when it is run until it completes. This includes the stages placed
-after `spanned` that run synchronously (e.g. `map`, `flatMap`): they are called from within the span, so their duration
-is counted, and spans created there are its children. Stages after an asynchronous boundary, e.g.
-`.spanned(...).buffer().map(...)`, run concurrently, so they don't extend the span, which ends once its upstream
-completes. Put `spanned` last to cover the whole pipeline.
+The flow and the span run in a fork, and the elements are passed to the stages placed after `span` through a buffer, of
+the size given by the `BufferCapacity` in scope. Because of that boundary, the span doesn't depend on which stages
+follow it: it covers the flow and everything upstream of it, until the last element is passed to the buffer. The stages
+placed after it are not counted, spans created there are not its children, and their failures are not recorded on it.
+To include more stages in the span, put them inside the spanned flow.
 
 In the example below, the `process-numbers` span is created in a fork, and thanks to the context being propagated, it's
 a child of the `request` span:
@@ -66,16 +65,19 @@ import ox.flow.Flow
 import ox.telemetry.tracing.*
 
 def example(tracing: OxTracing): Unit =
-  val result = supervised {
-    fork(Flow.fromValues(1, 2, 3).spanned(tracing)("process-numbers").runToList()).join()
-  }.byNameSpan(tracing)("request")
+  val result = resourceScope {
+    useCloseableInScope(spanUnsafe(tracing)("request")): Unit
+    supervised {
+      fork(Flow.fromValues(1, 2, 3).span(tracing)("process-numbers").runToList()).join()
+    }
+  }
   println(result)
 ```
 
-Both accept optional `spanKind`, `attributes` and `links`, as well as a `beforeClose` callback, called right before the
-span is closed, e.g. to set attributes or add events. The callback receives the span and the exception thrown by the
-spanned code, if any, and has to return the span. If it throws, the exception is added as suppressed to the one thrown
-by the spanned code; the span is closed in either case:
+Optional parameters are `spanKind`, `attributes` and `links`, as well as a `beforeClose` callback, called right before
+the span is closed, e.g. to set attributes or add events. The callback receives the span and the exception thrown by the
+spanned flow, if any, and has to return the span. If it throws, the exception is added as suppressed to the one thrown
+by the spanned flow; the span is closed in either case:
 
 ```scala mdoc:compile-only
 import ox.flow.Flow
@@ -84,38 +86,34 @@ import ox.telemetry.tracing.*
 def withAttributes(tracing: OxTracing): List[Int] =
   Flow
     .fromValues(1, 2, 3)
-    .spanned(tracing)("process-numbers", beforeClose = s => s.span.setAttribute("failed", s.errorOpt.isDefined))
+    .span(tracing)("process-numbers", beforeClose = s => s.span.setAttribute("failed", s.errorOpt.isDefined))
     .runToList()
 ```
 
 ## Spans per element
 
-`Flow.spanned` opens a single span for the whole run. To have a span per element, open it in the stage that processes the
-element. For a single stage, use `byNameSpan` inside it; it's a child of the current span, so it nests under a
-`Flow.spanned` placed earlier in the flow. To span several stages per element, run them in an inner flow, and span that
-flow. `flatMap` processes the elements one after another, while `mapPar` runs the inner flows in parallel:
+The following stages open a span per element, each covering only what is passed to it, so the span doesn't depend on the
+stages placed after it:
+
+ - `mapSpanned` is `map`, where each call of the function is run within a span,
+ - `flatMapSpanned` is `flatMap`, where each flow returned by the function is run as with `span`.
+
+The flow returned by the function is run for each element separately, so stateful stages, e.g. `grouped`, don't carry
+their state across elements.
 
 ```scala mdoc:compile-only
 import ox.flow.Flow
 import ox.telemetry.tracing.*
 
 def perElement(tracing: OxTracing, flow: Flow[Int]): Unit =
-  // one stage
-  flow.map(x => tracing.byNameSpan(x + 1)("increment")).runDrain()
+  // one function
+  flow.mapSpanned(tracing)("increment")(_ + 1).runDrain()
 
   // several stages, sequentially
   flow
-    .flatMap(x => Flow.fromValues(x).map(_ + 1).filter(_ % 2 == 0).spanned(tracing)("element"))
-    .runDrain()
-
-  // several stages, in parallel
-  flow
-    .mapPar(4)(x => Flow.fromValues(x).map(_ + 1).filter(_ % 2 == 0).spanned(tracing)("element").runToList())
+    .flatMapSpanned(tracing)("element")(x => Flow.fromValues(x).map(_ + 1).filter(_ % 2 == 0))
     .runDrain()
 ```
-
-The inner flow can use any stages, e.g. `grouped`: the span is opened when the inner flow is run, and closed after its
-last element is processed, or when it fails.
 
 ## Manual spans
 
