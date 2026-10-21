@@ -4,7 +4,7 @@ import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.{Span, SpanContext, SpanKind}
 import ox.telemetry.tracing.OxTracing
 
-export ox.flow.tracing.{flatMapSpanned, mapSpanned, span}
+export ox.flow.tracing.{mapSpanned, spanStages}
 
 /** Returns the current span, see [[OxTracing.currentSpanUnsafe]]. */
 def currentSpanUnsafe(oxTracing: OxTracing) = oxTracing.currentSpanUnsafe()

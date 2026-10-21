@@ -52,7 +52,7 @@ sealed trait OxTracing extends OxFlowTracing:
     * doesn't receive them, as if `t` succeeded. The same applies to a [[java.util.concurrent.ExecutionException]] wrapping one of them, as
     * when a cancelled fork is joined. Fatal errors, e.g. [[OutOfMemoryError]], are failures and are recorded.
     *
-    * To span a [[ox.flow.Flow]], use [[OxFlowTracing.span]].
+    * To span a [[ox.flow.Flow]], use [[OxFlowTracing.spanStages]].
     *
     * @param beforeClose
     *   Run right before the span is closed, e.g. to set attributes or add events. The second element of the argument is the failure of `t`,
