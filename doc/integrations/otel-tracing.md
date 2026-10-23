@@ -13,102 +13,122 @@ Ox provides helpers for creating [OpenTelemetry](https://opentelemetry.io) spans
 operators, including [Flows](../streaming/flows.md). An opened span becomes a child of the current span, and becomes the
 current span itself, until it's closed.
 
-Spans are created using an `OxTracing` instance, wrapping an OpenTelemetry `Tracer`:
+Spans are created using an OpenTelemetry `Tracer`, passed as the first argument:
 
 ```scala mdoc:compile-only
 import io.opentelemetry.api.trace.Tracer
-import ox.telemetry.tracing.OxTracing
+import ox.telemetry.tracing.*
 
-def tracing(tracer: Tracer): OxTracing = OxTracing(tracer)
+def example(tracer: Tracer): Unit =
+  val opened = spanUnsafe(tracer)("my-span")
+  opened.close()
 ```
 
 ## Propagating the context
 
 The current span is kept in the OpenTelemetry `Context`, which by default isn't propagated to new virtual threads, e.g.
-forks created in [`supervised`](../structured-concurrency/fork-join.md) scopes. `OxTracing` therefore **requires** the
-`PropagatingVirtualThreadFactory` from [otel-context](otel-context.md) to be used; without it, spans created in forks
-won't be children of the span active when the fork was created. The factory can be set for the whole app when using
-[`OxApp`](../utils/oxapp.md), or manually through `setOxThreadFactory`, before the thread factory is first used (that
-is, before any scope is started):
-
-```scala mdoc:compile-only
-import ox.*
-import ox.otel.context.PropagatingVirtualThreadFactory
-
-object MyApp extends OxApp:
-  override def settings: OxApp.Settings = OxApp.Settings.Default.copy(
-    threadFactory = Some(PropagatingVirtualThreadFactory())
-  )
-
-  def run(args: Vector[String])(using Ox): ExitCode = ExitCode.Success
-```
+forks created in [`supervised`](../structured-concurrency/fork-join.md) scopes. Ox tracing therefore **requires** the
+`PropagatingVirtualThreadFactory` from [otel-context](otel-context.md) to be used, which describes how to set it up;
+without it, spans created in forks won't be children of the span active when the fork was created.
 
 ## Spans around flows
 
-`spanStages` runs each element of a [`Flow`](../streaming/flows.md) through the stages added by the given function,
-within a span opened for that element. The span is opened when the element enters the stages, and ended when the last
-stage finishes processing everything derived from it. Elements are processed one after another, so each one gets its own
-span, and the flow returned by the function is run for each element separately: stateful stages, e.g. `grouped`, don't
-carry their state across elements.
+[Flows](../streaming/flows.md) can open a span for each element. The span is a child of the current span, and if the code
+within it throws, the exception is recorded on the span, and its status is set to `ERROR`.
 
-If the stages fail, the exception is recorded on the span of the element, and its status is set to `ERROR`. An
-interruption and control-flow exits (`boundary.break`) end the span normally, as they aren't failures. The function is
-called within the span, so spans opened by it, and by the stages, are the span's children, and if it throws, the
-exception is recorded as well.
+| Operator                              | The span of an element covers                                                        |
+|---------------------------------------|--------------------------------------------------------------------------------------|
+| `spanEachDownstream(tracer)("name")`  | running the element through all the following stages, up to the first async boundary |
+| `spanStages(tracer)("name")(stages)`  | running the element through `stages`, isolated from the following stages by a buffer |
+| `mapSpanned(tracer)("name")(f)`       | the call of `f`                                                                      |
 
-The stages and the span run in a fork, and the results are passed to the stages placed after `spanStages` through a
-buffer, of the size given by the `BufferCapacity` in scope. Because of that boundary, the stages placed after it are not
-counted, spans created there are not the span's children, and their failures are not recorded on it. This holds as long
-as the stages emit at most `BufferCapacity + 1` elements for one input element, as they are processed without waiting
-for downstream. Beyond that, the span also includes the time of waiting for the following stages to free up space in the
-buffer. The buffers of the stages placed after it add up, so the more of them, the later it happens. To include more
-stages in the span, put them inside the function.
-
-In the example below, the `process-numbers` spans are created in a fork, and thanks to the context being propagated,
-they are children of the `request` span:
+`spanEachDownstream` covers the stages placed after it, up to the first asynchronous boundary, e.g. `buffer`. As there is
+no buffer, the synchronous stages are called from within the span, so their duration is counted:
 
 ```scala mdoc:compile-only
-import ox.*
+import io.opentelemetry.api.trace.Tracer
 import ox.flow.Flow
 import ox.telemetry.tracing.*
 
-def example(tracing: OxTracing): Unit =
-  val result = resourceScope {
-    useCloseableInScope(spanUnsafe(tracing)("request")): Unit
-    supervised {
-      fork(Flow.fromValues(1, 2, 3).spanStages(tracing)("process-numbers")(_.map(_ + 1)).runToList()).join()
-    }
-  }
-  println(result)
-```
-
-Optional parameters are `spanKind`, `attributes` and `links`, as well as a `beforeClose` callback, called right before
-the span is closed, e.g. to set attributes or add events. The callback receives the span and the exception thrown by the
-stages, if any, and has to return the span. If it throws, the exception is added as suppressed to the one thrown by the
-stages; the span is closed in either case:
-
-```scala mdoc:compile-only
-import ox.flow.Flow
-import ox.telemetry.tracing.*
-
-def withAttributes(tracing: OxTracing): List[Int] =
-  Flow
-    .fromValues(1, 2, 3)
-    .spanStages(tracing)("process-numbers", beforeClose = s => s.span.setAttribute("failed", s.errorOpt.isDefined))(
-      _.map(_ + 1).filter(_ % 2 == 0)
-    )
+def downstream(tracer: Tracer, flow: Flow[Int]): List[Int] =
+  flow
+    .spanEachDownstream(tracer)("element")
+    .map(_ + 1) // covered by the span
+    .buffer()   // the span ends here
+    .map(_ * 2) // not covered
     .runToList()
 ```
 
-`mapSpanned` is `map`, where each call of the function is run within a span. Unlike `spanStages`, it doesn't use a fork
-and a buffer, so the span covers only the call of the function:
+The span covers also the stages placed after a `flatMap` that the span was created in, as it passes the elements on from
+within the span:
 
 ```scala mdoc:compile-only
+import io.opentelemetry.api.trace.Tracer
 import ox.flow.Flow
 import ox.telemetry.tracing.*
 
-def perElement(tracing: OxTracing, flow: Flow[Int]): Unit =
-  flow.mapSpanned(tracing)("increment")(_ + 1).runDrain()
+def inFlatMap(tracer: Tracer, flow: Flow[Int]): List[Int] =
+  flow
+    .flatMap(x => Flow.fromValues(x, x * 10).spanEachDownstream(tracer)("element").map(_ + 1)) // covered by the span
+    .map(_ * 2) // also covered
+    .runToList()
+```
+
+`spanStages` runs each element through the stages added by the given function. The spans can be nested, and the stages
+placed after `spanStages` are not part of the span:
+
+```scala mdoc:compile-only
+import io.opentelemetry.api.trace.Tracer
+import ox.flow.Flow
+import ox.telemetry.tracing.*
+
+def stages(tracer: Tracer, flow: Flow[Int]): List[Int] =
+  flow
+    .spanStages(tracer)("outer")(
+      _.map(_ + 1)
+        .spanStages(tracer)("inner")(_.filter(_ % 2 == 0)) // a child of "outer"
+    )
+    .map(_ * 2) // not covered by any span
+    .runToList()
+```
+
+The stages and the span run in a fork, and the results are passed on through a buffer, of the size given by the
+`BufferCapacity` in scope. The following stages are not counted as long as the stages emit at most `BufferCapacity + 1`
+elements for one input element; beyond that, the span also includes the time of waiting for free space in the buffer.
+
+`mapSpanned` is `map`, where each call of the function is run within a span:
+
+```scala mdoc:compile-only
+import io.opentelemetry.api.trace.Tracer
+import ox.flow.Flow
+import ox.telemetry.tracing.*
+
+def mapped(tracer: Tracer, flow: Flow[Int]): List[Int] =
+  flow
+    .mapSpanned(tracer)("increment")(_ + 1)
+    .runToList()
+```
+
+All the operators accept optional parameters, which reflect the OpenTelemetry span builder: `spanKind`, `attributes` and
+`links`.
+
+They also accept a `beforeClose` callback. It's called right before the span is closed, and
+receives the span, and the failure of the code covered by the span, if any. It can be used to modify the span right before its closed.
+
+```scala mdoc:compile-only
+import io.opentelemetry.api.trace.Tracer
+import ox.flow.Flow
+import ox.telemetry.tracing.*
+
+def withCallback(tracer: Tracer, flow: Flow[Int]): List[Int] =
+  flow
+    .spanStages(tracer)(
+      "process",
+      beforeClose = s =>
+        s.errorOpt.foreach(e => s.span.setAttribute("error.type", e.getClass.getSimpleName))
+        s.span.addEvent("done")
+    )(_.map(_ + 1))
+    .runToList()
 ```
 
 ## Manual spans
@@ -119,13 +139,14 @@ span unrestored; use it with [`useCloseableInScope`](../utils/resources.md), so 
 `currentSpanUnsafe` returns the current span, e.g. to add attributes:
 
 ```scala mdoc:compile-only
+import io.opentelemetry.api.trace.Tracer
 import ox.*
 import ox.telemetry.tracing.*
 
-def manual(tracing: OxTracing): Unit =
+def manual(tracer: Tracer): Unit =
   resourceScope {
-    val opened = useCloseableInScope(spanUnsafe(tracing)("manual-span"))
+    val opened = useCloseableInScope(spanUnsafe(tracer)("manual-span"))
     opened.span.setAttribute("key", "value")
-    currentSpanUnsafe(tracing).addEvent("working"): Unit
+    currentSpanUnsafe().addEvent("working"): Unit
   }
 ```
