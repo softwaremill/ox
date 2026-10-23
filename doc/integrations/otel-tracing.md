@@ -42,6 +42,8 @@ within it throws, the exception is recorded on the span, and its status is set t
 | `spanStages(tracer)("name")(stages)`  | running the element through `stages`, isolated from the following stages by a buffer |
 | `mapSpanned(tracer)("name")(f)`       | the call of `f`                                                                      |
 
+### spanEachDownstream
+
 `spanEachDownstream` covers the stages placed after it, up to the first asynchronous boundary, e.g. `buffer`. As there is
 no buffer, the synchronous stages are called from within the span, so their duration is counted:
 
@@ -74,6 +76,8 @@ def inFlatMap(tracer: Tracer, flow: Flow[Int]): List[Int] =
     .runToList()
 ```
 
+### spanStages
+
 `spanStages` runs each element through the stages added by the given function. The spans can be nested, and the stages
 placed after `spanStages` are not part of the span:
 
@@ -96,6 +100,8 @@ The stages and the span run in a fork, and the results are passed on through a b
 `BufferCapacity` in scope. The following stages are not counted as long as the stages emit at most `BufferCapacity + 1`
 elements for one input element; beyond that, the span also includes the time of waiting for free space in the buffer.
 
+### mapSpanned
+
 `mapSpanned` is `map`, where each call of the function is run within a span:
 
 ```scala mdoc:compile-only
@@ -108,6 +114,8 @@ def mapped(tracer: Tracer, flow: Flow[Int]): List[Int] =
     .mapSpanned(tracer)("increment")(_ + 1)
     .runToList()
 ```
+
+### Optional parameters
 
 All the operators accept optional parameters, which reflect the OpenTelemetry span builder: `spanKind`, `attributes` and
 `links`.
