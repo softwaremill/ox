@@ -2,10 +2,7 @@ package ox.telemetry.tracing
 
 import io.opentelemetry.api.trace.Span
 
-opaque type SpanWithError <: (Span, Option[Throwable]) = (Span, Option[Throwable])
-object SpanWithError:
-  def apply(span: Span, errorOpt: Option[Throwable]): SpanWithError = (span, errorOpt)
-  def apply(span: Span, errorOpt: Throwable): SpanWithError = (span, Option(errorOpt))
-  extension (s: SpanWithError)
-    def span = s._1
-    def errorOpt = s._2
+/** A span, together with the exception thrown by the code it covers, if any, and the application error it returned, if any, in the sense of
+  * an [[ox.ErrorMode]]. Without an error mode, all the failures are exceptions.
+  */
+final case class SpanWithError[+E](span: Span, defectOpt: Option[Throwable], errorOpt: Option[E])

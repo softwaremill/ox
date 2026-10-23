@@ -22,6 +22,7 @@ import ox.telemetry.tracing.*
 import java.util.UUID
 import java.util.concurrent.Semaphore
 import scala.collection.JavaConverters.asScalaBufferConverter
+import scala.util.boundary
 import scala.util.boundary.Label
 
 class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
@@ -105,12 +106,12 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
   "Flow.span" when {
     "run normally" should {
       "not open a span until the flow is run" in new Fixture:
-        Flow.usingEmit[Int](emit => byNameSpan(myTracing)(flow.runToEmit(emit))(s"$prefix-$Level0")).buffer(): Unit
+        Flow.usingEmit[Int](emit => flow.runToEmit(emit).span(myTracing)(s"$prefix-$Level0")).buffer(): Unit
         assert(testSpans.isEmpty)
         assertNesting()
 
       "open a single span for a multi-element flow" in new Fixture:
-        Flow.usingEmit[Int](emit => byNameSpan(myTracing)(flow.runToEmit(emit))(s"$prefix-$Level0")).buffer().runDrain()
+        Flow.usingEmit[Int](emit => flow.runToEmit(emit).span(myTracing)(s"$prefix-$Level0")).buffer().runDrain()
 
         assert(spansOf(Level0).size == 1)
         assert(testSpans.size == 1)
@@ -120,12 +121,12 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         supervised {
 
           val spanned1 = Flow
-            .usingEmit[Int](emit => byNameSpan(myTracing)(flow.runToEmit(emit))(s"$prefix-$Level1"))
+            .usingEmit[Int](emit => flow.runToEmit(emit).span(myTracing)(s"$prefix-$Level1"))
             .buffer()
             .map(_ + 100)
             .tap(i => currentSpanUnsafe().addEvent(i.toString))
 
-          Flow.usingEmit[Int](emit => byNameSpan(myTracing)(spanned1.runToEmit(emit))(s"$prefix-$Level0")).buffer().runDrain()
+          Flow.usingEmit[Int](emit => spanned1.runToEmit(emit).span(myTracing)(s"$prefix-$Level0")).buffer().runDrain()
 
           assert(spansOf(Level0).size == 1)
           assert(spansOf(Level1).size == 1)
@@ -135,10 +136,10 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
       "open one span per span() call when spans are nested" in new Fixture:
         supervised {
           val spanned1 =
-            (Flow.usingEmit[Int](emit => byNameSpan(myTracing)(flow.runToEmit(emit))(s"$prefix-$Level1")).buffer() ++ Flow.fromValues(4, 2))
+            (Flow.usingEmit[Int](emit => flow.runToEmit(emit).span(myTracing)(s"$prefix-$Level1")).buffer() ++ Flow.fromValues(4, 2))
               .tap(i => currentSpanUnsafe().addEvent(i.toString))
 
-          Flow.usingEmit[Int](emit => byNameSpan(myTracing)(spanned1.runToEmit(emit))(s"$prefix-$Level0")).buffer().runDrain()
+          Flow.usingEmit[Int](emit => spanned1.runToEmit(emit).span(myTracing)(s"$prefix-$Level0")).buffer().runDrain()
 
           assert(spansOf(Level0).size == 1)
           assert(spansOf(Level1).size == 1)
@@ -147,7 +148,7 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         }
 
       "open a single span when downstream uses mapPar" in new Fixture:
-        Flow.usingEmit[Int](emit => byNameSpan(myTracing)(flow.runToEmit(emit))(s"$prefix-$Level0")).buffer().mapPar(3)(_ + 1).runDrain()
+        Flow.usingEmit[Int](emit => flow.runToEmit(emit).span(myTracing)(s"$prefix-$Level0")).buffer().mapPar(3)(_ + 1).runDrain()
 
         assert(testSpans.size == 1)
 
@@ -161,7 +162,7 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
       "use the current span as parent" in new Fixture:
         val parent = spanUnsafe(myTracing)(s"$prefix-$Level0")
 
-        Flow.usingEmit[Int](emit => byNameSpan(myTracing)(flow.runToEmit(emit))(s"$prefix-$Level1")).buffer().runToList(): Unit
+        Flow.usingEmit[Int](emit => flow.runToEmit(emit).span(myTracing)(s"$prefix-$Level1")).buffer().runToList(): Unit
 
         parent.close()
 
@@ -170,10 +171,10 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         assertNesting()
 
       "open one child span per element when flatMapped under a parent span" in new Fixture:
-        val spanned = Flow.usingEmit[Int](emit => byNameSpan(myTracing)(flow.runToEmit(emit))(s"$prefix-$Level1")).buffer()
+        val spanned = Flow.usingEmit[Int](emit => flow.runToEmit(emit).span(myTracing)(s"$prefix-$Level1")).buffer()
 
         Flow
-          .usingEmit[Int](emit => byNameSpan(myTracing)(flow.flatMap { _ => spanned }.runToEmit(emit))(s"$prefix-$Level0"))
+          .usingEmit[Int](emit => (flow.flatMap { _ => spanned }.runToEmit(emit)).span(myTracing)(s"$prefix-$Level0"))
           .buffer()
           .runToList(): Unit
 
@@ -182,7 +183,7 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         assertNesting()
 
       "parent spans of concurrently run flows under the enclosing span" in new Fixture:
-        val spanned = Flow.usingEmit[Int](emit => byNameSpan(myTracing)(flow.runToEmit(emit))(s"$prefix-$Level1")).buffer()
+        val spanned = Flow.usingEmit[Int](emit => flow.runToEmit(emit).span(myTracing)(s"$prefix-$Level1")).buffer()
 
         val parent = spanUnsafe(myTracing)(s"$prefix-$Level0")
 
@@ -197,31 +198,32 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         assertNesting()
 
       "nest spans across forks and inner supervised scopes" in new Fixture:
-        val spanned = Flow.usingEmit[Int](emit => byNameSpan(myTracing)(flow.runToEmit(emit))(s"$prefix-$Level1")).buffer()
+        val spanned = Flow.usingEmit[Int](emit => flow.runToEmit(emit).span(myTracing)(s"$prefix-$Level1")).buffer()
 
-        byNameSpan(myTracing)(supervised {
+        span(supervised {
           (1 to 10).map {
             case 1 =>
               forkUser(
                 Flow
                   .usingEmit[Int](emit =>
-                    byNameSpan(myTracing)(
-                      flow
-                        .flatMap { el =>
-                          val innerFlow = supervised {
-                            Flow
-                              .usingEmit[Int](emit =>
-                                byNameSpan(myTracing)(flow.runToEmit(emit))(
+                    (flow
+                      .flatMap { el =>
+                        val innerFlow = supervised {
+                          Flow
+                            .usingEmit[Int](emit =>
+                              flow
+                                .runToEmit(emit)
+                                .span(myTracing)(
                                   s"$prefix-$Level1_First_Child",
-                                  beforeClose = _._1.addEvent("boomed")
+                                  beforeClose = _.span.addEvent("boomed")
                                 )
-                              )
-                              .buffer()
-                          }
-                          innerFlow
+                            )
+                            .buffer()
                         }
-                        .runToEmit(emit)
-                    )(s"$prefix-$Level1_First")
+                        innerFlow
+                      }
+                      .runToEmit(emit))
+                      .span(myTracing)(s"$prefix-$Level1_First")
                   )
                   .buffer()
                   .runToList()
@@ -229,7 +231,7 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
 
             case _ => forkUser(spanned.runToList())
           }
-        })(s"$prefix-$Level0")
+        })(myTracing)(s"$prefix-$Level0")
 
         assert(spansOf(Level1).size == 9)
         assert(spansOf(Level1_First).size == 1)
@@ -243,16 +245,15 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         try
           Flow
             .usingEmit[Int](emit =>
-              byNameSpan(myTracing)(
-                flow
-                  .tap { case 2 => throw new Exception("boom"); case _ => () }
-                  .runToEmit(emit)
-              )(
-                s"$prefix-$Level0",
-                beforeClose = { case (s, thr) =>
-                  s.addEvent(thr.toString)
-                }
-              )
+              (flow
+                .tap { case 2 => throw new Exception("boom"); case _ => () }
+                .runToEmit(emit))
+                .span(myTracing)(
+                  s"$prefix-$Level0",
+                  beforeClose = { case SpanWithError(s, thr, _) =>
+                    s.addEvent(thr.toString)
+                  }
+                )
             )
             .buffer()
             .runToList()
@@ -268,16 +269,15 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         assertNesting()
 
       "keep the flow span as a child of the recovery span when failure is recovered" in new Fixture:
-        val spanned = Flow.usingEmit[Int](emit => byNameSpan(myTracing)(flow.runToEmit(emit))(s"$prefix-$Level1")).buffer()
+        val spanned = Flow.usingEmit[Int](emit => flow.runToEmit(emit).span(myTracing)(s"$prefix-$Level1")).buffer()
 
         Flow
           .usingEmit[Int](emit =>
-            byNameSpan(myTracing)(
-              spanned
-                .map { case 2 => throw new Exception("boom"); case x => x }
-                .recover(_ => 5)
-                .runToEmit(emit)
-            )(s"$prefix-$Level0")
+            (spanned
+              .map { case 2 => throw new Exception("boom"); case x => x }
+              .recover(_ => 5)
+              .runToEmit(emit))
+              .span(myTracing)(s"$prefix-$Level0")
           )
           .buffer()
           .runToList(): Unit
@@ -287,7 +287,7 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         assertNesting()
 
       "end spans of concurrent flows when one of them fails" in new Fixture:
-        val spanned = Flow.usingEmit[Int](emit => byNameSpan(myTracing)(flow.runToEmit(emit))(s"$prefix-$Level1")).buffer()
+        val spanned = Flow.usingEmit[Int](emit => flow.runToEmit(emit).span(myTracing)(s"$prefix-$Level1")).buffer()
 
         val parent = spanUnsafe(myTracing)(s"$prefix-$Level0")
 
@@ -310,7 +310,7 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
 
         val level0 = spanUnsafe(myTracing)(s"$prefix-$Level0")
 
-        val spanned = Flow.usingEmit[Int](emit => byNameSpan(myTracing)(flow.runToEmit(emit))(s"$prefix-$Level1")).buffer()
+        val spanned = Flow.usingEmit[Int](emit => flow.runToEmit(emit).span(myTracing)(s"$prefix-$Level1")).buffer()
 
         try
           supervised {
@@ -319,33 +319,34 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
                 forkUser {
                   Flow
                     .usingEmit[Int](emit =>
-                      byNameSpan(myTracing)(
-                        flow
-                          .flatMap { el =>
-                            {
-                              val inner = supervisedError(em):
-                                either:
-                                  val innerFlow =
-                                    em.pure(
-                                      Flow
-                                        .usingEmit[Int](emit =>
-                                          byNameSpan(myTracing)(flow.runToEmit(emit))(
+                      (flow
+                        .flatMap { el =>
+                          {
+                            val inner = supervisedError(em):
+                              either:
+                                val innerFlow =
+                                  em.pure(
+                                    Flow
+                                      .usingEmit[Int](emit =>
+                                        flow
+                                          .runToEmit(emit)
+                                          .span(myTracing)(
                                             s"$prefix-$Level1_First_Child",
-                                            beforeClose = _._1.addEvent(s"boomed at $el")
+                                            beforeClose = _.span.addEvent(s"boomed at $el")
                                           )
-                                        )
-                                        .buffer()
-                                        .map {
-                                          case 1 => em.pureError("ops").ok();
-                                          case x => x
-                                        }
-                                    )
-                                  innerFlow.ok()
-                              inner
-                            }.toOption.get
-                          }
-                          .runToEmit(emit)
-                      )(s"$prefix-$Level1_First")
+                                      )
+                                      .buffer()
+                                      .map {
+                                        case 1 => em.pureError("ops").ok();
+                                        case x => x
+                                      }
+                                  )
+                                innerFlow.ok()
+                            inner
+                          }.toOption.get
+                        }
+                        .runToEmit(emit))
+                        .span(myTracing)(s"$prefix-$Level1_First")
                     )
                     .buffer()
                     .runToList()
@@ -365,7 +366,7 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
 
         val level0 = spanUnsafe(myTracing)(s"$prefix-$Level0")
 
-        val spanned = Flow.usingEmit[Int](emit => byNameSpan(myTracing)(flow.runToEmit(emit))(s"$prefix-$Level1")).buffer()
+        val spanned = Flow.usingEmit[Int](emit => flow.runToEmit(emit).span(myTracing)(s"$prefix-$Level1")).buffer()
 
         try
           supervised {
@@ -374,33 +375,34 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
                 forkUser {
                   Flow
                     .usingEmit[Int](emit =>
-                      byNameSpan(myTracing)(
-                        flow
-                          .flatMap { el =>
-                            {
-                              val inner = supervisedError(em):
-                                either:
-                                  val innerFlow =
-                                    em.pure(
-                                      Flow
-                                        .usingEmit[Int](emit =>
-                                          byNameSpan(myTracing)(flow.runToEmit(emit))(
+                      (flow
+                        .flatMap { el =>
+                          {
+                            val inner = supervisedError(em):
+                              either:
+                                val innerFlow =
+                                  em.pure(
+                                    Flow
+                                      .usingEmit[Int](emit =>
+                                        flow
+                                          .runToEmit(emit)
+                                          .span(myTracing)(
                                             s"$prefix-$Level1_First_Child",
-                                            beforeClose = _._1.addEvent(s"boomed at $el")
+                                            beforeClose = _.span.addEvent(s"boomed at $el")
                                           )
-                                        )
-                                        .buffer()
-                                        .map {
-                                          case 1 => em.pureError("ops").ok();
-                                          case x => x
-                                        }
-                                    )
-                                  innerFlow.ok()
-                              inner
-                            }.toOption.getOrElse(Flow.empty)
-                          }
-                          .runToEmit(emit)
-                      )(s"$prefix-$Level1_First")
+                                      )
+                                      .buffer()
+                                      .map {
+                                        case 1 => em.pureError("ops").ok();
+                                        case x => x
+                                      }
+                                  )
+                                innerFlow.ok()
+                            inner
+                          }.toOption.getOrElse(Flow.empty)
+                        }
+                        .runToEmit(emit))
+                        .span(myTracing)(s"$prefix-$Level1_First")
                     )
                     .buffer()
                     .runToList()
@@ -420,7 +422,7 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
 
         val level0 = spanUnsafe(myTracing)(s"$prefix-$Level0")
 
-        val spanned = Flow.usingEmit[Int](emit => byNameSpan(myTracing)(flow.runToEmit(emit))(s"$prefix-$Level1")).buffer()
+        val spanned = Flow.usingEmit[Int](emit => flow.runToEmit(emit).span(myTracing)(s"$prefix-$Level1")).buffer()
 
         try
           supervisedError(em) {
@@ -431,31 +433,32 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
                     forkUser {
                       Flow
                         .usingEmit[Int](emit =>
-                          byNameSpan(myTracing)(
-                            flow
-                              .flatMap { el =>
-                                {
-                                  supervisedError(em):
-                                    val innerFlow =
-                                      em.pure(
-                                        Flow
-                                          .usingEmit[Int](emit =>
-                                            byNameSpan(myTracing)(flow.runToEmit(emit))(
+                          (flow
+                            .flatMap { el =>
+                              {
+                                supervisedError(em):
+                                  val innerFlow =
+                                    em.pure(
+                                      Flow
+                                        .usingEmit[Int](emit =>
+                                          flow
+                                            .runToEmit(emit)
+                                            .span(myTracing)(
                                               s"$prefix-$Level1_First_Child",
-                                              beforeClose = _._1.addEvent(s"boomed at $el")
+                                              beforeClose = _.span.addEvent(s"boomed at $el")
                                             )
-                                          )
-                                          .buffer()
-                                          .map {
-                                            case 1 => em.pureError("ops").ok();
-                                            case x => x
-                                          }
-                                      )
-                                    innerFlow
-                                }.toOption.get
-                              }
-                              .runToEmit(emit)
-                          )(s"$prefix-$Level1_First")
+                                        )
+                                        .buffer()
+                                        .map {
+                                          case 1 => em.pureError("ops").ok();
+                                          case x => x
+                                        }
+                                    )
+                                  innerFlow
+                              }.toOption.get
+                            }
+                            .runToEmit(emit))
+                            .span(myTracing)(s"$prefix-$Level1_First")
                         )
                         .buffer()
                         .runToList()
@@ -477,14 +480,13 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
 
         Flow
           .usingEmit[Int](emit =>
-            byNameSpan(myTracing)(
-              flow
-                .runToEmit(emit)
-            )(s"$prefix-$Level1")
+            (flow
+              .runToEmit(emit))
+              .span(myTracing)(s"$prefix-$Level1")
           )
           .buffer()
           .buffer()
-          .map(x => byNameSpan(myTracing)(x)(s"$prefix-$Level1_Stage"))
+          .map(x => x.span(myTracing)(s"$prefix-$Level1_Stage"))
           .runToList(): Unit
 
         parent.close()
@@ -500,7 +502,7 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
       val c = 1200.millis
       val (aMs, bMs, cMs) = (a.toMillis, b.toMillis, c.toMillis)
 
-      "open a span per file with mapSpanned, covering only the download" in new Fixture:
+      "open a span per file with span in map, covering only the download" in new Fixture:
         val filesToDownload = Seq(1, 2)
 
         def download(file: Int): Int =
@@ -510,10 +512,10 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         def readLines(file: Int): Flow[String] = Flow.fromValues(s"line of $file").tap(_ => sleep(b))
 
         def streamLinesFlow(file: Int) =
-          Flow.usingEmit[String](emit => byNameSpan(myTracing)(readLines(file).runToEmit(emit))(s"$prefix-$Level1_First")).buffer()
+          Flow.usingEmit[String](emit => readLines(file).runToEmit(emit).span(myTracing)(s"$prefix-$Level1_First")).buffer()
 
         (for
-          file <- Flow.fromIterable(filesToDownload).mapSpanned(myTracing)(s"$prefix-$Level1")(download)
+          file <- Flow.fromIterable(filesToDownload).map(file => download(file).span(myTracing)(s"$prefix-$Level1"))
           line <- streamLinesFlow(file).recoverWith(_ => streamLinesFlow(file))
         yield line).tap(_ => sleep(c)).runToList(): Unit
 
@@ -532,10 +534,10 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         (for
           x <- Flow.fromValues(1)
           y <- Flow
-            .usingEmit[Int](emit => byNameSpan(myTracing)(Flow.fromValues(x).tap(_ => sleep(a)).runToEmit(emit))(s"$prefix-$Level1"))
+            .usingEmit[Int](emit => Flow.fromValues(x).tap(_ => sleep(a)).runToEmit(emit).span(myTracing)(s"$prefix-$Level1"))
             .buffer()
           z <- Flow
-            .usingEmit[Int](emit => byNameSpan(myTracing)(Flow.fromValues(y).tap(_ => sleep(b)).runToEmit(emit))(s"$prefix-$Level1_First"))
+            .usingEmit[Int](emit => Flow.fromValues(y).tap(_ => sleep(b)).runToEmit(emit).span(myTracing)(s"$prefix-$Level1_First"))
             .buffer()
         yield z)
           .tap(_ => sleep(c))
@@ -591,13 +593,13 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
 
     }
 
-    "spanEachDownstream" should {
+    "spanEach" should {
       "open a span per element, around the stages placed after it" in new Fixture:
         val parent = spanUnsafe(myTracing)(s"$prefix-$Level0")
 
         flow
-          .spanEachDownstream(myTracing)(s"$prefix-$Level1_First")
-          .map(x => byNameSpan(myTracing)(x)(s"$prefix-$Level1_First_Child"))
+          .spanEach(myTracing)(s"$prefix-$Level1_First")
+          .map(x => x.span(myTracing)(s"$prefix-$Level1_First_Child"))
           .runToList(): Unit
 
         parent.close()
@@ -610,8 +612,8 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         val parent = spanUnsafe(myTracing)(s"$prefix-$Level0")
 
         flow
-          .map(x => byNameSpan(myTracing)(x)(s"$prefix-$Level1"))
-          .spanEachDownstream(myTracing)(s"$prefix-$Level1_First")
+          .map(x => x.span(myTracing)(s"$prefix-$Level1"))
+          .spanEach(myTracing)(s"$prefix-$Level1_First")
           .runToList(): Unit
 
         parent.close()
@@ -623,7 +625,7 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
       "count the stages placed after it, also outside of the flatMap it is used in" in new Fixture:
         Flow
           .fromValues(1, 2, 3)
-          .flatMap(x => Flow.fromValues(x).spanEachDownstream(myTracing)(s"$prefix-$Level1").tap(_ => sleep(200.millis)))
+          .flatMap(x => Flow.fromValues(x).spanEach(myTracing)(s"$prefix-$Level1").tap(_ => sleep(200.millis)))
           .tap(_ => sleep(200.millis))
           .runToList(): Unit
 
@@ -633,7 +635,7 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
       "end the span at a buffer placed after it" in new Fixture:
         Flow
           .fromValues(1, 2, 3)
-          .spanEachDownstream(myTracing)(s"$prefix-$Level1")
+          .spanEach(myTracing)(s"$prefix-$Level1")
           .tap(_ => sleep(200.millis))
           .buffer()
           .tap(_ => sleep(200.millis))
@@ -643,30 +645,139 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         spansOf(Level1).foreach(s => assertAbout(durMs(s), 200))
     }
 
-    "mapSpanned" should {
-      "open a span around each call of the mapping function only" in new Fixture:
-        val parent = spanUnsafe(myTracing)(s"$prefix-$Level0")
+    "spanError" should {
+      val em = EitherMode[String]()
 
-        flow
-          .mapSpanned(myTracing)(s"$prefix-$Level1_First")(x => byNameSpan(myTracing)(x + 1)(s"$prefix-$Level1_First_Child"))
-          .map(x => byNameSpan(myTracing)(x)(s"$prefix-$Level1"))
-          .runToList(): Unit
+      "return the result and not mark the span as failed when t succeeds" in new Fixture:
+        val result = Right(1).spanError(myTracing, em)(s"$prefix-$Level0")
 
-        parent.close()
+        assert(result == Right(1))
+        val span = spansOf(Level0).head
+        assert(span.getStatus.getStatusCode == StatusCode.UNSET)
+        assert(span.getEvents.isEmpty)
 
-        assert(spansOf(Level1_First).size == 3)
-        // created by the function, so they are children of the per-element spans
-        assert(spansOf(Level1_First_Child).size == 3)
-        // created by the following stage, after the per-element spans were closed, so they are siblings
-        assert(spansOf(Level1).size == 3)
-        assertNesting()
+      "record an application error on the span and return it as is" in new Fixture:
+        val result = (Left("bad"): Either[String, Int]).spanError(myTracing, em)(s"$prefix-$Level0")
 
-      "mark the span as failed when the mapping function fails" in new Fixture:
-        try flow.mapSpanned(myTracing)(s"$prefix-$Level0") { case 2 => throw new Exception("boom"); case x => x }.runToList(): Unit
-        catch case _ => ()
+        assert(result == Left("bad"))
+        val span = spansOf(Level0).head
+        assert(span.getStatus.getStatusCode == StatusCode.ERROR)
+        assert(span.getStatus.getDescription == "bad")
+        val event = span.getEvents.asScala.find(_.getName == "exception").get
+        assert(event.getAttributes.get(AttributeKey.stringKey("exception.message")) == "bad")
+        assert(event.getAttributes.get(AttributeKey.stringKey("exception.type")) == "java.lang.String")
 
-        assert(spansOf(Level0).size == 2)
-        assert(spansOf(Level0).count(_.getStatus.getStatusCode == StatusCode.ERROR) == 1)
+      "record an application error which is an exception as an exception" in new Fixture:
+        val result = (Left(new Exception("boom")): Either[Exception, Int]).spanError(myTracing, EitherMode[Exception]())(
+          s"$prefix-$Level0"
+        )
+
+        assert(result.isLeft)
+        val span = spansOf(Level0).head
+        assert(span.getStatus.getStatusCode == StatusCode.ERROR)
+        assert(span.getStatus.getDescription == "boom")
+        val event = span.getEvents.asScala.find(_.getName == "exception").get
+        assert(event.getAttributes.get(AttributeKey.stringKey("exception.type")) == "java.lang.Exception")
+
+      "pass the application error to beforeClose" in new Fixture:
+        var seen: SpanWithError[String] | Null = null
+
+        (Left("bad"): Either[String, Int]).spanError(myTracing, em)(
+          s"$prefix-$Level0",
+          beforeClose = s =>
+            seen = s
+            s.span
+        ): Unit
+
+        assert(seen.nn.errorOpt == Some("bad"))
+        assert(seen.nn.defectOpt.isEmpty)
+
+      "record a thrown exception and pass it to beforeClose" in new Fixture:
+        var seen: SpanWithError[String] | Null = null
+
+        val thrown = intercept[Exception]:
+          ((throw new Exception("boom")): Either[String, Int]).spanError(myTracing, em)(
+            s"$prefix-$Level0",
+            beforeClose = s =>
+              seen = s
+              s.span
+          ): Unit
+
+        assert(thrown.getMessage == "boom")
+        assert(seen.nn.defectOpt.map(_.getMessage) == Some("boom"))
+        assert(seen.nn.errorOpt.isEmpty)
+        val span = spansOf(Level0).head
+        assert(span.getStatus.getStatusCode == StatusCode.ERROR)
+        assert(span.getStatus.getDescription == "boom")
+
+      "record an application error carried by a break, and propagate the break" in new Fixture:
+        var seen: SpanWithError[String] | Null = null
+
+        val result: Either[String, Int] = either:
+          ({
+            val x: Int = (Left("bad"): Either[String, Int]).ok()
+            Right(x)
+          }).spanError(myTracing, em)(
+            s"$prefix-$Level0",
+            beforeClose = s =>
+              seen = s
+              s.span
+          ).ok()
+
+        assert(result == Left("bad"))
+        val span = spansOf(Level0).head
+        assert(span.getStatus.getStatusCode == StatusCode.ERROR)
+        assert(span.getStatus.getDescription == "bad")
+        assert(seen.nn.errorOpt == Some("bad"))
+        assert(seen.nn.defectOpt.isEmpty)
+
+      "record an application error carried by a break thrown by beforeClose, and propagate the break, when t succeeds" in new Fixture:
+        val result: Either[String, Either[String, Int]] = either:
+          (Right(1): Either[String, Int]).spanError(myTracing, em)(
+            s"$prefix-$Level0",
+            beforeClose = s =>
+              (Left("cb"): Either[String, Unit]).ok()
+              s.span
+          )
+
+        assert(result == Left("cb"))
+        val span = spansOf(Level0).head
+        assert(span.getStatus.getStatusCode == StatusCode.ERROR)
+        assert(span.getStatus.getDescription == "cb")
+
+      "return the application error of t when beforeClose breaks with another one" in new Fixture:
+        val result: Either[String, Either[String, Int]] = either:
+          (Left("bad"): Either[String, Int]).spanError(myTracing, em)(
+            s"$prefix-$Level0",
+            beforeClose = s =>
+              (Left("cb"): Either[String, Unit]).ok()
+              s.span
+          )
+
+        assert(result == Right(Left("bad")))
+        val span = spansOf(Level0).head
+        assert(span.getStatus.getDescription == "bad")
+
+      "not mark the span as failed when a break carries a value which is not an error" in new Fixture:
+        val result = boundary[Either[String, Int]]:
+          (boundary.break(Right(1)): Either[String, Int]).spanError(myTracing, em)(s"$prefix-$Level0")
+
+        assert(result == Right(1))
+        assert(spansOf(Level0).head.getStatus.getStatusCode == StatusCode.UNSET)
+
+      "return the application error, and close the span, when beforeClose throws" in new Fixture:
+        val result =
+          (Left("bad"): Either[String, Int]).spanError(myTracing, em)(s"$prefix-$Level0", beforeClose = _ => throw new Exception("cb"))
+
+        assert(result == Left("bad"))
+        assert(spansOf(Level0).size == 1)
+
+      "throw from beforeClose, and close the span, when t succeeds" in new Fixture:
+        val thrown = intercept[Exception]:
+          (Right(1): Either[String, Int]).spanError(myTracing, em)(s"$prefix-$Level0", beforeClose = _ => throw new Exception("cb"))
+
+        assert(thrown.getMessage == "cb")
+        assert(spansOf(Level0).size == 1)
     }
 
     "spanStages per element" should {
@@ -677,8 +788,8 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
 
         flow
           .spanStages(myTracing)(s"$prefix-$Level1_First")(_.flatMap(x =>
-            byNameSpan(myTracing)(())(s"$prefix-$Level1_First_Child")
-            Flow.fromValues(x).map(y => byNameSpan(myTracing)(y)(s"$prefix-$Level1_Stage"))
+            (()).span(myTracing)(s"$prefix-$Level1_First_Child")
+            Flow.fromValues(x).map(y => y.span(myTracing)(s"$prefix-$Level1_Stage"))
           ))
           .runToList(): Unit
 
@@ -734,9 +845,9 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
 
         flow
           .spanStages(myTracing)(s"$prefix-$Level1_First")(
-            _.mapConcat(x => 1 to x).map(y => byNameSpan(myTracing)(y)(s"$prefix-$Level1_First_Child"))
+            _.mapConcat(x => 1 to x).map(y => y.span(myTracing)(s"$prefix-$Level1_First_Child"))
           )
-          .map(x => byNameSpan(myTracing)(x)(s"$prefix-$Level1"))
+          .map(x => x.span(myTracing)(s"$prefix-$Level1"))
           .runToList(): Unit
 
         parent.close()
@@ -919,7 +1030,7 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
       "open spans created in the body of the function as children of the span of the element" in new Fixture:
         flow
           .spanStages(myTracing)(s"$prefix-$Level1")(f =>
-            byNameSpan(myTracing)(())(s"$prefix-$Level1_First")
+            (()).span(myTracing)(s"$prefix-$Level1_First")
             f
           )
           .runToList(): Unit
@@ -930,7 +1041,7 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
 
       "open spans created by the stages as children of the span of the element" in new Fixture:
         flow
-          .spanStages(myTracing)(s"$prefix-$Level1")(_.map(x => byNameSpan(myTracing)(x)(s"$prefix-$Level1_First")).buffer())
+          .spanStages(myTracing)(s"$prefix-$Level1")(_.map(x => x.span(myTracing)(s"$prefix-$Level1_First")).buffer())
           .runToList(): Unit
 
         val parents = spansOf(Level1).map(_.getSpanId).toSet
@@ -1000,7 +1111,7 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
             }
             forkUser {
               Flow
-                .usingEmit[Int](emit => byNameSpan(myTracing)(flow.runToEmit(emit))(s"$prefix-$Level0"))
+                .usingEmit[Int](emit => flow.runToEmit(emit).span(myTracing)(s"$prefix-$Level0"))
                 .buffer()
                 .tap { case 1 => semaphore.release(); case _ => sleep(100.seconds) }
                 .runToList()
@@ -1019,7 +1130,7 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         supervised {
           val forkWithSpan = forkCancellable {
             Flow
-              .usingEmit[Int](emit => byNameSpan(myTracing)(flow.runToEmit(emit))(s"$prefix-$Level0"))
+              .usingEmit[Int](emit => flow.runToEmit(emit).span(myTracing)(s"$prefix-$Level0"))
               .buffer()
               .tap { case 1 => semaphore.release(); case _ => sleep(100.seconds) }
               .runToList()
@@ -1036,7 +1147,7 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
 
       "not mark the span as failed when the code exits with a boundary break" in new Fixture:
         val result = scala.util.boundary:
-          byNameSpan(myTracing)(scala.util.boundary.break(1))(s"$prefix-$Level0")
+          scala.util.boundary.break(1).span(myTracing)(s"$prefix-$Level0")
           2
 
         assert(result == 1)
@@ -1046,16 +1157,16 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
 
       "not pass a boundary break, a control throwable or an interruption to beforeClose" in new Fixture:
         var seen: List[Option[Throwable]] = Nil
-        def record(s: SpanWithError) =
-          seen = s.errorOpt :: seen
+        def record(s: SpanWithError[Nothing]) =
+          seen = s.defectOpt :: seen
           s.span
 
         scala.util.boundary:
-          byNameSpan(myTracing)(scala.util.boundary.break(1))(s"$prefix-$Level0", beforeClose = record)
+          scala.util.boundary.break(1).span(myTracing)(s"$prefix-$Level0", beforeClose = record)
         intercept[scala.util.control.ControlThrowable]:
-          byNameSpan(myTracing)(throw new scala.util.control.ControlThrowable {})(s"$prefix-$Level0", beforeClose = record)
+          (throw new scala.util.control.ControlThrowable {}).span(myTracing)(s"$prefix-$Level0", beforeClose = record)
         intercept[InterruptedException]:
-          byNameSpan(myTracing)(throw new InterruptedException())(s"$prefix-$Level0", beforeClose = record)
+          (throw new InterruptedException()).span(myTracing)(s"$prefix-$Level0", beforeClose = record)
 
         assert(seen == List(None, None, None))
         assert(spansOf(Level0).size == 3)
@@ -1064,10 +1175,10 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
       "treat an interruption during I/O as not a failure" in new Fixture:
         var seen: Option[Throwable] = Some(new Exception("unset"))
         intercept[java.nio.channels.ClosedByInterruptException]:
-          byNameSpan(myTracing)(throw new java.nio.channels.ClosedByInterruptException())(
+          (throw new java.nio.channels.ClosedByInterruptException()).span(myTracing)(
             s"$prefix-$Level0",
             beforeClose = s =>
-              seen = s.errorOpt
+              seen = s.defectOpt
               s.span
           )
 
@@ -1076,17 +1187,17 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
 
       "record the closing of a channel by another thread as a failure" in new Fixture:
         intercept[java.nio.channels.AsynchronousCloseException]:
-          byNameSpan(myTracing)(throw new java.nio.channels.AsynchronousCloseException())(s"$prefix-$Level0")
+          (throw new java.nio.channels.AsynchronousCloseException()).span(myTracing)(s"$prefix-$Level0")
 
         assert(spansOf(Level0).head.getStatus.getStatusCode == StatusCode.ERROR)
 
       "treat an ExecutionException wrapping an interruption as not a failure" in new Fixture:
         var seen: Option[Throwable] = Some(new Exception("unset"))
         intercept[java.util.concurrent.ExecutionException]:
-          byNameSpan(myTracing)(throw new java.util.concurrent.ExecutionException(new InterruptedException()))(
+          (throw new java.util.concurrent.ExecutionException(new InterruptedException())).span(myTracing)(
             s"$prefix-$Level0",
             beforeClose = s =>
-              seen = s.errorOpt
+              seen = s.defectOpt
               s.span
           )
 
@@ -1095,23 +1206,23 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
 
       "treat an ExecutionException wrapping a failure as a failure" in new Fixture:
         intercept[java.util.concurrent.ExecutionException]:
-          byNameSpan(myTracing)(throw new java.util.concurrent.ExecutionException(new Exception("boom")))(s"$prefix-$Level0")
+          (throw new java.util.concurrent.ExecutionException(new Exception("boom"))).span(myTracing)(s"$prefix-$Level0")
 
         assert(spansOf(Level0).head.getStatus.getStatusCode == StatusCode.ERROR)
 
       "record fatal errors as failures" in new Fixture:
         intercept[LinkageError]:
-          byNameSpan(myTracing)(throw new LinkageError("broken"))(s"$prefix-$Level0")
+          (throw new LinkageError("broken")).span(myTracing)(s"$prefix-$Level0")
 
         assert(spansOf(Level0).head.getStatus.getStatusCode == StatusCode.ERROR)
 
       "pass a failure to beforeClose" in new Fixture:
         var seen: Option[Throwable] = None
         intercept[Exception]:
-          byNameSpan(myTracing)(throw new Exception("boom"))(
+          (throw new Exception("boom")).span(myTracing)(
             s"$prefix-$Level0",
             beforeClose = s =>
-              seen = s.errorOpt
+              seen = s.defectOpt
               s.span
           )
 
@@ -1121,7 +1232,7 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         val interruption = new InterruptedException()
 
         val thrown = intercept[InterruptedException]:
-          byNameSpan(myTracing)(throw interruption)(s"$prefix-$Level0", beforeClose = _ => throw new Exception("from beforeClose"))
+          (throw interruption).span(myTracing)(s"$prefix-$Level0", beforeClose = _ => throw new Exception("from beforeClose"))
 
         assert(thrown eq interruption)
         assert(thrown.getSuppressed.exists(_.getMessage == "from beforeClose"))

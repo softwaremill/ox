@@ -4,7 +4,7 @@ import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.{Span, SpanContext, SpanKind, Tracer}
 import ox.channels.BufferCapacity
 import ox.flow.{Flow, FlowEmit}
-import ox.telemetry.tracing.{SpanWithError, byNameSpan}
+import ox.telemetry.tracing.{SpanWithError, span}
 
 extension [T](flow: Flow[T])
   /** Runs each element of this flow through the stages added by `f`, within its own span. The span is made a child of the current span, and
@@ -28,11 +28,11 @@ extension [T](flow: Flow[T])
       spanKind: SpanKind = SpanKind.INTERNAL,
       attributes: Attributes = Attributes.empty(),
       links: Seq[SpanContext] = Seq.empty,
-      beforeClose: SpanWithError => Span = _.span
+      beforeClose: SpanWithError[Nothing] => Span = _.span
   )(f: Flow[T] => Flow[U])(using BufferCapacity): Flow[U] =
     flow.flatMap: t =>
       val spanned = Flow.usingEmitInline[U]: emit =>
-        byNameSpan(tracer)(f(Flow.fromValues(t)).runToEmit(emit))(spanName, spanKind, attributes, links, beforeClose)
+        f(Flow.fromValues(t)).runToEmit(emit).span(tracer)(spanName, spanKind, attributes, links, beforeClose)
       spanned.buffer()
 
   /** Returns a flow, which for each element of this flow opens a new span. The span is made a child of the current span, and becomes the
@@ -47,33 +47,15 @@ extension [T](flow: Flow[T])
     *   callback executed right before closing the span, which receives the span and the failure of the following stage, if any. If it
     *   throws, the exception is added as suppressed to the one thrown by the stage, or thrown if the stages succeeded.
     */
-  def spanEachDownstream(tracer: Tracer)(
+  def spanEach(tracer: Tracer)(
       spanName: String,
       spanKind: SpanKind = SpanKind.INTERNAL,
       attributes: Attributes = Attributes.empty(),
       links: Seq[SpanContext] = Seq.empty,
-      beforeClose: SpanWithError => Span = _.span
+      beforeClose: SpanWithError[Nothing] => Span = _.span
   ): Flow[T] = Flow.usingEmitInline: emit =>
     flow.runToEmit(
       FlowEmit.fromInline: t =>
-        byNameSpan(tracer)(emit(t))(spanName, spanKind, attributes, links, beforeClose)
+        span(emit(t))(tracer)(spanName, spanKind, attributes, links, beforeClose)
     )
-
-  /** As [[ox.flow.Flow.map]], but each call of `f` is run within a new span. The span is made a child of the current span, and becomes the
-    * current one until it ends, when the previously current span is restored.
-    *
-    * If `f` throws, the span's status is set to `ERROR` and an appropriate event is added to it.
-    *
-    * @param beforeClose
-    *   callback executed right before closing the span, which receives the span and the failure of `f`, if any. If it throws, the exception
-    *   is added as suppressed to the one thrown by `f`, or thrown if `f` succeeded.
-    */
-  def mapSpanned[U](tracer: Tracer)(
-      spanName: String,
-      spanKind: SpanKind = SpanKind.INTERNAL,
-      attributes: Attributes = Attributes.empty(),
-      links: Seq[SpanContext] = Seq.empty,
-      beforeClose: SpanWithError => Span = _.span
-  )(f: T => U): Flow[U] =
-    flow.map(t => byNameSpan(tracer)(f(t))(spanName, spanKind, attributes, links, beforeClose))
 end extension
