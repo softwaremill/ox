@@ -69,15 +69,10 @@ end extension
   * representation as the description, and an `exception` event is added, with the error's type and message, or the exception itself, if the
   * error is a [[Throwable]].
   *
-  * An application error carried by a `boundary.break`, e.g. the one used by `either`'s `.ok()`, is recorded in the same way, and the break
-  * is propagated.
-  *
   * @param beforeClose
   *   callback executed right before closing the span, which receives the span, and the exception thrown by `t` or the application error it
   *   returned, if any. If it throws, the exception is added as suppressed to the one thrown by `t`, or to the application error, as defined
-  *   by the error mode, or thrown if `t` succeeded. An application error carried by a `boundary.break` thrown by `beforeClose` is added to
-  *   the application error returned by `t` as a suppressed error; if `t` succeeded, it is recorded on the span, and the break is
-  *   propagated.
+  *   by the error mode, or thrown if `t` succeeded.
   */
 extension [E, F[_], T](t: => F[T])
   def spanError(tracer: Tracer, em: ErrorMode[E, F])(
@@ -97,16 +92,10 @@ extension [E, F[_], T](t: => F[T])
       catch
         case e: Throwable =>
           thrown = e
-          breakError(em, e) match
-            case Some(error) =>
-              applicationError = Some(error)
-              recordApplicationError(finalizer.span, error)
-            case None =>
-              if shouldRecordDefect(e) then
-                actionableThrown = Some(e)
-                finalizer.span.recordException(e)
-                finalizer.span.setStatus(StatusCode.ERROR, e.getMessage): Unit
-          end match
+          if shouldRecordDefect(e) then
+            actionableThrown = Some(e)
+            finalizer.span.recordException(e)
+            finalizer.span.setStatus(StatusCode.ERROR, e.getMessage): Unit
       end try
 
       if thrown eq null then
@@ -120,13 +109,8 @@ extension [E, F[_], T](t: => F[T])
       catch
         case e: Throwable =>
           if thrown ne null then thrown.nn.addSuppressed(e)
-          else if applicationError.isDefined then
-            result = breakError(em, e) match
-              case Some(error) => em.addSuppressedError(result.nn, error)
-              case None        => em.addSuppressedException(result.nn, e)
-          else
-            breakError(em, e).foreach(recordApplicationError(finalizer.span, _))
-            throw e
+          else if applicationError.isDefined then result = em.addSuppressedException(result.nn, e)
+          else throw e
       end try
     finally finalizer.close()
     end try
@@ -134,17 +118,6 @@ extension [E, F[_], T](t: => F[T])
     if thrown ne null then throw thrown.nn else result.nn
   end spanError
 end extension
-
-/** The application error carried by a `boundary.break`, e.g. the one used by `either`'s `.ok()`, if the value is an error in the given
-  * mode.
-  */
-private def breakError[E, F[_]](em: ErrorMode[E, F], e: Throwable): Option[E] = e match
-  case b: boundary.Break[?] =>
-    try
-      val casted = b.value.asInstanceOf[F[E]]
-      if em.isError(casted) then Some(em.getError(casted)) else None
-    catch case _: ClassCastException => None
-  case _ => None
 
 private def recordApplicationError(span: Span, e: Any): Unit =
   e match

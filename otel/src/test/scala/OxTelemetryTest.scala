@@ -710,60 +710,16 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         assert(span.getStatus.getStatusCode == StatusCode.ERROR)
         assert(span.getStatus.getDescription == "boom")
 
-      "record an application error carried by a break, and propagate the break" in new Fixture:
-        var seen: SpanWithError[String] | Null = null
-
-        val result: Either[String, Int] = either:
-          ({
-            val x: Int = (Left("bad"): Either[String, Int]).ok()
-            Right(x)
-          }).spanError(myTracing, em)(
-            s"$prefix-$Level0",
-            beforeClose = s =>
-              seen = s
-              s.span
-          ).ok()
+      "record an application error short-circuited with ok, when spanError is placed around the either block" in new Fixture:
+        val result = either {
+          val x: Int = (Left("bad"): Either[String, Int]).ok()
+          x
+        }.spanError(myTracing, em)(s"$prefix-$Level0")
 
         assert(result == Left("bad"))
         val span = spansOf(Level0).head
         assert(span.getStatus.getStatusCode == StatusCode.ERROR)
         assert(span.getStatus.getDescription == "bad")
-        assert(seen.nn.errorOpt == Some("bad"))
-        assert(seen.nn.defectOpt.isEmpty)
-
-      "record an application error carried by a break thrown by beforeClose, and propagate the break, when t succeeds" in new Fixture:
-        val result: Either[String, Either[String, Int]] = either:
-          (Right(1): Either[String, Int]).spanError(myTracing, em)(
-            s"$prefix-$Level0",
-            beforeClose = s =>
-              (Left("cb"): Either[String, Unit]).ok()
-              s.span
-          )
-
-        assert(result == Left("cb"))
-        val span = spansOf(Level0).head
-        assert(span.getStatus.getStatusCode == StatusCode.ERROR)
-        assert(span.getStatus.getDescription == "cb")
-
-      "return the application error of t when beforeClose breaks with another one" in new Fixture:
-        val result: Either[String, Either[String, Int]] = either:
-          (Left("bad"): Either[String, Int]).spanError(myTracing, em)(
-            s"$prefix-$Level0",
-            beforeClose = s =>
-              (Left("cb"): Either[String, Unit]).ok()
-              s.span
-          )
-
-        assert(result == Right(Left("bad")))
-        val span = spansOf(Level0).head
-        assert(span.getStatus.getDescription == "bad")
-
-      "not mark the span as failed when a break carries a value which is not an error" in new Fixture:
-        val result = boundary[Either[String, Int]]:
-          (boundary.break(Right(1)): Either[String, Int]).spanError(myTracing, em)(s"$prefix-$Level0")
-
-        assert(result == Right(1))
-        assert(spansOf(Level0).head.getStatus.getStatusCode == StatusCode.UNSET)
 
       "return the application error, and close the span, when beforeClose throws" in new Fixture:
         val result =

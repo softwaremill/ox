@@ -130,8 +130,8 @@ recorded on the span. Interruptions and `boundary.break` are not failures, so th
 
 `spanError` additionally takes an [`ErrorMode`](../basics/error-handling.md), so that an application error, e.g. a
 `Left`, is recorded on the span as well: its status is set to `ERROR`, and an `exception` event is added. The error is not
-thrown, but returned as is. An error carried by a `boundary.break`, e.g. by `.ok()` in an `either` block, is recorded
-in the same way, and the break is propagated:
+thrown, but returned as is. To record an error short-circuited with `.ok()`, put `spanError` around the `either` block,
+which turns the break into a returned `Left`:
 
 ```scala mdoc:compile-only
 import io.opentelemetry.api.trace.Tracer
@@ -146,8 +146,7 @@ def returned(tracer: Tracer): Either[String, Int] =
   parse("abc").spanError(tracer, EitherMode[String]())("parse") // recorded, and returned as a Left
 
 def withOk(tracer: Tracer): Either[String, Int] =
-  either:
-    Right(parse("abc").ok() + 1).spanError(tracer, EitherMode[String]())("parse").ok() // recorded, and the break propagated
+  either { parse("abc").ok() + 1 }.spanError(tracer, EitherMode[String]())("parse") // the break is caught by `either`
 ```
 
 Both accept the optional parameters and the `beforeClose` callback described above. In `spanError`, its argument also has
