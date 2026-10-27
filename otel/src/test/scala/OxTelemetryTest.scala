@@ -307,7 +307,7 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         assert(spansOf(Level0).size == 1)
         assertNesting()
 
-      "end inner spans with event when nested flow fails in supervisedError" in new Fixture:
+      "end the spans of nested flows, adding events to them, when a nested flow fails with a break" in new Fixture:
         val em = EitherMode[String]
 
         val level0 = spanUnsafe(myTracing)(s"$prefix-$Level0")
@@ -362,124 +362,32 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         end try
 
         level0.close()
+        assert(spansOf(Level0).size == 1)
+        assert(spansOf(Level1_First).size == 1)
         assert(spansOf(Level1_First_Child).size == 1) // because flow.flatMap is evaluated sequentially and exception ends whole flow
+        assert(spansOf(Level1_First_Child).head.getEvents.asScala.exists(_.getName == "boomed at 1"))
         assertNesting()
 
-      "end inner spans with event when nested flow fails and failure is replaced by empty flow" in new Fixture:
+      "record the error returned by a span in supervisedError, ending the span, and continue with the following elements" in new Fixture:
         val em = EitherMode[String]
 
-        val level0 = spanUnsafe(myTracing)(s"$prefix-$Level0")
+        val result = flow
+          .flatMap: el =>
+            supervisedError(em):
+              spanError(myTracing, em)(s"$prefix-$Level1")(
+                either:
+                  val buffered = Flow.fromValues(el).buffer().runToList()
+                  if el == 1 then em.pureError("ops").ok() else buffered
+              )
+            .fold(_ => Flow.empty[Int], Flow.fromIterable)
+          .runToList()
 
-        val spanned = Flow.usingEmit[Int](emit => span(myTracing)(s"$prefix-$Level1")(flow.runToEmit(emit))).buffer()
-
-        try
-          supervised {
-            (1 to 10).map {
-              case 1 =>
-                forkUser {
-                  Flow
-                    .usingEmit[Int](emit =>
-                      span(myTracing)(s"$prefix-$Level1_First")(
-                        flow
-                          .flatMap { el =>
-                            {
-                              val inner = supervisedError(em):
-                                either:
-                                  val innerFlow =
-                                    em.pure(
-                                      Flow
-                                        .usingEmit[Int](emit =>
-                                          span(myTracing)(
-                                            s"$prefix-$Level1_First_Child",
-                                            beforeClose = _.span.addEvent(s"boomed at $el")
-                                          )(
-                                            flow
-                                              .runToEmit(emit)
-                                          )
-                                        )
-                                        .buffer()
-                                        .map {
-                                          case 1 => em.pureError("ops").ok();
-                                          case x => x
-                                        }
-                                    )
-                                  innerFlow.ok()
-                              inner
-                            }.toOption.getOrElse(Flow.empty)
-                          }
-                          .runToEmit(emit)
-                      )
-                    )
-                    .buffer()
-                    .runToList()
-                }
-              case _ => forkUser(spanned.runToList())
-            }
-          }
-        catch case _ => ()
-        end try
-
-        level0.close()
-        assert(spansOf(Level1_First_Child).size == 1) // because flow.flatMap is evaluated sequentially and exception ends whole flow
-        assertNesting()
-
-      "end inner spans with event when nested flow fails inside enclosing supervisedError" in new Fixture:
-        val em = EitherMode[String]
-
-        val level0 = spanUnsafe(myTracing)(s"$prefix-$Level0")
-
-        val spanned = Flow.usingEmit[Int](emit => span(myTracing)(s"$prefix-$Level1")(flow.runToEmit(emit))).buffer()
-
-        try
-          supervisedError(em) {
-            either:
-              em.pure:
-                (1 to 10).map {
-                  case 1 =>
-                    forkUser {
-                      Flow
-                        .usingEmit[Int](emit =>
-                          span(myTracing)(s"$prefix-$Level1_First")(
-                            flow
-                              .flatMap { el =>
-                                {
-                                  supervisedError(em):
-                                    val innerFlow =
-                                      em.pure(
-                                        Flow
-                                          .usingEmit[Int](emit =>
-                                            span(myTracing)(
-                                              s"$prefix-$Level1_First_Child",
-                                              beforeClose = _.span.addEvent(s"boomed at $el")
-                                            )(
-                                              flow
-                                                .runToEmit(emit)
-                                            )
-                                          )
-                                          .buffer()
-                                          .map {
-                                            case 1 => em.pureError("ops").ok();
-                                            case x => x
-                                          }
-                                      )
-                                    innerFlow
-                                }.toOption.get
-                              }
-                              .runToEmit(emit)
-                          )
-                        )
-                        .buffer()
-                        .runToList()
-                    }
-                  case _ => forkUser(spanned.runToList())
-                }
-          }
-        catch case _ => ()
-        end try
-
-        level0.close()
-        assert(spansOf(Level1_First_Child).size == 1) // because flow.flatMap is evaluated sequentially and exception ends whole flow
-        assertNesting()
+        assert(result == List(2, 3))
+        val spans = spansOf(Level1).sortBy(_.getStartEpochNanos)
+        assert(spans.size == 3)
+        assert(spans.head.getStatus.getStatusCode == StatusCode.ERROR)
+        assert(spans.head.getStatus.getDescription == "ops")
+        assert(spans.tail.forall(_.getStatus.getStatusCode == StatusCode.UNSET))
     }
 
     "used with async stages downstream" should {
