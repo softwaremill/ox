@@ -10,7 +10,7 @@ import java.util.concurrent.ExecutionException
 import scala.util.{Try, boundary}
 import scala.util.control.ControlThrowable
 
-export ox.flow.tracing.{spanEach, spanStages}
+export ox.flow.tracing.spanEach
 
 /** Returns the current span. This is not unsafe per se, but the caller is responsible for using the span properly, e.g. not ending a span
   * that is managed elsewhere.

@@ -36,11 +36,6 @@ without it, spans created in forks won't be children of the span active when the
 [Flows](../streaming/flows.md) can open a span for each element. The span is a child of the current span, and if the code
 within it throws, the exception is recorded on the span, and its status is set to `ERROR`.
 
-| Operator                             | The span of an element covers                                                        |
-|--------------------------------------|--------------------------------------------------------------------------------------|
-| `spanEach(tracer)("name")`           | running the element through all the following stages, up to the first async boundary |
-| `spanStages(tracer)("name")(stages)` | running the element through `stages`, isolated from the following stages by a buffer |
-
 ### spanEach
 
 `spanEach` covers the stages placed after it, up to the first asynchronous boundary, e.g. `buffer`. As there is
@@ -75,30 +70,6 @@ def inFlatMap(tracer: Tracer, flow: Flow[Int]): List[Int] =
     .runToList()
 ```
 
-### spanStages
-
-`spanStages` runs each element through the stages added by the given function. The spans can be nested, and the stages
-placed after `spanStages` are not part of the span:
-
-```scala mdoc:compile-only
-import io.opentelemetry.api.trace.Tracer
-import ox.flow.Flow
-import ox.telemetry.tracing.*
-
-def stages(tracer: Tracer, flow: Flow[Int]): List[Int] =
-  flow
-    .spanStages(tracer)("outer")(
-      _.map(_ + 1)
-        .spanStages(tracer)("inner")(_.filter(_ % 2 == 0)) // a child of "outer"
-    )
-    .map(_ * 2) // not covered by any span
-    .runToList()
-```
-
-The stages and the span run in a fork, and the results are passed on through a buffer, of the size given by the
-`BufferCapacity` in scope. The following stages are not counted as long as the stages emit at most `BufferCapacity + 1`
-elements for one input element; beyond that, the span also includes the time of waiting for free space in the buffer.
-
 ### Optional parameters
 
 All the operators accept optional parameters, which reflect the OpenTelemetry span builder: `spanKind`, `attributes` and
@@ -114,12 +85,13 @@ import ox.telemetry.tracing.*
 
 def withCallback(tracer: Tracer, flow: Flow[Int]): List[Int] =
   flow
-    .spanStages(tracer)(
+    .spanEach(tracer)(
       "process",
       beforeClose = s =>
         s.defectOpt.foreach(e => s.span.setAttribute("error.type", e.getClass.getSimpleName))
         s.span.addEvent("done")
-    )(_.map(_ + 1))
+    )
+    .map(_ + 1)
     .runToList()
 ```
 
