@@ -7,6 +7,7 @@ import ox.{ErrorMode, NoErrorMode}
 
 import java.nio.channels.ClosedByInterruptException
 import java.util.concurrent.ExecutionException
+import scala.annotation.tailrec
 import scala.util.boundary
 import scala.util.control.ControlThrowable
 
