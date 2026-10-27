@@ -7,7 +7,7 @@ import ox.{ErrorMode, NoErrorMode}
 
 import java.nio.channels.ClosedByInterruptException
 import java.util.concurrent.ExecutionException
-import scala.util.{Try, boundary}
+import scala.util.boundary
 import scala.util.control.ControlThrowable
 
 export ox.flow.tracing.spanEach

@@ -19,7 +19,7 @@ import ox.otel.context.PropagatingVirtualThreadFactory
 
 import java.util.UUID
 import java.util.concurrent.Semaphore
-import scala.collection.JavaConverters.asScalaBufferConverter
+import scala.jdk.CollectionConverters.*
 import scala.util.boundary.Label
 
 class OtelTracingTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
@@ -81,7 +81,7 @@ class OtelTracingTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
 
     // sleeps guarantee the lower bound, the upper one leaves room for scheduling jitter
     def assertAbout(actualMs: Long, expectedMs: Long): Unit =
-      assert(actualMs >= expectedMs - 5 && actualMs < expectedMs + 250, s"expected ~$expectedMs ms, was $actualMs ms")
+      assert(actualMs >= expectedMs - 5 && actualMs < expectedMs + 250, s"expected ~$expectedMs ms, was $actualMs ms"): Unit
 
     def assertNesting(): Unit =
       val level0 = spansOf(Level0)
@@ -121,7 +121,7 @@ class OtelTracingTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
             .usingEmit[Int](emit => span(myTracing)(s"$prefix-$Level1")(flow.runToEmit(emit)))
             .buffer()
             .map(_ + 100)
-            .tap(i => currentSpanUnsafe().addEvent(i.toString))
+            .tap(i => currentSpanUnsafe().addEvent(i.toString): Unit)
 
           Flow.usingEmit[Int](emit => span(myTracing)(s"$prefix-$Level0")(spanned1.runToEmit(emit))).buffer().runDrain()
 
@@ -134,7 +134,7 @@ class OtelTracingTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         supervised {
           val spanned1 =
             (Flow.usingEmit[Int](emit => span(myTracing)(s"$prefix-$Level1")(flow.runToEmit(emit))).buffer() ++ Flow.fromValues(4, 2))
-              .tap(i => currentSpanUnsafe().addEvent(i.toString))
+              .tap(i => currentSpanUnsafe().addEvent(i.toString): Unit)
 
           Flow.usingEmit[Int](emit => span(myTracing)(s"$prefix-$Level0")(spanned1.runToEmit(emit))).buffer().runDrain()
 
@@ -197,7 +197,7 @@ class OtelTracingTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
       "nest spans across forks and inner supervised scopes" in new Fixture:
         val spanned = Flow.usingEmit[Int](emit => span(myTracing)(s"$prefix-$Level1")(flow.runToEmit(emit))).buffer()
 
-        span(myTracing)(s"$prefix-$Level0")(supervised {
+        val _ = span(myTracing)(s"$prefix-$Level0")(supervised {
           (1 to 10).map {
             case 1 =>
               forkUser(
@@ -205,7 +205,7 @@ class OtelTracingTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
                   .usingEmit[Int](emit =>
                     span(myTracing)(s"$prefix-$Level1_First")(
                       flow
-                        .flatMap { el =>
+                        .flatMap { _ =>
                           val innerFlow = supervised {
                             Flow
                               .usingEmit[Int](emit =>
@@ -616,7 +616,7 @@ class OtelTracingTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
 
         try
           supervised {
-            forkUser {
+            val _ = forkUser {
               semaphore.acquire()
               throw new Exception("oops")
             }
@@ -628,7 +628,7 @@ class OtelTracingTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
                 .runToList()
             }
           }
-        catch case err => ()
+        catch case _ => ()
         end try
 
         assert(spansOf(Level0).size == 1)
@@ -673,11 +673,11 @@ class OtelTracingTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
           seen = s.defectOpt :: seen
           s.span
 
-        scala.util.boundary:
+        val _ = scala.util.boundary:
           span(myTracing)(s"$prefix-$Level0", beforeClose = record)(scala.util.boundary.break(1))
-        intercept[scala.util.control.ControlThrowable]:
+        val _ = intercept[scala.util.control.ControlThrowable]:
           span(myTracing)(s"$prefix-$Level0", beforeClose = record)(throw new scala.util.control.ControlThrowable {})
-        intercept[InterruptedException]:
+        val _ = intercept[InterruptedException]:
           span(myTracing)(s"$prefix-$Level0", beforeClose = record)(throw new InterruptedException())
 
         assert(seen == List(None, None, None))
@@ -686,7 +686,7 @@ class OtelTracingTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
 
       "treat an interruption during I/O as not a failure" in new Fixture:
         var seen: Option[Throwable] = Some(new Exception("unset"))
-        intercept[java.nio.channels.ClosedByInterruptException]:
+        val _ = intercept[java.nio.channels.ClosedByInterruptException]:
           span(myTracing)(
             s"$prefix-$Level0",
             beforeClose = s =>
@@ -698,14 +698,14 @@ class OtelTracingTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         assert(spansOf(Level0).head.getStatus.getStatusCode == StatusCode.UNSET)
 
       "record the closing of a channel by another thread as a failure" in new Fixture:
-        intercept[java.nio.channels.AsynchronousCloseException]:
+        val _ = intercept[java.nio.channels.AsynchronousCloseException]:
           span(myTracing)(s"$prefix-$Level0")(throw new java.nio.channels.AsynchronousCloseException())
 
         assert(spansOf(Level0).head.getStatus.getStatusCode == StatusCode.ERROR)
 
       "treat an ExecutionException wrapping an interruption as not a failure" in new Fixture:
         var seen: Option[Throwable] = Some(new Exception("unset"))
-        intercept[java.util.concurrent.ExecutionException]:
+        val _ = intercept[java.util.concurrent.ExecutionException]:
           span(myTracing)(
             s"$prefix-$Level0",
             beforeClose = s =>
@@ -717,20 +717,20 @@ class OtelTracingTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         assert(spansOf(Level0).head.getStatus.getStatusCode == StatusCode.UNSET)
 
       "treat an ExecutionException wrapping a failure as a failure" in new Fixture:
-        intercept[java.util.concurrent.ExecutionException]:
+        val _ = intercept[java.util.concurrent.ExecutionException]:
           span(myTracing)(s"$prefix-$Level0")(throw new java.util.concurrent.ExecutionException(new Exception("boom")))
 
         assert(spansOf(Level0).head.getStatus.getStatusCode == StatusCode.ERROR)
 
       "record fatal errors as failures" in new Fixture:
-        intercept[LinkageError]:
+        val _ = intercept[LinkageError]:
           span(myTracing)(s"$prefix-$Level0")(throw new LinkageError("broken"))
 
         assert(spansOf(Level0).head.getStatus.getStatusCode == StatusCode.ERROR)
 
       "pass a failure to beforeClose" in new Fixture:
         var seen: Option[Throwable] = None
-        intercept[Exception]:
+        val _ = intercept[Exception]:
           span(myTracing)(
             s"$prefix-$Level0",
             beforeClose = s =>
