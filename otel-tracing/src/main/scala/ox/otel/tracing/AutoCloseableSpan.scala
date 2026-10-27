@@ -1,4 +1,4 @@
-package ox.telemetry.tracing
+package ox.otel.tracing
 
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.context.Scope

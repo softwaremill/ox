@@ -1,4 +1,4 @@
-package ox.telemetry
+package ox.otel.tracing
 
 import io.opentelemetry.api.common.{AttributeKey, Attributes}
 import io.opentelemetry.api.trace.{StatusCode, Tracer}
@@ -16,14 +16,13 @@ import ox.*
 import ox.either.ok
 import ox.flow.Flow
 import ox.otel.context.PropagatingVirtualThreadFactory
-import ox.telemetry.tracing.*
 
 import java.util.UUID
 import java.util.concurrent.Semaphore
 import scala.collection.JavaConverters.asScalaBufferConverter
 import scala.util.boundary.Label
 
-class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
+class OtelTracingTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
   override def beforeAll(): Unit =
     setOxThreadFactory(new PropagatingVirtualThreadFactory)
 
@@ -32,11 +31,11 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
   // To inspect the spans visually, run an OTLP backend and set the endpoint, e.g.:
   //   docker run --rm -p 16686:16686 -p 4317:4317 jaegertracing/all-in-one
   //   OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317 sbt otel/test
-  // and open http://localhost:16686 (service `ox-telemetry-test`).
+  // and open http://localhost:16686 (service `otel-tracing-test`).
   val tracerProvider =
     val builder = SdkTracerProvider
       .builder()
-      .setResource(Resource.create(Attributes.of(AttributeKey.stringKey("service.name"), "ox-telemetry-test")))
+      .setResource(Resource.create(Attributes.of(AttributeKey.stringKey("service.name"), "otel-tracing-test")))
       .addSpanProcessor(SimpleSpanProcessor.create(exporter))
     sys.env
       .get("OTEL_EXPORTER_OTLP_ENDPOINT")
@@ -752,4 +751,4 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         assert(spansOf(Level0).size == 1)
     }
   }
-end OxTelemetryTest
+end OtelTracingTest

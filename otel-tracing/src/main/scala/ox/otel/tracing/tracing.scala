@@ -1,4 +1,4 @@
-package ox.telemetry.tracing
+package ox.otel.tracing
 
 import io.opentelemetry.api.common.{AttributeKey, Attributes}
 import io.opentelemetry.api.trace.{Span, SpanContext, SpanKind, StatusCode, Tracer}

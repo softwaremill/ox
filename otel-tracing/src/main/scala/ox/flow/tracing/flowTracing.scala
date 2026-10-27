@@ -3,7 +3,7 @@ package ox.flow.tracing
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.{Span, SpanContext, SpanKind, Tracer}
 import ox.flow.{Flow, FlowEmit}
-import ox.telemetry.tracing.{SpanWithError, span}
+import ox.otel.tracing.{SpanWithError, span}
 
 extension [T](flow: Flow[T])
   /** Returns a flow, which for each element of this flow opens a new span. The span is made a child of the current span, and becomes the

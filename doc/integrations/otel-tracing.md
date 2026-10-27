@@ -3,7 +3,7 @@
 Dependency:
 
 ```scala
-"com.softwaremill.ox" %% "ox-telemetry" % "@VERSION@"
+"com.softwaremill.ox" %% "otel-tracing" % "@VERSION@"
 ```
 
 The module depends on [otel-context](otel-context.md), so it doesn't need to be added separately. An OpenTelemetry SDK
@@ -17,7 +17,7 @@ Spans are created using an OpenTelemetry `Tracer`, passed as the first argument:
 
 ```scala mdoc:compile-only
 import io.opentelemetry.api.trace.Tracer
-import ox.telemetry.tracing.*
+import ox.otel.tracing.*
 
 def example(tracer: Tracer): Unit =
   val opened = spanUnsafe(tracer)("my-span")
@@ -44,7 +44,7 @@ no buffer, the synchronous stages are called from within the span, so their dura
 ```scala mdoc:compile-only
 import io.opentelemetry.api.trace.Tracer
 import ox.flow.Flow
-import ox.telemetry.tracing.*
+import ox.otel.tracing.*
 
 def downstream(tracer: Tracer, flow: Flow[Int]): List[Int] =
   flow
@@ -61,7 +61,7 @@ within the span:
 ```scala mdoc:compile-only
 import io.opentelemetry.api.trace.Tracer
 import ox.flow.Flow
-import ox.telemetry.tracing.*
+import ox.otel.tracing.*
 
 def inFlatMap(tracer: Tracer, flow: Flow[Int]): List[Int] =
   flow
@@ -81,7 +81,7 @@ receives the span, and the exception thrown by the code covered by the span as `
 ```scala mdoc:compile-only
 import io.opentelemetry.api.trace.Tracer
 import ox.flow.Flow
-import ox.telemetry.tracing.*
+import ox.otel.tracing.*
 
 def withCallback(tracer: Tracer, flow: Flow[Int]): List[Int] =
   flow
@@ -109,7 +109,7 @@ which turns the break into a returned `Left`:
 import io.opentelemetry.api.trace.Tracer
 import ox.{EitherMode, either}
 import ox.either.ok
-import ox.telemetry.tracing.*
+import ox.otel.tracing.*
 
 def parse(s: String): Either[String, Int] = s.toIntOption.toRight(s"not a number: $s")
 
@@ -135,7 +135,7 @@ span unrestored; use it with [`useCloseableInScope`](../utils/resources.md), so 
 ```scala mdoc:compile-only
 import io.opentelemetry.api.trace.Tracer
 import ox.*
-import ox.telemetry.tracing.*
+import ox.otel.tracing.*
 
 def manual(tracer: Tracer): Unit =
   resourceScope {

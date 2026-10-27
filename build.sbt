@@ -136,9 +136,9 @@ lazy val otelContext: Project = (project in file("otel-context"))
   )
   .dependsOn(core % "test->test;compile->compile")
 
-lazy val otel: Project = (project in file("otel"))
+lazy val otelTracing: Project = (project in file("otel-tracing"))
   .settings(
-    name := "ox-telemetry",
+    name := "otel-tracing",
     Test / fork := true,
     Test / javaOptions += "-Dio.opentelemetry.context.enableStrictContext=true",
     libraryDependencies ++= Seq(
@@ -173,5 +173,5 @@ lazy val documentation: Project = (project in file("generated-doc")) // importan
     flowJson,
     cron,
     otelContext,
-    otel
+    otelTracing
   )
