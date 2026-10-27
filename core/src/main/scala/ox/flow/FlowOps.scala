@@ -2,7 +2,6 @@ package ox.flow
 
 import ox.CancellableFork
 import ox.Fork
-import ox.Ox
 import ox.OxUnsupervised
 import ox.channels.BufferCapacity
 import ox.channels.Channel
@@ -29,6 +28,9 @@ import java.util.concurrent.Semaphore
 import scala.concurrent.duration.DurationLong
 import scala.concurrent.duration.FiniteDuration
 import scala.util.control.ControlThrowable
+
+private case class Nested[U](child: Flow[U])
+private case object ChildDone
 
 class FlowOps[+T]:
   outer: Flow[T] =>
@@ -621,9 +623,6 @@ class FlowOps[+T]:
     *   An upper bound on the number of child flows that run in parallel.
     */
   def flattenPar[U](parallelism: Int)(using T <:< Flow[U])(using BufferCapacity): Flow[U] = Flow.usingEmitInline: emit =>
-    case class Nested(child: Flow[U])
-    case object ChildDone
-
     unsupervised:
       val childOutputChannel = BufferCapacity.newChannel[U]
       val childDoneChannel = Channel.unlimited[ChildDone.type]
@@ -639,7 +638,7 @@ class FlowOps[+T]:
       while runningChannelCount > 0 do
         assert(runningChannelCount <= parallelism + 1)
 
-        val pool: List[Source[Nested] | Source[U] | Source[ChildDone.type]] =
+        val pool: List[Source[Nested[U]] | Source[U] | Source[ChildDone.type]] =
           // +1, because of the parent channel.
           if runningChannelCount == parallelism + 1 || parentDone then List(childOutputChannel, childDoneChannel)
           else List(childOutputChannel, childDoneChannel, parentChannel)
@@ -656,7 +655,7 @@ class FlowOps[+T]:
 
           case ChildDone => runningChannelCount -= 1
 
-          case Nested(t) =>
+          case Nested[U @unchecked](t) =>
             forkUnsupervised:
               t.onDone(childDoneChannel.send(ChildDone)).runPipeToSink(childOutputChannel, propagateDone = false)
             .discard
@@ -916,7 +915,7 @@ class FlowOps[+T]:
     require(elements > 0, "elements must be > 0")
     require(per.toMillis > 0, "per time must be >= 1 ms")
     val emitEveryMillis = (per.toMillis / elements).millis
-    tap(t => sleep(emitEveryMillis))
+    tap(_ => sleep(emitEveryMillis))
   end throttle
 
   /** If this flow has no elements then elements from an `alternative` flow are emitted by the returned flow. If this flow is failed then
@@ -1247,7 +1246,7 @@ class FlowOps[+T]:
 
   /** Discard all elements emitted by this flow. The returned flow completes only when this flow completes (successfully or with an error).
     */
-  def drain(): Flow[Nothing] = Flow.usingEmitInline: emit =>
+  def drain(): Flow[Nothing] = Flow.usingEmitInline: _ =>
     last.run(FlowEmit.fromInline(_ => ()))
 
   /** Always runs `f` after the flow completes, whether it's because all elements are emitted, or when there's an error. */

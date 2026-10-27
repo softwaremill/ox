@@ -1,8 +1,9 @@
 package ox
 
+import scala.compiletime.uninitialized
 import java.util.concurrent.ThreadFactory
 
-private var customThreadFactory: ThreadFactory = _
+private var customThreadFactory: ThreadFactory = uninitialized
 
 /** @see [[oxThreadFactory]] */
 def setOxThreadFactory(tf: ThreadFactory): Unit =

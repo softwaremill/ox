@@ -344,7 +344,7 @@ def selectOrClosedWithin[TV, T1](
   selectOrClosedWithin(timeout, timeoutValue)(source1.receiveClause) match
     case source1.Received(v) => v
     case c: ChannelClosed    => c
-    case tv                  => timeoutValue
+    case _                   => timeoutValue
 
 /** @see [[selectOrClosedWithin(FiniteDuration, TimeoutValue)(Seq[Source])]]. */
 def selectOrClosedWithin[TV, T1, T2](
@@ -355,7 +355,7 @@ def selectOrClosedWithin[TV, T1, T2](
     case source1.Received(v) => v
     case source2.Received(v) => v
     case c: ChannelClosed    => c
-    case tv                  => timeoutValue
+    case _                   => timeoutValue
 
 /** @see [[selectOrClosedWithin(FiniteDuration, TimeoutValue)(Seq[Source])]]. */
 def selectOrClosedWithin[TimeoutValue, T1, T2, T3](
@@ -367,7 +367,7 @@ def selectOrClosedWithin[TimeoutValue, T1, T2, T3](
     case source2.Received(v) => v
     case source3.Received(v) => v
     case c: ChannelClosed    => c
-    case tv                  => timeoutValue
+    case _                   => timeoutValue
 
 /** @see [[selectOrClosedWithin(FiniteDuration, TimeoutValue)(Seq[Source])]]. */
 def selectOrClosedWithin[TV, T1, T2, T3, T4](
@@ -385,7 +385,7 @@ def selectOrClosedWithin[TV, T1, T2, T3, T4](
     case source3.Received(v) => v
     case source4.Received(v) => v
     case c: ChannelClosed    => c
-    case tv                  => timeoutValue
+    case _                   => timeoutValue
 
 /** @see [[selectOrClosedWithin(FiniteDuration, TimeoutValue)(Seq[Source])]]. */
 def selectOrClosedWithin[TV, T1, T2, T3, T4, T5](
@@ -411,7 +411,7 @@ def selectOrClosedWithin[TV, T1, T2, T3, T4, T5](
     case source4.Received(v) => v
     case source5.Received(v) => v
     case c: ChannelClosed    => c
-    case tv                  => timeoutValue
+    case _                   => timeoutValue
 
 /** Select exactly one source from which to receive a value, within the given timeout. Sources should not repeat.
   *

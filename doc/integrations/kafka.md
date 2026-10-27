@@ -80,7 +80,7 @@ import ox.kafka.ReceivedMessage
 
 case class SendPacket[K, V](
   send: List[ProducerRecord[K, V]], 
-  commit: List[ReceivedMessage[_, _]])
+  commit: List[ReceivedMessage[?, ?]])
 ```
 
 The `send` list contains the messages to be sent (each message is a Kafka `ProducerRecord`). The `commit` list contains

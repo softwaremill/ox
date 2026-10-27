@@ -7,8 +7,8 @@ commonSmlBuildSettings
 ossPublishSettings
 
 organization := "com.softwaremill.ox"
-scalaVersion := "3.3.8"
-scalacOptions ++= Seq("-Yfuture-lazy-vals", "-java-output-version", "21")
+scalaVersion := "3.9.0"
+scalacOptions ++= Seq("-java-output-version", "21")
 Test / scalacOptions += "-Wconf:msg=unused value of type org.scalatest.Assertion:s"
 Test / scalacOptions += "-Wconf:msg=unused value of type org.scalatest.compatible.Assertion:s"
 mimaPreviousArtifacts := Set.empty // we only use MiMa for `core` for now, using enableMimaSettings
@@ -34,8 +34,8 @@ val enableMimaSettings = Seq(
 val scalaTest = "org.scalatest" %% "scalatest" % "3.2.20" % Test
 val slf4j = "org.slf4j" % "slf4j-api" % "2.0.20"
 val logback = "ch.qos.logback" % "logback-classic" % "1.6.5"
-val jsoniterVersion = "2.41.2"
 val openTelemetryVersion = "1.67.0"
+val jsoniterVersion = "2.41.7"
 val jsoniterCore = "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core" % jsoniterVersion
 val jsoniterMacros = "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % jsoniterVersion
 
@@ -74,10 +74,10 @@ lazy val kafka: Project = (project in file("kafka"))
   .settings(
     name := "kafka",
     libraryDependencies ++= Seq(
-      "org.apache.kafka" % "kafka-clients" % "4.3.1",
+      "org.apache.kafka" % "kafka-clients" % "4.4.0",
       slf4j,
       logback % Test,
-      "io.github.embeddedkafka" %% "embedded-kafka" % "4.3.1" % Test,
+      "io.github.embeddedkafka" %% "embedded-kafka" % "4.4.0" % Test,
       "org.apache.pekko" %% "pekko-connectors-kafka" % "1.2.0" % Test,
       "org.apache.pekko" %% "pekko-stream" % "1.7.1" % Test,
       scalaTest

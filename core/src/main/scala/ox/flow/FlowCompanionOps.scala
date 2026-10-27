@@ -161,7 +161,7 @@ trait FlowCompanionOps:
         case None        => false
 
   /** Create a flow which sleeps for the given `timeout` and then completes as done. */
-  def timeout[T](timeout: FiniteDuration): Flow[T] = usingEmitInline: emit =>
+  def timeout[T](timeout: FiniteDuration): Flow[T] = usingEmitInline: _ =>
     sleep(timeout)
 
   /** Creates a flow which concatenates the given `flows` in order. First elements from the first flow are emitted, then from the second
