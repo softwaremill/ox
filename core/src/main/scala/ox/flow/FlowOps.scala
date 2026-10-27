@@ -295,6 +295,8 @@ class FlowOps[+T]:
     val base: Flow[U] = expand[U](u => Iterator.single(u) ++ extrapolator(u))
     initial.fold(base)(e => Flow.fromValues(e).concat(base))
 
+  //
+
   /** Applies the given mapping function `f` to each element emitted by this flow. The returned flow then emits the results.
     *
     * @param f
