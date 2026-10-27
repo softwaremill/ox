@@ -129,6 +129,7 @@ private def recordApplicationError(span: Span, e: Any): Unit =
       ): Unit
       span.setStatus(StatusCode.ERROR, message): Unit
 
+@tailrec
 private def shouldRecordDefect(e: Throwable): Boolean = e match
   case _: InterruptedException | _: ClosedByInterruptException | _: ControlThrowable | _: boundary.Break[?] => false
   case e: ExecutionException if e.getCause ne null => shouldRecordDefect(e.getCause)
