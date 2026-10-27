@@ -35,6 +35,7 @@ val scalaTest = "org.scalatest" %% "scalatest" % "3.2.20" % Test
 val slf4j = "org.slf4j" % "slf4j-api" % "2.0.20"
 val logback = "ch.qos.logback" % "logback-classic" % "1.6.5"
 val jsoniterVersion = "2.41.2"
+val openTelemetryVersion = "1.67.0"
 val jsoniterCore = "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core" % jsoniterVersion
 val jsoniterMacros = "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % jsoniterVersion
 
@@ -129,7 +130,7 @@ lazy val otelContext: Project = (project in file("otel-context"))
   .settings(
     name := "otel-context",
     libraryDependencies ++= Seq(
-      "io.opentelemetry" % "opentelemetry-api" % "1.67.0",
+      "io.opentelemetry" % "opentelemetry-api" % openTelemetryVersion,
       scalaTest
     )
   )
@@ -141,10 +142,10 @@ lazy val otel: Project = (project in file("otel"))
     Test / fork := true,
     Test / javaOptions += "-Dio.opentelemetry.context.enableStrictContext=true",
     libraryDependencies ++= Seq(
-      "io.opentelemetry" % "opentelemetry-api" % "1.67.0",
+      "io.opentelemetry" % "opentelemetry-api" % openTelemetryVersion,
       scalaTest,
-      "io.opentelemetry" % "opentelemetry-sdk-testing" % "1.67.0" % Test,
-      "io.opentelemetry" % "opentelemetry-exporter-otlp" % "1.67.0" % Test
+      "io.opentelemetry" % "opentelemetry-sdk-testing" % openTelemetryVersion % Test,
+      "io.opentelemetry" % "opentelemetry-exporter-otlp" % openTelemetryVersion % Test
     )
   )
   .dependsOn(core % "test->test;compile->compile", otelContext % "test->test;compile->compile")

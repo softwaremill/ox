@@ -32,7 +32,7 @@ extension [T](flow: Flow[T])
   )(f: Flow[T] => Flow[U])(using BufferCapacity): Flow[U] =
     flow.flatMap: t =>
       val spanned = Flow.usingEmitInline[U]: emit =>
-        f(Flow.fromValues(t)).runToEmit(emit).span(tracer)(spanName, spanKind, attributes, links, beforeClose)
+        span(tracer)(spanName, spanKind, attributes, links, beforeClose)(f(Flow.fromValues(t)).runToEmit(emit))
       spanned.buffer()
 
   /** Returns a flow, which for each element of this flow opens a new span. The span is made a child of the current span, and becomes the
@@ -56,6 +56,6 @@ extension [T](flow: Flow[T])
   ): Flow[T] = Flow.usingEmitInline: emit =>
     flow.runToEmit(
       FlowEmit.fromInline: t =>
-        span(emit(t))(tracer)(spanName, spanKind, attributes, links, beforeClose)
+        span(tracer)(spanName, spanKind, attributes, links, beforeClose)(emit(t))
     )
 end extension

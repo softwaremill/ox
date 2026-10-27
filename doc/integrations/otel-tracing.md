@@ -142,11 +142,12 @@ import ox.telemetry.tracing.*
 def parse(s: String): Either[String, Int] = s.toIntOption.toRight(s"not a number: $s")
 
 def returned(tracer: Tracer): Either[String, Int] =
-  println("working").span(tracer)("log")
-  parse("abc").spanError(tracer, EitherMode[String]())("parse") // recorded, and returned as a Left
+  span(tracer)("log"):
+    println("working")
+  spanError(tracer, EitherMode[String]())("parse")(parse("abc")) // recorded, and returned as a Left
 
 def withOk(tracer: Tracer): Either[String, Int] =
-  either { parse("abc").ok() + 1 }.spanError(tracer, EitherMode[String]())("parse") // the break is caught by `either`
+  spanError(tracer, EitherMode[String]())("parse")(either { parse("abc").ok() + 1 }) // the break is caught by `either`
 ```
 
 Both accept the optional parameters and the `beforeClose` callback described above. In `spanError`, its argument also has

@@ -53,16 +53,14 @@ end spanUnsafe
   *   callback executed right before closing the span, which receives the span and the failure of `t`, if any. If it throws, the exception
   *   is added as suppressed to the one thrown by `t`, or thrown if `t` succeeded.
   */
-extension [T](t: => T)
-  def span(tracer: Tracer)(
-      spanName: String,
-      spanKind: SpanKind = SpanKind.INTERNAL,
-      attributes: Attributes = Attributes.empty(),
-      links: Seq[SpanContext] = Seq.empty,
-      beforeClose: SpanWithError[Nothing] => Span = _.span
-  ): T =
-    spanError[Nothing, [X] =>> X, T](t)(tracer, NoErrorMode)(spanName, spanKind, attributes, links, beforeClose)
-end extension
+def span[T](tracer: Tracer)(
+    spanName: String,
+    spanKind: SpanKind = SpanKind.INTERNAL,
+    attributes: Attributes = Attributes.empty(),
+    links: Seq[SpanContext] = Seq.empty,
+    beforeClose: SpanWithError[Nothing] => Span = _.span
+)(t: => T): T =
+  spanError[Nothing, [X] =>> X, T](tracer, NoErrorMode)(spanName, spanKind, attributes, links, beforeClose)(t)
 
 /** As [[span]], but `t` can also report an application error, in the sense of the given [[ox.ErrorMode]], e.g. a `Left`. Such an error is
   * not thrown, so it's returned as is, after being recorded on the span: the span's status is set to `ERROR`, with the error's string
@@ -74,50 +72,48 @@ end extension
   *   returned, if any. If it throws, the exception is added as suppressed to the one thrown by `t`, or to the application error, as defined
   *   by the error mode, or thrown if `t` succeeded.
   */
-extension [E, F[_], T](t: => F[T])
-  def spanError(tracer: Tracer, em: ErrorMode[E, F])(
-      spanName: String,
-      spanKind: SpanKind = SpanKind.INTERNAL,
-      attributes: Attributes = Attributes.empty(),
-      links: Seq[SpanContext] = Seq.empty,
-      beforeClose: SpanWithError[E] => Span = (s: SpanWithError[E]) => s.span
-  ): F[T] =
-    val finalizer = spanUnsafe(tracer)(spanName, spanKind, attributes, links)
-    var thrown: Throwable | Null = null
-    var result: F[T] | Null = null
-    var actionableThrown: Option[Throwable] = None
-    var applicationError: Option[E] = None
-    try
-      try result = t
-      catch
-        case e: Throwable =>
-          thrown = e
-          if shouldRecordDefect(e) then
-            actionableThrown = Some(e)
-            finalizer.span.recordException(e)
-            finalizer.span.setStatus(StatusCode.ERROR, e.getMessage): Unit
-      end try
-
-      if thrown eq null then
-        val r = result.nn
-        if em.isError(r) then
-          val e = em.getError(r)
-          applicationError = Some(e)
-          recordApplicationError(finalizer.span, e)
-
-      try beforeClose(SpanWithError(finalizer.span, actionableThrown, applicationError)): Unit
-      catch
-        case e: Throwable =>
-          if thrown ne null then thrown.nn.addSuppressed(e)
-          else if applicationError.isDefined then result = em.addSuppressedException(result.nn, e)
-          else throw e
-      end try
-    finally finalizer.close()
+def spanError[E, F[_], T](tracer: Tracer, em: ErrorMode[E, F])(
+    spanName: String,
+    spanKind: SpanKind = SpanKind.INTERNAL,
+    attributes: Attributes = Attributes.empty(),
+    links: Seq[SpanContext] = Seq.empty,
+    beforeClose: SpanWithError[E] => Span = (s: SpanWithError[E]) => s.span
+)(t: => F[T]): F[T] =
+  val finalizer = spanUnsafe(tracer)(spanName, spanKind, attributes, links)
+  var thrown: Throwable | Null = null
+  var result: F[T] | Null = null
+  var actionableThrown: Option[Throwable] = None
+  var applicationError: Option[E] = None
+  try
+    try result = t
+    catch
+      case e: Throwable =>
+        thrown = e
+        if shouldRecordDefect(e) then
+          actionableThrown = Some(e)
+          finalizer.span.recordException(e)
+          finalizer.span.setStatus(StatusCode.ERROR, e.getMessage): Unit
     end try
 
-    if thrown ne null then throw thrown.nn else result.nn
-  end spanError
-end extension
+    if thrown eq null then
+      val r = result.nn
+      if em.isError(r) then
+        val e = em.getError(r)
+        applicationError = Some(e)
+        recordApplicationError(finalizer.span, e)
+
+    try beforeClose(SpanWithError(finalizer.span, actionableThrown, applicationError)): Unit
+    catch
+      case e: Throwable =>
+        if thrown ne null then thrown.nn.addSuppressed(e)
+        else if applicationError.isDefined then result = em.addSuppressedException(result.nn, e)
+        else throw e
+    end try
+  finally finalizer.close()
+  end try
+
+  if thrown ne null then throw thrown.nn else result.nn
+end spanError
 
 private def recordApplicationError(span: Span, e: Any): Unit =
   e match
