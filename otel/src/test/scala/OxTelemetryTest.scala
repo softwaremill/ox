@@ -13,7 +13,7 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.SpanSugar.convertIntToGrainOfTime
 import org.scalatest.wordspec.AnyWordSpec
 import ox.*
-import ox.channels.BufferCapacity
+import ox.channels.{BufferCapacity, Source}
 import ox.either.ok
 import ox.flow.Flow
 import ox.otel.context.PropagatingVirtualThreadFactory
@@ -22,7 +22,6 @@ import ox.telemetry.tracing.*
 import java.util.UUID
 import java.util.concurrent.Semaphore
 import scala.collection.JavaConverters.asScalaBufferConverter
-import scala.util.boundary
 import scala.util.boundary.Label
 
 class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
@@ -835,6 +834,7 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         val parent = spanUnsafe(myTracing)(s"$prefix-$Level0")
 
         given BufferCapacity = BufferCapacity(0)
+
         flow.spanStages(myTracing)(s"$prefix-$Level1")(_.mapConcat(x => List(x, x * 10))).tap(_ => sleep(200.millis)).runToList(): Unit
 
         parent.close()
@@ -847,17 +847,70 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         val parent = spanUnsafe(myTracing)(s"$prefix-$Level0")
 
         given BufferCapacity = BufferCapacity(1)
+
         flow.spanStages(myTracing)(s"$prefix-$Level1")(_.mapConcat(x => List(x, x * 10))).tap(_ => sleep(200.millis)).runToList(): Unit
 
         parent.close()
 
         assert(spansOf(Level1).size == 3)
         assert(spansOf(Level1).forall(durationMs(_) < 150))
+      "span is ended immediately when next element enters spanStages and inner flow produces buffer +1 elements" in new Fixture:
+
+        given BufferCapacity = BufferCapacity(3)
+
+        supervised: ox ?=>
+          val source: Source[Int] = flow
+            .spanStages(myTracing)(s"$prefix-$Level1")(
+              _.mapConcat(_ => 1 to 4)
+            )
+            .runToChannel()(using ox, BufferCapacity(0))
+
+          // receive 4 elements, to clear buffer from first element that entered spanStages
+          (1 to 4).foreach: _ =>
+            source.receive()
+
+          val spans1 = spansOf(Level1)
+          assert(spans1.size == 1)
+
+          // next receive will trigger second element enter spanStages
+          source.receive()
+
+          val spans2 = spansOf(Level1)
+          assert(spans2.size == 2)
+
+          // receive reamaining 3 elements, to clear buffer from second element that entered spanStages
+          (1 to 3).foreach: _ =>
+            source.receive()
+
+          val spans3 = spansOf(Level1)
+          assert(spans3.size == 2)
+
+          // next receive will trigger third element enter spanStages
+          source.receive()
+
+          val spans4 = spansOf(Level1)
+          assert(spans4.size == 3)
+
+      "span time is not affected by backpressure from slow consumer when number of elements produced = buffer +1" in new Fixture:
+
+        given BufferCapacity = BufferCapacity(3)
+
+        flow
+          .spanStages(myTracing)(s"$prefix-$Level1")(
+            _.mapConcat(_ => 1 to 4)
+          )
+          .throttle(1, 100.millis)
+          .runToList()
+
+        assert(spansOf(Level1).size == 3)
+        for span <- spansOf(Level1)
+        yield assert(durationMs(span) < 100)
 
       "count the time of the following stages when the inner flow has more than buffer + 1 elements" in new Fixture:
         val parent = spanUnsafe(myTracing)(s"$prefix-$Level0")
 
         given BufferCapacity = BufferCapacity(1)
+
         flow
           .spanStages(myTracing)(s"$prefix-$Level1")(_.mapConcat(x => List(x, x * 10, x * 100)))
           .tap(_ => sleep(200.millis))
@@ -872,9 +925,11 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         val parent = spanUnsafe(myTracing)(s"$prefix-$Level0")
 
         given BufferCapacity = BufferCapacity(1)
+
         flow
           .spanStages(myTracing)(s"$prefix-$Level1")(f =>
             given BufferCapacity = BufferCapacity(0)
+
             f.spanStages(myTracing)(s"$prefix-$Level1_First")(_.mapConcat(y => List(y, y * 10, y * 100)))
           )
           .tap(_ => sleep(200.millis))
@@ -891,6 +946,7 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         extension [T](flow: Flow[T]) def traced[U](name: String)(f: Flow[T] => Flow[U]) = flow.spanStages(myTracing)(name)(f)
 
         given BufferCapacity = BufferCapacity(0)
+
         flow
           .spanStages(myTracing)(s"$prefix-$Level1"):
             _.tap(println).spanStages(myTracing)(s"$prefix-$Level1_First"):
@@ -907,6 +963,7 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         val parent = spanUnsafe(myTracing)(s"$prefix-$Level0")
 
         given BufferCapacity = BufferCapacity(2)
+
         flow.spanStages(myTracing)(s"$prefix-$Level1")(_.mapConcat(x => List(x, x * 10))).tap(_ => sleep(200.millis)).runToList(): Unit
 
         parent.close()
@@ -1113,6 +1170,7 @@ class OxTelemetryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
 
       "not pass a boundary break, a control throwable or an interruption to beforeClose" in new Fixture:
         var seen: List[Option[Throwable]] = Nil
+
         def record(s: SpanWithError[Nothing]) =
           seen = s.defectOpt :: seen
           s.span
