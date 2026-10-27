@@ -60,8 +60,8 @@ class FlowFromPublisherDiscardStressTest extends AnyFunSuite with Matchers:
             result.cancel().discard
 end FlowFromPublisherDiscardStressTest
 
-/** Emits `1..n` from its own thread, respecting demand, then completes. After observing cancellation, sends a few more elements, as
-  * allowed by the spec.
+/** Emits `1..n` from its own thread, respecting demand, then completes. After observing cancellation, sends a few more elements, as allowed
+  * by the spec.
   */
 private class ThreadedPublisher(n: Int) extends Publisher[Int]:
   private val requested = new AtomicLong(0)
@@ -78,8 +78,7 @@ private class ThreadedPublisher(n: Int) extends Publisher[Int]:
         sent += next
         next += 1
 
-      while next <= n && !cancelled.get() do
-        if next <= requested.get() then send() else Thread.onSpinWait()
+      while next <= n && !cancelled.get() do if next <= requested.get() then send() else Thread.onSpinWait()
       if cancelled.get() then (1 to 3).foreach(_ => send()) else s.onComplete()
     )
     s.onSubscribe(new Subscription:
