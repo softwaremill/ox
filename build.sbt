@@ -34,6 +34,7 @@ val enableMimaSettings = Seq(
 val scalaTest = "org.scalatest" %% "scalatest" % "3.2.20" % Test
 val slf4j = "org.slf4j" % "slf4j-api" % "2.0.20"
 val logback = "ch.qos.logback" % "logback-classic" % "1.6.5"
+val openTelemetryVersion = "1.67.0"
 val jsoniterVersion = "2.42.0"
 val jsoniterCore = "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core" % jsoniterVersion
 val jsoniterMacros = "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % jsoniterVersion
@@ -129,11 +130,25 @@ lazy val otelContext: Project = (project in file("otel-context"))
   .settings(
     name := "otel-context",
     libraryDependencies ++= Seq(
-      "io.opentelemetry" % "opentelemetry-api" % "1.67.0",
+      "io.opentelemetry" % "opentelemetry-api" % openTelemetryVersion,
       scalaTest
     )
   )
   .dependsOn(core % "test->test;compile->compile")
+
+lazy val otelTracing: Project = (project in file("otel-tracing"))
+  .settings(
+    name := "otel-tracing",
+    Test / fork := true,
+    Test / javaOptions += "-Dio.opentelemetry.context.enableStrictContext=true",
+    libraryDependencies ++= Seq(
+      "io.opentelemetry" % "opentelemetry-api" % openTelemetryVersion,
+      scalaTest,
+      "io.opentelemetry" % "opentelemetry-sdk-testing" % openTelemetryVersion % Test,
+      "io.opentelemetry" % "opentelemetry-exporter-otlp" % openTelemetryVersion % Test
+    )
+  )
+  .dependsOn(core % "test->test;compile->compile", otelContext % "test->test;compile->compile")
 
 lazy val documentation: Project = (project in file("generated-doc")) // important: it must not be doc/
   .enablePlugins(MdocPlugin)
@@ -157,5 +172,6 @@ lazy val documentation: Project = (project in file("generated-doc")) // importan
     flowReactiveStreams,
     flowJson,
     cron,
-    otelContext
+    otelContext,
+    otelTracing
   )
