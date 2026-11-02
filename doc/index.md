@@ -93,6 +93,7 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
    integrations/mdc-logback
    integrations/cron4s
    integrations/otel-context
+   integrations/otel-tracing
    integrations/tapir
    integrations/sttp-client
 
