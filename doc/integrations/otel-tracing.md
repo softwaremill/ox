@@ -19,10 +19,21 @@ Spans are created using an OpenTelemetry `Tracer`, passed as the first argument:
 import io.opentelemetry.api.trace.Tracer
 import ox.otel.tracing.*
 
-def example(tracer: Tracer): Unit =
-  val opened = spanUnsafe(tracer)("my-span")
-  opened.close()
-```
+def someTask(): Int =
+  sleep(200.millis)
+  21
+
+def anotherTask(in: Int): Int =
+  sleep(500.millis)
+  42
+
+def measuredComputations(tracer: Tracer): Int =
+  span(tracer)("outerSpan"):
+    val result1 = someTask()
+    span(tracer)("innerSpan"):
+      anotherTask(result1)
+```        
+
 
 ## Propagating the context
 
