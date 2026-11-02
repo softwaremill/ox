@@ -9,14 +9,14 @@ import io.opentelemetry.context.Scope
   * [[ox.useCloseableInScope]], so that the span is always closed.
   *
   * @example
-  * {{{
+  *   {{{
   * resourceScope{
   *   val opened = useCloseableInScope(spanUnsafe(tracer)("my-span"))
   *   foo()
   *   opened.span.setAttribute("key", "value")
   *   bar()
   * }
-  * }}}
+  *   }}}
   */
 sealed trait AutoCloseableSpan extends AutoCloseable:
   /** The opened span, e.g. to set attributes or add events. */
