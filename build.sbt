@@ -33,9 +33,9 @@ val enableMimaSettings = Seq(
 
 val scalaTest = "org.scalatest" %% "scalatest" % "3.2.20" % Test
 val slf4j = "org.slf4j" % "slf4j-api" % "2.0.20"
-val logback = "ch.qos.logback" % "logback-classic" % "1.6.5"
 val openTelemetryVersion = "1.67.0"
-val jsoniterVersion = "2.42.0"
+val logback = "ch.qos.logback" % "logback-classic" % "1.6.6"
+val jsoniterVersion = "2.42.1"
 val jsoniterCore = "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core" % jsoniterVersion
 val jsoniterMacros = "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % jsoniterVersion
 
