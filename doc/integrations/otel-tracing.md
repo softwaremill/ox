@@ -75,7 +75,12 @@ import ox.otel.tracing.*
 
 def inFlatMap(tracer: Tracer, flow: Flow[Int]): List[Int] =
   flow
-    .flatMap(x => Flow.fromValues(x, x * 10).spanEach(tracer)("element").map(_ + 1)) // covered by the span
+    .flatMap{ x => 
+        Flow.fromValues(x, x * 10)
+        .tap(sleep(100.millis)) // not covered by the span 
+        .spanEach(tracer)("element")
+        .map(_ + 1) // covered by the span 
+        }
     .map(_ * 2) // also covered
     .runToList()
 ```
