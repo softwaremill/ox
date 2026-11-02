@@ -38,8 +38,8 @@ def measuredComputations(tracer: Tracer): Int =
 ## Propagating the context
 
 The current span is kept in the OpenTelemetry `Context`, which by default isn't propagated to new virtual threads, e.g.
-forks created in [`supervised`](../structured-concurrency/fork-join.md) scopes. Ox tracing therefore **requires** the
-`PropagatingVirtualThreadFactory` from [otel-context](otel-context.md) to be used, which describes how to set it up;
+forks created in [`supervised`](../structured-concurrency/fork-join.md) scopes. Ox tracing therefore should be used with the
+`PropagatingVirtualThreadFactory` from [otel-context](otel-context.md), which describes how to set it up;
 without it, spans created in forks won't be children of the span active when the fork was created.
 
 ## Spans around flows
