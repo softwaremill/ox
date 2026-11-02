@@ -84,7 +84,7 @@ def inFlatMap(tracer: Tracer, flow: Flow[Int]): List[Int] =
 
 The operator accepts optional parameters, which reflect the OpenTelemetry span builder: `spanKind`, `attributes` and `links`.
 
-It also accepts a `beforeClose` callback. Called right before the span is closed, it receives the span and, if any exception was thrown by the code covered by the span, that exception as `defectOpt`. It can be used to modify the span before it's closed.
+It also accepts a `beforeClose` callback. Called right before the span is closed, it receives the span and, if any exception was thrown by the code covered by the span, that exception as `exceptionOpt`. It can be used to modify the span before it's closed.
 
 ```scala mdoc:compile-only
 import io.opentelemetry.api.trace.Tracer
@@ -96,7 +96,7 @@ def withCallback(tracer: Tracer, flow: Flow[Int]): List[Int] =
     .spanEach(tracer)(
       "process",
       beforeClose = s =>
-        s.defectOpt.foreach(e => s.span.setAttribute("error.type", e.getClass.getSimpleName))
+        s.exceptionOpt.foreach(e => s.span.setAttribute("error.type", e.getClass.getSimpleName))
         s.span.addEvent("done")
     )
     .map(_ + 1)

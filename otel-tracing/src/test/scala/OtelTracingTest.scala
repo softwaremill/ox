@@ -564,7 +564,7 @@ class OtelTracingTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         )(Left("bad"): Either[String, Int]): Unit
 
         assert(seen.nn.errorOpt == Some("bad"))
-        assert(seen.nn.defectOpt.isEmpty)
+        assert(seen.nn.exceptionOpt.isEmpty)
 
       "record a thrown exception and pass it to beforeClose" in new Fixture:
         var seen: SpanWithError[String] | Null = null
@@ -578,7 +578,7 @@ class OtelTracingTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
           )((throw new Exception("boom")): Either[String, Int]): Unit
 
         assert(thrown.getMessage == "boom")
-        assert(seen.nn.defectOpt.map(_.getMessage) == Some("boom"))
+        assert(seen.nn.exceptionOpt.map(_.getMessage) == Some("boom"))
         assert(seen.nn.errorOpt.isEmpty)
         val span = spansOf(Level0).head
         assert(span.getStatus.getStatusCode == StatusCode.ERROR)
@@ -670,7 +670,7 @@ class OtelTracingTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         var seen: List[Option[Throwable]] = Nil
 
         def record(s: SpanWithError[Nothing]) =
-          seen = s.defectOpt :: seen
+          seen = s.exceptionOpt :: seen
           s.span
 
         val _ = scala.util.boundary:
@@ -690,7 +690,7 @@ class OtelTracingTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
           span(myTracing)(
             s"$prefix-$Level0",
             beforeClose = s =>
-              seen = s.defectOpt
+              seen = s.exceptionOpt
               s.span
           )(throw new java.nio.channels.ClosedByInterruptException())
 
@@ -709,7 +709,7 @@ class OtelTracingTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
           span(myTracing)(
             s"$prefix-$Level0",
             beforeClose = s =>
-              seen = s.defectOpt
+              seen = s.exceptionOpt
               s.span
           )(throw new java.util.concurrent.ExecutionException(new InterruptedException()))
 
@@ -734,7 +734,7 @@ class OtelTracingTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
           span(myTracing)(
             s"$prefix-$Level0",
             beforeClose = s =>
-              seen = s.defectOpt
+              seen = s.exceptionOpt
               s.span
           )(throw new Exception("boom"))
 
