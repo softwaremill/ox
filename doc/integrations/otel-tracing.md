@@ -49,8 +49,7 @@ within it throws, the exception is recorded on the span, and its status is set t
 
 ### spanEach
 
-`spanEach` covers the stages placed after it, up to the first asynchronous boundary, e.g. `buffer`. As there is
-no buffer, the synchronous stages are called from within the span, so their duration is counted:
+`spanEach` covers the stages placed after it, up to the first asynchronous boundary, e.g. `buffer`:
 
 ```scala mdoc:compile-only
 import io.opentelemetry.api.trace.Tracer
@@ -83,11 +82,9 @@ def inFlatMap(tracer: Tracer, flow: Flow[Int]): List[Int] =
 
 ### Optional parameters
 
-All the operators accept optional parameters, which reflect the OpenTelemetry span builder: `spanKind`, `attributes` and
-`links`.
+The operator accepts optional parameters, which reflect the OpenTelemetry span builder: `spanKind`, `attributes` and `links`.
 
-They also accept a `beforeClose` callback. It's called right before the span is closed, and
-receives the span, and the exception thrown by the code covered by the span as `defectOpt`, if any. It can be used to modify the span right before its closed.
+It also accepts a `beforeClose` callback. Called right before the span is closed, it receives the span and, if any exception was thrown by the code covered by the span, that exception as `defectOpt`. It can be used to modify the span before it's closed.
 
 ```scala mdoc:compile-only
 import io.opentelemetry.api.trace.Tracer
