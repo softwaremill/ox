@@ -1,7 +1,7 @@
 package ox.flow.tracing
 
 import io.opentelemetry.api.common.Attributes
-import io.opentelemetry.api.trace.{Span, SpanContext, SpanKind, Tracer}
+import io.opentelemetry.api.trace.{SpanContext, SpanKind, Tracer}
 import ox.flow.{Flow, FlowEmit}
 import ox.otel.tracing.{SpanWithError, span}
 
@@ -23,7 +23,7 @@ extension [T](flow: Flow[T])
       spanKind: SpanKind = SpanKind.INTERNAL,
       attributes: Attributes = Attributes.empty(),
       links: Seq[SpanContext] = Seq.empty,
-      beforeClose: SpanWithError[Nothing] => Span = _.span
+      beforeClose: SpanWithError[Nothing] => Unit = _ => ()
   ): Flow[T] = Flow.usingEmitInline: emit =>
     flow.runToEmit(
       FlowEmit.fromInline: t =>

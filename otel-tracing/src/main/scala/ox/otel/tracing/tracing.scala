@@ -59,7 +59,7 @@ def span[T](tracer: Tracer)(
     spanKind: SpanKind = SpanKind.INTERNAL,
     attributes: Attributes = Attributes.empty(),
     links: Seq[SpanContext] = Seq.empty,
-    beforeClose: SpanWithError[Nothing] => Span = _.span
+    beforeClose: SpanWithError[Nothing] => Unit = _ => ()
 )(t: => T): T =
   spanError[Nothing, [X] =>> X, T](tracer, NoErrorMode)(spanName, spanKind, attributes, links, beforeClose)(t)
 
@@ -78,7 +78,7 @@ def spanError[E, F[_], T](tracer: Tracer, em: ErrorMode[E, F])(
     spanKind: SpanKind = SpanKind.INTERNAL,
     attributes: Attributes = Attributes.empty(),
     links: Seq[SpanContext] = Seq.empty,
-    beforeClose: SpanWithError[E] => Span = (s: SpanWithError[E]) => s.span
+    beforeClose: SpanWithError[E] => Unit = (_: SpanWithError[E]) => ()
 )(t: => F[T]): F[T] =
   val finalizer = spanUnsafe(tracer)(spanName, spanKind, attributes, links)
   var thrown: Throwable | Null = null
@@ -103,7 +103,7 @@ def spanError[E, F[_], T](tracer: Tracer, em: ErrorMode[E, F])(
         applicationError = Some(e)
         recordApplicationError(finalizer.span, e)
 
-    try beforeClose(SpanWithError(finalizer.span, actionableThrown, applicationError)): Unit
+    try beforeClose(SpanWithError(finalizer.span, actionableThrown, applicationError))
     catch
       case e: Throwable =>
         if thrown ne null then thrown.nn.addSuppressed(e)

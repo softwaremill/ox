@@ -1,7 +1,7 @@
 package ox.otel.tracing
 
 import io.opentelemetry.api.common.{AttributeKey, Attributes}
-import io.opentelemetry.api.trace.{StatusCode, Tracer}
+import io.opentelemetry.api.trace.StatusCode
 import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter
 import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.resources.Resource
@@ -78,11 +78,11 @@ class OtelTracingTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
       val level1 = spansOf(Level1) ++ level1First
       val level1FirstChildren = spansOf(Level1_First_Child)
 
-      if level1.nonEmpty then
-        assert(level0.nonEmpty, "expected Level0 spans to exist for nesting check")
-        level1.foreach { s =>
-          assert(level0.exists(_.getSpanId == s.getParentSpanId), s"Level1 span ${s.getName} has no Level0 parent")
-        }
+      assert(level0.nonEmpty, "expected Level0 spans to exist for nesting check")
+      assert(level1.nonEmpty, "expected Level1 spans to exist for nesting check")
+      level1.foreach { s =>
+        assert(level0.exists(_.getSpanId == s.getParentSpanId), s"Level1 span ${s.getName} has no Level0 parent")
+      }
 
       if level1FirstChildren.nonEmpty then
         assert(level1First.nonEmpty, "expected Level1_First spans to exist for nesting check")
@@ -92,18 +92,16 @@ class OtelTracingTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
     end assertNesting
   end Fixture
 
-  "Flow.span" when {
+  "span" when {
     "a stage fails" should {
       "record exception and set ERROR status when the flow fails" in new Fixture:
         val parent = spanUnsafe(tracer)(s"$prefix-$Level0")
 
-        intercept[Exception]:
+        val _ = intercept[Exception]:
           flow
             .spanEach(tracer)(
               s"$prefix-$Level1",
-              beforeClose = s =>
-                s.exceptionOpt.foreach(e => s.span.addEvent(e.toString))
-                s.span
+              beforeClose = s => s.exceptionOpt.foreach(e => s.span.addEvent(e.toString))
             )
             .map { case 2 => throw new Exception("boom"); case x => x }
             .runToList()
@@ -263,9 +261,7 @@ class OtelTracingTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
 
         spanError(tracer, em)(
           s"$prefix-$Level0",
-          beforeClose = s =>
-            seen = s
-            s.span
+          beforeClose = s => seen = s
         )(Left("bad"): Either[String, Int]): Unit
 
         assert(seen.nn.errorOpt == Some("bad"))
@@ -277,9 +273,7 @@ class OtelTracingTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         val thrown = intercept[Exception]:
           spanError(tracer, em)(
             s"$prefix-$Level0",
-            beforeClose = s =>
-              seen = s
-              s.span
+            beforeClose = s => seen = s
           )((throw new Exception("boom")): Either[String, Int]): Unit
 
         assert(thrown.getMessage == "boom")
@@ -350,7 +344,6 @@ class OtelTracingTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
 
         def record(s: SpanWithError[Nothing]) =
           seen = s.exceptionOpt :: seen
-          s.span
 
         val _ = scala.util.boundary:
           span(tracer)(s"$prefix-$Level0", beforeClose = record)(scala.util.boundary.break(1))
@@ -368,9 +361,7 @@ class OtelTracingTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         val _ = intercept[java.nio.channels.ClosedByInterruptException]:
           span(tracer)(
             s"$prefix-$Level0",
-            beforeClose = s =>
-              seen = s.exceptionOpt
-              s.span
+            beforeClose = s => seen = s.exceptionOpt
           )(throw new java.nio.channels.ClosedByInterruptException())
 
         assert(seen.isEmpty)
@@ -387,9 +378,7 @@ class OtelTracingTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         val _ = intercept[java.util.concurrent.ExecutionException]:
           span(tracer)(
             s"$prefix-$Level0",
-            beforeClose = s =>
-              seen = s.exceptionOpt
-              s.span
+            beforeClose = s => seen = s.exceptionOpt
           )(throw new java.util.concurrent.ExecutionException(new InterruptedException()))
 
         assert(seen.isEmpty)
@@ -406,18 +395,6 @@ class OtelTracingTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
           span(tracer)(s"$prefix-$Level0")(throw new LinkageError("broken"))
 
         assert(spansOf(Level0).head.getStatus.getStatusCode == StatusCode.ERROR)
-
-      "pass a failure to beforeClose" in new Fixture:
-        var seen: Option[Throwable] = None
-        val _ = intercept[Exception]:
-          span(tracer)(
-            s"$prefix-$Level0",
-            beforeClose = s =>
-              seen = s.exceptionOpt
-              s.span
-          )(throw new Exception("boom"))
-
-        assert(seen.exists(_.getMessage == "boom"))
 
       "add the exception of beforeClose as suppressed to an interruption, which is still thrown" in new Fixture:
         val interruption = new InterruptedException()
@@ -447,7 +424,7 @@ class OtelTracingTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
 
       "restore the previous span as current after span throws" in new Fixture:
         val outer = spanUnsafe(tracer)(s"$prefix-$Level0")
-        intercept[Exception]:
+        val _ = intercept[Exception]:
           span(tracer)(s"$prefix-$Level1")(throw new Exception("boom"))
         assert(currentSpanUnsafe() eq outer.span)
         outer.close()
@@ -457,8 +434,6 @@ class OtelTracingTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
       "pass spanKind, attributes and links to the span builder" in new Fixture:
         import io.opentelemetry.api.trace.SpanKind
         import io.opentelemetry.api.common.{AttributeKey, Attributes}
-        import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator
-        import io.opentelemetry.context.propagation.{TextMapGetter, TextMapPropagator}
 
         val attr = Attributes.of(AttributeKey.stringKey("k"), "v")
         span(tracer)(
