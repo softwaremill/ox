@@ -17,7 +17,9 @@ Spans are created using an OpenTelemetry `Tracer`, passed as the first argument:
 
 ```scala mdoc:compile-only
 import io.opentelemetry.api.trace.Tracer
+import ox.sleep
 import ox.otel.tracing.*
+import scala.concurrent.duration.DurationInt
 
 def someTask(): Int =
   sleep(200.millis)
@@ -70,14 +72,16 @@ within the span:
 
 ```scala mdoc:compile-only
 import io.opentelemetry.api.trace.Tracer
+import ox.sleep
 import ox.flow.Flow
 import ox.otel.tracing.*
+import scala.concurrent.duration.DurationInt
 
 def inFlatMap(tracer: Tracer, flow: Flow[Int]): List[Int] =
   flow
     .flatMap{ x => 
         Flow.fromValues(x, x * 10)
-        .tap(sleep(100.millis)) // not covered by the span 
+        .tap(_ => sleep(100.millis)) // not covered by the span 
         .spanEach(tracer)("element")
         .map(_ + 1) // covered by the span 
         }
