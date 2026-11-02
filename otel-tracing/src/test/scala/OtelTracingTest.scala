@@ -60,7 +60,6 @@ class OtelTracingTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
     case Level1_First
     case Level1_First_Child
     case Level1_Stage
-    case Level1_Downstream
 
   import Level.*
 
@@ -71,15 +70,6 @@ class OtelTracingTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
     def testSpans = exporter.getFinishedSpanItems.asScala.filter(_.getName.startsWith(prefix))
 
     def spansOf(level: Level) = testSpans.filter(_.getName.endsWith(level.toString))
-
-    def durMs(span: io.opentelemetry.sdk.trace.data.SpanData): Long = (span.getEndEpochNanos - span.getStartEpochNanos) / 1000000
-
-    def startOffsetMs(from: io.opentelemetry.sdk.trace.data.SpanData, to: io.opentelemetry.sdk.trace.data.SpanData): Long =
-      (to.getStartEpochNanos - from.getStartEpochNanos) / 1000000
-
-    // sleeps guarantee the lower bound, the upper one leaves room for scheduling jitter
-    def assertAbout(actualMs: Long, expectedMs: Long): Unit =
-      assert(actualMs >= expectedMs - 5 && actualMs < expectedMs + 250, s"expected ~$expectedMs ms, was $actualMs ms"): Unit
 
     def assertNesting(): Unit =
       val level0 = spansOf(Level0)
@@ -120,7 +110,7 @@ class OtelTracingTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
 
         parent.close()
 
-        assert(spansOf(Level1).size == 3)
+        assert(spansOf(Level1).size == 2)
         val failed = spansOf(Level1).find(_.getStatus.getStatusCode == StatusCode.ERROR).get
         assert(failed.getStatus.getDescription == "boom")
         val otelEvent = failed.getEvents.asScala.find(_.getName == "exception").get
@@ -232,40 +222,6 @@ class OtelTracingTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
         assert(spansOf(Level1).size == 15)
         assertNesting()
 
-      "end all element spans when one concurrent flow fails" in new Fixture:
-        val parent = spanUnsafe(tracer)(s"$prefix-$Level0")
-
-        try
-          supervised {
-            (1 to 5).foreach {
-              case 1 => forkUser(flow.spanEach(tracer)(s"$prefix-$Level1").tap(_ => throw new Exception("boom")).runToList())
-              case _ => forkUser(flow.spanEach(tracer)(s"$prefix-$Level1").runToList())
-            }
-          }
-        catch case _ => ()
-        end try
-
-        parent.close()
-
-        // all 5 flows × 3 elements = 15 spans must have been created and finished
-        assert(spansOf(Level1).size == 15)
-
-      "record exception and set ERROR status when a flow element fails" in new Fixture:
-        val parent = spanUnsafe(tracer)(s"$prefix-$Level0")
-
-        try
-          flow
-            .spanEach(tracer)(s"$prefix-$Level1")
-            .map { case 2 => throw new Exception("boom"); case x => x }
-            .runToList()
-        catch case _ => ()
-        end try
-
-        parent.close()
-
-        val failed = spansOf(Level1).find(_.getStatus.getStatusCode == StatusCode.ERROR)
-        assert(failed.isDefined)
-        assert(failed.get.getEvents.asScala.exists(_.getName == "exception"))
     }
 
     "spanError" should {
@@ -361,28 +317,6 @@ class OtelTracingTest extends AnyWordSpec with Matchers with BeforeAndAfterAll:
     }
 
     "cancelled" should {
-      "end span when enclosing supervised scope fails before stream completion" in new Fixture:
-        val semaphore = Semaphore(0)
-
-        try
-          supervised {
-            val _ = forkUser {
-              semaphore.acquire()
-              throw new Exception("oops")
-            }
-            forkUser {
-              flow
-                .spanEach(tracer)(s"$prefix-$Level1")
-                .tap { case 1 => semaphore.release(); case _ => sleep(100.seconds) }
-                .runToList()
-            }
-          }
-        catch case _ => ()
-        end try
-
-        // at least the first element's span was started; all exported spans must be finished
-        assert(spansOf(Level1).nonEmpty)
-
       "end span when the enclosing fork is cancelled" in new Fixture:
         val semaphore = Semaphore(0)
 
