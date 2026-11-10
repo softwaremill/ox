@@ -63,7 +63,7 @@ lazy val core: Project = (project in file("core"))
     libraryDependencies ++= Seq(
       "com.softwaremill.jox" % "channels" % "1.1.2",
       scalaTest,
-      "org.apache.pekko" %% "pekko-stream" % "1.7.1" % Test,
+      "org.apache.pekko" %% "pekko-stream" % "2.0.0" % Test,
       "org.reactivestreams" % "reactive-streams-tck-flow" % "1.0.4" % Test
     ),
     Test / fork := true
@@ -79,7 +79,7 @@ lazy val kafka: Project = (project in file("kafka"))
       logback % Test,
       "io.github.embeddedkafka" %% "embedded-kafka" % "4.4.0" % Test,
       "org.apache.pekko" %% "pekko-connectors-kafka" % "1.2.0" % Test,
-      "org.apache.pekko" %% "pekko-stream" % "1.7.1" % Test,
+      "org.apache.pekko" %% "pekko-stream" % "2.0.0" % Test,
       scalaTest
     )
   )
