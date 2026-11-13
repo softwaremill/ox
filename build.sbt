@@ -116,6 +116,16 @@ lazy val flowJson: Project = (project in file("flow-json"))
   )
   .dependsOn(core)
 
+lazy val flowCsv: Project = (project in file("flow-csv"))
+  .settings(
+    name := "flow-csv",
+    libraryDependencies ++= Seq(
+      "org.apache.commons" % "commons-csv" % "1.14.1",
+      scalaTest
+    )
+  )
+  .dependsOn(core)
+
 lazy val cron: Project = (project in file("cron"))
   .settings(
     name := "cron",
@@ -171,6 +181,7 @@ lazy val documentation: Project = (project in file("generated-doc")) // importan
     mdcLogback,
     flowReactiveStreams,
     flowJson,
+    flowCsv,
     cron,
     otelContext,
     otelTracing
