@@ -6,6 +6,7 @@ import ox.discard
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ThreadFactory
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import scala.annotation.tailrec
 
 /** Until the structured concurrency JEP is stable in an LTS release, a replacement for `StructuredTaskScope`. Downside: does not integrate
@@ -20,6 +21,8 @@ private[ox] class ThreadHerd(threadFactory: ThreadFactory):
   private val shutdownInProgress = new AtomicBoolean(false)
   private val threads = ConcurrentHashMap.newKeySet[Thread]()
 
+  private val threadCount = new AtomicInteger(0)
+
   def startThread(t: => Unit): Unit =
     assertNotShuttingDown()
 
@@ -27,8 +30,11 @@ private[ox] class ThreadHerd(threadFactory: ThreadFactory):
 
     val thread = threadFactory.newThread(() =>
       try t
-      finally threads.remove(Thread.currentThread()).discard
+      finally
+        threads.remove(Thread.currentThread()).discard
+        threadCount.decrementAndGet().discard
     )
+    threadCount.incrementAndGet().discard
     threads.add(thread)
 
     thread.start()
@@ -55,7 +61,7 @@ private[ox] class ThreadHerd(threadFactory: ThreadFactory):
 
     var interruptedException: InterruptedException = null
 
-    while !threads.isEmpty do
+    while threadCount.get() != 0 do
       threads.forEach(interruptIfNeeded)
       threads.forEach: thread =>
         interruptIfNeeded(thread) // double-checking, as this thread might have been added after the previous forEach
