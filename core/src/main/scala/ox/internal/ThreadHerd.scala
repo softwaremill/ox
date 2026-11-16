@@ -21,6 +21,12 @@ private[ox] class ThreadHerd(threadFactory: ThreadFactory):
   private val shutdownInProgress = new AtomicBoolean(false)
   private val threads = ConcurrentHashMap.newKeySet[Thread]()
 
+  /*
+  The number of threads which are started, but not yet completed. Used to check if the herd is done, instead of
+  `threads.isEmpty`: the size of a `ConcurrentHashMap` is a sum of several counters (updated by different threads), read without a lock. If a thread
+  is added and another one removed while the counters are being summed, the result might be 0, even though threads are
+  still running. An `AtomicInteger` is never seen in such an intermediate state.
+   */
   private val threadCount = new AtomicInteger(0)
 
   def startThread(t: => Unit): Unit =
@@ -34,6 +40,7 @@ private[ox] class ThreadHerd(threadFactory: ThreadFactory):
         threads.remove(Thread.currentThread()).discard
         threadCount.decrementAndGet().discard
     )
+    // incrementing before the thread starts, so that the count is never 0 while the thread runs
     threadCount.incrementAndGet().discard
     threads.add(thread)
 
@@ -51,7 +58,7 @@ private[ox] class ThreadHerd(threadFactory: ThreadFactory):
     /*
     If a startThread() is in progress, after the no-shutdown-assertion, the thread that it creates will be discovered
     in the loop below, as the thread that is starting the new thread itself has to be joined; and this can only happen
-    after the new thread is added to the `threads` set.
+    after the new thread is added to the `threads` set (and `threadCount` is incremented).
      */
 
     var interruptedThreads = Set.empty[Thread] // making sure we interrupt each thread only once
