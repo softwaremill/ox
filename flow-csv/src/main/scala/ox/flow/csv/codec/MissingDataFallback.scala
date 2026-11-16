@@ -9,8 +9,7 @@ package ox.flow.csv.codec
   """No MissingDataFallback instance for ${T}. Ragged rows require each field type to handle missing columns. Options:
   1. Change field type to Option[${T}] or ${T} | Null (instances provided automatically)
   2. Import primitive defaults: import ox.flow.csv.codec.defaults.missingData.given
-  3. Provide your own: given MissingDataFallback[${T}] with { def default = ??? }
-  4. Use CsvDecoder[Option[String] => ${T}] to handle both decoding and missing data in one place"""
+  3. Provide your own: given MissingDataFallback[${T}]"""
 )
 trait MissingDataFallback[+T]:
   def missingFallback: T

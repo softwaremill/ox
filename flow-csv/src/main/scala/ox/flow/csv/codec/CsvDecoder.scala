@@ -1,6 +1,9 @@
 package ox.flow.csv.codec
 
-
+/**Typeclass used to decode string parsed form csv into T
+ * for decoding nulls see [[NullFallback]]
+ * for decoding missing see [[MissingDataFallback]]
+ * */
 trait CsvDecoder[+T]:
   def decode(from: String): T
 
@@ -8,6 +11,12 @@ object CsvDecoder:
 
   given CsvDecoder[String] with
     def decode(from: String): String = from
+
+  given [T] => CsvDecoder[T] => CsvDecoder[Option[T]]:
+    def decode(from: String): Option[T] = Option(summon[CsvDecoder[T]].decode(from))
+
+  given [T] => CsvDecoder[T] => CsvDecoder[T | Null]:
+    def decode(from: String): T | Null = summon[CsvDecoder[T]].decode(from)
 
   /** @throws java.lang.NumberFormatException If the string does not contain a parsable `Int`. */
   given CsvDecoder[Int] with

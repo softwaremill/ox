@@ -8,8 +8,7 @@ package ox.flow.csv.codec
   """No NullData instance for ${T}. When a format defines a null string, each field type must handle null values. Options:
   1. Change field type to Option[${T}] or ${T} | Null (instances provided automatically)
   2. Import primitive defaults: import ox.flow.csv.codec.defaults.nullData.given
-  3. Provide your own: given NullData[${T}] with { def value = ??? }
-  4. Use CsvDecoder[Option[String] => ${T}] to handle both decoding and null data in one place"""
+  3. Provide your own: given NullData[${T}]"""
 )
 trait NullFallback[+T]:
   def nullFallback: T

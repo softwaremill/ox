@@ -5,7 +5,7 @@ package ox.flow.csv.codec
   * Import all:          `import ox.flow.csv.codec.defaults.all.given`
   * Import by typeclass: `import ox.flow.csv.codec.defaults.missingData.given`
   *                      `import ox.flow.csv.codec.defaults.nullData.given` */
-object defaults:
+object default:
 
   object missingDataFallback:
     given MissingDataFallback[String] with
