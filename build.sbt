@@ -55,7 +55,8 @@ lazy val root = rootProject
     }.value),
     compileDocumentation := (documentation / mdoc).toTask(" --out target/ox-doc").value
   )
-  .autoAggregate
+  // coreFrayTests is not aggregated, as its tests are costly; they run in a separate CI step
+  .aggregate(core, kafka, mdcLogback, flowReactiveStreams, flowJson, cron, otelContext, otelTracing, documentation)
 
 lazy val core: Project = (project in file("core"))
   .settings(
@@ -88,10 +89,15 @@ lazy val coreFrayTests: Project = (project in file("core-fray-tests"))
     Test / testForkedParallel := false,
     // puts the test classpath on the JVM's -classpath, as Fray's agent needs its dependencies (e.g. Kotlin) at startup
     Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Raw,
+    // no tests to run on platforms which Fray doesn't support (Test / skip is ignored by test tasks)
+    Test / definedTests := Def.uncached {
+      val tests = (Test / definedTests).value
+      if FrayWorkspace.isSupported then tests else Nil
+    },
     Test / javaHome := Some(FrayWorkspace.javaHome(target.value)),
     Test / javaOptions ++= Def.uncached {
       val frayJars = update.value.select(configurationFilter(FrayConfig.name))
-      FrayWorkspace.prepare(target.value, frayJars)
+      if FrayWorkspace.isSupported then FrayWorkspace.prepare(target.value, frayJars) else Nil
     }
   )
   .dependsOn(core)

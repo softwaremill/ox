@@ -25,14 +25,21 @@ jobs:
         java-version: ${{ matrix.java }}
         cache: 'sbt'
     - uses: sbt/setup-sbt@ce95da69b39609ea153bad087708da5f37366897 # v1, specifically v1.5.10
+    # the JDK used by the Fray tests; set before the first sbt step, as later steps reuse its sbt server (and environment)
+    - name: Set JDK25_HOME
+      if: matrix.java == '25'
+      run: echo "JDK25_HOME=$JAVA_HOME" >> "$GITHUB_ENV"
     - name: Check formatting
-      run: sbt -v scalafmtCheckAll
+      run: sbt -v "scalafmtCheckAll; coreFrayTests/scalafmtCheckAll"
     - name: Compile
       run: sbt -v compile
     - name: Compile documentation
       run: sbt -v compileDocumentation
     - name: Test
       run: sbt -v testFull
+    - name: Test with Fray
+      if: matrix.java == '25'
+      run: sbt -v coreFrayTests/testFull
     - uses: actions/upload-artifact@v4  # upload test results
       if: success() || failure()        # run this step even if previous step failed
       with:
