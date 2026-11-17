@@ -70,6 +70,32 @@ lazy val core: Project = (project in file("core"))
   )
   .settings(enableMimaSettings)
 
+// Fray's instrumentation jars, used to prepare the Fray workspace; not on any classpath
+val FrayConfig = config("fray").hide
+
+// concurrency tests, run under Fray's control (which explores thread interleavings)
+lazy val coreFrayTests: Project = (project in file("core-fray-tests"))
+  .settings(
+    name := "core-fray-tests",
+    publish / skip := true,
+    ivyConfigurations += FrayConfig,
+    libraryDependencies ++= Seq(
+      scalaTest,
+      "org.pastalab.fray" % "fray-junit" % FrayWorkspace.version % Test
+    ) ++ FrayWorkspace.dependencies.map(_ % FrayConfig),
+    Test / fork := true,
+    // Fray runs one test at a time
+    Test / testForkedParallel := false,
+    // puts the test classpath on the JVM's -classpath, as Fray's agent needs its dependencies (e.g. Kotlin) at startup
+    Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Raw,
+    Test / javaHome := Some(FrayWorkspace.javaHome(target.value)),
+    Test / javaOptions ++= Def.uncached {
+      val frayJars = update.value.select(configurationFilter(FrayConfig.name))
+      FrayWorkspace.prepare(target.value, frayJars)
+    }
+  )
+  .dependsOn(core)
+
 lazy val kafka: Project = (project in file("kafka"))
   .settings(
     name := "kafka",
