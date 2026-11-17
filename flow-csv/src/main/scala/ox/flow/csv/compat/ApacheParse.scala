@@ -1,9 +1,9 @@
-package ox.flow.csv.format.typed
+package ox.flow.csv.compat
 
+import org.apache.commons.csv.CSVFormat as ApacheCSVFormat
 import ox.channels.{BufferCapacity, ChannelClosedException}
 import ox.flow.Flow
 import ox.flow.csv.ChannelReader
-import org.apache.commons.csv.CSVFormat as ApacheCSVFormat
 import ox.unsupervised
 
 import scala.jdk.CollectionConverters.*
@@ -18,7 +18,8 @@ private[csv] object ApacheParse:
     * Creates an asynchronous boundary: the input is run in the background, so text is consumed ahead of
     * downstream demand, up to the [[BufferCapacity]] in scope.
     */
-  def rows(apacheFormat: ApacheCSVFormat, data: Flow[String])(using BufferCapacity): Flow[Array[String | Null]] =
+  def rows(format: RawCsvFormat, data: Flow[String])(using BufferCapacity): Flow[Array[String | Null]] =
+    val apacheFormat = format.underlying
     Flow.usingEmit: emit =>
       // the body of `unsupervised` runs on the calling thread, so `emit` is called from it as well (as required),
       // while the flow producing the text is run in a fork by `runToChannel`

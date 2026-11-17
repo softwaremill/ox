@@ -3,11 +3,12 @@ package ox.flow.csv.format.typed
 import org.apache.commons.csv.CSVFormat as ApacheCSVFormat
 import ox.flow.Flow
 import org.apache.commons.csv.CSVFormat as ApacheCSVFormat
-import ox.flow.csv.format.compat.ApacheCsvFormatCompat
+import ox.flow.csv.compat.{ApacheCsvFormatCompat, RawCsvFormat}
 import ox.flow.csv.format.{Format, HeaderMode, PrinterFormat, Settings}
 import ox.flow.csv.CsvRecord.*
+import ox.flow.csv.format.Format
 
-import scala.annotation.targetName
+import scala.annotation.{publicInBinary, targetName}
 import scala.compiletime.{erasedValue, error, summonFrom}
 import scala.deriving.Mirror.ProductOf
 import scala.util.NotGiven
@@ -24,7 +25,7 @@ object PredefinedFormats:
    * - Delimiter: comma, Quote: `"`, Record separator: `\r\n`
    */
   inline def Rfc4180[T](using mir: ProductOf[T]): Format[Flow[HeaderRecord | T]] & Rfc4180Builder =
-    FlowFormatImpl.optionalHeader[T, HeaderModeSetting[HeaderMode.TryParseAsData]](Rfc4180Apache, TypedFormatBuilder.Instance[HeaderModeSetting[HeaderMode.TryParseAsData]](Rfc4180))
+    Format.optionalHeader[T, HeaderModeSetting[HeaderMode.TryParseAsData]](Rfc4180Apache, TypedFormatBuilder.unsafeFromSettings[HeaderModeSetting[HeaderMode.TryParseAsData]](Rfc4180))
 
   type DefaultBuilder = HasBuilder[IgnoreEmptyLines & HeaderModeSetting[HeaderMode.TryParseAsData]]
   /**
@@ -34,7 +35,7 @@ object PredefinedFormats:
    * - Delimiter: comma, Quote: `"`, Record separator: `\r\n`
    */
   inline def Default[T](using mir: ProductOf[T]): Format[Flow[HeaderRecord | T]] & DefaultBuilder =
-    FlowFormatImpl.optionalHeader[T, IgnoreEmptyLines & HeaderModeSetting[HeaderMode.TryParseAsData]](DefaultApache, TypedFormatBuilder.Instance[IgnoreEmptyLines & HeaderModeSetting[HeaderMode.TryParseAsData]](Default))
+    Format.optionalHeader[T, IgnoreEmptyLines & HeaderModeSetting[HeaderMode.TryParseAsData]](DefaultApache, TypedFormatBuilder.unsafeFromSettings[IgnoreEmptyLines & HeaderModeSetting[HeaderMode.TryParseAsData]](Default))
 
   type Rfc4180StrictBuilder = HasBuilder[DisallowRaggedRows & HeaderModeSetting[HeaderMode.TryParseAsData]]
   /**
@@ -45,7 +46,7 @@ object PredefinedFormats:
    * - Delimiter: comma, Quote: `"`, Record separator: `\r\n`
    */
   inline def Rfc4180Strict[T](using mir: ProductOf[T]): Format[Flow[HeaderRecord | T]] & Rfc4180StrictBuilder =
-    FlowFormatImpl.optionalHeader[T, DisallowRaggedRows & HeaderModeSetting[HeaderMode.TryParseAsData]](Rfc4180Apache, TypedFormatBuilder.Instance[DisallowRaggedRows & HeaderModeSetting[HeaderMode.TryParseAsData]](Rfc4180))
+    Format.optionalHeader[T, DisallowRaggedRows & HeaderModeSetting[HeaderMode.TryParseAsData]](Rfc4180Apache, TypedFormatBuilder.unsafeFromSettings[DisallowRaggedRows & HeaderModeSetting[HeaderMode.TryParseAsData]](Rfc4180))
 
   type ExcelBuilder = HasBuilder[HeaderModeSetting[HeaderMode.TryParseAsData]]
   /**
@@ -55,7 +56,7 @@ object PredefinedFormats:
    * - Delimiter: comma, Quote: `"`, Record separator: `\r\n`
    */
   inline def Excel[T](using mir: ProductOf[T]): Format[Flow[HeaderRecord | T]] & ExcelBuilder =
-    FlowFormatImpl.optionalHeader[T, HeaderModeSetting[HeaderMode.TryParseAsData]](ExcelApache, TypedFormatBuilder.Instance[HeaderModeSetting[HeaderMode.TryParseAsData]](Excel))
+    Format.optionalHeader[T, HeaderModeSetting[HeaderMode.TryParseAsData]](ExcelApache, TypedFormatBuilder.unsafeFromSettings[HeaderModeSetting[HeaderMode.TryParseAsData]](Excel))
 
   type ExcelStrictBuilder = HasBuilder[HeaderModeSetting[HeaderMode.TryParseAsData]]
   /**
@@ -67,9 +68,8 @@ object PredefinedFormats:
    *
    */
   inline def ExcelStrict[T](using mir: ProductOf[T]): Format[Flow[HeaderRecord | T]] & ExcelStrictBuilder =
-    FlowFormatImpl.optionalHeader[T, HeaderModeSetting[HeaderMode.TryParseAsData]](ExcelApache, TypedFormatBuilder.Instance[HeaderModeSetting[HeaderMode.TryParseAsData]](Excel))
+    Format.optionalHeader[T, HeaderModeSetting[HeaderMode.TryParseAsData]](ExcelApache, TypedFormatBuilder.unsafeFromSettings[HeaderModeSetting[HeaderMode.TryParseAsData]](Excel))
 
-  /** The settings [[Tdf]] is built at. */
   type TdfBuilder = HasBuilder[IgnoreEmptyLines & HeaderModeSetting[HeaderMode.TryParseAsData]]
   /**
    * Tab-delimited format (TDF).
@@ -79,9 +79,8 @@ object PredefinedFormats:
    * - Delimiter: tab, Quote: `"`, Record separator: `\r\n`
    */
   inline def Tdf[T](using mir: ProductOf[T]): Format[Flow[HeaderRecord | T]] & TdfBuilder =
-    FlowFormatImpl.optionalHeader[T, IgnoreEmptyLines & HeaderModeSetting[HeaderMode.TryParseAsData]](TdfApache, TypedFormatBuilder.Instance[IgnoreEmptyLines & HeaderModeSetting[HeaderMode.TryParseAsData]](Tdf))
+    Format.optionalHeader[T, IgnoreEmptyLines & HeaderModeSetting[HeaderMode.TryParseAsData]](TdfApache, TypedFormatBuilder.unsafeFromSettings[IgnoreEmptyLines & HeaderModeSetting[HeaderMode.TryParseAsData]](Tdf))
 
-  /** The settings [[InformixUnload]] is built at. */
   type InformixUnloadBuilder = HasBuilder[IgnoreEmptyLines]
   /**
    * Informix UNLOAD format used by `UNLOAD TO file_name`.
@@ -90,9 +89,8 @@ object PredefinedFormats:
    * - Delimiter: pipe (`|`), Escape: `\`, Quote: `"`, Record separator: `\n`
    */
   inline def InformixUnload[T](using mir: ProductOf[T]): Format[Flow[T]] & InformixUnloadBuilder =
-    FlowFormatImpl.noHeader[T, IgnoreEmptyLines](InformixUnloadApache, TypedFormatBuilder.Instance[IgnoreEmptyLines](InformixUnload))
+    Format.noHeader[T, IgnoreEmptyLines](InformixUnloadApache, TypedFormatBuilder.unsafeFromSettings[IgnoreEmptyLines](InformixUnload))
 
-  /** The settings [[InformixUnloadCsv]] is built at. */
   type InformixUnloadCsvBuilder = HasBuilder[IgnoreEmptyLines]
   /**
    * Informix CSV UNLOAD format (escaping disabled).
@@ -101,9 +99,8 @@ object PredefinedFormats:
    * - Delimiter: comma, Quote: `"`, Record separator: `\n`
    */
   inline def InformixUnloadCsv[T](using mir: ProductOf[T]): Format[Flow[T]] & InformixUnloadCsvBuilder =
-    FlowFormatImpl.noHeader[T, IgnoreEmptyLines](InformixUnloadCsvApache, TypedFormatBuilder.Instance[IgnoreEmptyLines](InformixUnloadCsv))
+    Format.noHeader[T, IgnoreEmptyLines](InformixUnloadCsvApache, TypedFormatBuilder.unsafeFromSettings[IgnoreEmptyLines](InformixUnloadCsv))
 
-  /** The settings [[MongoDbCsv]] is built at. */
   type MongoDbCsvBuilder = HasBuilder[IgnoreEmptyLines & HeaderModeSetting[HeaderMode.Force]]
   /**
    * MongoDB CSV format used by `mongoexport` (printer only, parsing not supported).
@@ -112,9 +109,8 @@ object PredefinedFormats:
    * - Delimiter: comma, Escape: `"`, Quote: `"`, QuoteMode: MINIMAL
    */
   inline def MongoDbCsv[T](using mir: ProductOf[T]): PrinterFormat[(HeaderRecord, Flow[T])] & MongoDbCsvBuilder =
-    FlowFormatImpl.forcedHeader[T, IgnoreEmptyLines & HeaderModeSetting[HeaderMode.Force]](MongoDbCsvApache, TypedFormatBuilder.Instance[IgnoreEmptyLines & HeaderModeSetting[HeaderMode.Force]](MongoDbCsv))
+    Format.forcedHeader[T, IgnoreEmptyLines & HeaderModeSetting[HeaderMode.Force]](MongoDbCsvApache, TypedFormatBuilder.unsafeFromSettings[IgnoreEmptyLines & HeaderModeSetting[HeaderMode.Force]](MongoDbCsv))
 
-  /** The settings [[MongoDbTsv]] is built at. */
   type MongoDbTsvBuilder = HasBuilder[IgnoreEmptyLines & HeaderModeSetting[HeaderMode.Force]]
   /**
    * MongoDB TSV format used by `mongoexport` (printer only, parsing not supported).
@@ -123,9 +119,8 @@ object PredefinedFormats:
    * - Delimiter: tab, Escape: `"`, Quote: `"`, QuoteMode: MINIMAL
    */
   inline def MongoDbTsv[T](using mir: ProductOf[T]): PrinterFormat[(HeaderRecord, Flow[T])] & MongoDbTsvBuilder =
-    FlowFormatImpl.forcedHeader[T, IgnoreEmptyLines & HeaderModeSetting[HeaderMode.Force]](MongoDbTsvApache, TypedFormatBuilder.Instance[IgnoreEmptyLines & HeaderModeSetting[HeaderMode.Force]](MongoDbTsv))
+    Format.forcedHeader[T, IgnoreEmptyLines & HeaderModeSetting[HeaderMode.Force]](MongoDbTsvApache, TypedFormatBuilder.unsafeFromSettings[IgnoreEmptyLines & HeaderModeSetting[HeaderMode.Force]](MongoDbTsv))
 
-  /** The settings [[MySql]] is built at. */
   type MySqlBuilder = HasBuilder[NullString["\\N"]]
   /**
    * MySQL format used by `SELECT INTO OUTFILE` and `LOAD DATA INFILE`.
@@ -134,9 +129,8 @@ object PredefinedFormats:
    * - Delimiter: tab, Escape: `\`, No quoting, Record separator: `\n`
    */
   inline def MySql[T](using mir: ProductOf[T]): Format[Flow[T]] & MySqlBuilder =
-    FlowFormatImpl.noHeader[T, NullString["\\N"]](MySqlApache, TypedFormatBuilder.Instance[NullString["\\N"]](MySql))
+    Format.noHeader[T, NullString["\\N"]](MySqlApache, TypedFormatBuilder.unsafeFromSettings[NullString["\\N"]](MySql))
 
-  /** The settings [[Oracle]] is built at. */
   type OracleBuilder = HasBuilder[NullString["\\N"]]
   /**
    * Oracle SQL*Loader format.
@@ -145,9 +139,8 @@ object PredefinedFormats:
    * - Delimiter: comma, Escape: `\`, Quote: `"`, Trims values, Record separator: system line separator
    */
   inline def Oracle[T](using mir: ProductOf[T]): Format[Flow[T]] & OracleBuilder =
-    FlowFormatImpl.noHeader[T, NullString["\\N"]](OracleApache, TypedFormatBuilder.Instance[NullString["\\N"]](Oracle))
+    Format.noHeader[T, NullString["\\N"]](OracleApache, TypedFormatBuilder.unsafeFromSettings[NullString["\\N"]](Oracle))
 
-  /** The settings [[PostgreSqlCsv]] is built at. */
   type PostgreSqlCsvBuilder = HasBuilder[NullString[""]]
   /**
    * Default PostgreSQL CSV format used by the COPY operation.
@@ -155,9 +148,8 @@ object PredefinedFormats:
    * - Null String: "" - [[T]] codecs need to be able to handle nulls
    */
   inline def PostgreSqlCsv[T](using mir: ProductOf[T]): Format[Flow[T]] & PostgreSqlCsvBuilder =
-    FlowFormatImpl.noHeader[T, NullString[""]](PostgreSqlCsvApache, TypedFormatBuilder.Instance[NullString[""]](PostgreSqlCsv))
+    Format.noHeader[T, NullString[""]](PostgreSqlCsvApache, TypedFormatBuilder.unsafeFromSettings[NullString[""]](PostgreSqlCsv))
 
-  /** The settings [[PostgreSqlText]] is built at. */
   type PostgreSqlTextBuilder = HasBuilder[NullString["\\N"]]
   /**
    * PostgreSQL text format used by the COPY operation.
@@ -166,51 +158,39 @@ object PredefinedFormats:
    * - Delimiter: tab, Escape: `\`, No quoting, Record separator: `\n`
    */
   inline def PostgreSqlText[T](using mir: ProductOf[T]): Format[Flow[T]] & PostgreSqlTextBuilder =
-    FlowFormatImpl.noHeader[T, NullString["\\N"]](PostgreSqlTextApache, TypedFormatBuilder.Instance[NullString["\\N"]](PostgreSqlText))
+    Format.noHeader[T, NullString["\\N"]](PostgreSqlTextApache, TypedFormatBuilder.unsafeFromSettings[NullString["\\N"]](PostgreSqlText))
 
   /** Adapts a predefined Apache format settings to most permissive values
    * This is needed because otherwise apache parser would drop data of fail fast before ox could apply its own
    * format settings like [[HeaderMode]]
    */
-  private def overrideSettingsForCompatibility(apacheFormat: ApacheCSVFormat, headerMode: HeaderMode): Settings =
+  private def overrideSettingsForCompatibility(apacheFormat: RawCsvFormat, headerMode: HeaderMode): Settings =
     ApacheCsvFormatCompat.settingsOf(apacheFormat, headerMode)
 
-  private val Default: Settings = overrideSettingsForCompatibility(apacheFormat = ApacheCSVFormat.DEFAULT, headerMode = HeaderMode.TryParseAsData)
+  /** Cached [[Settings]] for inline constructors*/
+  @publicInBinary private[csv] lazy val Default: Settings = overrideSettingsForCompatibility(apacheFormat = RawCsvFormat(ApacheCSVFormat.DEFAULT), headerMode = HeaderMode.TryParseAsData)
+  @publicInBinary private[csv] lazy val Rfc4180: Settings = overrideSettingsForCompatibility(apacheFormat = RawCsvFormat(ApacheCSVFormat.RFC4180), headerMode = HeaderMode.TryParseAsData)
+  @publicInBinary private[csv] lazy val Excel: Settings = overrideSettingsForCompatibility(apacheFormat = RawCsvFormat(ApacheCSVFormat.EXCEL), headerMode = HeaderMode.TryParseAsData)
+  @publicInBinary private[csv] lazy val Tdf: Settings = overrideSettingsForCompatibility(apacheFormat = RawCsvFormat(ApacheCSVFormat.TDF), headerMode = HeaderMode.TryParseAsData)
+  @publicInBinary private[csv] lazy val InformixUnload: Settings = overrideSettingsForCompatibility(apacheFormat = RawCsvFormat(ApacheCSVFormat.INFORMIX_UNLOAD), headerMode = HeaderMode.TryParseAsData)
+  @publicInBinary private[csv] lazy val InformixUnloadCsv: Settings = overrideSettingsForCompatibility(apacheFormat = RawCsvFormat(ApacheCSVFormat.INFORMIX_UNLOAD_CSV), headerMode = HeaderMode.TryParseAsData)
+  @publicInBinary private[csv] lazy val MongoDbCsv: Settings = overrideSettingsForCompatibility(apacheFormat = RawCsvFormat(ApacheCSVFormat.MONGODB_CSV), headerMode = HeaderMode.TryParseAsData)
+  @publicInBinary private[csv] lazy val MongoDbTsv: Settings = overrideSettingsForCompatibility(apacheFormat = RawCsvFormat(ApacheCSVFormat.MONGODB_TSV), headerMode = HeaderMode.TryParseAsData)
+  @publicInBinary private[csv] lazy val MySql: Settings = overrideSettingsForCompatibility(apacheFormat = RawCsvFormat(ApacheCSVFormat.MYSQL), headerMode = HeaderMode.TryParseAsData)
+  @publicInBinary private[csv] lazy val Oracle: Settings = overrideSettingsForCompatibility(apacheFormat = RawCsvFormat(ApacheCSVFormat.ORACLE), headerMode = HeaderMode.TryParseAsData)
+  @publicInBinary private[csv] lazy val PostgreSqlCsv: Settings = overrideSettingsForCompatibility(apacheFormat = RawCsvFormat(ApacheCSVFormat.POSTGRESQL_CSV), headerMode = HeaderMode.TryParseAsData)
+  @publicInBinary private[csv] lazy val PostgreSqlText: Settings = overrideSettingsForCompatibility(apacheFormat = RawCsvFormat(ApacheCSVFormat.POSTGRESQL_TEXT), headerMode = HeaderMode.TryParseAsData)
 
-  private val Rfc4180: Settings = overrideSettingsForCompatibility(apacheFormat = ApacheCSVFormat.RFC4180, headerMode = HeaderMode.TryParseAsData)
-
-  private val Excel: Settings = overrideSettingsForCompatibility(apacheFormat = ApacheCSVFormat.EXCEL, headerMode = HeaderMode.TryParseAsData)
-
-  private val Tdf: Settings = overrideSettingsForCompatibility(apacheFormat = ApacheCSVFormat.TDF, headerMode = HeaderMode.TryParseAsData)
-
-  private val InformixUnload: Settings = overrideSettingsForCompatibility(apacheFormat = ApacheCSVFormat.INFORMIX_UNLOAD, headerMode = HeaderMode.TryParseAsData)
-
-  private val InformixUnloadCsv: Settings = overrideSettingsForCompatibility(apacheFormat = ApacheCSVFormat.INFORMIX_UNLOAD_CSV, headerMode = HeaderMode.TryParseAsData)
-
-  private val MongoDbCsv: Settings = overrideSettingsForCompatibility(apacheFormat = ApacheCSVFormat.MONGODB_CSV, headerMode = HeaderMode.TryParseAsData)
-
-  private val MongoDbTsv: Settings = overrideSettingsForCompatibility(apacheFormat = ApacheCSVFormat.MONGODB_TSV, headerMode = HeaderMode.TryParseAsData)
-
-  private val MySql: Settings = overrideSettingsForCompatibility(apacheFormat = ApacheCSVFormat.MYSQL, headerMode = HeaderMode.TryParseAsData)
-
-  private val Oracle: Settings = overrideSettingsForCompatibility(apacheFormat = ApacheCSVFormat.ORACLE, headerMode = HeaderMode.TryParseAsData)
-
-  private val PostgreSqlCsv: Settings = overrideSettingsForCompatibility(apacheFormat = ApacheCSVFormat.POSTGRESQL_CSV, headerMode = HeaderMode.TryParseAsData)
-
-  private val PostgreSqlText: Settings = overrideSettingsForCompatibility(apacheFormat = ApacheCSVFormat.POSTGRESQL_TEXT, headerMode = HeaderMode.TryParseAsData)
-
-  /** Each dialect's Apache format, built once. Constructing it is what validates the settings, and it is
-    * what reading and writing actually use, so the predefined formats share one per dialect rather than
-    * rebuilding it per call. */
-  private val DefaultApache: ApacheCSVFormat = ApacheCsvFormatCompat.toApache(Default)
-  private val Rfc4180Apache: ApacheCSVFormat = ApacheCsvFormatCompat.toApache(Rfc4180)
-  private val ExcelApache: ApacheCSVFormat = ApacheCsvFormatCompat.toApache(Excel)
-  private val TdfApache: ApacheCSVFormat = ApacheCsvFormatCompat.toApache(Tdf)
-  private val InformixUnloadApache: ApacheCSVFormat = ApacheCsvFormatCompat.toApache(InformixUnload)
-  private val InformixUnloadCsvApache: ApacheCSVFormat = ApacheCsvFormatCompat.toApache(InformixUnloadCsv)
-  private val MongoDbCsvApache: ApacheCSVFormat = ApacheCsvFormatCompat.toApache(MongoDbCsv)
-  private val MongoDbTsvApache: ApacheCSVFormat = ApacheCsvFormatCompat.toApache(MongoDbTsv)
-  private val MySqlApache: ApacheCSVFormat = ApacheCsvFormatCompat.toApache(MySql)
-  private val OracleApache: ApacheCSVFormat = ApacheCsvFormatCompat.toApache(Oracle)
-  private val PostgreSqlCsvApache: ApacheCSVFormat = ApacheCsvFormatCompat.toApache(PostgreSqlCsv)
-  private val PostgreSqlTextApache: ApacheCSVFormat = ApacheCsvFormatCompat.toApache(PostgreSqlText)
+  /** Cached [[RawCsvFormat]] for inline constructors*/
+  @publicInBinary private[csv] lazy val DefaultApache: RawCsvFormat = ApacheCsvFormatCompat.toApache(Default)
+  @publicInBinary private[csv] lazy val Rfc4180Apache: RawCsvFormat = ApacheCsvFormatCompat.toApache(Rfc4180)
+  @publicInBinary private[csv] lazy val ExcelApache: RawCsvFormat = ApacheCsvFormatCompat.toApache(Excel)
+  @publicInBinary private[csv] lazy val TdfApache: RawCsvFormat = ApacheCsvFormatCompat.toApache(Tdf)
+  @publicInBinary private[csv] lazy val InformixUnloadApache: RawCsvFormat = ApacheCsvFormatCompat.toApache(InformixUnload)
+  @publicInBinary private[csv] lazy val InformixUnloadCsvApache: RawCsvFormat = ApacheCsvFormatCompat.toApache(InformixUnloadCsv)
+  @publicInBinary private[csv] lazy val MongoDbCsvApache: RawCsvFormat = ApacheCsvFormatCompat.toApache(MongoDbCsv)
+  @publicInBinary private[csv] lazy val MongoDbTsvApache: RawCsvFormat = ApacheCsvFormatCompat.toApache(MongoDbTsv)
+  @publicInBinary private[csv] lazy val MySqlApache: RawCsvFormat = ApacheCsvFormatCompat.toApache(MySql)
+  @publicInBinary private[csv] lazy val OracleApache: RawCsvFormat = ApacheCsvFormatCompat.toApache(Oracle)
+  @publicInBinary private[csv] lazy val PostgreSqlCsvApache: RawCsvFormat = ApacheCsvFormatCompat.toApache(PostgreSqlCsv)
+  @publicInBinary private[csv] lazy val PostgreSqlTextApache: RawCsvFormat = ApacheCsvFormatCompat.toApache(PostgreSqlText)
