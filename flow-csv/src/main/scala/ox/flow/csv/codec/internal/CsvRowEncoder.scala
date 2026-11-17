@@ -1,5 +1,8 @@
-package ox.flow.csv.codec
+package ox.flow.csv.codec.internal
 
+import ox.flow.csv.codec.{CsvEncoder, CsvEncoderWithNull}
+
+import scala.annotation.publicInBinary
 import scala.compiletime.*
 import scala.deriving.Mirror.ProductOf
 
@@ -7,6 +10,7 @@ import scala.deriving.Mirror.ProductOf
 private[csv] trait CsvRowEncoder[-T]:
   def encodeRow(value: T): Array[String | Null]
 
+@publicInBinary
 private[csv] object CsvRowEncoder:
 
   private[csv] final class Impl[T](encoders: IArray[Any => String | Null], size: Int) extends CsvRowEncoder[T]:

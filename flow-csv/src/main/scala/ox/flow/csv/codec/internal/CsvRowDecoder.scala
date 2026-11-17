@@ -1,5 +1,8 @@
-package ox.flow.csv.codec
+package ox.flow.csv.codec.internal
 
+import ox.flow.csv.codec.{CsvDecoder, MissingDataFallback, NullFallback}
+
+import scala.annotation.publicInBinary
 import scala.compiletime.*
 import scala.deriving.Mirror.ProductOf
 
@@ -11,6 +14,7 @@ import scala.deriving.Mirror.ProductOf
 private[csv] trait CsvRowDecoder[+T]:
   def decodeRow(row: Array[String | Null]): T
 
+@publicInBinary
 private[csv] object CsvRowDecoder:
   private[csv] final class CsvDecodeException(message: String) extends RuntimeException(message)
 
