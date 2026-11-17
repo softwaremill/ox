@@ -119,6 +119,7 @@ lazy val flowJson: Project = (project in file("flow-json"))
 lazy val flowCsv: Project = (project in file("flow-csv"))
   .settings(
     name := "flow-csv",
+    scalacOptions += "-WunstableInlineAccessors",
     libraryDependencies ++= Seq(
       "org.apache.commons" % "commons-csv" % "1.14.1",
       scalaTest
