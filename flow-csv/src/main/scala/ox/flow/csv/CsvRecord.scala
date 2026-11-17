@@ -1,6 +1,6 @@
 package ox.flow.csv
 
-import ox.flow.csv.format.macros.fieldLabels
+import ox.flow.csv.format.internal.macros.fieldLabels
 
 import scala.deriving.Mirror.ProductOf
 
