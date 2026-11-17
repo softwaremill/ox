@@ -4,13 +4,13 @@ import ox.flow.csv.format.internal.macros.fieldLabels
 
 import scala.deriving.Mirror.ProductOf
 
-
-trait CsvRecord
+/**Represents types other that user defined representation of data record that CSV file can contain*/
+sealed transparent trait CsvRecord
 
 object CsvRecord:
-  case class HeaderRecord(names: String*) extends CsvRecord
+  final case class HeaderRecord(names: String*) extends CsvRecord
 
   object HeaderRecord:
     inline def derived[T: ProductOf]: HeaderRecord = HeaderRecord(fieldLabels[T] *)
 
-  case class Comment(comment:String) extends CsvRecord
+  final case class Comment(comment:String) extends CsvRecord

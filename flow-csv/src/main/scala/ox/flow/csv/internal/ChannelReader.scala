@@ -1,4 +1,4 @@
-package ox.flow.csv
+package ox.flow.csv.internal
 
 import ox.channels.{ChannelClosed, Source}
 

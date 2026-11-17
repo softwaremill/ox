@@ -1,4 +1,4 @@
-package ox.flow.csv.format.typed
+package ox.flow.csv.format
 
 import ox.flow.csv.format.HeaderMode
 

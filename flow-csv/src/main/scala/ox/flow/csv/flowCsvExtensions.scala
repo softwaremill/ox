@@ -8,5 +8,3 @@ extension [T](f: T)
 
 extension [T](f: Flow[String])
   def parse(fmt: ParserFormat[T]): T = fmt.parseData(f)
-
-end extension
