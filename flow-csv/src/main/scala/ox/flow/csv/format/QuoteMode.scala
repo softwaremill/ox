@@ -1,5 +1,5 @@
 package ox.flow.csv.format
-import org.apache.commons.csv.{DuplicateHeaderMode, CSVFormat as ApacheCSVFormat, QuoteMode as ApacheQuoteMode}
+import org.apache.commons.csv.{ QuoteMode as ApacheQuoteMode}
 
 
 /**
