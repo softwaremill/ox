@@ -170,7 +170,7 @@ object Format:
    */
   inline def PostgreSqlText[T](using mir: ProductOf[T]): Format[Flow[T]] & PostgreSqlTextBuilder =
     Format.noHeader[T, NullString["\\N"]](PostgreSqlTextApache, Builder.PostgreSqlText)
-  
+
   sealed trait Builder[S]:
 
     /** The dialect accumulated so far, as plain data. A DSL step copies this and widens `S`; the Apache
@@ -432,12 +432,13 @@ object Format:
     */
   private[csv] final class RawCsvFormat(private[csv] val underlying: ApacheCSVFormat)
 
+  @publicInBinary
   private[csv] object RawCsvFormat:
 
     /** Applies the settings to a newly created [[ApacheCSVBuilder]], which validates them as the format is constructed.
      * Adapts apache settings to be compatible with ox*/
     @throws[IllegalArgumentException]
-    private[csv] def fromSettingsValidated(settings: Builder.Settings): RawCsvFormat =
+    def fromSettingsValidated(settings: Builder.Settings): RawCsvFormat =
       val b = ApacheCSVBuilder.create()
       b.setCommentMarker(settings.commentMarker.map(Character.valueOf).orNull)
       b.setDelimiter(settings.delimiter)
