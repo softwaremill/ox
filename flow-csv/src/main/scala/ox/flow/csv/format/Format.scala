@@ -436,8 +436,9 @@ object Format:
   private[csv] object RawCsvFormat:
 
     /** Applies the settings to a newly created [[ApacheCSVBuilder]], which validates them as the format is constructed.
-     * Adapts apache settings to be compatible with ox*/
-    @throws[IllegalArgumentException]
+     * Adapts apache settings to be compatible with ox
+     * @throws scala.IllegalArgumentException if validation fails
+     * */
     def fromSettingsValidated(settings: Builder.Settings): RawCsvFormat =
       val b = ApacheCSVBuilder.create()
       b.setCommentMarker(settings.commentMarker.map(Character.valueOf).orNull)
