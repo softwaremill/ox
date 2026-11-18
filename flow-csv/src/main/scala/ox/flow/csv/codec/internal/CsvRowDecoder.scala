@@ -8,7 +8,7 @@ import scala.deriving.Mirror.ProductOf
 
 /** Decodes one CSV row into `T`.
   *
-  * A row is `Array[String | Null]`: Apache yields `null` for cells matching the format's null string, and a row shorter than the field
+  * A row is `IArray[String | Null]`: Apache yields `null` for cells matching the format's null string, and a row shorter than the field
   * count means the trailing fields are missing. Both are resolved per field: missing -> [[MissingDataFallback]], null -> [[NullFallback]],
   * otherwise [[CsvDecoder]].
   */
@@ -16,7 +16,7 @@ private[csv] trait CsvRowDecoder[+T]:
   /** How many cells a full row has: the field count of `T`. */
   private[csv] def size: Int
 
-  def decodeRow(row: Array[String | Null]): T
+  def decodeRow(row: IArray[String | Null]): T
 
 @publicInBinary
 private[csv] object CsvRowDecoder:
@@ -31,7 +31,8 @@ private[csv] object CsvRowDecoder:
   ) extends CsvRowDecoder[T]:
     private[csv] val size = decoders.length
 
-    def decodeRow(row: Array[String | Null]): T =
+    def decodeRow(row: IArray[String | Null]): T =
+      // a local mutable buffer, handed straight to `fromProduct` and never seen again, so it stays an Array
       val result = new Array[Any](size)
       var i = 0
       while i < size do
@@ -89,7 +90,8 @@ private[csv] object CsvRowDecoder:
       case _: EmptyTuple => IArray.empty[NullFallback[Any] | Null]
       case _: (h *: t)   =>
         val head: NullFallback[Any] = summonInline[NullFallback[h]]
-        head +: summonNulls[t]
+        val tail: IArray[NullFallback[Any] | Null] = summonNulls[t]
+        head +: tail
 
   /** A [[MissingDataFallback]] per field except the first, which is never missing. */
   private inline def summonMissingForTail[Fields <: Tuple]: IArray[MissingDataFallback[Any] | Null] =
@@ -102,7 +104,10 @@ private[csv] object CsvRowDecoder:
       case _: EmptyTuple => IArray.empty[MissingDataFallback[Any] | Null]
       case _: (h *: t)   =>
         val head: MissingDataFallback[Any] = summonInline[MissingDataFallback[h]]
-        head +: summonMissing[t]
+        // ascribed to pin the element type: `+:` would otherwise infer it from `head`, which under `-Yexplicit-nulls` is narrower than the
+        // declared element type
+        val tail: IArray[MissingDataFallback[Any] | Null] = summonMissing[t]
+        head +: tail
 
   /** One empty slot per field: the format cannot produce this case, so no typeclass is required.
     *

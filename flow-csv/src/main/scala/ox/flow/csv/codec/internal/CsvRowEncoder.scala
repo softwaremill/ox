@@ -9,20 +9,20 @@ import scala.deriving.Mirror.ProductOf
 
 /** Encodes `T` into one CSV row. `null` cells are written as the format's null string. */
 private[csv] trait CsvRowEncoder[-T]:
-  def encodeRow(value: T): Array[String | Null]
+  def encodeRow(value: T): IArray[String | Null]
 
 @publicInBinary
 private[csv] object CsvRowEncoder:
 
   private[csv] final class Impl[T](encoders: IArray[Any => String | Null], size: Int) extends CsvRowEncoder[T]:
-    def encodeRow(value: T): Array[String | Null] =
+    def encodeRow(value: T): IArray[String | Null] =
       val product = value.asInstanceOf[Product]
       val result = new Array[String | Null](size)
       var i = 0
       while i < size do
         result(i) = encoders(i)(product.productElement(i))
         i += 1
-      result
+      IArray.unsafeFromArray(result)
     end encodeRow
   end Impl
 
@@ -34,7 +34,7 @@ private[csv] object CsvRowEncoder:
   private[csv] final class NullWarningImpl[T](encoders: IArray[Any => String | Null], size: Int, typeName: String) extends CsvRowEncoder[T]:
     private val warned = new java.util.concurrent.atomic.AtomicBoolean(false)
 
-    def encodeRow(value: T): Array[String | Null] =
+    def encodeRow(value: T): IArray[String | Null] =
       val product = value.asInstanceOf[Product]
       val result = new Array[String | Null](size)
       var i = 0
@@ -49,7 +49,7 @@ private[csv] object CsvRowEncoder:
         result(i) = cell
         i += 1
       end while
-      result
+      IArray.unsafeFromArray(result)
     end encodeRow
   end NullWarningImpl
 
@@ -96,7 +96,10 @@ private[csv] object CsvRowEncoder:
         val head: Any => String | Null =
           val e = encoderFor[h]
           v => e.encode(v.asInstanceOf[h])
-        head +: summonEncoders[t]
+        // `+:` infers the result's element type from `head`, and under `-Yexplicit-nulls` picks one narrower than the declared element
+        // type, so the tail is ascribed to pin it
+        val tail: IArray[Any => String | Null] = summonEncoders[t]
+        head +: tail
 
   /** The [[CsvEncoder]] for one field.
     *

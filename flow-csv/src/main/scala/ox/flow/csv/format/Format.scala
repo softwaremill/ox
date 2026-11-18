@@ -318,15 +318,12 @@ object Format:
       case comment => comment.split('\n').toSeq.map(Comment.apply)
 
   /** The record's cells, as the row decoders expect them. */
-  private def cellsOf(record: ApacheCSVRecord): Array[String | Null] =
-    val row = new Array[String | Null](record.size)
-    var i = 0
-    while i < row.length do
-      row(i) = record.get(i)
-      i += 1
-    row
+  /** The record's cells, as the row decoders expect them. Apache already yields `null` for a cell matching the format's null string, and
+    * builds the array afresh per record, so wrapping it is enough.
+    */
+  private def cellsOf(record: ApacheCSVRecord): IArray[String | Null] = IArray.unsafeFromArray[String | Null](record.values())
 
-  private def printRows(format: RawCsvFormat, data: Flow[Array[String | Null]]): Flow[String] =
+  private def printRows(format: RawCsvFormat, data: Flow[IArray[String | Null]]): Flow[String] =
     val underlying = format.underlying
     Flow.usingEmit: emit =>
       val buffer = StringWriter()
@@ -354,7 +351,7 @@ object Format:
 
     def parseData(data: Flow[String]): Flow[HeaderRecord | T] =
       parseRows(format, data).mapStateful(false): (firstRowDone, apacheRecord) =>
-        val rawRecord = apacheRecord.values()
+        val rawRecord = cellsOf(apacheRecord)
         if !firstRowDone then (true, parseRecordOrElseHeader(rowDecoder, rawRecord))
         else (true, rowDecoder.decodeRow(rawRecord))
 
@@ -362,18 +359,18 @@ object Format:
       printRows(
         format,
         data.map:
-          case h: HeaderRecord => h.names.toArray[String | Null]
+          case h: HeaderRecord => IArray.from[String | Null](h.names)
           case t               => rowEncoder.encodeRow(t.asInstanceOf[T])
       )
   end OptionalHeaderFormat
 
-  private def parseRecordOrElseHeader[S, T](rowDecoder: CsvRowDecoder[T], firstRow: Array[String]) =
+  private def parseRecordOrElseHeader[S, T](rowDecoder: CsvRowDecoder[T], firstRow: IArray[String | Null]) =
     try rowDecoder.decodeRow(firstRow)
     catch
       case NonFatal(_) =>
         HeaderRecord(normalizeHeader(firstRow, rowDecoder.size)*)
 
-  private def normalizeHeader[S, T](firstRow: Array[String], size: Int) =
+  private def normalizeHeader[S, T](firstRow: IArray[String | Null], size: Int) =
     firstRow
       .map:
         case null => ""
@@ -391,7 +388,7 @@ object Format:
       with HasBuilder[S]:
 
     def parseData(data: Flow[String]): Flow[T] =
-      parseRows(format, data).map(_.values()).map(rowDecoder.decodeRow)
+      parseRows(format, data).map(cellsOf).map(rowDecoder.decodeRow)
 
     def writeData(data: Flow[T]): Flow[String] =
       printRows(format, data.map(rowEncoder.encodeRow))
@@ -408,7 +405,7 @@ object Format:
       val (header, rows) = data
       printRows(
         format,
-        Flow.fromValues(header.names.toArray[String | Null]).concat(rows.map(rowEncoder.encodeRow))
+        Flow.fromValues(IArray.from[String | Null](header.names)).concat(rows.map(rowEncoder.encodeRow))
       )
   end ForcedHeaderFormat
 
