@@ -14,7 +14,10 @@ private[csv] trait CsvRowEncoder[-T]:
 @publicInBinary
 private[csv] object CsvRowEncoder:
 
-  private[csv] final class Impl[T](encoders: IArray[Any => String | Null], size: Int) extends CsvRowEncoder[T]:
+  //explicit type to get over operator precedence
+  private[csv] type FieldEncoder = Function1[Any, String | Null]
+
+  private[csv] final class Impl[T](encoders: IArray[FieldEncoder], size: Int) extends CsvRowEncoder[T]:
     def encodeRow(value: T): IArray[String | Null] =
       val product = value.asInstanceOf[Product]
       val result = new Array[String | Null](size)
@@ -31,7 +34,7 @@ private[csv] object CsvRowEncoder:
     * Only a hand-written [[CsvEncoder]] for a nullable type (`CsvEncoder[MyType | Null]`) can reach this, which is a legitimate choice —
     * rendering a null as `"-"`, say — so it warns rather than fails, once per field position.
     */
-  private[csv] final class NullWarningImpl[T](encoders: IArray[Any => String | Null], size: Int, typeName: String) extends CsvRowEncoder[T]:
+  private[csv] final class NullWarningImpl[T](encoders: IArray[FieldEncoder], size: Int, typeName: String) extends CsvRowEncoder[T]:
     private val warned = new java.util.concurrent.atomic.AtomicBoolean(false)
 
     def encodeRow(value: T): IArray[String | Null] =
@@ -73,14 +76,14 @@ private[csv] object CsvRowEncoder:
   /** Per field a [[CsvEncoderWithNull]]: the format can represent a null, so a field type that may produce one must say how. Each is
     * adapted to a function here, while the field type is still known, so encoding a row needs no runtime type test.
     */
-  private inline def summonEncodersWithNull[Fields <: Tuple]: IArray[Any => String | Null] =
+  private inline def summonEncodersWithNull[Fields <: Tuple]: IArray[FieldEncoder] =
     inline erasedValue[Fields] match
-      case _: EmptyTuple => IArray.empty[Any => String | Null]
+      case _: EmptyTuple => IArray.empty[FieldEncoder]
       case _: (h *: t)   =>
-        val head: Any => String | Null =
+        val head: FieldEncoder =
           val e = summonInline[CsvEncoderWithNull[h]]
           v => e.encode(v.asInstanceOf[h])
-        head +: summonEncodersWithNull[t]
+        IArray.concat[FieldEncoder](IArray[FieldEncoder](head), summonEncodersWithNull[t])
 
   /** Per field a plain [[CsvEncoder]]: the format has no null string, so no cell may be written as `null`.
     *
@@ -89,17 +92,16 @@ private[csv] object CsvRowEncoder:
     * first and only its failure is enriched: a user-provided `CsvEncoder[Option[X]]` is a legitimate choice - rendering `None` as `"-"`,
     * say - and keeps working untouched.
     */
-  private inline def summonEncoders[Fields <: Tuple]: IArray[Any => String | Null] =
+  private inline def summonEncoders[Fields <: Tuple]: IArray[FieldEncoder] =
     inline erasedValue[Fields] match
-      case _: EmptyTuple => IArray.empty[Any => String | Null]
+      case _: EmptyTuple => IArray.empty[FieldEncoder]
       case _: (h *: t)   =>
-        val head: Any => String | Null =
+        val head: FieldEncoder =
           val e = encoderFor[h]
           v => e.encode(v.asInstanceOf[h])
         // `+:` infers the result's element type from `head`, and under `-Yexplicit-nulls` picks one narrower than the declared element
         // type, so the tail is ascribed to pin it
-        val tail: IArray[Any => String | Null] = summonEncoders[t]
-        head +: tail
+        IArray.concat[FieldEncoder](IArray[FieldEncoder](head), summonEncoders[t])
 
   /** The [[CsvEncoder]] for one field.
     *
