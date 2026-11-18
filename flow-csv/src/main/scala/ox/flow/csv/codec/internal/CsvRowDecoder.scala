@@ -12,6 +12,9 @@ import scala.deriving.Mirror.ProductOf
   * shorter than the field count means the trailing fields are missing. Both are resolved per field:
   * missing -> [[MissingDataFallback]], null -> [[NullFallback]], otherwise [[CsvDecoder]]. */
 private[csv] trait CsvRowDecoder[+T]:
+  /** How many cells a full row has: the field count of `T`. */
+  private[csv] def size: Int
+
   def decodeRow(row: Array[String | Null]): T
 
 @publicInBinary
@@ -25,7 +28,7 @@ private[csv] object CsvRowDecoder:
       nulls: IArray[NullFallback[Any] | Null],
       mir: ProductOf[T]
   ) extends CsvRowDecoder[T]:
-    private val size = decoders.length
+    private[csv] val size = decoders.length
 
     def decodeRow(row: Array[String | Null]): T =
       val result = new Array[Any](size)
