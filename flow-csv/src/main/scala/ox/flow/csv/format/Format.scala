@@ -151,24 +151,26 @@ object Format:
   inline def Oracle[T](using mir: ProductOf[T]): Format[Flow[T]] & OracleBuilder =
     Format.noHeader[T, NullString["\\N"]](OracleApache, Builder.Oracle)
 
-  type PostgreSqlCsvBuilder = HasBuilder[NullString[""]]
+  type PostgreSqlCsvBuilder = HasBuilder[DisallowRaggedRows & NullString[""]]
 
   /** Default PostgreSQL CSV format used by the COPY operation.
     *   - No header
     *   - Null String: "" - [[T]] codecs need to be able to handle nulls
+    *   - Ragged rows disallowed
     */
   inline def PostgreSqlCsv[T](using mir: ProductOf[T]): Format[Flow[T]] & PostgreSqlCsvBuilder =
-    Format.noHeader[T, NullString[""]](PostgreSqlCsvApache, Builder.PostgreSqlCsv)
+    Format.noHeader[T, DisallowRaggedRows & NullString[""]](PostgreSqlCsvApache, Builder.PostgreSqlCsv)
 
-  type PostgreSqlTextBuilder = HasBuilder[NullString["\\N"]]
+  type PostgreSqlTextBuilder = HasBuilder[DisallowRaggedRows & NullString["\\N"]]
 
   /** PostgreSQL text format used by the COPY operation.
     *   - No header
     *   - Null String: `\N` - [[T]] codecs need to be able to handle nulls
     *   - Delimiter: tab, Escape: `\`, No quoting, Record separator: `\n`
+    *   - Ragged rows disallowed
     */
   inline def PostgreSqlText[T](using mir: ProductOf[T]): Format[Flow[T]] & PostgreSqlTextBuilder =
-    Format.noHeader[T, NullString["\\N"]](PostgreSqlTextApache, Builder.PostgreSqlText)
+    Format.noHeader[T, DisallowRaggedRows & NullString["\\N"]](PostgreSqlTextApache, Builder.PostgreSqlText)
 
   sealed trait Builder[S]:
 
@@ -217,8 +219,8 @@ object Format:
     lazy val MongoDbTsv: Builder[IgnoreEmptyLines & HeaderModeSetting[HeaderMode.Force]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.MONGODB_TSV, HeaderMode.TryParseAsData))
     lazy val MySql: Builder[NullString["\\N"]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.MYSQL, HeaderMode.TryParseAsData))
     lazy val Oracle: Builder[NullString["\\N"]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.ORACLE, HeaderMode.TryParseAsData))
-    lazy val PostgreSqlCsv: Builder[NullString[""]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.POSTGRESQL_CSV, HeaderMode.TryParseAsData))
-    lazy val PostgreSqlText: Builder[NullString["\\N"]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.POSTGRESQL_TEXT, HeaderMode.TryParseAsData))
+    lazy val PostgreSqlCsv: Builder[DisallowRaggedRows & NullString[""]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.POSTGRESQL_CSV, HeaderMode.TryParseAsData))
+    lazy val PostgreSqlText: Builder[DisallowRaggedRows & NullString["\\N"]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.POSTGRESQL_TEXT, HeaderMode.TryParseAsData))
     //format: on
     private final class Instance[S](@publicInBinary val settings: Settings) extends Builder[S]
 
