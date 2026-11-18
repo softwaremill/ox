@@ -1,6 +1,7 @@
 package ox.flow.csv.codec.internal
 
 import ox.flow.csv.codec.{CsvEncoder, CsvEncoderWithNull}
+import ox.flow.csv.format.internal.macros
 
 import scala.annotation.publicInBinary
 import scala.compiletime.*
@@ -81,13 +82,26 @@ private[csv] object CsvRowEncoder:
           v => e.encode(v.asInstanceOf[h])
         head +: summonEncodersWithNull[t]
 
-  /** Per field a plain [[CsvEncoder]]: the format has no null string, so no cell may be written as `null`. */
+  /** Per field a plain [[CsvEncoder]]: the format has no null string, so no cell may be written as `null`.
+    *
+    * An `Option` field reaching this branch is the common mistake, and the stock "no given instance of type
+    * `CsvEncoder[Option[X]]`" says neither why `Option` is unsupported here nor what to do about it. The summon is therefore attempted
+    * first and only its failure is enriched: a user-provided `CsvEncoder[Option[X]]` is a legitimate choice - rendering `None` as `"-"`,
+    * say - and keeps working untouched.
+    */
   private inline def summonEncoders[Fields <: Tuple]: IArray[Any => String | Null] =
     inline erasedValue[Fields] match
       case _: EmptyTuple => IArray.empty[Any => String | Null]
       case _: (h *: t)   =>
         val head: Any => String | Null =
-          val e = summonInline[CsvEncoder[h]]
+          val e = encoderFor[h]
           v => e.encode(v.asInstanceOf[h])
         head +: summonEncoders[t]
+
+  /** The [[CsvEncoder]] for one field.
+    *
+    * Delegates to [[macros.summonEncoderOrExplain]] so that a failure for an `Option` field keeps the compiler's own message and gains a
+    * note under it, rather than being replaced by one.
+    */
+  private inline def encoderFor[H]: CsvEncoder[H] = macros.summonEncoderOrExplain[H]
 end CsvRowEncoder

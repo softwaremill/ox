@@ -59,5 +59,6 @@ object CsvEncoderWithNull:
   given [T] => CsvEncoder[T] => CsvEncoderWithNull[Option[T]]:
     def encode(value: Option[T]): String | Null = value.map(summon[CsvEncoder[T]].encode).orNull
 
+  /**For better support for -Yexplicit-nulls, no harm otherwise*/
   given [T] => CsvEncoder[T] => CsvEncoderWithNull[T | Null]:
     def encode(value: T | Null): String | Null = if value == null then null else summon[CsvEncoder[T]].encode(value.nn)
