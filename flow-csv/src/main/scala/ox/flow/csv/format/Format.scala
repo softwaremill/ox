@@ -222,7 +222,6 @@ object Format:
     //format: on
     private final class Instance[S](@publicInBinary val settings: Settings) extends Builder[S]
 
-    @publicInBinary
     private[csv] def unsafeFromSettings[S](settings: Settings): Builder[S] = new Instance(settings)
 
     /** The settings a [[CsvFormat]] is described by: plain, immutable, side effect free data that can be copied and passed around freely.
