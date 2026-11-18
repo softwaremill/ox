@@ -22,15 +22,15 @@ private[csv] object CsvRowEncoder:
         result(i) = encoders(i)(product.productElement(i))
         i += 1
       result
+    end encodeRow
+  end Impl
 
   /** For a format with no null string, where a `null` cell cannot round-trip.
     *
-    * Only a hand-written [[CsvEncoder]] for a nullable type (`CsvEncoder[MyType | Null]`) can reach this,
-    * which is a legitimate choice — rendering a null as `"-"`, say — so it warns rather than fails, once per
-    * field position.
+    * Only a hand-written [[CsvEncoder]] for a nullable type (`CsvEncoder[MyType | Null]`) can reach this, which is a legitimate choice —
+    * rendering a null as `"-"`, say — so it warns rather than fails, once per field position.
     */
-  private[csv] final class NullWarningImpl[T](encoders: IArray[Any => String | Null], size: Int, typeName: String)
-      extends CsvRowEncoder[T]:
+  private[csv] final class NullWarningImpl[T](encoders: IArray[Any => String | Null], size: Int, typeName: String) extends CsvRowEncoder[T]:
     private val warned = new java.util.concurrent.atomic.AtomicBoolean(false)
 
     def encodeRow(value: T): Array[String | Null] =
@@ -47,14 +47,17 @@ private[csv] object CsvRowEncoder:
           )
         result(i) = cell
         i += 1
+      end while
       result
+    end encodeRow
+  end NullWarningImpl
 
   /** Builds a row encoder for `T`.
     *
-    * @param formatHasNullString whether the format defines a null string. Only then can a cell be written as
-    *                            `null`, so only then is a [[CsvEncoderWithNull]] summoned. Writing a `null`
-    *                            into a format that has no null string would not round-trip, so for such a
-    *                            format every field must reach a cell through a plain [[CsvEncoder]].
+    * @param formatHasNullString
+    *   whether the format defines a null string. Only then can a cell be written as `null`, so only then is a [[CsvEncoderWithNull]]
+    *   summoned. Writing a `null` into a format that has no null string would not round-trip, so for such a format every field must reach a
+    *   cell through a plain [[CsvEncoder]].
     */
   inline def apply[T](inline formatHasNullString: Boolean)(using mir: ProductOf[T]): CsvRowEncoder[T] =
     type Fields = mir.MirroredElemTypes
@@ -64,14 +67,15 @@ private[csv] object CsvRowEncoder:
     else
       val encoders = summonEncoders[Fields]
       new NullWarningImpl[T](encoders, encoders.length, constValue[mir.MirroredLabel])
+  end apply
 
-  /** Per field a [[CsvEncoderWithNull]]: the format can represent a null, so a field type that may produce
-    * one must say how. Each is adapted to a function here, while the field type is still known, so encoding
-    * a row needs no runtime type test. */
+  /** Per field a [[CsvEncoderWithNull]]: the format can represent a null, so a field type that may produce one must say how. Each is
+    * adapted to a function here, while the field type is still known, so encoding a row needs no runtime type test.
+    */
   private inline def summonEncodersWithNull[Fields <: Tuple]: IArray[Any => String | Null] =
     inline erasedValue[Fields] match
       case _: EmptyTuple => IArray.empty[Any => String | Null]
-      case _: (h *: t) =>
+      case _: (h *: t)   =>
         val head: Any => String | Null =
           val e = summonInline[CsvEncoderWithNull[h]]
           v => e.encode(v.asInstanceOf[h])
@@ -81,8 +85,9 @@ private[csv] object CsvRowEncoder:
   private inline def summonEncoders[Fields <: Tuple]: IArray[Any => String | Null] =
     inline erasedValue[Fields] match
       case _: EmptyTuple => IArray.empty[Any => String | Null]
-      case _: (h *: t) =>
+      case _: (h *: t)   =>
         val head: Any => String | Null =
           val e = summonInline[CsvEncoder[h]]
           v => e.encode(v.asInstanceOf[h])
         head +: summonEncoders[t]
+end CsvRowEncoder

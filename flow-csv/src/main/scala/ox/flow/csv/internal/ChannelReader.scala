@@ -16,9 +16,9 @@ private[csv] class ChannelReader(ch: Source[String]) extends Reader:
     else
       while bufferExhausted && !done do
         ch.receiveOrClosed() match
-          case ChannelClosed.Done => done = true
+          case ChannelClosed.Done     => done = true
           case e: ChannelClosed.Error => throw e.toThrowable
-          case s: String =>
+          case s: String              =>
             buffer = s
             bufferPos = 0
       if done then -1

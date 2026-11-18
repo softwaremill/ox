@@ -8,9 +8,10 @@ import scala.deriving.Mirror.ProductOf
 
 /** Decodes one CSV row into `T`.
   *
-  * A row is `Array[String | Null]`: Apache yields `null` for cells matching the format's null string, and a row
-  * shorter than the field count means the trailing fields are missing. Both are resolved per field:
-  * missing -> [[MissingDataFallback]], null -> [[NullFallback]], otherwise [[CsvDecoder]]. */
+  * A row is `Array[String | Null]`: Apache yields `null` for cells matching the format's null string, and a row shorter than the field
+  * count means the trailing fields are missing. Both are resolved per field: missing -> [[MissingDataFallback]], null -> [[NullFallback]],
+  * otherwise [[CsvDecoder]].
+  */
 private[csv] trait CsvRowDecoder[+T]:
   /** How many cells a full row has: the field count of `T`. */
   private[csv] def size: Int
@@ -21,7 +22,7 @@ private[csv] trait CsvRowDecoder[+T]:
 private[csv] object CsvRowDecoder:
   private[csv] final class CsvDecodeException(message: String) extends RuntimeException(message)
 
-/** Per-field decoders, already specialised to what the format can produce. */
+  /** Per-field decoders, already specialised to what the format can produce. */
   private[csv] final class Impl[T](
       decoders: IArray[CsvDecoder[Any]],
       missing: IArray[MissingDataFallback[Any] | Null],
@@ -47,20 +48,23 @@ private[csv] object CsvRowDecoder:
               else nullFallback.nn.nullFallback
             else decoders(i).decode(cell.nn)
         i += 1
+      end while
       if row.length > size then throw CsvDecodeException(s"Too many columns: expected $size, got ${row.length}")
       mir.fromProduct(Tuple.fromArray(result))
+    end decodeRow
+  end Impl
 
   /** Builds a row decoder for `T`.
     *
-    * @param formatHasNullString whether the format defines a null string. Only then can a cell arrive as `null`,
-    *                            so only then is a [[NullFallback]] required per field.
-    * @param allowRaggedRows     whether rows shorter than the field count are tolerated. When true a
-    *                            [[MissingDataFallback]] is required for every field but the first; when false a
-    *                            short row fails at runtime.
+    * @param formatHasNullString
+    *   whether the format defines a null string. Only then can a cell arrive as `null`, so only then is a [[NullFallback]] required per
+    *   field.
+    * @param allowRaggedRows
+    *   whether rows shorter than the field count are tolerated. When true a [[MissingDataFallback]] is required for every field but the
+    *   first; when false a short row fails at runtime.
     *
-    * The first field is never missing. A record always has at least one cell: an empty line either does not
-    * reach us at all (the format ignores empty lines) or arrives as a single empty cell, so only the fields
-    * after it can be absent.
+    * The first field is never missing. A record always has at least one cell: an empty line either does not reach us at all (the format
+    * ignores empty lines) or arrives as a single empty cell, so only the fields after it can be absent.
     */
   inline def apply[T](inline formatHasNullString: Boolean, inline allowRaggedRows: Boolean)(using mir: ProductOf[T]): CsvRowDecoder[T] =
     type Fields = mir.MirroredElemTypes
@@ -70,19 +74,20 @@ private[csv] object CsvRowDecoder:
       inline if formatHasNullString then summonNulls[Fields] else noNulls[Fields],
       mir
     )
+  end apply
 
   /** Each typeclass is widened by subtyping while the field type is still known, so the tables need no cast. */
   private inline def summonDecoders[Fields <: Tuple]: IArray[CsvDecoder[Any]] =
     inline erasedValue[Fields] match
       case _: EmptyTuple => IArray.empty[CsvDecoder[Any]]
-      case _: (h *: t) =>
+      case _: (h *: t)   =>
         val head: CsvDecoder[Any] = summonInline[CsvDecoder[h]]
         head +: summonDecoders[t]
 
   private inline def summonNulls[Fields <: Tuple]: IArray[NullFallback[Any] | Null] =
     inline erasedValue[Fields] match
       case _: EmptyTuple => IArray.empty[NullFallback[Any] | Null]
-      case _: (h *: t) =>
+      case _: (h *: t)   =>
         val head: NullFallback[Any] = summonInline[NullFallback[h]]
         head +: summonNulls[t]
 
@@ -95,16 +100,15 @@ private[csv] object CsvRowDecoder:
   private inline def summonMissing[Fields <: Tuple]: IArray[MissingDataFallback[Any] | Null] =
     inline erasedValue[Fields] match
       case _: EmptyTuple => IArray.empty[MissingDataFallback[Any] | Null]
-      case _: (h *: t) =>
+      case _: (h *: t)   =>
         val head: MissingDataFallback[Any] = summonInline[MissingDataFallback[h]]
         head +: summonMissing[t]
 
   /** One empty slot per field: the format cannot produce this case, so no typeclass is required.
     *
-    * Two variants rather than one `IArray[Null]`: an array's component type is reified, so the slots have to
-    * be built at the element type they will be read back at. A single `IArray[Null]` typechecks with
-    * `ClassTag.Null` but fails in the backend — `scala.runtime.Null$[]` cannot be passed where
-    * `MissingDataFallback[]` is expected.
+    * Two variants rather than one `IArray[Null]`: an array's component type is reified, so the slots have to be built at the element type
+    * they will be read back at. A single `IArray[Null]` typechecks with `ClassTag.Null` but fails in the backend — `scala.runtime.Null$[]`
+    * cannot be passed where `MissingDataFallback[]` is expected.
     */
   private inline def noMissing[Fields <: Tuple]: IArray[MissingDataFallback[Any] | Null] =
     inline erasedValue[Fields] match
@@ -115,4 +119,4 @@ private[csv] object CsvRowDecoder:
     inline erasedValue[Fields] match
       case _: EmptyTuple => IArray.empty[NullFallback[Any] | Null]
       case _: (_ *: t)   => (null: NullFallback[Any] | Null) +: noNulls[t]
-
+end CsvRowDecoder

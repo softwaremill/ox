@@ -1,9 +1,8 @@
 package ox.flow.csv.codec
 
-/**Typeclass used to decode string parsed form csv into T
- * for decoding nulls see [[NullFallback]]
- * for decoding missing see [[MissingDataFallback]]
- * */
+/** Typeclass used to decode string parsed form csv into T for decoding nulls see [[NullFallback]] for decoding missing see
+  * [[MissingDataFallback]]
+  */
 trait CsvDecoder[+T]:
   def decode(from: String): T
 
@@ -63,3 +62,4 @@ object CsvDecoder:
   /** @throws java.lang.IllegalArgumentException If the value does not conform to the UUID string representation. */
   given CsvDecoder[java.util.UUID] with
     def decode(from: String): java.util.UUID = java.util.UUID.fromString(from)
+end CsvDecoder

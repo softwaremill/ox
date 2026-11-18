@@ -2,9 +2,9 @@ package ox.flow.csv.codec
 
 /** Primitive default instances for [[MissingDataFallback]] and [[NullFallback]].
   *
-  * Import all:          `import ox.flow.csv.codec.defaults.all.given`
-  * Import by typeclass: `import ox.flow.csv.codec.defaults.missingData.given`
-  *                      `import ox.flow.csv.codec.defaults.nullData.given` */
+  * Import all: `import ox.flow.csv.codec.defaults.all.given` Import by typeclass: `import ox.flow.csv.codec.defaults.missingData.given`
+  * `import ox.flow.csv.codec.defaults.nullData.given`
+  */
 object default:
 
   object missingDataFallback:
@@ -28,6 +28,7 @@ object default:
       override def missingFallback: BigDecimal = BigDecimal(0)
     given MissingDataFallback[BigInt] with
       override def missingFallback: BigInt = BigInt(0)
+  end missingDataFallback
 
   object nullFallback:
     given NullFallback[String] with
@@ -50,7 +51,9 @@ object default:
       override def nullFallback: BigDecimal = BigDecimal(0)
     given NullFallback[BigInt] with
       override def nullFallback: BigInt = BigInt(0)
+  end nullFallback
 
   object all:
     export missingDataFallback.given
     export nullFallback.given
+end default

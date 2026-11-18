@@ -204,45 +204,22 @@ object Format:
       * Unlike [[Format]], these carry only settings: nothing is validated until [[build]] is called, so a dialect can be adjusted through
       * states its own settings would reject on their own.
       */
-    lazy val Rfc4180: Builder[HeaderModeSetting[HeaderMode.TryParseAsData]] = unsafeFromSettings(
-      Settings.fromApache(ApacheCSVFormat.RFC4180, HeaderMode.TryParseAsData)
-    )
-    lazy val Default: Builder[IgnoreEmptyLines & HeaderModeSetting[HeaderMode.TryParseAsData]] = unsafeFromSettings(
-      Settings.fromApache(ApacheCSVFormat.DEFAULT, HeaderMode.TryParseAsData)
-    )
-    lazy val Rfc4180Strict: Builder[DisallowRaggedRows & HeaderModeSetting[HeaderMode.TryParseAsData]] = unsafeFromSettings(
-      Settings.fromApache(ApacheCSVFormat.RFC4180, HeaderMode.TryParseAsData)
-    )
-    lazy val Excel: Builder[HeaderModeSetting[HeaderMode.TryParseAsData]] = unsafeFromSettings(
-      Settings.fromApache(ApacheCSVFormat.EXCEL, HeaderMode.TryParseAsData)
-    )
-    lazy val ExcelStrict: Builder[HeaderModeSetting[HeaderMode.TryParseAsData]] = unsafeFromSettings(
-      Settings.fromApache(ApacheCSVFormat.EXCEL, HeaderMode.TryParseAsData)
-    )
-    lazy val Tdf: Builder[IgnoreEmptyLines & HeaderModeSetting[HeaderMode.TryParseAsData]] = unsafeFromSettings(
-      Settings.fromApache(ApacheCSVFormat.TDF, HeaderMode.TryParseAsData)
-    )
-    lazy val InformixUnload: Builder[IgnoreEmptyLines] = unsafeFromSettings(
-      Settings.fromApache(ApacheCSVFormat.INFORMIX_UNLOAD, HeaderMode.TryParseAsData)
-    )
-    lazy val InformixUnloadCsv: Builder[IgnoreEmptyLines] = unsafeFromSettings(
-      Settings.fromApache(ApacheCSVFormat.INFORMIX_UNLOAD_CSV, HeaderMode.TryParseAsData)
-    )
-    lazy val MongoDbCsv: Builder[IgnoreEmptyLines & HeaderModeSetting[HeaderMode.Force]] = unsafeFromSettings(
-      Settings.fromApache(ApacheCSVFormat.MONGODB_CSV, HeaderMode.TryParseAsData)
-    )
-    lazy val MongoDbTsv: Builder[IgnoreEmptyLines & HeaderModeSetting[HeaderMode.Force]] = unsafeFromSettings(
-      Settings.fromApache(ApacheCSVFormat.MONGODB_TSV, HeaderMode.TryParseAsData)
-    )
+    //format: off
+    lazy val Rfc4180: Builder[HeaderModeSetting[HeaderMode.TryParseAsData]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.RFC4180, HeaderMode.TryParseAsData))
+    lazy val Default: Builder[IgnoreEmptyLines & HeaderModeSetting[HeaderMode.TryParseAsData]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.DEFAULT, HeaderMode.TryParseAsData))
+    lazy val Rfc4180Strict: Builder[DisallowRaggedRows & HeaderModeSetting[HeaderMode.TryParseAsData]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.RFC4180, HeaderMode.TryParseAsData))
+    lazy val Excel: Builder[HeaderModeSetting[HeaderMode.TryParseAsData]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.EXCEL, HeaderMode.TryParseAsData))
+    lazy val ExcelStrict: Builder[HeaderModeSetting[HeaderMode.TryParseAsData]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.EXCEL, HeaderMode.TryParseAsData))
+    lazy val Tdf: Builder[IgnoreEmptyLines & HeaderModeSetting[HeaderMode.TryParseAsData]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.TDF, HeaderMode.TryParseAsData))
+    lazy val InformixUnload: Builder[IgnoreEmptyLines] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.INFORMIX_UNLOAD, HeaderMode.TryParseAsData))
+    lazy val InformixUnloadCsv: Builder[IgnoreEmptyLines] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.INFORMIX_UNLOAD_CSV, HeaderMode.TryParseAsData))
+    lazy val MongoDbCsv: Builder[IgnoreEmptyLines & HeaderModeSetting[HeaderMode.Force]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.MONGODB_CSV, HeaderMode.TryParseAsData))
+    lazy val MongoDbTsv: Builder[IgnoreEmptyLines & HeaderModeSetting[HeaderMode.Force]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.MONGODB_TSV, HeaderMode.TryParseAsData))
     lazy val MySql: Builder[NullString["\\N"]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.MYSQL, HeaderMode.TryParseAsData))
     lazy val Oracle: Builder[NullString["\\N"]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.ORACLE, HeaderMode.TryParseAsData))
-    lazy val PostgreSqlCsv: Builder[NullString[""]] = unsafeFromSettings(
-      Settings.fromApache(ApacheCSVFormat.POSTGRESQL_CSV, HeaderMode.TryParseAsData)
-    )
-    lazy val PostgreSqlText: Builder[NullString["\\N"]] = unsafeFromSettings(
-      Settings.fromApache(ApacheCSVFormat.POSTGRESQL_TEXT, HeaderMode.TryParseAsData)
-    )
-
+    lazy val PostgreSqlCsv: Builder[NullString[""]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.POSTGRESQL_CSV, HeaderMode.TryParseAsData))
+    lazy val PostgreSqlText: Builder[NullString["\\N"]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.POSTGRESQL_TEXT, HeaderMode.TryParseAsData))
+    //format: on
     private final class Instance[S](@publicInBinary val settings: Settings) extends Builder[S]
 
     @publicInBinary
@@ -379,10 +356,8 @@ object Format:
     def parseData(data: Flow[String]): Flow[HeaderRecord | T] =
       parseRows(format, data).mapStateful(false): (firstRowDone, apacheRecord) =>
         val rawRecord = apacheRecord.values()
-        if !firstRowDone then
-          (true,parseRecordOrElseHeader(rowDecoder, rawRecord))
-        else
-          (true,rowDecoder.decodeRow(rawRecord))
+        if !firstRowDone then (true, parseRecordOrElseHeader(rowDecoder, rawRecord))
+        else (true, rowDecoder.decodeRow(rawRecord))
 
     def writeData(data: Flow[HeaderRecord | T]): Flow[String] =
       printRows(
@@ -393,22 +368,19 @@ object Format:
       )
   end OptionalHeaderFormat
 
-  private def parseRecordOrElseHeader[S, T](rowDecoder: CsvRowDecoder[T], firstRow: Array[String]) = {
-    try
-      rowDecoder.decodeRow(firstRow)
+  private def parseRecordOrElseHeader[S, T](rowDecoder: CsvRowDecoder[T], firstRow: Array[String]) =
+    try rowDecoder.decodeRow(firstRow)
     catch
       case NonFatal(_) =>
-        HeaderRecord(normalizeHeader(firstRow, rowDecoder.size) *)
-  }
+        HeaderRecord(normalizeHeader(firstRow, rowDecoder.size)*)
 
-  private def normalizeHeader[S, T](firstRow: Array[String], size: Int) = {
+  private def normalizeHeader[S, T](firstRow: Array[String], size: Int) =
     firstRow
       .map:
         case null => ""
-        case ok => ok
+        case ok   => ok
       .padTo(size, "")
       .take(size)
-  }
 
   private final class NoHeaderFormat[T, S](
       format: RawCsvFormat,
