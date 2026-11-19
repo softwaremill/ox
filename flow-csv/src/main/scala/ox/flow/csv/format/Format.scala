@@ -31,28 +31,6 @@ sealed trait PrinterFormat[-Repr]:
 
 object Format:
 
-  type Rfc4180Builder = HasBuilder[HeaderModeSetting[HeaderMode.TryParseAsData]]
-
-  /** RFC 4180 compliant CSV format.
-    *   - Optional header
-    *   - Ragged rows allowed - requires capability to handle missing data for all [[T]] fields except first one (enforced at compiletime)
-    *   - Empty lines are interpreted as legitimate ragged row with value of first column being empty string
-    *   - Delimiter: comma, Quote: `"`, Record separator: `\r\n`
-    */
-  inline def Rfc4180[T](using mir: ProductOf[T]): Format[Flow[HeaderRecord | T]] & Rfc4180Builder =
-    Format.optionalHeader[T, HeaderModeSetting[HeaderMode.TryParseAsData]](Rfc4180Apache, Builder.Rfc4180)
-
-  type Rfc4180StrictBuilder = HasBuilder[DisallowRaggedRows & HeaderModeSetting[HeaderMode.TryParseAsData]]
-
-  /** RFC 4180 with strict parsing - no empty column fallback for non-string columns, throws on ragged rows.
-    *   - Optional header
-    *   - Ragged rows fail at runtime (missing column on any field type, including String)
-    *   - Empty cells on non-String fields fail at runtime
-    *   - Delimiter: comma, Quote: `"`, Record separator: `\r\n`
-    */
-  inline def Rfc4180Strict[T](using mir: ProductOf[T]): Format[Flow[HeaderRecord | T]] & Rfc4180StrictBuilder =
-    Format.optionalHeader[T, DisallowRaggedRows & HeaderModeSetting[HeaderMode.TryParseAsData]](Rfc4180Apache, Builder.Rfc4180Strict)
-
   type DefaultBuilder = HasBuilder[IgnoreEmptyLines & HeaderModeSetting[HeaderMode.TryParseAsData]]
 
   /** Standard CSV format (RFC 4180 + ignoreEmptyLines).
@@ -76,6 +54,28 @@ object Format:
       DefaultApache,
       Builder.DefaultStrict
     )
+
+  type Rfc4180Builder = HasBuilder[HeaderModeSetting[HeaderMode.TryParseAsData]]
+
+  /** RFC 4180 compliant CSV format.
+    *   - Optional header
+    *   - Ragged rows allowed - requires capability to handle missing data for all [[T]] fields except first one (enforced at compiletime)
+    *   - Empty lines are interpreted as legitimate ragged row with value of first column being empty string
+    *   - Delimiter: comma, Quote: `"`, Record separator: `\r\n`
+    */
+  inline def Rfc4180[T](using mir: ProductOf[T]): Format[Flow[HeaderRecord | T]] & Rfc4180Builder =
+    Format.optionalHeader[T, HeaderModeSetting[HeaderMode.TryParseAsData]](Rfc4180Apache, Builder.Rfc4180)
+
+  type Rfc4180StrictBuilder = HasBuilder[DisallowRaggedRows & HeaderModeSetting[HeaderMode.TryParseAsData]]
+
+  /** RFC 4180 with strict parsing - no empty column fallback for non-string columns, throws on ragged rows.
+    *   - Optional header
+    *   - Ragged rows fail at runtime (missing column on any field type, including String)
+    *   - Empty cells on non-String fields fail at runtime
+    *   - Delimiter: comma, Quote: `"`, Record separator: `\r\n`
+    */
+  inline def Rfc4180Strict[T](using mir: ProductOf[T]): Format[Flow[HeaderRecord | T]] & Rfc4180StrictBuilder =
+    Format.optionalHeader[T, DisallowRaggedRows & HeaderModeSetting[HeaderMode.TryParseAsData]](Rfc4180Apache, Builder.Rfc4180Strict)
 
   type ExcelBuilder = HasBuilder[HeaderModeSetting[HeaderMode.TryParseAsData]]
 
