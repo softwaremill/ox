@@ -127,37 +127,30 @@ lazy val flowCsv: Project = (project in file("flow-csv"))
   )
   .dependsOn(core)
 
-/** The compiletime contract of the predefined formats, compiled twice.
-  *
-  * The codecs are `inline`, so their bodies are typechecked in the caller's compilation unit, under the caller's flags - a user may compile
-  * with `-Yexplicit-nulls` while the library is published without it. `assertCompiles` and `typeCheckErrors` likewise inherit the flags of
-  * the unit they sit in, so the only way to cover both readings is to compile the same sources twice. These two projects share a source
-  * tree and differ only in that flag.
-  */
-lazy val flowCsvContractTests: Project = (project in file("flow-csv-contract-tests"))
+lazy val flowCsvCompilationTests: Project = (project in file("flow-csv-contract-tests"))
   .settings(
     name := "flow-csv-contract-tests",
+    scalacOptions ++= Seq(
+      "-explain",
+      "-explain-types"
+    ),
     publish / skip := true,
     libraryDependencies += scalaTest
   )
   .dependsOn(flowCsv)
 
-/** Currently failing, which is what it was added to find.
-  *
-  * The codecs build their per-field tables as `IArray[X | Null]`, but the element each branch contributes is typed `X`, so `+:` infers the
-  * narrower element type and the result contradicts the declared one. Without the flag the two are the same type and nothing shows; with
-  * it, `CsvRowDecoder.summonMissing`/`summonNulls` and `CsvRowEncoder.summonEncoders` each fail to typecheck. Since these are `inline`,
-  * they are typechecked in the caller's unit, so a user compiling with `-Yexplicit-nulls` cannot call the predefined formats at all.
-  *
-  * Not aggregated until that is fixed.
-  */
-lazy val flowCsvContractTestsExplicitNulls: Project = (project in file("flow-csv-contract-tests-explicit-nulls"))
+/** Separate project to test under explicit nulls*/
+lazy val flowCsvCompilationTestsExplicitNulls: Project = (project in file("flow-csv-contract-tests-explicit-nulls"))
   .settings(
     name := "flow-csv-contract-tests-explicit-nulls",
-    scalacOptions += "-Yexplicit-nulls",
+    scalacOptions ++= Seq(
+      "-Yexplicit-nulls",
+      "-explain",
+      "-explain-types"
+    ),
     publish / skip := true,
     // the same sources as flowCsvContractTests: two projects cannot share a baseDirectory, so the source tree is pointed at explicitly
-    Test / unmanagedSourceDirectories := Seq((flowCsvContractTests / baseDirectory).value / "src" / "test" / "scala"),
+    Test / unmanagedSourceDirectories := Seq((flowCsvCompilationTests / baseDirectory).value / "src" / "test" / "scala"),
     libraryDependencies += scalaTest
   )
   .dependsOn(flowCsv)
@@ -218,7 +211,7 @@ lazy val documentation: Project = (project in file("generated-doc")) // importan
     flowReactiveStreams,
     flowJson,
     flowCsv,
-    flowCsvContractTests,
+    flowCsvCompilationTests,
     // flowCsvContractTestsExplicitNulls is deliberately not aggregated: it currently fails, having found two genuine defects in the inline
     // codecs (see its scaladoc). Run it explicitly - `flowCsvContractTestsExplicitNulls/test` - until those are fixed.
     cron,
