@@ -1,10 +1,10 @@
 package ox.flow.csv.codec
-
+import ox.flow.csv.CsvException.FormatViolationException.FieldDecodeException
 /** Typeclass used to decode field string parsed form csv into [[T]] for decoding nulls see [[NullFallback]] for decoding missing data in ragged rows see
   * [[MissingDataFallback]]
   *
   * Intended to be used through a [[ox.flow.csv.format.Format]] and [[ox.flow.csv.parse]], which wrap and rethrow whatever a decoder throws
-  * as a [[CsvException.FieldDecodeException]].
+  * as a [[FieldDecodeException]].
  * @see [[MissingDataFallback]]
  * @see [[NullFallback]]
   */

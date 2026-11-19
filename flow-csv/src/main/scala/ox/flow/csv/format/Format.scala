@@ -4,8 +4,8 @@ import org.apache.commons.csv.CSVFormat.Builder as ApacheCSVBuilder
 import org.apache.commons.csv.{DuplicateHeaderMode, CSVException as ApacheCSVException, CSVFormat as ApacheCSVFormat, CSVRecord as ApacheCSVRecord}
 import ox.channels.{BufferCapacity, ChannelClosedException}
 import ox.flow.Flow
+import ox.flow.csv.CsvException
 import ox.flow.csv.CsvRecord.{Comment, HeaderRecord}
-import ox.flow.csv.codec.CsvException
 import ox.flow.csv.codec.internal.{CsvRowDecoder, CsvRowEncoder}
 import ox.flow.csv.format.internal.macros
 import ox.flow.csv.internal.ChannelReader

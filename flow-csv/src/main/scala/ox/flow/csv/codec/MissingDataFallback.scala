@@ -1,10 +1,15 @@
 package ox.flow.csv.codec
 
 /** Provides a default value for fields when a row has fewer columns than expected (ragged rows). Consulted when DisallowRaggedRows is
-  * absent on the format (the default for most formats).
+  * absent on the format.
   *
   * An instance for Option is always in scope (companion object). Primitive defaults (0, "", false, etc.) require
   * `import ox.flow.csv.codec.defaults.missingData.given`.
+  *
+  * @see
+  *   [[NullFallback]]
+  * @see
+  *   [[CsvDecoder]]
   */
 @scala.annotation.implicitNotFound(
   """No MissingDataFallback instance for ${T}. Ragged rows require each field type to handle missing columns. Options:
@@ -18,6 +23,5 @@ end MissingDataFallback
 
 object MissingDataFallback:
 
- 
   given [T]: MissingDataFallback[Option[T]] with
     override def missingFallback: Option[T] = None

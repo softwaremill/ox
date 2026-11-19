@@ -1,7 +1,8 @@
 package ox.flow.csv.codec.internal
 
 
-import ox.flow.csv.codec.CsvException.{FieldDecodeException, FormatViolationException}
+import ox.flow.csv.CsvException.FormatViolationException
+import ox.flow.csv.CsvException.FormatViolationException.FieldDecodeException
 import ox.flow.csv.codec.{CsvDecoder, MissingDataFallback, NullFallback}
 import ox.flow.csv.format.ParserFormat
 
