@@ -1,10 +1,13 @@
 package ox.flow.csv.codec.internal
 
+
+import ox.flow.csv.codec.CsvException.{FieldDecodeException, FormatViolationException}
 import ox.flow.csv.codec.{CsvDecoder, MissingDataFallback, NullFallback}
 
 import scala.annotation.publicInBinary
 import scala.compiletime.*
 import scala.deriving.Mirror.ProductOf
+import scala.util.control.NonFatal
 
 /** Decodes one CSV row into `T`.
   *
@@ -16,12 +19,19 @@ private[csv] trait CsvRowDecoder[+T]:
   /** How many cells a full row has: the field count of `T`. */
   private[csv] def size: Int
 
+  /** Decodes one row.
+    *
+    * @throws ox.flow.csv.codec.FieldDecodeException
+    *   if a [[CsvDecoder]] rejects a cell. The decoder's own exception is the cause: it reports what was wrong with the value, while this
+    *   adds the column it came from.
+    * @throws ox.flow.csv.codec.FormatViolationException
+    *   if the row does not fit the format: a column is missing where ragged rows are disallowed, a cell is `null` where the format defines
+    *   no null string, or the row has more cells than `T` has fields.
+    */
   def decodeRow(row: IArray[String | Null]): T
 
 @publicInBinary
 private[csv] object CsvRowDecoder:
-  private[csv] final class CsvDecodeException(message: String) extends RuntimeException(message)
-
   /** Per-field decoders, already specialised to what the format can produce. */
   private[csv] final class Impl[T](
       decoders: IArray[CsvDecoder[Any]],
@@ -39,18 +49,20 @@ private[csv] object CsvRowDecoder:
         result(i) =
           if i >= row.length then
             val missingFallback = missing(i)
-            if missingFallback == null then throw CsvDecodeException(s"Missing column at index $i")
+            if missingFallback == null then throw FormatViolationException.MissingColumn(i)
             else missingFallback.nn.missingFallback
           else
             val cell = row(i)
             if cell == null then
               val nullFallback = nulls(i)
-              if nullFallback == null then throw CsvDecodeException(s"Unexpected null at column index $i")
+              if nullFallback == null then throw FormatViolationException.UnexpectedNull(i)
               else nullFallback.nn.nullFallback
-            else decoders(i).decode(cell.nn)
+            else
+              try decoders(i).decode(cell.nn)
+              catch case NonFatal(e) => throw FieldDecodeException(i, cell.nn, e)
         i += 1
       end while
-      if row.length > size then throw CsvDecodeException(s"Too many columns: expected $size, got ${row.length}")
+      if row.length > size then throw FormatViolationException.TooManyColumns(size, row.length)
       mir.fromProduct(Tuple.fromArray(result))
     end decodeRow
   end Impl
