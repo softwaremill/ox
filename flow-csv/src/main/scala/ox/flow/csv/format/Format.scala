@@ -23,6 +23,8 @@ sealed trait ParserFormat[+Repr]:
     *
     * @throws FieldDecodeException if a [[CsvDecoder.decode]] throws
     * @throws FormatViolationException if data dont comply with [[ParserFormat]]
+    * @throws MalformedCsvException if the text is not well-formed CSV
+    * @throws java.io.IOException if reading the text fails
     */
   def parseData(data: Flow[String]): Repr
 
