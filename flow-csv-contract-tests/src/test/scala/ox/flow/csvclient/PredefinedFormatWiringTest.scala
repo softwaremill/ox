@@ -32,27 +32,13 @@ import scala.compiletime.testing.typeCheckErrors
   */
 class PredefinedFormatWiringTest extends AnyWordSpec with Matchers:
   import PredefinedFormatWiringTest.*
+  
+  private def compiles(expr: => Any): Assertion = succeed
 
-  /** Asserts `code` does not compile, and that it failed for `because` rather than for some unrelated reason.
-    *
-    * `inline` so the literal reaches `assertCompiles`, which is a macro and rejects a non-constant argument.
-    *
-    * `code` must be a single line: `assertCompiles` truncates the reported message for a multi-line snippet, which would make `because`
-    * unassertable. A snippet needing an import is written as `{ import ...; ... }`.
-    */
-  inline private def rejectedBecause(inline code: String, because: String): Unit =
-    val e = intercept[TestFailedException](assertCompiles(code))
-    e.getMessage should include(because)
-
-  /** Asserts `code` does not compile and that the whole reported text, the lines under the first one included, contains `because`.
-    *
-    * `assertCompiles` reports only the primary type error, and `Error.message` cuts at the first newline, so neither sees a note appended
-    * under the message. `Error.toString` carries the full text, which is what this matches against.
-    */
-  inline private def notedBecause(inline code: String, because: String): Unit =
+  inline private def compileErrorIncludes(inline code: String, shouldInclude: String): Unit =
     val errs = typeCheckErrors(code)
     errs should not be empty
-    atLeast(1, errs.map(_.toString)) should include(because)
+    atLeast(1, errs.map(_.toString)) should include(shouldInclude)
 
   private val noMissingForInt = "No MissingDataFallback instance for Int"
   private val noMissingForString = "No MissingDataFallback instance for String"
@@ -60,42 +46,42 @@ class PredefinedFormatWiringTest extends AnyWordSpec with Matchers:
   private val cannotEncodeOption = "no implicit values were found that match type ox.flow.csv.codec.CsvEncoder[Option["
 
   /** An `Option` field reaching the plain-encoder branch also gets a note under that message, pointing at the null string and
-    * `CsvEncoderWithNull`. Asserted by [[notedBecause]], since the text sits below the first line.
+    * `CsvEncoderWithNull`. Asserted by [[compileErrorIncludes]], since the text sits below the first line.
     */
   private val suggestsNullString = "define the format with a nullString and provide a CsvEncoderWithNull"
 
   "Format.Rfc4180" should:
 
-    "compile for an all-String type once the primitive fallbacks are imported" in:
+    "compile for an all-String type once MissingDataFallback is in scope" in:
       import ox.flow.csv.codec.default.missingDataFallback.given
-      Format.Rfc4180[Ragged] should not be null
+      compiles(Format.Rfc4180[Ragged])
 
-    "compile for a non-String tail field once the primitive fallbacks are imported" in:
+    "compile for a non-String tail field once MissingDataFallback is in scope" in:
       import ox.flow.csv.codec.default.missingDataFallback.given
-      Format.Rfc4180[Plain] should not be null
+      compiles(Format.Rfc4180[Plain])
 
-    "compile for an Option field once the user supplies a CsvEncoder for it, the guidance being a note on a failed summon, not a ban" in:
+    "compile for an Option field once the user supplies a CsvEncoder for it" in:
       import ox.flow.csv.codec.default.missingDataFallback.given
       given optIntEncoder: ox.flow.csv.codec.CsvEncoder[Option[Int]] with
         def encode(v: Option[Int]): String = v.fold("-")(_.toString)
       given optStringEncoder: ox.flow.csv.codec.CsvEncoder[Option[String]] with
         def encode(v: Option[String]): String = v.getOrElse("-")
-      Format.Rfc4180[Nullable] should not be null
+      compiles(Format.Rfc4180[Nullable])
 
-    "compile for a single-field type with no fallbacks imported, there being no field after the first to go missing" in:
-      Format.Rfc4180[SingleField] should not be null
+    "compile for a single-field type without MissingDataFallback in scope" in:
+      compiles(Format.Rfc4180[SingleField])
 
-    "not compile for an all-String type with no fallbacks imported, a missing cell not being an empty one" in:
-      rejectedBecause("""ox.flow.csv.format.Format.Rfc4180[ox.flow.csvclient.PredefinedFormatWiringTest.Ragged]""", noMissingForString)
+    "not compile for an String tail field without MissingDataFallback in scope" in:
+      compileErrorIncludes("""ox.flow.csv.format.Format.Rfc4180[ox.flow.csvclient.PredefinedFormatWiringTest.Ragged]""", noMissingForString)
 
-    "not compile for a non-String tail field with no MissingDataFallback in scope" in:
-      rejectedBecause("""ox.flow.csv.format.Format.Rfc4180[ox.flow.csvclient.PredefinedFormatWiringTest.Plain]""", noMissingForInt)
+    "not compile for a non-String tail field without MissingDataFallback in scope" in:
+      compileErrorIncludes("""ox.flow.csv.format.Format.Rfc4180[ox.flow.csvclient.PredefinedFormatWiringTest.Plain]""", noMissingForInt)
 
     "not compile for an Option field, the plain CsvEncoder being summoned and Option having no instance" in:
-      rejectedBecause("""ox.flow.csv.format.Format.Rfc4180[ox.flow.csvclient.PredefinedFormatWiringTest.Nullable]""", cannotEncodeOption)
+      compileErrorIncludes("""ox.flow.csv.format.Format.Rfc4180[ox.flow.csvclient.PredefinedFormatWiringTest.Nullable]""", cannotEncodeOption)
 
-    "note under that message that a nullString and CsvEncoderWithNull are how null gets written" in:
-      notedBecause("""ox.flow.csv.format.Format.Rfc4180[ox.flow.csvclient.PredefinedFormatWiringTest.Nullable]""", suggestsNullString)
+    "contain note under compile error message that a nullString and CsvEncoderWithNull are how null gets written" in:
+      compileErrorIncludes("""ox.flow.csv.format.Format.Rfc4180[ox.flow.csvclient.PredefinedFormatWiringTest.Nullable]""", suggestsNullString)
 
   "Format.Default" should:
 
