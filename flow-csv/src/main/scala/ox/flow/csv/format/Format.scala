@@ -1,10 +1,11 @@
 package ox.flow.csv.format
 
 import org.apache.commons.csv.CSVFormat.Builder as ApacheCSVBuilder
-import org.apache.commons.csv.{DuplicateHeaderMode, CSVFormat as ApacheCSVFormat, CSVRecord as ApacheCSVRecord}
+import org.apache.commons.csv.{DuplicateHeaderMode, CSVException as ApacheCSVException, CSVFormat as ApacheCSVFormat, CSVRecord as ApacheCSVRecord}
 import ox.channels.{BufferCapacity, ChannelClosedException}
 import ox.flow.Flow
 import ox.flow.csv.CsvRecord.{Comment, HeaderRecord}
+import ox.flow.csv.codec.CsvException
 import ox.flow.csv.codec.internal.{CsvRowDecoder, CsvRowEncoder}
 import ox.flow.csv.format.internal.macros
 import ox.flow.csv.internal.ChannelReader
@@ -374,7 +375,7 @@ object Format:
     * record with `\n`, and hands them back through `getComment`. Splitting that blob recovers the lines as they appeared in the source.
     * Empty when the record had no comment, which is also the case for every format that defines no comment marker.
     */
-  private def commentRecords(record: ApacheCSVRecord): Seq[Comment] =
+  private def extractCommentsAsRecords(record: ApacheCSVRecord): Seq[Comment] =
     record.getComment match
       case null    => Seq.empty
       case comment => comment.split('\n').toSeq.map(Comment.apply)
