@@ -4,7 +4,7 @@ package ox.flow.csv.codec
   * [[MissingDataFallback]]
   *
   * Intended to be used through a [[ox.flow.csv.format.Format]] and [[ox.flow.csv.parse]], which wrap and rethrow whatever a decoder throws
-  * as a [[FieldDecodeException]].
+  * as a [[CsvException.FieldDecodeException]].
  * @see [[MissingDataFallback]]
  * @see [[NullFallback]]
   */
