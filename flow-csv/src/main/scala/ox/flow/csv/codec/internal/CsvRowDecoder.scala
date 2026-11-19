@@ -3,6 +3,7 @@ package ox.flow.csv.codec.internal
 
 import ox.flow.csv.codec.CsvException.{FieldDecodeException, FormatViolationException}
 import ox.flow.csv.codec.{CsvDecoder, MissingDataFallback, NullFallback}
+import ox.flow.csv.format.ParserFormat
 
 import scala.annotation.publicInBinary
 import scala.compiletime.*
@@ -21,12 +22,11 @@ private[csv] trait CsvRowDecoder[+T]:
 
   /** Decodes one row.
     *
-    * @throws ox.flow.csv.codec.FieldDecodeException
-    *   if a [[CsvDecoder]] rejects a cell. The decoder's own exception is the cause: it reports what was wrong with the value, while this
-    *   adds the column it came from.
-    * @throws ox.flow.csv.codec.FormatViolationException
-    *   if the row does not fit the format: a column is missing where ragged rows are disallowed, a cell is `null` where the format defines
-    *   no null string, or the row has more cells than `T` has fields.
+    * @throws FieldDecodeException
+    *   if a [[CsvDecoder.decode]] throws
+   *   
+    * @throws FormatViolationException
+    *   if csv row dont adhere to [[ParserFormat]], for example contains null for non-null format
     */
   def decodeRow(row: IArray[String | Null]): T
 
