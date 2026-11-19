@@ -19,6 +19,11 @@ import scala.util.control.NonFatal
 type Format[Repr] = ParserFormat[Repr] & PrinterFormat[Repr]
 
 sealed trait ParserFormat[+Repr]:
+  /** Parses `data` into this format's representation.
+    *
+    * @throws FieldDecodeException if a [[CsvDecoder.decode]] throws
+    * @throws FormatViolationException if data dont comply with [[ParserFormat]]
+    */
   def parseData(data: Flow[String]): Repr
 
 sealed trait PrinterFormat[-Repr]:
