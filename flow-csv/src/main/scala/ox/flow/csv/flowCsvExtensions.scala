@@ -15,6 +15,10 @@ import ox.flow.csv.format.{ParserFormat, PrinterFormat}
   * }}}
   *
   * Encoding happens per record as the returned flow is run, so a failure surfaces there rather than from this call.
+  *
+  * @throws java.io.IOException
+  *   if writing a record fails. It propagates as the writer threw it, rather than wrapped: `IOException` already says what went wrong. A
+  *   failure of `f` itself propagates as it was thrown too.
   */
 extension [T](f: T) def print(fmt: PrinterFormat[T]): Flow[String] = fmt.writeData(f)
 
@@ -40,5 +44,10 @@ extension [T](f: T) def print(fmt: PrinterFormat[T]): Flow[String] = fmt.writeDa
   * @throws ox.flow.csv.codec.CsvException.FormatViolationException
   *   if a row does not fit the format: a missing column where ragged rows are disallowed, a `null` cell where the format defines no null
   *   string, or more cells than the target type has fields.
+  * @throws ox.flow.csv.codec.CsvException.MalformedCsvException
+  *   if the text is not well-formed CSV, so that no row can be read from it - an unterminated quote, say.
+  * @throws java.io.IOException
+  *   if reading the text fails. It propagates as the reader threw it, rather than wrapped: `IOException` already says what went wrong. A
+  *   failure of the parsed flow propagates as it was thrown too, from the run.
   */
 extension [T](f: Flow[String]) def parse(fmt: ParserFormat[T]): T = fmt.parseData(f)
