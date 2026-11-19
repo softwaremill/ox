@@ -339,18 +339,33 @@ object Format:
   @publicInBinary private[csv] lazy val PostgreSqlTextApache: RawCsvFormat =
     RawCsvFormat.fromSettingsValidated(Builder.PostgreSqlText.settings)
 
-  /** Runs the text through Apache's parser */
+  private def adaptAndRethrow(e: Throwable): Nothing =
+    e match
+      case ChannelClosedException.Error(reason)                  => throw reason //unwrapping same as flow-json
+      case u: java.io.UncheckedIOException if u.getCause != null => adaptAndRethrow(u.getCause.nn) //because apache uses this to hide checked semantics of IOException
+      case csv: ApacheCSVException                               => throw CsvException.MalformedCsvException(csv.getMessage) //not to leak apache-specific types
+      case other                                                 => throw other
+
+  /** Runs the text through Apache's parser.
+    *
+    * The iterator is driven by hand rather than with `forEach`, so that `emit` runs outside the engine's frames: each engine call is then
+    * the only thing a [[adaptExceptions]] catch can see, and a downstream failure propagates on its own without being mistaken for a backend one.
+    */
   private def parseRows(format: RawCsvFormat, data: Flow[String])(using BufferCapacity): Flow[ApacheCSVRecord] =
     Flow.usingEmit: emit =>
       // the body of `unsupervised` runs on the calling thread, so `emit` is called from it as well (as required),
       // while the flow producing the text is run in a fork by `runToChannel`
       unsupervised:
+        val parser = adaptExceptions(format.underlying.parse(ChannelReader(data.runToChannel())))
+        var failure: Throwable | Null = null
         try
-          val parser = format.underlying.parse(ChannelReader(data.runToChannel()))
-          try parser.forEach(record => emit(record))
-          finally parser.close()
-          // the channel wraps a failure of `data`; unwrapped, it propagates as-is
-        catch case ChannelClosedException.Error(reason) => throw reason
+          val records = parser.iterator()
+          while adaptExceptions(records.hasNext) do emit(adaptExceptions(records.next()))
+        catch
+          case e: Throwable =>
+            failure = e
+            throw e
+        finally closeSuppressing(parser, failure)
   end parseRows
 
   /** The comment lines Apache collected before this record, one [[Comment]] each.
@@ -370,18 +385,42 @@ object Format:
     */
   private def cellsOf(record: ApacheCSVRecord): IArray[String | Null] = IArray.unsafeFromArray[String | Null](record.values())
 
+  private def adaptExceptions[T](body: => T): T =
+    try body
+    catch case e: Throwable => adaptAndRethrow(e)
+
+  /** Closes `closeable`, so that a failure of the close never replaces the one already propagating.
+    *
+    * Same shape as `ox.flow.FlowIOOps.close`: with a failure in flight the close failure is attached to it as suppressed, and only without
+    * one does it propagate on its own. A `finally` that merely closes would drop the original.
+    *
+    * `Closeable.close` is declared to throw, which is the whole contract this has to hold up against - what the parser and printer happen
+    * to close today does not come into it.
+    */
+  private[csv] def closeSuppressing(closeable: java.io.Closeable, cause: Throwable | Null): Unit =
+    try closeable.close()
+    catch
+      case NonFatal(closeException) =>
+        if cause == null then adaptAndRethrow(closeException) else cause.nn.addSuppressed(closeException)
+
   private def printRows(format: RawCsvFormat, data: Flow[IArray[String | Null]]): Flow[String] =
     val underlying = format.underlying
     Flow.usingEmit: emit =>
       val buffer = StringWriter()
-      val printer = underlying.print(buffer)
+      val printer = adaptExceptions(underlying.print(buffer))
+      var failure: Throwable | Null = null
       try
         data.runToEmit: row =>
-          printer.printRecord(row*)
-          printer.flush()
+          adaptExceptions:
+            printer.printRecord(row*)
+            printer.flush()
           emit(buffer.toString)
           buffer.getBuffer.setLength(0)
-      finally printer.close()
+      catch
+        case e: Throwable =>
+          failure = e
+          throw e
+      finally closeSuppressing(printer, failure)
   end printRows
 
   sealed trait HasBuilder[S]:
