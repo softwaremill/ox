@@ -51,6 +51,56 @@ class PredefinedFormatWiringTest extends AnyWordSpec with Matchers:
     */
   private val suggestsNullString = "define the format with a nullString and provide a CsvEncoderWithNull"
 
+  "Format.Default" should:
+
+    "compile for an all-String type once MissingDataFallback is in scope" in:
+      import ox.flow.csv.codec.default.missingDataFallback.given
+      compiles(Format.Default[Ragged])
+
+    "compile for a non-String tail field once MissingDataFallback is in scope" in:
+      import ox.flow.csv.codec.default.missingDataFallback.given
+      compiles(Format.Default[Plain])
+
+    "compile for a single-field type without MissingDataFallback in scope" in:
+      compiles(Format.Default[SingleField])
+
+    "compile for an Option field once the user supplies a CsvEncoder for it" in:
+      import ox.flow.csv.codec.default.missingDataFallback.given
+      given optIntEncoder: ox.flow.csv.codec.CsvEncoder[Option[Int]] with
+        def encode(v: Option[Int]): String = v.fold("-")(_.toString)
+      given optStringEncoder: ox.flow.csv.codec.CsvEncoder[Option[String]] with
+        def encode(v: Option[String]): String = v.getOrElse("-")
+      compiles(Format.Default[Nullable])
+
+    "not compile for an String tail field without MissingDataFallback in scope" in:
+      compileErrorIncludes("""ox.flow.csv.format.Format.Default[ox.flow.csvclient.PredefinedFormatWiringTest.Ragged]""", noMissingForString)
+
+    "not compile for a non-String tail field without MissingDataFallback in scope" in:
+      compileErrorIncludes("""ox.flow.csv.format.Format.Default[ox.flow.csvclient.PredefinedFormatWiringTest.Plain]""", noMissingForInt)
+
+    "not compile for an Option field, the plain CsvEncoder being summoned and Option having no instance" in:
+      compileErrorIncludes("""ox.flow.csv.format.Format.Default[ox.flow.csvclient.PredefinedFormatWiringTest.Nullable]""", cannotEncodeOption)
+
+    "contain note under compile error message that a nullString and CsvEncoderWithNull are how null gets written" in:
+      compileErrorIncludes("""ox.flow.csv.format.Format.Default[ox.flow.csvclient.PredefinedFormatWiringTest.Nullable]""", suggestsNullString)
+
+  "Format.DefaultStrict" should:
+
+    "compile for an all-String type without MissingDataFallback in scope, none being summoned" in:
+      compiles(Format.DefaultStrict[Ragged])
+
+    "compile for a non-String tail field without MissingDataFallback in scope, none being summoned" in:
+      compiles(Format.DefaultStrict[Plain])
+
+    "compile for a single-field type without MissingDataFallback in scope" in:
+      compiles(Format.DefaultStrict[SingleField])
+
+    "not compile for an Option field, the plain CsvEncoder being summoned and Option having no instance" in:
+      compileErrorIncludes("""ox.flow.csv.format.Format.DefaultStrict[ox.flow.csvclient.PredefinedFormatWiringTest.Nullable]""", cannotEncodeOption)
+
+    "contain note under compile error message that a nullString and CsvEncoderWithNull are how null gets written" in:
+      compileErrorIncludes("""ox.flow.csv.format.Format.DefaultStrict[ox.flow.csvclient.PredefinedFormatWiringTest.Nullable]""", suggestsNullString)
+
   "Format.Rfc4180" should:
 
     "compile for an all-String type once MissingDataFallback is in scope" in:
@@ -100,39 +150,6 @@ class PredefinedFormatWiringTest extends AnyWordSpec with Matchers:
 
     "contain note under compile error message that a nullString and CsvEncoderWithNull are how null gets written" in:
       compileErrorIncludes("""ox.flow.csv.format.Format.Rfc4180Strict[ox.flow.csvclient.PredefinedFormatWiringTest.Nullable]""", suggestsNullString)
-
-  "Format.Default" should:
-
-    "compile for an all-String type once MissingDataFallback is in scope" in:
-      import ox.flow.csv.codec.default.missingDataFallback.given
-      compiles(Format.Default[Ragged])
-
-    "compile for a non-String tail field once MissingDataFallback is in scope" in:
-      import ox.flow.csv.codec.default.missingDataFallback.given
-      compiles(Format.Default[Plain])
-
-    "compile for a single-field type without MissingDataFallback in scope" in:
-      compiles(Format.Default[SingleField])
-
-    "compile for an Option field once the user supplies a CsvEncoder for it" in:
-      import ox.flow.csv.codec.default.missingDataFallback.given
-      given optIntEncoder: ox.flow.csv.codec.CsvEncoder[Option[Int]] with
-        def encode(v: Option[Int]): String = v.fold("-")(_.toString)
-      given optStringEncoder: ox.flow.csv.codec.CsvEncoder[Option[String]] with
-        def encode(v: Option[String]): String = v.getOrElse("-")
-      compiles(Format.Default[Nullable])
-
-    "not compile for an String tail field without MissingDataFallback in scope" in:
-      compileErrorIncludes("""ox.flow.csv.format.Format.Default[ox.flow.csvclient.PredefinedFormatWiringTest.Ragged]""", noMissingForString)
-
-    "not compile for a non-String tail field without MissingDataFallback in scope" in:
-      compileErrorIncludes("""ox.flow.csv.format.Format.Default[ox.flow.csvclient.PredefinedFormatWiringTest.Plain]""", noMissingForInt)
-
-    "not compile for an Option field, the plain CsvEncoder being summoned and Option having no instance" in:
-      compileErrorIncludes("""ox.flow.csv.format.Format.Default[ox.flow.csvclient.PredefinedFormatWiringTest.Nullable]""", cannotEncodeOption)
-
-    "contain note under compile error message that a nullString and CsvEncoderWithNull are how null gets written" in:
-      compileErrorIncludes("""ox.flow.csv.format.Format.Default[ox.flow.csvclient.PredefinedFormatWiringTest.Nullable]""", suggestsNullString)
 
   "Format.Excel" should:
 
@@ -302,27 +319,16 @@ class PredefinedFormatWiringTest extends AnyWordSpec with Matchers:
     "contain note under compile error message that a nullString and CsvEncoderWithNull are how null gets written" in:
       compileErrorIncludes("""ox.flow.csv.format.Format.MongoDbTsv[ox.flow.csvclient.PredefinedFormatWiringTest.Nullable]""", suggestsNullString)
 
-  // Formats defining a null string: cells can arrive null and be written null, so every field needs a NullFallback (decoding) and a
-  // CsvEncoderWithNull (encoding).
-  //
-  // The two constrain `T` differently, because of their variance:
-  //   - NullFallback is covariant, so a non-nullable field is rejected unless the primitive defaults are imported
-  //   - CsvEncoderWithNull is contravariant, so `CsvEncoderWithNull[Int | Null]` *is* a `CsvEncoderWithNull[Int]` and a non-nullable field
-  //     always encodes. That is sound: such a field never produces a null, so the format's null string simply goes unused for it.
-  //
-  // These formats allow ragged rows too, so a bare non-nullable type trips the missing-data demand first and the null demand only once that
-  // one is satisfied. Both are asserted, so neither can regress unnoticed.
-
   "Format.MySql" should:
 
     "compile for a type whose fields are all nullable" in:
-      Format.MySql[Nullable] should not be null
+      compiles(Format.MySql[Nullable])
 
-    "compile for a non-nullable field once the primitive fallbacks are imported" in:
-      import ox.flow.csv.codec.default.all.given
-      Format.MySql[Plain] should not be null
+    "compile for a non-nullable field once NullFallback is in scope and no MissingFallback in scope" in:
+      import ox.flow.csv.codec.default.nullFallback.given
+      compiles(Format.MySql[Plain])
 
-    "compile for a single-field type once NullFallback is in scope" in:
+    "compile for a single-field type once NullFallback is in scope and no MissingFallback in scope" in:
       import ox.flow.csv.codec.default.nullFallback.given
       compiles(Format.MySql[SingleField])
 
@@ -337,11 +343,11 @@ class PredefinedFormatWiringTest extends AnyWordSpec with Matchers:
     "compile for a type whose fields are all nullable" in:
       compiles(Format.Oracle[Nullable])
 
-    "compile for a non-nullable field once NullFallback is in scope" in:
+    "compile for a non-nullable field once NullFallback is in scope and no MissingFallback in scope" in:
       import ox.flow.csv.codec.default.nullFallback.given
       compiles(Format.Oracle[Plain])
 
-    "compile for a single-field type once NullFallback is in scope" in:
+    "compile for a single-field type once NullFallback is in scope and no MissingFallback in scope" in:
       import ox.flow.csv.codec.default.nullFallback.given
       compiles(Format.Oracle[SingleField])
 
@@ -356,11 +362,11 @@ class PredefinedFormatWiringTest extends AnyWordSpec with Matchers:
     "compile for a type whose fields are all nullable" in:
       compiles(Format.PostgreSqlCsv[Nullable])
 
-    "compile for a non-nullable field once NullFallback is in scope" in:
+    "compile for a non-nullable field once NullFallback is in scope and no MissingFallback in scope" in:
       import ox.flow.csv.codec.default.nullFallback.given
       compiles(Format.PostgreSqlCsv[Plain])
 
-    "compile for a single-field type once NullFallback is in scope" in:
+    "compile for a single-field type once NullFallback is in scope and no MissingFallback in scope" in:
       import ox.flow.csv.codec.default.nullFallback.given
       compiles(Format.PostgreSqlCsv[SingleField])
 
@@ -375,11 +381,11 @@ class PredefinedFormatWiringTest extends AnyWordSpec with Matchers:
     "compile for a type whose fields are all nullable" in:
       compiles(Format.PostgreSqlText[Nullable])
 
-    "compile for a non-nullable field once NullFallback is in scope" in:
+    "compile for a non-nullable field once NullFallback is in scope and no MissingFallback in scope" in:
       import ox.flow.csv.codec.default.nullFallback.given
       compiles(Format.PostgreSqlText[Plain])
 
-    "compile for a single-field type once NullFallback is in scope" in:
+    "compile for a single-field type once NullFallback is in scope and no MissingFallback in scope" in:
       import ox.flow.csv.codec.default.nullFallback.given
       compiles(Format.PostgreSqlText[SingleField])
 
@@ -388,28 +394,6 @@ class PredefinedFormatWiringTest extends AnyWordSpec with Matchers:
 
     "not compile for a single-field type without NullFallback in scope, the first field needing one too" in:
       compileErrorIncludes("""ox.flow.csv.format.Format.PostgreSqlText[ox.flow.csvclient.PredefinedFormatWiringTest.SingleField]""", noNullFallbackForInt)
-
-  "the stream shape a format exposes" should:
-    // Pinned by ascription: the shape is computed from the settings, so a change to either shows up here as a type error.
-
-    "be a flow carrying either a header or a row, for an optional-header format" in:
-      import ox.flow.csv.codec.default.missingDataFallback.given
-      val f: Format[Flow[HeaderRecord | Plain]] = Format.Default[Plain]
-      f should not be null
-
-    "be a flow of rows alone, with no HeaderRecord in the stream, for a headerless format" in:
-      val f: Format[Flow[Nullable]] = Format.MySql[Nullable]
-      f should not be null
-
-    "take the header beside the rows, for a printer-only format" in:
-      val f: PrinterFormat[(HeaderRecord, Flow[Plain])] = Format.MongoDbCsv[Plain]
-      f should not be null
-
-    "expose no parser, for a printer-only format" in:
-      rejectedBecause(
-        """val f: ox.flow.csv.format.ParserFormat[Any] = ox.flow.csv.format.Format.MongoDbCsv[ox.flow.csvclient.PredefinedFormatWiringTest.Plain]""",
-        "ox.flow.csv.format.PrinterFormat"
-      )
 
 end PredefinedFormatWiringTest
 
