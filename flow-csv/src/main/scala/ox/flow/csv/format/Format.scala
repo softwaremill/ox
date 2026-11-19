@@ -96,27 +96,29 @@ object Format:
   inline def Tdf[T](using mir: ProductOf[T]): Format[Flow[HeaderRecord | T]] & TdfBuilder =
     Format.optionalHeader[T, IgnoreEmptyLines & HeaderModeSetting[HeaderMode.TryParseAsData]](TdfApache, Builder.Tdf)
 
-  type InformixUnloadBuilder = HasBuilder[IgnoreEmptyLines]
+  type InformixUnloadBuilder = HasBuilder[DisallowRaggedRows & IgnoreEmptyLines]
 
   /** Informix UNLOAD format used by `UNLOAD TO file_name`.
     *   - No header assumed
     *   - Empty lines ignored
     *   - Delimiter: pipe (`|`), Escape: `\`, Quote: `"`, Record separator: `\n`
+    *   - Ragged rows disallowed
     */
   inline def InformixUnload[T](using mir: ProductOf[T]): Format[Flow[T]] & InformixUnloadBuilder =
-    Format.noHeader[T, IgnoreEmptyLines](InformixUnloadApache, Builder.InformixUnload)
+    Format.noHeader[T, DisallowRaggedRows & IgnoreEmptyLines](InformixUnloadApache, Builder.InformixUnload)
 
-  type InformixUnloadCsvBuilder = HasBuilder[IgnoreEmptyLines]
+  type InformixUnloadCsvBuilder = HasBuilder[DisallowRaggedRows & IgnoreEmptyLines]
 
   /** Informix CSV UNLOAD format (escaping disabled).
     *   - No header
     *   - Empty lines ignored
     *   - Delimiter: comma, Quote: `"`, Record separator: `\n`
+    *   - Ragged rows disallowed
     */
   inline def InformixUnloadCsv[T](using mir: ProductOf[T]): Format[Flow[T]] & InformixUnloadCsvBuilder =
-    Format.noHeader[T, IgnoreEmptyLines](InformixUnloadCsvApache, Builder.InformixUnloadCsv)
+    Format.noHeader[T, DisallowRaggedRows & IgnoreEmptyLines](InformixUnloadCsvApache, Builder.InformixUnloadCsv)
 
-  type MongoDbCsvBuilder = HasBuilder[IgnoreEmptyLines & HeaderModeSetting[HeaderMode.Force]]
+  type MongoDbCsvBuilder = HasBuilder[DisallowRaggedRows & IgnoreEmptyLines & HeaderModeSetting[HeaderMode.Force]]
 
   /** MongoDB CSV format used by `mongoexport` (printer only, parsing not supported).
     *   - Header always expected/required
@@ -124,9 +126,9 @@ object Format:
     *   - Delimiter: comma, Escape: `"`, Quote: `"`, QuoteMode: MINIMAL
     */
   inline def MongoDbCsv[T](using mir: ProductOf[T]): PrinterFormat[(HeaderRecord, Flow[T])] & MongoDbCsvBuilder =
-    Format.forcedHeader[T, IgnoreEmptyLines & HeaderModeSetting[HeaderMode.Force]](MongoDbCsvApache, Builder.MongoDbCsv)
+    Format.forcedHeader[T, DisallowRaggedRows & IgnoreEmptyLines & HeaderModeSetting[HeaderMode.Force]](MongoDbCsvApache, Builder.MongoDbCsv)
 
-  type MongoDbTsvBuilder = HasBuilder[IgnoreEmptyLines & HeaderModeSetting[HeaderMode.Force]]
+  type MongoDbTsvBuilder = HasBuilder[DisallowRaggedRows & IgnoreEmptyLines & HeaderModeSetting[HeaderMode.Force]]
 
   /** MongoDB TSV format used by `mongoexport` (printer only, parsing not supported).
     *   - Header always expected/required
@@ -134,27 +136,30 @@ object Format:
     *   - Delimiter: tab, Escape: `"`, Quote: `"`, QuoteMode: MINIMAL
     */
   inline def MongoDbTsv[T](using mir: ProductOf[T]): PrinterFormat[(HeaderRecord, Flow[T])] & MongoDbTsvBuilder =
-    Format.forcedHeader[T, IgnoreEmptyLines & HeaderModeSetting[HeaderMode.Force]](MongoDbTsvApache, Builder.MongoDbTsv)
+    Format.forcedHeader[T, DisallowRaggedRows & IgnoreEmptyLines & HeaderModeSetting[HeaderMode.Force]](MongoDbTsvApache, Builder.MongoDbTsv)
 
-  type MySqlBuilder = HasBuilder[NullString["\\N"]]
+  type MySqlBuilder = HasBuilder[DisallowRaggedRows & NullString["\\N"]]
 
   /** MySQL format used by `SELECT INTO OUTFILE` and `LOAD DATA INFILE`.
     *   - No header
     *   - Null String: `\N` - [[T]] codecs need to be able to handle nulls
     *   - Delimiter: tab, Escape: `\`, No quoting, Record separator: `\n`
+    *   - Ragged rows disallowed
     */
   inline def MySql[T](using mir: ProductOf[T]): Format[Flow[T]] & MySqlBuilder =
-    Format.noHeader[T, NullString["\\N"]](MySqlApache, Builder.MySql)
+    Format.noHeader[T, DisallowRaggedRows & NullString["\\N"]](MySqlApache, Builder.MySql)
 
-  type OracleBuilder = HasBuilder[NullString["\\N"]]
+  type OracleBuilder = HasBuilder[DisallowRaggedRows & NullString["\\N"]]
 
   /** Oracle SQL*Loader format.
     *   - No header
     *   - Null String: `\N` - [[T]] codecs need to be able to handle nulls
     *   - Delimiter: comma, Escape: `\`, Quote: `"`, Trims values, Record separator: system line separator
+    *   - Quote mode: minimal, values double quoted only where needed
+    *   - Ragged rows disallowed
     */
   inline def Oracle[T](using mir: ProductOf[T]): Format[Flow[T]] & OracleBuilder =
-    Format.noHeader[T, NullString["\\N"]](OracleApache, Builder.Oracle)
+    Format.noHeader[T, DisallowRaggedRows & NullString["\\N"]](OracleApache, Builder.Oracle)
 
   type PostgreSqlCsvBuilder = HasBuilder[DisallowRaggedRows & NullString[""]]
 
@@ -218,12 +223,12 @@ object Format:
     lazy val Excel: Builder[HeaderModeSetting[HeaderMode.TryParseAsData]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.EXCEL, HeaderMode.TryParseAsData))
     lazy val ExcelStrict: Builder[HeaderModeSetting[HeaderMode.TryParseAsData]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.EXCEL, HeaderMode.TryParseAsData))
     lazy val Tdf: Builder[IgnoreEmptyLines & HeaderModeSetting[HeaderMode.TryParseAsData]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.TDF, HeaderMode.TryParseAsData))
-    lazy val InformixUnload: Builder[IgnoreEmptyLines] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.INFORMIX_UNLOAD, HeaderMode.TryParseAsData))
-    lazy val InformixUnloadCsv: Builder[IgnoreEmptyLines] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.INFORMIX_UNLOAD_CSV, HeaderMode.TryParseAsData))
-    lazy val MongoDbCsv: Builder[IgnoreEmptyLines & HeaderModeSetting[HeaderMode.Force]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.MONGODB_CSV, HeaderMode.TryParseAsData))
-    lazy val MongoDbTsv: Builder[IgnoreEmptyLines & HeaderModeSetting[HeaderMode.Force]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.MONGODB_TSV, HeaderMode.TryParseAsData))
-    lazy val MySql: Builder[NullString["\\N"]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.MYSQL, HeaderMode.TryParseAsData))
-    lazy val Oracle: Builder[NullString["\\N"]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.ORACLE, HeaderMode.TryParseAsData))
+    lazy val InformixUnload: Builder[DisallowRaggedRows & IgnoreEmptyLines] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.INFORMIX_UNLOAD, HeaderMode.TryParseAsData))
+    lazy val InformixUnloadCsv: Builder[DisallowRaggedRows & IgnoreEmptyLines] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.INFORMIX_UNLOAD_CSV, HeaderMode.TryParseAsData))
+    lazy val MongoDbCsv: Builder[DisallowRaggedRows & IgnoreEmptyLines & HeaderModeSetting[HeaderMode.Force]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.MONGODB_CSV, HeaderMode.TryParseAsData))
+    lazy val MongoDbTsv: Builder[DisallowRaggedRows & IgnoreEmptyLines & HeaderModeSetting[HeaderMode.Force]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.MONGODB_TSV, HeaderMode.TryParseAsData))
+    lazy val MySql: Builder[DisallowRaggedRows & NullString["\\N"]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.MYSQL, HeaderMode.TryParseAsData))
+    lazy val Oracle: Builder[DisallowRaggedRows & NullString["\\N"]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.ORACLE, HeaderMode.TryParseAsData))
     lazy val PostgreSqlCsv: Builder[DisallowRaggedRows & NullString[""]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.POSTGRESQL_CSV, HeaderMode.TryParseAsData))
     lazy val PostgreSqlText: Builder[DisallowRaggedRows & NullString["\\N"]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.POSTGRESQL_TEXT, HeaderMode.TryParseAsData))
     //format: on
@@ -307,7 +312,7 @@ object Format:
       unsupervised:
         try
           val parser = format.underlying.parse(ChannelReader(data.runToChannel()))
-          try parser.iterator().asScala.foreach(record => emit(record))
+          try parser.forEach(record => emit(record))
           finally parser.close()
           // the channel wraps a failure of `data`; unwrapped, it propagates as-is
         catch case ChannelClosedException.Error(reason) => throw reason
