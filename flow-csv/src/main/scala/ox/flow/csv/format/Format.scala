@@ -42,16 +42,6 @@ object Format:
   inline def Rfc4180[T](using mir: ProductOf[T]): Format[Flow[HeaderRecord | T]] & Rfc4180Builder =
     Format.optionalHeader[T, HeaderModeSetting[HeaderMode.TryParseAsData]](Rfc4180Apache, Builder.Rfc4180)
 
-  type DefaultBuilder = HasBuilder[IgnoreEmptyLines & HeaderModeSetting[HeaderMode.TryParseAsData]]
-
-  /** Standard CSV format (RFC 4180 + ignoreEmptyLines).
-    *   - Optional header
-    *   - Empty lines ignored silently
-    *   - Delimiter: comma, Quote: `"`, Record separator: `\r\n`
-    */
-  inline def Default[T](using mir: ProductOf[T]): Format[Flow[HeaderRecord | T]] & DefaultBuilder =
-    Format.optionalHeader[T, IgnoreEmptyLines & HeaderModeSetting[HeaderMode.TryParseAsData]](DefaultApache, Builder.Default)
-
   type Rfc4180StrictBuilder = HasBuilder[DisallowRaggedRows & HeaderModeSetting[HeaderMode.TryParseAsData]]
 
   /** RFC 4180 with strict parsing - no empty column fallback for non-string columns, throws on ragged rows.
@@ -63,6 +53,30 @@ object Format:
   inline def Rfc4180Strict[T](using mir: ProductOf[T]): Format[Flow[HeaderRecord | T]] & Rfc4180StrictBuilder =
     Format.optionalHeader[T, DisallowRaggedRows & HeaderModeSetting[HeaderMode.TryParseAsData]](Rfc4180Apache, Builder.Rfc4180Strict)
 
+  type DefaultBuilder = HasBuilder[IgnoreEmptyLines & HeaderModeSetting[HeaderMode.TryParseAsData]]
+
+  /** Standard CSV format (RFC 4180 + ignoreEmptyLines).
+    *   - Optional header
+    *   - Empty lines ignored silently
+    *   - Delimiter: comma, Quote: `"`, Record separator: `\r\n`
+    */
+  inline def Default[T](using mir: ProductOf[T]): Format[Flow[HeaderRecord | T]] & DefaultBuilder =
+    Format.optionalHeader[T, IgnoreEmptyLines & HeaderModeSetting[HeaderMode.TryParseAsData]](DefaultApache, Builder.Default)
+
+  type DefaultStrictBuilder = HasBuilder[DisallowRaggedRows & IgnoreEmptyLines & HeaderModeSetting[HeaderMode.TryParseAsData]]
+
+  /** Standard CSV format with strict parsing - a ragged row fails at runtime instead of being filled.
+    *   - Optional header
+    *   - Empty lines ignored silently
+    *   - Ragged rows fail at runtime, as for [[Rfc4180Strict]]
+    *   - Delimiter: comma, Quote: `"`, Record separator: `\r\n`
+    */
+  inline def DefaultStrict[T](using mir: ProductOf[T]): Format[Flow[HeaderRecord | T]] & DefaultStrictBuilder =
+    Format.optionalHeader[T, DisallowRaggedRows & IgnoreEmptyLines & HeaderModeSetting[HeaderMode.TryParseAsData]](
+      DefaultApache,
+      Builder.DefaultStrict
+    )
+
   type ExcelBuilder = HasBuilder[HeaderModeSetting[HeaderMode.TryParseAsData]]
 
   /** Microsoft Excel CSV format with null handling for empty cells.
@@ -73,17 +87,19 @@ object Format:
   inline def Excel[T](using mir: ProductOf[T]): Format[Flow[HeaderRecord | T]] & ExcelBuilder =
     Format.optionalHeader[T, HeaderModeSetting[HeaderMode.TryParseAsData]](ExcelApache, Builder.Excel)
 
-  type ExcelStrictBuilder = HasBuilder[HeaderModeSetting[HeaderMode.TryParseAsData]]
+  type ExcelStrictBuilder = HasBuilder[DisallowRaggedRows & HeaderModeSetting[HeaderMode.TryParseAsData]]
 
   /** Microsoft Excel CSV format with strict parsing - no empty column fallback for non-string columns, ParsingException is thrown when
     * empty string is encountered for non-string column.
     *   - Optional header
     *   - Empty cells on non-String fields will fail at runtime
+    *   - Ragged rows fail at runtime rather than being filled, as for [[Rfc4180Strict]]. Excel's own export can be ragged - it drops a
+    *     last column that is empty throughout a 16-row block - so this is the stricter reading of that output, not a property of it
     *   - Allows missing column names, trailing data, lenient EOF
     *   - Delimiter: comma, Quote: `"`, Record separator: `\r\n`
     */
   inline def ExcelStrict[T](using mir: ProductOf[T]): Format[Flow[HeaderRecord | T]] & ExcelStrictBuilder =
-    Format.optionalHeader[T, HeaderModeSetting[HeaderMode.TryParseAsData]](ExcelApache, Builder.ExcelStrict)
+    Format.optionalHeader[T, DisallowRaggedRows & HeaderModeSetting[HeaderMode.TryParseAsData]](ExcelApache, Builder.ExcelStrict)
 
   type TdfBuilder = HasBuilder[IgnoreEmptyLines & HeaderModeSetting[HeaderMode.TryParseAsData]]
 
@@ -95,6 +111,21 @@ object Format:
     */
   inline def Tdf[T](using mir: ProductOf[T]): Format[Flow[HeaderRecord | T]] & TdfBuilder =
     Format.optionalHeader[T, IgnoreEmptyLines & HeaderModeSetting[HeaderMode.TryParseAsData]](TdfApache, Builder.Tdf)
+
+  type TdfStrictBuilder = HasBuilder[DisallowRaggedRows & IgnoreEmptyLines & HeaderModeSetting[HeaderMode.TryParseAsData]]
+
+  /** Tab-delimited format (TDF) with strict parsing - a ragged row fails at runtime instead of being filled.
+    *   - Optional header
+    *   - Empty lines ignored
+    *   - Ragged rows fail at runtime, as for [[Rfc4180Strict]]
+    *   - Ignores surrounding spaces
+    *   - Delimiter: tab, Quote: `"`, Record separator: `\r\n`
+    */
+  inline def TdfStrict[T](using mir: ProductOf[T]): Format[Flow[HeaderRecord | T]] & TdfStrictBuilder =
+    Format.optionalHeader[T, DisallowRaggedRows & IgnoreEmptyLines & HeaderModeSetting[HeaderMode.TryParseAsData]](
+      TdfApache,
+      Builder.TdfStrict
+    )
 
   type InformixUnloadBuilder = HasBuilder[DisallowRaggedRows & IgnoreEmptyLines]
 
@@ -217,12 +248,14 @@ object Format:
       * states its own settings would reject on their own.
       */
     //format: off
-    lazy val Rfc4180: Builder[HeaderModeSetting[HeaderMode.TryParseAsData]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.RFC4180, HeaderMode.TryParseAsData))
     lazy val Default: Builder[IgnoreEmptyLines & HeaderModeSetting[HeaderMode.TryParseAsData]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.DEFAULT, HeaderMode.TryParseAsData))
+    lazy val DefaultStrict: Builder[DisallowRaggedRows & IgnoreEmptyLines & HeaderModeSetting[HeaderMode.TryParseAsData]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.DEFAULT, HeaderMode.TryParseAsData))
+    lazy val Rfc4180: Builder[HeaderModeSetting[HeaderMode.TryParseAsData]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.RFC4180, HeaderMode.TryParseAsData))
     lazy val Rfc4180Strict: Builder[DisallowRaggedRows & HeaderModeSetting[HeaderMode.TryParseAsData]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.RFC4180, HeaderMode.TryParseAsData))
     lazy val Excel: Builder[HeaderModeSetting[HeaderMode.TryParseAsData]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.EXCEL, HeaderMode.TryParseAsData))
-    lazy val ExcelStrict: Builder[HeaderModeSetting[HeaderMode.TryParseAsData]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.EXCEL, HeaderMode.TryParseAsData))
+    lazy val ExcelStrict: Builder[DisallowRaggedRows & HeaderModeSetting[HeaderMode.TryParseAsData]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.EXCEL, HeaderMode.TryParseAsData))
     lazy val Tdf: Builder[IgnoreEmptyLines & HeaderModeSetting[HeaderMode.TryParseAsData]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.TDF, HeaderMode.TryParseAsData))
+    lazy val TdfStrict: Builder[DisallowRaggedRows & IgnoreEmptyLines & HeaderModeSetting[HeaderMode.TryParseAsData]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.TDF, HeaderMode.TryParseAsData))
     lazy val InformixUnload: Builder[DisallowRaggedRows & IgnoreEmptyLines] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.INFORMIX_UNLOAD, HeaderMode.TryParseAsData))
     lazy val InformixUnloadCsv: Builder[DisallowRaggedRows & IgnoreEmptyLines] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.INFORMIX_UNLOAD_CSV, HeaderMode.TryParseAsData))
     lazy val MongoDbCsv: Builder[DisallowRaggedRows & IgnoreEmptyLines & HeaderModeSetting[HeaderMode.Force]] = unsafeFromSettings(Settings.fromApache(ApacheCSVFormat.MONGODB_CSV, HeaderMode.TryParseAsData))
