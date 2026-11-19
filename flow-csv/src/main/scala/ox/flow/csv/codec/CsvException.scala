@@ -31,3 +31,13 @@ object CsvException:
    */
   final class FieldDecodeException(val index: Int, val value: String, cause: Throwable)
     extends CsvException(s"Cannot decode column $index from '$value': ${cause.getMessage}", cause)
+
+  /** The text is not well-formed CSV, so no row could be read from it.
+    *
+    * Raised before a row is ever formed - an unterminated quote, a stray character after a closing quote, input ending inside an escape
+    * sequence - as opposed to a [[FormatViolationException]], which is a well-formed row that does not fit the target type. `message` is
+    * the parser's own description, and names the line it gave up on where it knows it.
+    */
+  final case class MalformedCsvException(detail: String)
+    extends CsvException(s"Malformed CSV: $detail")
+
