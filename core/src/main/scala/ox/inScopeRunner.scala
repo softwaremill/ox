@@ -7,7 +7,11 @@ import ox.channels.ActorRef
   *
   * Usage: obtain a runner from within a concurrency scope, while on a fork/thread that is managed by the concurrency scope. Then, pass that
   * runner to the external library. It can then schedule functions (e.g. create forks) to be run within the concurrency scope from arbitrary
-  * threads, as long as the concurrency scope isn't complete.
+  * threads, until the concurrency scope ends.
+  *
+  * Once the scope ends, the runner stops: scheduled functions which haven't run yet are dropped, and further calls to
+  * [[InScopeRunner.async]] throw a [[ox.channels.ChannelClosedException]]. A function which runs while the scope is ending can't start new
+  * forks (an [[IllegalStateException]] is thrown).
   *
   * Execution is scheduled through an [[Actor]], which is lazily created, and bound to an [[Ox]] instances. The functions are run serially,
   * hence they should not block. Any exceptions thrown by the functions will cause the entire concurrency scope to end.
@@ -31,6 +35,9 @@ class InScopeRunner(runInScope: ActorRef[RunInScope]):
     *
     * `f` should not block and return promptly, not to obstruct execution of other scheduled functions. Typically, it should start a
     * background fork. Any exceptions thrown by `f` will cause the entire scope to end.
+    *
+    * @throws ox.channels.ChannelClosedException
+    *   If the scope has ended.
     */
   def async(f: Ox ?=> Unit): Unit = runInScope.tell(_.apply(f))
 end InScopeRunner

@@ -17,7 +17,8 @@ import scala.util.control.NoStackTrace
   * is, successful completion of this fork isn't required to end the scope.
   *
   * An exception thrown while evaluating `f` will cause the fork to fail and the enclosing scope to end (cancelling all other running
-  * forks).
+  * forks). If the scope has already ended because the body and all user forks succeeded, the exception is ignored; if such failures
+  * matter, log them in the fork.
   *
   * For alternate behaviors regarding ending the scope, see [[forkUser]], [[forkError]], [[forkUserError]], [[forkCancellable]] and
   * [[forkUnsupervised]].

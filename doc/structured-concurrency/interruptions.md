@@ -43,6 +43,12 @@ supervised {
 }
 ```
 
+## Cleaning up after an interruption
+
+When a scope ends, each running fork is interrupted at most once. Hence, a fork can catch the `InterruptedException`
+and run cleanup which takes time (e.g. waiting for a server to drain in-flight requests), without being interrupted
+again. The scope waits until the fork finishes. Once the cleanup is done, re-throw the exception.
+
 ## Which operations are interruptible?
 
 Most blocking operations from the JDK's concurrency toolbox are interruptible,
