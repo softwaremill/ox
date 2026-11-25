@@ -55,7 +55,8 @@ lazy val root = rootProject
     }.value),
     compileDocumentation := (documentation / mdoc).toTask(" --out target/ox-doc").value
   )
-  .autoAggregate
+  // coreFrayTests is not aggregated, as its tests are costly; they run in a separate CI step
+  .aggregate(core, kafka, mdcLogback, flowReactiveStreams, flowJson, cron, otelContext, otelTracing, documentation)
 
 lazy val core: Project = (project in file("core"))
   .settings(
@@ -69,6 +70,37 @@ lazy val core: Project = (project in file("core"))
     Test / fork := true
   )
   .settings(enableMimaSettings)
+
+// Fray's instrumentation jars, used to prepare the Fray workspace; not on any classpath
+val FrayConfig = config("fray").hide
+
+// concurrency tests, run under Fray's control (which explores thread interleavings)
+lazy val coreFrayTests: Project = (project in file("core-fray-tests"))
+  .settings(
+    name := "core-fray-tests",
+    publish / skip := true,
+    ivyConfigurations += FrayConfig,
+    libraryDependencies ++= Seq(
+      scalaTest,
+      "org.pastalab.fray" % "fray-junit" % FrayWorkspace.version % Test
+    ) ++ FrayWorkspace.dependencies.map(_ % FrayConfig),
+    Test / fork := true,
+    // Fray runs one test at a time
+    Test / testForkedParallel := false,
+    // puts the test classpath on the JVM's -classpath, as Fray's agent needs its dependencies (e.g. Kotlin) at startup
+    Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Raw,
+    // no tests to run on platforms which Fray doesn't support (Test / skip is ignored by test tasks)
+    Test / definedTests := Def.uncached {
+      val tests = (Test / definedTests).value
+      if FrayWorkspace.isSupported then tests else Nil
+    },
+    Test / javaHome := Some(FrayWorkspace.javaHome(target.value)),
+    Test / javaOptions ++= Def.uncached {
+      val frayJars = update.value.select(configurationFilter(FrayConfig.name))
+      if FrayWorkspace.isSupported then FrayWorkspace.prepare(target.value, frayJars) else Nil
+    }
+  )
+  .dependsOn(core)
 
 lazy val kafka: Project = (project in file("kafka"))
   .settings(
