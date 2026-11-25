@@ -47,7 +47,8 @@ def process(): Unit = resourceScope {
 ```
 
 * every concurrency scope (e.g. `supervised`) is also a resource scope; resources registered within one are released
-  after all forks started within the scope finish (but before the scope completes):
+  after all forks started within the scope finish (but before the scope completes). As forks are interrupted first, a
+  release can't be used to wait for work running in forks to finish gracefully:
 
 ```scala mdoc:compile-only
 import ox.{supervised, useInScope}

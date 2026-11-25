@@ -103,7 +103,9 @@ a new fork (virtual thread).
 ## User, daemon and unsupervised forks
 
 Forks created using `fork` behave as daemon threads. That is, their failure ends the scope, but the scope will also end 
-once the body and all user forks succeed, regardless if the (daemon) fork is still running.
+once the body and all user forks succeed, regardless if the (daemon) fork is still running. If a daemon fork fails after
+the scope has ended this way (e.g. while handling the interruption), the failure is ignored. If such failures matter,
+log them in the fork.
 
 Alternatively, a user fork can be created using `forkUser`. Such a fork is required to complete successfully, in order
 for the scope to end successfully. Hence, when the body of the scope completes, the scope will wait until all user
@@ -147,4 +149,5 @@ When integrating with libraries which manage their own threads, e.g. reactive li
 be able to start forks from such library-managed threads. For this purpose, the `inScopeRunner` method can be used.
 
 A runner obtained from a scope-managed thread can be passed to other threads, and used to start forks within the
-concurrency scope, as long as it's not complete, from arbitrary threads.
+concurrency scope, until the scope ends, from arbitrary threads. Once the scope ends, scheduled functions which haven't
+run yet are dropped, and further `async` calls throw a `ChannelClosedException`.
