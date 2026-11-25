@@ -10,8 +10,8 @@ import ox.channels.ActorRef
   * threads, until the concurrency scope ends.
   *
   * Once the scope ends, the runner stops: scheduled functions which haven't run yet are dropped, and further calls to
-  * [[InScopeRunner.async]] throw a [[ox.channels.ChannelClosedException]]. A function which runs while the scope is ending can't start new
-  * forks (an [[IllegalStateException]] is thrown).
+  * [[InScopeRunner.async]] throw a [[ox.channels.ChannelClosedException]]. If the scope ends while a function is running, forks it then
+  * tries to start fail with an [[IllegalStateException]].
   *
   * Execution is scheduled through an [[Actor]], which is lazily created, and bound to an [[Ox]] instances. The functions are run serially,
   * hence they should not block. Any exceptions thrown by the functions will cause the entire concurrency scope to end.
