@@ -9,7 +9,8 @@ import ox.internal.currentScope
   * It is advisable to use [[supervised]] scopes if possible, as they minimize the chances of an error to go unnoticed.
   *
   * The scope is ran in unsupervised mode, that is:
-  *   - the scope ends once the `f` body completes; this causes any running forks started within `f` to be cancelled
+  *   - the scope ends once the `f` body completes; this causes any running forks started within `f` to be cancelled. `f` runs on the
+  *     calling thread, so interrupting that thread interrupts only `f`, not the forks
   *   - the scope completes (that is, this method returns) only once all forks started by `f` have completed (either successfully, or with
   *     an exception)
   *   - fork failures aren't handled in any special way, but can be inspected using [[Fork.join()]]

@@ -74,6 +74,7 @@ This means that the scope will end only when either:
 
 * all (user, supervised) forks, including the body passed to `supervised`, succeed
 * or any (supervised) fork, including the body passed to `supervised`, fails
+* or the thread that called `supervised` is interrupted, e.g. because an enclosing scope ends
 
 Hence an exception in any of the forks will cause the whole scope to end. Ending the scope means that all running forks
 are cancelled (using interruption). Once all forks complete, the exception is propagated further, that is re-thrown by
@@ -97,8 +98,8 @@ supervised {
 // doesn't print "Hello", instead throws "boom!"
 ```
 
-When using a supervised scope, the main thread is used for supervision, and the provided code block is executed on
-a new fork (virtual thread).
+When using a supervised scope, the calling thread is used for supervision, and the code block runs in a new fork
+(virtual thread). Hence, interrupting the calling thread cancels the code block and all forks at once.
 
 ## User, daemon and unsupervised forks
 
@@ -119,7 +120,9 @@ An unsupervised scope can be created using `unsupervised`. Within such scopes, o
 `forkCancellable` forks can be started.
 
 Once the code block passed to `unsupervised` completes, the scope ends, that is, all running forks are cancelled. Still, 
-the `unsupervised` method returns (the scope completes) only once all forks have completed.
+the `unsupervised` method returns (the scope completes) only once all forks have completed. The code block runs on the
+calling thread, so interrupting that thread (e.g. when an enclosing scope ends) interrupts only the code block; forks
+are cancelled once it completes.
 
 Fork failures aren't handled in any special way, and can be inspected using the `Fork.join()` method.
 

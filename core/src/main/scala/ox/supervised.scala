@@ -15,6 +15,7 @@ import scala.reflect.ClassTag
   *   - the scope ends once all user, supervised forks (started using [[forkUser]]), including the `f` body, succeed. Forks started using
   *     [[fork]] (daemon) don't have to complete successfully for the scope to end.
   *   - the scope also ends once the first supervised fork (including the `f` main body) fails with an exception
+  *   - the scope also ends when the calling thread is interrupted
   *   - when the scope **ends**, all running forks are cancelled (each fork's thread is interrupted at most once)
   *   - the scope **completes** (that is, this method returns) only once all forks started by `f` have completed (either successfully, or
   *     with an exception)
@@ -23,7 +24,7 @@ import scala.reflect.ClassTag
   * (regardless if the exception was thrown from the main body, or from a fork). Any other exceptions that occur when completing the scope
   * are added as suppressed. After a successful completion, such exceptions are ignored.
   *
-  * When using a supervised scope, the main thread is used for supervision, and the provided `f` code block is executed on a new fork
+  * When using a supervised scope, the calling thread is used for supervision, and the provided `f` code block is executed on a new fork
   * (virtual thread).
   *
   * @see
