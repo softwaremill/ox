@@ -74,13 +74,14 @@ This means that the scope will end only when either:
 
 * all (user, supervised) forks, including the body passed to `supervised`, succeed
 * or any (supervised) fork, including the body passed to `supervised`, fails
+* or the thread that called `supervised` is interrupted, e.g. because an enclosing scope ends
 
 Hence an exception in any of the forks will cause the whole scope to end. Ending the scope means that all running forks
 are cancelled (using interruption). Once all forks complete, the exception is propagated further, that is re-thrown by
 the `supervised` method invocation:
 
 ```scala mdoc:compile-only
-import ox.{fork, forkUser, Ox, sleep, supervised}
+import ox.{fork, forkUser, sleep, supervised}
 import scala.concurrent.duration.*
 
 supervised {
@@ -97,13 +98,15 @@ supervised {
 // doesn't print "Hello", instead throws "boom!"
 ```
 
-When using a supervised scope, the main thread is used for supervision, and the provided code block is executed on
-a new fork (virtual thread).
+When using a supervised scope, the calling thread is used for supervision, and the code block runs in a new fork
+(virtual thread). Hence, interrupting the calling thread cancels the code block and all forks at once.
 
 ## User, daemon and unsupervised forks
 
 Forks created using `fork` behave as daemon threads. That is, their failure ends the scope, but the scope will also end 
-once the body and all user forks succeed, regardless if the (daemon) fork is still running.
+once the body and all user forks succeed, regardless if the (daemon) fork is still running. If a daemon fork fails after
+the scope has ended this way (e.g. while handling the interruption), the failure is ignored. If such failures matter,
+log them in the fork.
 
 Alternatively, a user fork can be created using `forkUser`. Such a fork is required to complete successfully, in order
 for the scope to end successfully. Hence, when the body of the scope completes, the scope will wait until all user
@@ -117,7 +120,9 @@ An unsupervised scope can be created using `unsupervised`. Within such scopes, o
 `forkCancellable` forks can be started.
 
 Once the code block passed to `unsupervised` completes, the scope ends, that is, all running forks are cancelled. Still, 
-the `unsupervised` method returns (the scope completes) only once all forks have completed.
+the `unsupervised` method returns (the scope completes) only once all forks have completed. The code block runs on the
+calling thread, so interrupting that thread (e.g. when an enclosing scope ends) interrupts only the code block; forks
+are cancelled once it completes.
 
 Fork failures aren't handled in any special way, and can be inspected using the `Fork.join()` method.
 
@@ -147,4 +152,5 @@ When integrating with libraries which manage their own threads, e.g. reactive li
 be able to start forks from such library-managed threads. For this purpose, the `inScopeRunner` method can be used.
 
 A runner obtained from a scope-managed thread can be passed to other threads, and used to start forks within the
-concurrency scope, as long as it's not complete, from arbitrary threads.
+concurrency scope, until the scope ends, from arbitrary threads. Once the scope ends, scheduled functions which haven't
+run yet are dropped, and further `async` calls throw a `ChannelClosedException`.

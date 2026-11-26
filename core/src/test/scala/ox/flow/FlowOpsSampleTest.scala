@@ -13,18 +13,18 @@ class FlowOpsSampleTest extends AnyFlatSpec with Matchers:
     s.runToList() shouldBe List.empty
 
   it should "not sample anything when 'n == 0'" in:
-    val c = Flow.fromValues(1 to 10: _*)
+    val c = Flow.fromValues(1 to 10*)
     val s = c.sample(0)
     s.runToList() shouldBe List.empty
 
   it should "sample every element of the flow when 'n == 1'" in:
-    val c = Flow.fromValues(1 to 10: _*)
+    val c = Flow.fromValues(1 to 10*)
     val n = 1
     val s = c.sample(n)
     s.runToList() shouldBe (n to 10 by n)
 
   it should "sample every nth element of the flow" in:
-    val c = Flow.fromValues(1 to 10: _*)
+    val c = Flow.fromValues(1 to 10*)
     val n = 3
     val s = c.sample(n)
     s.runToList() shouldBe (n to 10 by n)

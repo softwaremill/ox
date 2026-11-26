@@ -3,8 +3,8 @@ import java.util.concurrent.atomic.AtomicInteger
 
 /** Reproduces a Scala Native 0.5.12 virtual thread scalability issue.
   *
-  * Pattern: N virtual threads each block on CompletableFuture.get() while a single "actor" virtual thread processes
-  * requests sequentially. At N=100 this works. At N>=500 it livelocks on Native (works on JVM).
+  * Pattern: N virtual threads each block on CompletableFuture.get() while a single "actor" virtual thread processes requests sequentially.
+  * At N=100 this works. At N>=500 it livelocks on Native (works on JVM).
   *
   * This is the same pattern used by ox.channels.Actor.ask under high concurrency.
   *
@@ -44,3 +44,5 @@ object NativeVirtualThreadScalabilityIssue:
 
     threads.foreach(_.join())
     actor.interrupt()
+  end run
+end NativeVirtualThreadScalabilityIssue

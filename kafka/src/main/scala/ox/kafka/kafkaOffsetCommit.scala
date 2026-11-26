@@ -11,7 +11,7 @@ import ox.flow.Flow
 
 /** Common trait for packets that contain messages to commit. */
 trait HasCommit:
-  def commit: List[ReceivedMessage[_, _]]
+  def commit: List[ReceivedMessage[?, ?]]
 
 private[kafka] def doCommit[K, V](consumer: ActorRef[KafkaConsumerWrapper[K, V]], packets: Source[HasCommit]): Unit =
   val commitInterval = 1.second
@@ -39,7 +39,7 @@ private[kafka] def doCommit[K, V](consumer: ActorRef[KafkaConsumerWrapper[K, V]]
   commitAll()
 end doCommit
 
-case class SendPacket[K, V](send: List[ProducerRecord[K, V]], commit: List[ReceivedMessage[_, _]]) extends HasCommit
+case class SendPacket[K, V](send: List[ProducerRecord[K, V]], commit: List[ReceivedMessage[?, ?]]) extends HasCommit
 
 object SendPacket:
   def apply[K, V](send: ProducerRecord[K, V], commit: ReceivedMessage[?, ?]): SendPacket[K, V] =
@@ -49,7 +49,7 @@ object SendPacket:
     SendPacket(send, List(commit))
 
 /** A packet containing only commit messages (consumer records) to be committed. */
-case class CommitPacket(commit: List[ReceivedMessage[_, _]]) extends HasCommit
+case class CommitPacket(commit: List[ReceivedMessage[?, ?]]) extends HasCommit
 
 object CommitPacket:
   def apply(commit: ReceivedMessage[?, ?]): CommitPacket =

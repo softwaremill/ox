@@ -23,3 +23,13 @@ metals.sbt
 
 /notes.md
 .devcontainer
+.orca
+.sandcat/settings.local.json
+
+# TraceVault — local only, do not commit
+.tracevault/
+.claude/settings.local.json
+
+# Local Sphinx build artifacts
+generated-doc/out/.venv/
+generated-doc/out/_build/

@@ -25,4 +25,8 @@ class FlowOpsFactoryMethodsTest extends AnyFlatSpec with Matchers:
     Flow.range(1, 5, 1).runToList() shouldBe List(1, 2, 3, 4, 5)
     Flow.range(1, 5, 2).runToList() shouldBe List(1, 3, 5)
     Flow.range(1, 11, 3).runToList() shouldBe List(1, 4, 7, 10)
+
+  it should "produce a descending range with a negative step" in:
+    Flow.range(5, 1, -1).runToList() shouldBe List(5, 4, 3, 2, 1)
+    Flow.range(10, 0, -2).runToList() shouldBe List(10, 8, 6, 4, 2, 0)
 end FlowOpsFactoryMethodsTest

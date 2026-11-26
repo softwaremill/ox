@@ -60,7 +60,7 @@ class FlowCompanionIOOpsTest extends AnyWordSpec with Matchers:
       assertThrows[NoSuchFileException](Flow.fromFile(path).runToList())
 
     "throw an exception if path is a directory" in supervised:
-      val path = Paths.get(getClass.getResource("/").toURI)
+      val path = Files.createTempDirectory("ox-test")
       val exception = intercept[IOException](Flow.fromFile(path).runToList())
       exception.getMessage should endWith("is a directory")
 

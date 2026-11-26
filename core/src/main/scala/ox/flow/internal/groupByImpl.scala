@@ -15,6 +15,9 @@ import ox.unsupervised
 
 import scala.annotation.tailrec
 
+private case class ChildDone[V](v: V)
+private case class FromParent[T](t: T)
+
 private[flow] def groupByImpl[T, V, U](parent: Flow[T], parallelism: Int, predicate: T => V)(childFlowTransform: V => Flow[T] => Flow[U])(
     using BufferCapacity
 ): Flow[U] =
@@ -44,17 +47,15 @@ private[flow] def groupByImpl[T, V, U](parent: Flow[T], parallelism: Int, predic
     def shouldReceiveFromParentChannel: Boolean = parentDone || pendingFromParent.isDefined
   end GroupByState
 
-  case class ChildDone(v: V)
-
   // Running a pending child flow, after another has completed as done
-  def runChild_ifPending(state: GroupByState, childOutput: Sink[U | ChildDone])(using OxUnsupervised): GroupByState =
+  def runChild_ifPending(state: GroupByState, childOutput: Sink[U | ChildDone[V]])(using OxUnsupervised): GroupByState =
     state.pendingFromParent match
       case Some((t, v, counter)) => sendToChild_orRunChild_orBuffer(state.copy(pendingFromParent = None), childOutput, t, v, counter)
       case None                  => state
 
   def sendToChild_orRunChild_orBuffer(
       state: GroupByState,
-      childOutput: Sink[U | ChildDone],
+      childOutput: Sink[U | ChildDone[V]],
       t: T,
       v: V,
       counter: Long
@@ -107,13 +108,12 @@ private[flow] def groupByImpl[T, V, U](parent: Flow[T], parallelism: Int, predic
       // clauses. The elements from this channel are then emitted by the returned flow.
       // Completion of children (when the parent is complete, or the parallelism limit is reached) is signalled on
       // this channel as well.
-      val childOutput = BufferCapacity.newChannel[U | ChildDone]
+      val childOutput = BufferCapacity.newChannel[U | ChildDone[V]]
 
       // Parent channel, from which we receive as long as it's not done, and only when a child flow isn't pending
       // creation (see below). As the receive is conditional, the errors that occur on this channel are also
       // propagated to `childOutput`, which is always the first (priority) clause in the main `select`.
-      case class FromParent(v: T)
-      val parentChannel = parent.map(FromParent(_)).onError(childOutput.errorOrClosed(_).discard).runToChannel()
+      val parentChannel = parent.map(FromParent[T](_)).onError(childOutput.errorOrClosed(_).discard).runToChannel()
 
       var state = GroupByState(parentDone = false, None, Map.empty, 0L, WeightedHeap())
 
@@ -147,11 +147,11 @@ private[flow] def groupByImpl[T, V, U](parent: Flow[T], parallelism: Int, predic
 
           case e: ChannelClosed.Error => throw e.toThrowable
 
-          case FromParent(t) =>
+          case FromParent[T @unchecked](t) =>
             state = state.withFromParentCounterIncremented
             state = sendToChild_orRunChild_orBuffer(state, childOutput, t, predicate(t), state.fromParentCounter)
 
-          case ChildDone(v) =>
+          case ChildDone[V @unchecked](v) =>
             state = state.withChildRemoved(v)
 
             // Children should only be done because their `childChannel` was completed as done by

@@ -58,7 +58,7 @@ object either:
           t match
             case Left(e)  => break(Left(e))
             case Right(a) => a
-        case given boundary.Label[Either[Nothing, Nothing]] =>
+        case _: boundary.Label[Either[Nothing, Nothing]] =>
           error("The enclosing `either` call uses a different error type.\nIf it's explicitly typed, is the error type correct?")
         case _ => error("`.ok()` can only be used within an `either` call.\nIs it present?")
       }
@@ -77,7 +77,7 @@ object either:
       summonFrom {
         case given boundary.Label[Either[E, Nothing]] =>
           break(t.asInstanceOf[Either[E, Nothing]])
-        case given boundary.Label[Either[Nothing, Nothing]] =>
+        case _: boundary.Label[Either[Nothing, Nothing]] =>
           error("The enclosing `either` call uses a different error type.\nIf it's explicitly typed, is the error type correct?")
         case _ => error("`.ok()` can only be used within an `either` call.\nIs it present?")
       }
@@ -91,7 +91,7 @@ object either:
           t match
             case None    => break(Left(()))
             case Some(a) => a
-        case given boundary.Label[Either[Nothing, Nothing]] =>
+        case _: boundary.Label[Either[Nothing, Nothing]] =>
           error(
             "The enclosing `either` call uses a different error type.\nIf it's explicitly typed, is the error type correct?\nNote that for options, the error type must contain a `Unit`."
           )
@@ -110,8 +110,8 @@ object either:
     /** Unwrap the value of the `Option`, short-circuiting the computation to the enclosing [[either]] on guaranteed `None`. */
     transparent inline def ok(): A =
       summonFrom {
-        case given boundary.Label[Either[Unit, Nothing]]    => break(Left(()))
-        case given boundary.Label[Either[Nothing, Nothing]] =>
+        case given boundary.Label[Either[Unit, Nothing]] => break(Left(()))
+        case _: boundary.Label[Either[Nothing, Nothing]] =>
           error(
             "The enclosing `either` call uses a different error type.\nIf it's explicitly typed, is the error type correct?\nNote that for options, the error type must contain a `Unit`."
           )
@@ -133,8 +133,8 @@ object either:
     /** Fail the computation, short-circuiting to the enclosing [[either]] block. */
     transparent inline def fail(): Nothing =
       summonFrom {
-        case given boundary.Label[Either[E, Nothing]]       => break(Left(e))
-        case given boundary.Label[Either[Nothing, Nothing]] =>
+        case given boundary.Label[Either[E, Nothing]]    => break(Left(e))
+        case _: boundary.Label[Either[Nothing, Nothing]] =>
           error("The enclosing `either` call uses a different error type.\nIf it's explicitly typed, is the error type correct?")
       }
   end extension

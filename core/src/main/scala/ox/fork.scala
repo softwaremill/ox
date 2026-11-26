@@ -17,7 +17,8 @@ import scala.util.control.NoStackTrace
   * is, successful completion of this fork isn't required to end the scope.
   *
   * An exception thrown while evaluating `f` will cause the fork to fail and the enclosing scope to end (cancelling all other running
-  * forks).
+  * forks). If the scope has already ended because the body and all user forks succeeded, the failure is ignored; if such failures matter,
+  * log them in the fork.
   *
   * For alternate behaviors regarding ending the scope, see [[forkUser]], [[forkError]], [[forkUserError]], [[forkCancellable]] and
   * [[forkUnsupervised]].
@@ -182,7 +183,7 @@ def forkCancellable[T](f: => T)(using OxUnsupervised): CancellableFork[T] =
     catch
       // if this thread was interrupted, any context is already captured as part of the thread started in the nested scope
       // hence, ignoring this exception, so that it's not logged by the uncaught exception handler
-      case e: InterruptedException =>
+      case _: InterruptedException =>
 
   new ForkUsingResult(result) with CancellableFork[T]:
     override def cancel(): Either[Throwable, T] =
@@ -227,7 +228,7 @@ private[ox] inline def unwrapExecutionException[T](f: => T): T =
     case e: ExecutionException => throw causeWithSelfAsSuppressed(e)
     case e: Throwable          => throw e
 
-private inline def causeWithSelfAsSuppressed(e: ExecutionException): Throwable =
+private[ox] inline def causeWithSelfAsSuppressed(e: ExecutionException): Throwable =
   val cause = e.getCause
   // adding the original as suppressed, so that no context is lost
   // we cannot simply throw the EE, as it might wrap e.g. boundary-break, which has to be thrown unchanged

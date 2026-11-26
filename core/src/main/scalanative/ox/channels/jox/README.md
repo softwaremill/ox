@@ -10,7 +10,7 @@ Ported from: **jox 1.1.2** (`v1.1.2-channels` tag)
 
 ## Target Platform
 
-Requires: **Scala Native 0.5.12+** (for virtual threads, `java.util.concurrent` atomics, `LockSupport`)
+Requires: **Scala Native 0.5.13+** (for virtual threads, `java.util.concurrent` atomics, `LockSupport`)
 
 ## Divergences from Java Jox
 

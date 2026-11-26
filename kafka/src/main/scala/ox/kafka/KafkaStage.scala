@@ -78,7 +78,7 @@ object KafkaStage:
         // packets which are fully sent, and should be committed
         // using an unlimited buffer so that the I/O thread doesn't get blocked in producer.send callbacks; backpressure is provided
         // by creating a buffered channel in `flow.runToChannel()` below
-        val toCommit = Channel.unlimited[SendPacket[_, _]]
+        val toCommit = Channel.unlimited[SendPacket[?, ?]]
 
         // used to reorder values received from `metadata` using the assigned sequence numbers
         val sendInSequence = SendInSequence(emit)
@@ -174,7 +174,7 @@ object KafkaStage:
       producer: KafkaProducer[K, V],
       packet: SendPacket[K, V],
       sendInSequence: SendInSequence[RecordMetadata],
-      toCommit: Sink[SendPacket[_, _]],
+      toCommit: Sink[SendPacket[?, ?]],
       exceptions: Sink[Exception],
       metadata: Sink[(Long, RecordMetadata)],
       commitOffsets: Boolean
@@ -201,7 +201,7 @@ end KafkaStage
 private class SendInSequence[T](emit: FlowEmit[T]):
   private var sequenceNoNext = 0L
   private var sequenceNoToSendNext = 0L
-  private val toSend = mutable.SortedSet[(Long, T)]()(Ordering.by(_._1))
+  private val toSend = mutable.SortedSet[(Long, T)]()(using Ordering.by(_._1))
 
   def nextSequenceNo: Long =
     val n = sequenceNoNext

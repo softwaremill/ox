@@ -8,7 +8,6 @@ import ox.channels.Sink
 import ox.channels.forkPropagate
 import ox.channels.selectOrClosed
 import ox.discard
-import ox.fork
 import ox.forkDiscard
 import ox.inScopeRunner
 import ox.tapException

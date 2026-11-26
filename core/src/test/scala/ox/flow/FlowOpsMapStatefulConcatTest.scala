@@ -78,4 +78,22 @@ class FlowOpsMapStatefulConcatTest extends AnyFlatSpec with Matchers:
       c.receive() shouldBe "c"
       c.receiveOrClosed() should matchPattern:
         case ChannelClosed.Error(reason) if reason.getMessage == "boom" =>
+
+  it should "initialize the state on each run" in:
+    // given
+    val flow = Flow
+      .fromValues(1, 2, 2, 3)
+      .mapStatefulConcat(Set.empty[Int])((seen, element) => (seen + element, Option.unless(seen.contains(element))(element)))
+
+    // when & then
+    flow.runToList() shouldBe List(1, 2, 3)
+    flow.runToList() shouldBe List(1, 2, 3)
+
+  it should "initialize the state on each run, also after a partial run" in:
+    // given
+    val flow = Flow.fromValues("a", "b", "c").mapStatefulConcat(0)((index, element) => (index + 1, Some((element, index))))
+
+    // when & then
+    flow.take(2).runToList() shouldBe List(("a", 0), ("b", 1))
+    flow.runToList() shouldBe List(("a", 0), ("b", 1), ("c", 2))
 end FlowOpsMapStatefulConcatTest

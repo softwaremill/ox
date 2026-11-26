@@ -1,5 +1,6 @@
 package ox.kafka
 
+import scala.compiletime.uninitialized
 import io.github.embeddedkafka.EmbeddedKafka
 import org.apache.kafka.clients.producer.{ProducerRecord, RecordMetadata}
 import org.apache.kafka.common.serialization.{Deserializer, StringDeserializer}
@@ -14,7 +15,7 @@ import scala.concurrent.duration.*
 import ox.flow.Flow
 
 class KafkaTest extends AnyFlatSpec with Matchers with EmbeddedKafka with BeforeAndAfterAll:
-  private var bootstrapServer: String = _
+  private var bootstrapServer: String = uninitialized
 
   override def beforeAll(): Unit =
     bootstrapServer = s"localhost:${EmbeddedKafka.start().config.kafkaPort}"

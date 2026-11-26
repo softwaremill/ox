@@ -58,6 +58,7 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
    streaming/index
    streaming/flows
    streaming/io
+   streaming/json
    streaming/channels
    streaming/transforming-channels
    streaming/selecting-from-channels
@@ -80,6 +81,7 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
    utils/rate-limiter
    utils/resources
    utils/control-flow
+   utils/compute-intensive
    utils/actors
    utils/circuit-breaker
    utils/utility
@@ -92,6 +94,7 @@ In addition to this documentation, ScalaDocs can be browsed at [https://javadoc.
    integrations/mdc-logback
    integrations/cron4s
    integrations/otel-context
+   integrations/otel-tracing
    integrations/tapir
    integrations/sttp-client
 

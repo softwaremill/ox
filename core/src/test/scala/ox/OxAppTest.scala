@@ -368,4 +368,8 @@ class OxAppTest extends AnyFlatSpec with Matchers:
     ec shouldEqual 1
     assert(stackTrace.contains("oh no"))
   }
+
+  "OxApp.Settings" should "default to no custom compute executor" in {
+    OxApp.Settings.Default.computeExecutor shouldBe None
+  }
 end OxAppTest

@@ -1,5 +1,6 @@
 package ox
 
+import scala.annotation.unused
 import scala.reflect.ClassTag
 
 /** Describes the representation of application errors. Such errors have type `E` and are reported in context `F`.
@@ -32,12 +33,12 @@ trait ErrorMode[E, F[_]]:
   /** Adds a suppressed exception to the value being represented by `error`. This is only called if `isError(error)` returns `true`. By
     * default, the suppressed exception is discarded and the original value is returned.
     */
-  def addSuppressedException[T](error: F[T], e: Throwable): F[T] = error
+  def addSuppressedException[T](error: F[T], @unused e: Throwable): F[T] = error
 
   /** Adds a suppressed application error to the value being represented by `error`. This is only called if `isError(error)` returns `true`.
     * By default, the suppressed application error is discarded and the original value is returned.
     */
-  def addSuppressedError[T](error: F[T], e: E): F[T] = error
+  def addSuppressedError[T](error: F[T], @unused e: E): F[T] = error
 end ErrorMode
 
 /** An error mode which doesn't allow reporting application errors.

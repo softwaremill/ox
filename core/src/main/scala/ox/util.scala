@@ -112,14 +112,18 @@ inline def uninterruptible[T](inline f: T): T =
   unsupervised {
     val t = forkUnsupervised(f)
 
-    def joinDespiteInterrupted: T =
-      try t.join()
-      catch
-        case e: InterruptedException =>
-          joinDespiteInterrupted.discard
-          throw e
+    // `joinEither` returns the fork's own failure as a `Left` (also when `f` throws an InterruptedException), and only throws an
+    // InterruptedException if the current thread is interrupted while waiting; in that case, we wait again
+    var interrupted: InterruptedException = null
+    var result: Either[Throwable, T] = null
+    while result == null do
+      try result = t.joinEither()
+      catch case e: InterruptedException => interrupted = e
 
-    joinDespiteInterrupted
+    result match
+      case Left(e)                         => throw e
+      case Right(_) if interrupted != null => throw interrupted
+      case Right(value)                    => value
   }
 
 /** Sleep (block the current thread/fork) for the provided amount of time. */
