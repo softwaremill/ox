@@ -12,7 +12,7 @@ object TestUtil:
       .ofVirtual()
       .start(() =>
         try f(scope)
-        catch case e: Exception => scope.completeExceptionally(e)
+        catch case e: Throwable => scope.completeExceptionally(e)
       )
     mainTask.join()
     scope.waitForCompletion()
@@ -24,7 +24,7 @@ object TestUtil:
       .ofVirtual()
       .start(() =>
         try cf.complete(f())
-        catch case ex: Exception => cf.completeExceptionally(ex)
+        catch case ex: Throwable => cf.completeExceptionally(ex)
       )
     scope.addFuture(cf)
     cf
@@ -43,18 +43,18 @@ object TestUtil:
       .ofVirtual()
       .start(() =>
         try cf.complete(f())
-        catch case ex: Exception => cf.completeExceptionally(ex)
+        catch case ex: Throwable => cf.completeExceptionally(ex)
       )
     new CancelableFork(t, cf)
   end forkCancelable
 
   class Scope:
     private val futures = mutable.ArrayBuffer.empty[CompletableFuture[?]]
-    @volatile private var exception: Exception | Null = null
+    @volatile private var exception: Throwable | Null = null
 
     def addFuture(f: CompletableFuture[?]): Unit = synchronized { futures += f }
 
-    def completeExceptionally(e: Exception): Unit = exception = e
+    def completeExceptionally(e: Throwable): Unit = exception = e
 
     def waitForCompletion(): Unit =
       if exception != null then throw new ExecutionException(exception)
@@ -63,7 +63,7 @@ object TestUtil:
           try f.get()
           catch
             case e: ExecutionException =>
-              if exception == null then exception = e.getCause.asInstanceOf[Exception]
+              if exception == null then exception = e.getCause
       }
       if exception != null then throw new ExecutionException(exception)
     end waitForCompletion

@@ -3,7 +3,7 @@ package ox.channels.jox
 // Ported from: https://github.com/softwaremill/jox/blob/v1.1.2-channels/channels/src/main/java/com/softwaremill/jox/SelectClause.java
 
 /** A clause to use as part of `Select.select`. */
-abstract class SelectClause[T]:
+private[ox] abstract class SelectClause[T]:
   private[jox] def getChannel: Channel[?] | Null = null
 
   /** Returns a StoredSelectClause, ChannelClosed, or the selected value (not null). */

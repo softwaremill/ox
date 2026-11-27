@@ -4,7 +4,7 @@ package ox.channels.jox
 
 import java.util.concurrent.atomic.{AtomicInteger, AtomicReference, AtomicReferenceArray}
 
-final class Segment(
+private[ox] final class Segment(
     private val id: Long,
     initialPrev: Segment | Null,
     pointers: Int,
@@ -138,10 +138,13 @@ final class Segment(
 
 end Segment
 
-object Segment:
+private[ox] object Segment:
   val SEGMENT_SIZE: Int =
     val env = System.getenv("JOX_SEGMENT_SIZE")
-    if env != null then Integer.parseInt(env) else 32
+    val size = if env != null then Integer.parseInt(env) else 32
+    // the counters in `pointersNotProcessedNotInterrupted` use 6-bit fields
+    if size < 1 || size > 32 then throw new IllegalArgumentException("Segment size must be between 1 and 32")
+    size
 
   private val PROCESSED_SHIFT = 6
   private val POINTERS_SHIFT = 12

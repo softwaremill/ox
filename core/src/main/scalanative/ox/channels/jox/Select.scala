@@ -6,7 +6,7 @@ import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.LockSupport
 import scala.collection.mutable
 
-object Select:
+private[ox] object Select:
   @throws[InterruptedException]
   def select[U](clauses: SelectClause[? <: U]*): U =
     val r = selectOrClosed(clauses*)
@@ -24,7 +24,6 @@ object Select:
     throw new AssertionError("unreachable")
   end selectOrClosed
 
-  @throws[InterruptedException]
   def defaultClause[T](value: T): SelectClause[T] = new DefaultClauseValue(value)
 
   def defaultClause[T](callback: () => T): SelectClause[T] = new DefaultClauseCallback(callback)
@@ -130,7 +129,6 @@ private[jox] final class SelectInstance(clausesCount: Int):
             while iter.hasNext && !done do
               val clause = iter.next().asInstanceOf[SelectClause[?]]
               // cleanup the stored select for the clause we'll re-register
-              val storedIter = storedClauses.iterator
               var found = false
               val newStored = mutable.ArrayBuffer.empty[StoredSelectClause]
               for stored <- storedClauses do

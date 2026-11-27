@@ -2,7 +2,7 @@ package ox.channels.jox
 
 // Ported from: https://github.com/softwaremill/jox/blob/v1.1.2-channels/channels/src/main/java/com/softwaremill/jox/CloseableChannel.java
 
-trait CloseableChannel:
+private[ox] trait CloseableChannel:
   def done(): Unit
   def doneOrClosed(): AnyRef
   def error(reason: Throwable): Unit

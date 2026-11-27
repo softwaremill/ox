@@ -5,10 +5,13 @@ package ox.channels.jox
 import java.util.concurrent.atomic.{AtomicLong, AtomicReference}
 import java.util.concurrent.locks.LockSupport
 
-final class Channel[T] private (val capacity: Int) extends Source[T] with Sink[T]:
+private[ox] final class Channel[T] private (val capacity: Int) extends Source[T] with Sink[T]:
   import CellState.*
   import Channel.{getSendersCounter, isClosed, setClosedFlag, TRY_SEND_NOT_SENT}
   import Segment.{SEGMENT_SIZE, NULL_SEGMENT, findAndMoveForward}
+
+  if capacity < -1 then
+    throw new IllegalArgumentException("Capacity must be 0 (rendezvous), positive (buffered) or -1 (unlimited channels).")
 
   val isRendezvous: Boolean = capacity == 0
   private inline def isUnlimited: Boolean = capacity < 0
@@ -204,10 +207,10 @@ final class Channel[T] private (val capacity: Int) extends Source[T] with Sink[T
             receivers.compareAndSet(r + 1, seg.getId * SEGMENT_SIZE)
             () // continue
           else
-            val res = finishTryReceive(seg, i)
+            val res = finishTryReceive(seg, i, r)
             if res ne RETRY_SENTINEL then return res
         else
-          val res = finishTryReceive(seg, i)
+          val res = finishTryReceive(seg, i, r)
           if res ne RETRY_SENTINEL then return res
         end if
       end if
@@ -216,8 +219,7 @@ final class Channel[T] private (val capacity: Int) extends Source[T] with Sink[T
   end tryReceiveOrClosed
 
   /** Returns result, null (nothing available), or RETRY_SENTINEL to indicate the caller should loop. */
-  private def finishTryReceive(segment: Segment, i: Int): AnyRef | Null =
-    val r = receivers.get() - 1 // the cell index we just reserved
+  private def finishTryReceive(segment: Segment, i: Int, r: Long): AnyRef | Null =
     val result =
       try updateCellReceive(segment, i, r, null, null, false)
       catch case e: InterruptedException => throw new AssertionError("unreachable: non-blocking receive", e)
@@ -685,7 +687,7 @@ final class Channel[T] private (val capacity: Int) extends Source[T] with Sink[T
 
 end Channel
 
-object Channel:
+private[ox] object Channel:
   val DEFAULT_BUFFER_SIZE: Int = 16
   val TRY_SEND_NOT_SENT: AnyRef = new AnyRef
 

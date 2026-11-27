@@ -9,7 +9,10 @@ import java.util.concurrent.ConcurrentSkipListSet
 class ChannelBufferedTest extends AnyFlatSpec with Matchers:
   import TestUtil.*
 
-  "buffered channel" should "send and receive without blocking when buffer has space" in:
+  "buffered channel" should "reject a capacity below -1" in:
+    an[IllegalArgumentException] should be thrownBy Channel.newBufferedChannel[Int](-2)
+
+  it should "send and receive without blocking when buffer has space" in:
     val ch = Channel.newBufferedChannel[Int](3)
     ch.send(1)
     ch.send(2)

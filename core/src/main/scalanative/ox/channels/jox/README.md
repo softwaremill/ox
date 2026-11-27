@@ -1,7 +1,7 @@
 # Scala Port of Jox Channels
 
 Pure Scala port of [softwaremill/jox](https://github.com/softwaremill/jox) `channels` module,
-enabling Scala Native support. This code lives in `core/native/` and is only compiled for the
+enabling Scala Native support. This code lives in `core/src/main/scalanative/` and is only compiled for the
 Native platform; the JVM continues to use the Java Jox library directly.
 
 ## Source Version
@@ -74,7 +74,7 @@ The Java version prints full segment-by-segment cell state. The Scala port retur
 
 ## Test Mapping
 
-Tests are in `core/native/src/test/scala/ox/channels/jox/`. They require clang/LLVM to link and run.
+Tests are in `core/src/test/scalanative/ox/channels/jox/`. They require clang/LLVM to link and run.
 
 | Java test file | Scala test file | Notes |
 |---------------|----------------|-------|

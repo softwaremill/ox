@@ -2,6 +2,9 @@ package ox.channels.jox
 
 // Ported from: channels/src/test/java/com/softwaremill/jox/ChannelTrySendReceiveTest.java (jox 1.1.2)
 
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
+
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -98,4 +101,41 @@ class ChannelTrySendReceiveTest extends AnyFlatSpec with Matchers:
   "trySend with null" should "throw NPE" in:
     val ch = Channel.newBufferedChannel[String](1)
     a[NullPointerException] should be thrownBy ch.trySendOrClosed(null.asInstanceOf[String])
+
+  "concurrent trySend and tryReceive" should "not lose or duplicate values" in:
+    val ch = Channel.newBufferedChannel[Int](64)
+    val numProducers = 4
+    val numConsumers = 4
+    val itemsPerProducer = 10_000
+    val received = ConcurrentHashMap.newKeySet[Int]()
+    val receivedCount = new AtomicInteger(0)
+    val producersDone = new AtomicInteger(0)
+
+    scoped { scope =>
+      for p <- 0 until numProducers do
+        forkVoid(
+          scope,
+          () =>
+            for i <- 0 until itemsPerProducer do while ch.trySendOrClosed(p * itemsPerProducer + i) != null do Thread.`yield`()
+            if producersDone.incrementAndGet() == numProducers then ch.done()
+        ): Unit
+
+      for _ <- 0 until numConsumers do
+        forkVoid(
+          scope,
+          () =>
+            var done = false
+            while !done do
+              ch.tryReceiveOrClosed() match
+                case _: ChannelDone => done = true
+                case null           => Thread.`yield`()
+                case v              =>
+                  received.add(v.asInstanceOf[Int]): Unit
+                  receivedCount.incrementAndGet(): Unit
+        ): Unit
+      end for
+    }
+
+    received.size shouldBe numProducers * itemsPerProducer
+    receivedCount.get shouldBe numProducers * itemsPerProducer
 end ChannelTrySendReceiveTest

@@ -4,14 +4,14 @@ To use ox core in your project, add:
 
 ```scala
 // sbt dependency
-"com.softwaremill.ox" %%% "core" % "@VERSION@"
+"com.softwaremill.ox" %% "core" % "@VERSION@"
 
 // scala-cli dependency
-//> using dep com.softwaremill.ox:::core:@VERSION@
+//> using dep com.softwaremill.ox::core:@VERSION@
 ```
 
 On the JVM, Ox core depends only on the Java [jox](https://github.com/softwaremill/jox) project, where channels are implemented. There are no other direct or transitive dependencies.
 
-For Scala Native, only the the `core` module is available. It contains a reimplementation of Jox Channels in pure Scala.
+For Scala Native, only the `core` module is available (use `%%%` in sbt, or `:::` in scala-cli). It contains a reimplementation of Jox Channels in pure Scala.
 
 Integration modules have separate dependencies.

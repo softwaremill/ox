@@ -6,7 +6,7 @@ package ox.channels.jox
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.LockSupport
 
-final class Continuation(val payload: AnyRef):
+private[ox] final class Continuation(val payload: AnyRef):
   private val creatingThread: Thread = Thread.currentThread()
   private val data: AtomicReference[AnyRef] = new AtomicReference(null)
 
@@ -43,7 +43,7 @@ final class Continuation(val payload: AnyRef):
   end await
 end Continuation
 
-object Continuation:
+private[ox] object Continuation:
   val RENDEZVOUS_SPINS: Int =
     val nproc = Runtime.getRuntime.availableProcessors()
     if nproc == 1 then 0 else if nproc <= 4 then 1 << 7 else 1 << 10

@@ -5,7 +5,7 @@ package ox.channels.jox
 //  plus RestartSelectMarker, SelectState, TimeoutMarker from Select.java)
 
 // Possible states of a cell: one of these enum constants, Continuation, StoredSelectClause, or a buffered value
-enum CellState:
+private[ox] enum CellState:
   case DONE
   case INTERRUPTED_SEND // the send/receive differentiation is important for expandBuffer
   case INTERRUPTED_RECEIVE
@@ -15,29 +15,29 @@ enum CellState:
   case CLOSED
 end CellState
 
-enum SendResult:
+private[ox] enum SendResult:
   case AWAITED, BUFFERED, RESUMED, FAILED, CLOSED
 
-enum ReceiveResult:
+private[ox] enum ReceiveResult:
   case FAILED, CLOSED
 
-enum ExpandBufferResult:
+private[ox] enum ExpandBufferResult:
   case DONE, FAILED, CLOSED
 
-enum ContinuationMarker:
+private[ox] enum ContinuationMarker:
   case INTERRUPTED
 
-enum ChannelClosedMarker:
+private[ox] enum ChannelClosedMarker:
   case CLOSED
 
-enum SentClauseMarker:
+private[ox] enum SentClauseMarker:
   case SENT
 
-enum RestartSelectMarker:
+private[ox] enum RestartSelectMarker:
   case RESTART
 
-enum SelectState:
+private[ox] enum SelectState:
   case REGISTERING, INTERRUPTED
 
-enum TimeoutMarker:
+private[ox] enum TimeoutMarker:
   case INSTANCE
