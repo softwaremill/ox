@@ -33,7 +33,7 @@ Or [scala-cli](https://scala-cli.virtuslab.org):
 //> using dep "com.softwaremill.ox::core:1.1.1"
 ```
 
-For Scala Native, use `%%%` (sbt) or `:::` (scala-cli).
+For Scala Native, use `%%%` in sbt 1.x (in sbt 2.x, `%%` is enough) or `:::` in scala-cli.
 
 Documentation is available at [https://ox.softwaremill.com](https://ox.softwaremill.com), ScalaDocs can be browsed at [https://javadoc.io](https://www.javadoc.io/doc/com.softwaremill.ox).
 
