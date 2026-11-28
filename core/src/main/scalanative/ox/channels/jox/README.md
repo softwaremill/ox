@@ -6,7 +6,10 @@ Native platform; the JVM continues to use the Java Jox library directly.
 
 ## Source Version
 
-Ported from: **jox 1.1.2** (`v1.1.2-channels` tag)
+Ported from: **jox 1.1.2**, tag `v1.1.2-channels`, commit
+[`45f6a921e054b2475e127df3f4ec4f171660cd4f`](https://github.com/softwaremill/jox/tree/45f6a921e054b2475e127df3f4ec4f171660cd4f).
+
+When bumping the jox version used on the JVM, port the `channels` changes made in jox since this commit, and update it here.
 
 ## Target Platform
 

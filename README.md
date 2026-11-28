@@ -6,7 +6,7 @@
 [![ScalaDoc](https://javadoc.io/badge2/com.softwaremill.ox/core_3/ScalaDoc.svg)](https://javadoc.io/doc/com.softwaremill.ox/core_3)
 
 Safe direct-style streaming, concurrency and resiliency for Scala.
-Requires JDK 21+ & Scala 3. Experimental support for Scala Native.
+For Scala 3. On the JVM, requires JDK 21+. Experimental support for Scala Native.
 
 Ox covers the following areas:
 

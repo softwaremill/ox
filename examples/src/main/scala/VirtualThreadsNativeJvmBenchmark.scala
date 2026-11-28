@@ -5,21 +5,24 @@ import java.util.concurrent.atomic.AtomicLong
 /** Spawns 100,000 virtual threads in a supervised scope, each incrementing a shared counter, then joins all. Measures wall-clock time to
   * compare JVM vs Scala Native performance.
   *
+  * This is a rough, single-shot measurement. For proper JVM & Native benchmarks, see
+  * [[https://github.com/WojciechMazur/scala-microbench-harness scala-microbench-harness]] (JMH on multiple Scala platforms).
+  *
   * Prerequisites: JDK 21+ (JVM), clang/LLVM 16+ (Native).
   *
   * To package & run:
   * {{{
   * # JVM fat jar
-  * sbt examples3/assembly
-  * java -jar examples/target/jvm-3/examples-assembly.jar
+  * sbt examples/assembly
+  * java -jar target/out/jvm/scala-3.9.0/examples/examples-assembly.jar
   *
   * # Native binary
-  * sbt examplesNative3/nativeLink
-  * ./examples/target/native-3/example
+  * sbt examplesNative/nativeLink
+  * ./target/out/native0.5/scala-3.9.0/examples/examples
   *
   * # Compare (3 iterations each):
-  * for i in 1 2 3; do java -jar examples/target/jvm-3/examples-assembly.jar; done
-  * for i in 1 2 3; do ./examples/target/native-3/example; done
+  * for i in 1 2 3; do java -jar target/out/jvm/scala-3.9.0/examples/examples-assembly.jar; done
+  * for i in 1 2 3; do ./target/out/native0.5/scala-3.9.0/examples/examples; done
   * }}}
   */
 object VirtualThreadsNativeJvmBenchmark:
@@ -31,7 +34,7 @@ object VirtualThreadsNativeJvmBenchmark:
 
     supervised {
       for _ <- 1 to n do
-        fork {
+        forkUser {
           counter.incrementAndGet()
         }
     }

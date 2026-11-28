@@ -70,6 +70,8 @@ lazy val core = (projectMatrix in file("core"))
     settings = enableMimaSettings ++ Seq(
       Test / fork := true,
       libraryDependencies ++= Seq(
+        // the Native port in core/src/main/scalanative/ox/channels/jox is based on jox commit 45f6a92 (1.1.2); when bumping, port the
+        // jox changes since then, see that directory's README
         "com.softwaremill.jox" % "channels" % "1.1.2",
         "org.apache.pekko" %% "pekko-stream" % "2.0.0" % Test,
         "org.reactivestreams" % "reactive-streams-tck-flow" % "1.0.4" % Test
