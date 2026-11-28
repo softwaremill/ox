@@ -63,12 +63,14 @@ class FlowTextOpsTest extends AnyWordSpec with Matchers:
       Flow.fromValues(chunk1, Chunk.empty).linesUtf8.runToList() shouldBe List("line1")
 
   "lines(charset)" should:
-    "decode lines with specified charset" in:
-      val inputBytes = "zażółć\ngęślą\njaźń".getBytes(Charset.forName("ISO-8859-2"))
-      println(new String(inputBytes, Charset.forName("ISO-8859-2")))
-      String.format("%02X", inputBytes(2)) shouldBe "BF" // making sure 'ż' is encoded in ISO-8859-2
-      val chunk = Chunk.fromArray(inputBytes)
-      Flow.fromValues(chunk).lines(Charset.forName("ISO-8859-2")).runToList() shouldBe List("zażółć", "gęślą", "jaźń")
+    // ISO-8859-2 is not available in Scala Native's charset implementation.
+    if !TestPlatform.isNative then
+      "decode lines with specified charset" in:
+        val inputBytes = "zażółć\ngęślą\njaźń".getBytes(Charset.forName("ISO-8859-2"))
+        println(new String(inputBytes, Charset.forName("ISO-8859-2")))
+        String.format("%02X", inputBytes(2)) shouldBe "BF" // making sure 'ż' is encoded in ISO-8859-2
+        val chunk = Chunk.fromArray(inputBytes)
+        Flow.fromValues(chunk).lines(Charset.forName("ISO-8859-2")).runToList() shouldBe List("zażółć", "gęślą", "jaźń")
 
     "decode lines correctly across chunk boundaries" in:
       val lines = List("aa", "bbbbb", "cccccccc", "ddd", "ee", "fffff")

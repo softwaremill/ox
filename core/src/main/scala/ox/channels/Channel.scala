@@ -1,7 +1,5 @@
 package ox.channels
 
-import com.softwaremill.jox.{Channel as JChannel, Select as JSelect, SelectClause as JSelectClause, Sink as JSink, Source as JSource}
-
 import ChannelClosedUnion.orThrow
 
 import scala.annotation.unchecked.uncheckedVariance
@@ -33,7 +31,7 @@ sealed trait SelectClause[+T]:
   * There should be at most one default clause, and it should always come last in the list of clauses.
   */
 case class Default[T](value: T) extends SelectClause[T]:
-  override private[ox] def delegate: JSelectClause[Any] = JSelect.defaultClause(() => DefaultResult(value))
+  override private[ox] def delegate: JSelectClause[Any] = JoxPlatform.defaultClause(() => DefaultResult(value))
   type Result = DefaultResult[T]
 
 //
@@ -323,10 +321,7 @@ end Sink
   *   The type of the values processed by the channel.
   */
 class Channel[T] private (capacity: Int) extends Source[T] with Sink[T]:
-  protected override val delegate: JChannel[Any] = capacity match
-    case 0  => JChannel.newRendezvousChannel()
-    case -1 => JChannel.newUnlimitedChannel()
-    case _  => JChannel.newBufferedChannel(capacity)
+  protected override val delegate: JChannel[Any] = JoxPlatform.newChannel(capacity)
 
   override def toString: String = delegate.toString
 

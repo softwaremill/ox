@@ -2,12 +2,15 @@ import com.softwaremill.SbtSoftwareMillCommon.commonSmlBuildSettings
 import com.softwaremill.Publish.{ossPublishSettings, updateDocs}
 import com.softwaremill.UpdateVersionInDocs
 import com.typesafe.tools.mima.core.{MissingClassProblem, ProblemFilters}
+import scalanative.build.*
 
 commonSmlBuildSettings
 ossPublishSettings
 
 organization := "com.softwaremill.ox"
-scalaVersion := "3.9.0"
+lazy val scala3 = "3.9.0"
+
+scalaVersion := scala3
 scalacOptions ++= Seq("-java-output-version", "21")
 Test / scalacOptions += "-Wconf:msg=unused value of type org.scalatest.Assertion:s"
 Test / scalacOptions += "-Wconf:msg=unused value of type org.scalatest.compatible.Assertion:s"
@@ -57,18 +60,54 @@ lazy val root = rootProject
   )
   .autoAggregate
 
-lazy val core: Project = (project in file("core"))
+lazy val core = (projectMatrix in file("core"))
   .settings(
     name := "core",
-    libraryDependencies ++= Seq(
-      "com.softwaremill.jox" % "channels" % "1.1.2",
-      scalaTest,
-      "org.apache.pekko" %% "pekko-stream" % "2.0.0" % Test,
-      "org.reactivestreams" % "reactive-streams-tck-flow" % "1.0.4" % Test
-    ),
-    Test / fork := true
+    libraryDependencies += scalaTest
   )
-  .settings(enableMimaSettings)
+  .jvmPlatform(
+    scalaVersions = Seq(scala3),
+    settings = enableMimaSettings ++ Seq(
+      Test / fork := true,
+      libraryDependencies ++= Seq(
+        // the Native port in core/src/main/scalanative/ox/channels/jox is based on jox commit 45f6a92 (1.1.2); when bumping, port the
+        // jox changes since then, see that directory's README
+        "com.softwaremill.jox" % "channels" % "1.1.2",
+        "org.apache.pekko" %% "pekko-stream" % "2.0.0" % Test,
+        "org.reactivestreams" % "reactive-streams-tck-flow" % "1.0.4" % Test
+      )
+    )
+  )
+  .nativePlatform(
+    scalaVersions = Seq(scala3),
+    settings = Seq(
+      Test / fork := false,
+      // One native test process, so a CI hang leaves a single suite at the end of the log.
+      Test / parallelExecution := false,
+      Test / logBuffered := false,
+      nativeConfig ~= { _.withMultithreading(true) }
+    )
+  )
+
+lazy val examples = (projectMatrix in file("examples"))
+  .settings(
+    name := "examples",
+    publishArtifact := false,
+    Compile / mainClass := Some("VirtualThreadsNativeJvmBenchmark")
+  )
+  .jvmPlatform(
+    scalaVersions = Seq(scala3),
+    settings = Seq(
+      assembly / assemblyJarName := "examples-assembly.jar"
+    )
+  )
+  .nativePlatform(
+    scalaVersions = Seq(scala3),
+    settings = Seq(
+      nativeConfig ~= { _.withMultithreading(true) }
+    )
+  )
+  .dependsOn(core)
 
 lazy val kafka: Project = (project in file("kafka"))
   .settings(
@@ -83,7 +122,7 @@ lazy val kafka: Project = (project in file("kafka"))
       scalaTest
     )
   )
-  .dependsOn(core)
+  .dependsOn(core.jvm(scala3))
 
 lazy val mdcLogback: Project = (project in file("mdc-logback"))
   .settings(
@@ -93,7 +132,7 @@ lazy val mdcLogback: Project = (project in file("mdc-logback"))
       scalaTest
     )
   )
-  .dependsOn(core)
+  .dependsOn(core.jvm(scala3))
 
 lazy val flowReactiveStreams: Project = (project in file("flow-reactive-streams"))
   .settings(
@@ -103,7 +142,7 @@ lazy val flowReactiveStreams: Project = (project in file("flow-reactive-streams"
       scalaTest
     )
   )
-  .dependsOn(core)
+  .dependsOn(core.jvm(scala3))
 
 lazy val flowJson: Project = (project in file("flow-json"))
   .settings(
@@ -114,7 +153,7 @@ lazy val flowJson: Project = (project in file("flow-json"))
       scalaTest
     )
   )
-  .dependsOn(core)
+  .dependsOn(core.jvm(scala3))
 
 lazy val cron: Project = (project in file("cron"))
   .settings(
@@ -124,7 +163,7 @@ lazy val cron: Project = (project in file("cron"))
       scalaTest
     )
   )
-  .dependsOn(core % "test->test;compile->compile")
+  .dependsOn(core.jvm(scala3) % "test->test;compile->compile")
 
 lazy val otelContext: Project = (project in file("otel-context"))
   .settings(
@@ -134,7 +173,7 @@ lazy val otelContext: Project = (project in file("otel-context"))
       scalaTest
     )
   )
-  .dependsOn(core % "test->test;compile->compile")
+  .dependsOn(core.jvm(scala3) % "test->test;compile->compile")
 
 lazy val otelTracing: Project = (project in file("otel-tracing"))
   .settings(
@@ -148,7 +187,7 @@ lazy val otelTracing: Project = (project in file("otel-tracing"))
       "io.opentelemetry" % "opentelemetry-exporter-otlp" % openTelemetryVersion % Test
     )
   )
-  .dependsOn(core % "test->test;compile->compile", otelContext % "test->test;compile->compile")
+  .dependsOn(core.jvm(scala3) % "test->test;compile->compile", otelContext % "test->test;compile->compile")
 
 lazy val documentation: Project = (project in file("generated-doc")) // important: it must not be doc/
   .enablePlugins(MdocPlugin)
@@ -166,7 +205,7 @@ lazy val documentation: Project = (project in file("generated-doc")) // importan
     libraryDependencies ++= Seq(logback % Test, jsoniterMacros)
   )
   .dependsOn(
-    core,
+    core.jvm(scala3),
     kafka,
     mdcLogback,
     flowReactiveStreams,

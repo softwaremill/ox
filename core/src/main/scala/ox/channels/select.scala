@@ -1,7 +1,5 @@
 package ox.channels
 
-import com.softwaremill.jox.Select as JSelect
-
 import ox.channels.ChannelClosedUnion.{map, orThrow}
 import ox.{discard, forkUnsupervised, sleep, unsupervised}
 import scala.concurrent.duration.FiniteDuration
@@ -56,7 +54,7 @@ def selectOrClosed(
   *   (done or in error).
   */
 def selectOrClosed[T](clauses: Seq[SelectClause[T]]): SelectResult[T] | ChannelClosed =
-  ChannelClosed.fromJoxOrT(JSelect.selectOrClosed(clauses.map(_.delegate)*))
+  ChannelClosed.fromJoxOrT(JoxPlatform.selectOrClosed(clauses.map(_.delegate)))
 
 //
 

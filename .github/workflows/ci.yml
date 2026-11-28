@@ -32,6 +32,7 @@ jobs:
     - name: Compile documentation
       run: sbt -v compileDocumentation
     - name: Test
+      timeout-minutes: 45
       run: sbt -v testFull
     - uses: actions/upload-artifact@v4  # upload test results
       if: success() || failure()        # run this step even if previous step failed

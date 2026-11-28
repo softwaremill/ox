@@ -5,8 +5,10 @@
 [![Maven Central](https://img.shields.io/maven-central/v/com.softwaremill.ox/core_3)](https://central.sonatype.com/artifact/com.softwaremill.ox/core_3)
 [![ScalaDoc](https://javadoc.io/badge2/com.softwaremill.ox/core_3/ScalaDoc.svg)](https://javadoc.io/doc/com.softwaremill.ox/core_3)
 
-Safe direct-style streaming, concurrency and resiliency for Scala on the JVM. Requires JDK 21+ & Scala 3. Ox covers
-the following areas:
+Safe direct-style streaming, concurrency and resiliency for Scala.
+For Scala 3. On the JVM, requires JDK 21+. Experimental support for Scala Native.
+
+Ox covers the following areas:
 
 * streaming: push-based backpressured streaming designed for direct-style, with a rich set of stream transformations,
   flexible stream source & sink definitions and reactive streams integration
@@ -30,6 +32,8 @@ Or [scala-cli](https://scala-cli.virtuslab.org):
 ```scala
 //> using dep "com.softwaremill.ox::core:1.1.1"
 ```
+
+For Scala Native, use `%%%` in sbt 1.x (in sbt 2.x, `%%` is enough) or `:::` in scala-cli.
 
 Documentation is available at [https://ox.softwaremill.com](https://ox.softwaremill.com), ScalaDocs can be browsed at [https://javadoc.io](https://www.javadoc.io/doc/com.softwaremill.ox).
 
@@ -265,4 +269,4 @@ We offer commercial development services. [Contact us](https://softwaremill.com)
 
 ## Copyright
 
-Copyright (C) 2023-2025 SoftwareMill [https://softwaremill.com](https://softwaremill.com).
+Copyright (C) 2023-2026 SoftwareMill [https://softwaremill.com](https://softwaremill.com).
