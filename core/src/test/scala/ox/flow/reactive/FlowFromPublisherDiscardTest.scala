@@ -3,6 +3,7 @@ package ox.flow.reactive
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 import ox.*
+import ox.channels.BufferCapacity
 import ox.flow.Flow
 
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -14,17 +15,24 @@ import scala.util.Try
 class FlowFromPublisherDiscardTest extends AnyFunSuite with Matchers:
   private val boom = new RuntimeException("boom")
 
-  private class Fixture:
+  private class Fixture(onDiscard: Int => Unit = _ => ())(using BufferCapacity):
     val publisher = new ManualPublisher[Int]
     val emitted = new ConcurrentLinkedQueue[Int]()
     val discarded = new ConcurrentLinkedQueue[Int]()
-    val flow: Flow[Int] = Flow.fromPublisher(publisher, discarded.add(_).discard).tap(emitted.add(_).discard)
+    val flow: Flow[Int] = Flow
+      .fromPublisher(
+        publisher,
+        t =>
+          discarded.add(t).discard
+          onDiscard(t)
+      )
+      .tap(emitted.add(_).discard)
 
     def emittedList: List[Int] = emitted.asScala.toList
     def discardedSorted: List[Int] = discarded.asScala.toList.sorted
   end Fixture
 
-  test("should emit buffered elements before rethrowing a publisher error"):
+  test("should discard buffered elements and rethrow a publisher error"):
     val f = Fixture()
     val received = new Semaphore(0)
     val gate = new Semaphore(0)
@@ -43,8 +51,8 @@ class FlowFromPublisherDiscardTest extends AnyFunSuite with Matchers:
       f.publisher.error(boom)
       gate.release(3)
       result.join() shouldBe Failure(boom)
-    f.emittedList shouldBe List(1, 2, 3)
-    f.discarded shouldBe empty
+    f.emittedList shouldBe List(1)
+    f.discardedSorted shouldBe List(2, 3)
 
   test("should discard undelivered elements when the consumer throws"):
     val f = Fixture()
@@ -83,6 +91,42 @@ class FlowFromPublisherDiscardTest extends AnyFunSuite with Matchers:
     f.emittedList shouldBe List(1)
     f.discardedSorted shouldBe List(2, 3, 4, 5)
     f.publisher.cancelled.get() shouldBe true
+
+  test("should discard all buffered elements when onDiscard throws"):
+    val discardBoom = new RuntimeException("discard boom")
+    val f = Fixture(t => if t == 3 then throw discardBoom)
+    supervised:
+      val result = forkUnsupervised(Try(f.flow.map(x => if x == 2 then throw boom else x).runToList()))
+      f.publisher.subscribed.await()
+      (1 to 5).foreach(f.publisher.next)
+      result.join() shouldBe Failure(boom)
+    boom.getSuppressed.toList shouldBe List(discardBoom)
+    f.discardedSorted shouldBe List(3, 4, 5)
+
+  test("should discard an element whose send is interrupted"):
+    given BufferCapacity = BufferCapacity(1)
+    val f = Fixture()
+    val received = new Semaphore(0)
+    supervised:
+      val result = forkCancellable:
+        f.flow.runForeach: _ =>
+          received.release()
+          never
+      f.publisher.subscribed.await()
+      f.publisher.next(1)
+      received.acquire()
+      f.publisher.next(2)
+      // the publisher ignores demand: the buffer is full, so this send blocks until interrupted
+      val sending = new Semaphore(0)
+      val sender = forkCancellable:
+        sending.release()
+        f.publisher.next(3)
+      sending.acquire()
+      sender.cancel().discard
+      f.discardedSorted shouldBe List(3)
+      result.cancel().discard
+    f.emittedList shouldBe List(1)
+    f.discardedSorted shouldBe List(2, 3)
 
   test("should discard elements delivered after cancellation"):
     val f = Fixture()

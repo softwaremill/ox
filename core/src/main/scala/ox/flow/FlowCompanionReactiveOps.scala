@@ -27,13 +27,12 @@ trait FlowCompanionReactiveOps:
     * The data is passed from a subscription to the flow using a [[ox.channel.Channel]], with a capacity given by the [[BufferCapacity]] in
     * scope. That's also how many elements will be at most requested from the publisher at a time.
     *
-    * If the publisher signals an error, elements received before the error are emitted first, and then the error is rethrown.
-    *
     * Every element received from the publisher is either emitted, or passed to `onDiscard` exactly once. Elements are discarded when the
-    * flow fails, is interrupted or stops early (e.g. due to `take`), including elements delivered by the publisher after the subscription
-    * is cancelled. Use this to release resources held by the elements (e.g. pooled buffers).
+    * publisher or the flow fails, is interrupted or stops early (e.g. due to `take`), including elements delivered by the publisher after
+    * the subscription is cancelled. Use this to release resources held by the elements (e.g. pooled buffers).
     *
-    * `onDiscard` may be called from the publisher's threads, and must not throw.
+    * `onDiscard` may be called from the publisher's threads. If it throws while discarding buffered elements, the remaining ones are still
+    * discarded, and the exception is added as suppressed to the one which ended the flow.
     *
     * The publisher parameter should implement the JDK 9+ `Flow.Publisher` API. To create a flow from a publisher implementing
     * `com.reactivestreams.Publisher`, use the `flow-reactive-streams` module.
@@ -48,7 +47,7 @@ trait FlowCompanionReactiveOps:
       // used to "extract" the subscription that is set in the subscription running in a fork
       val state = new AtomicReference[SubscriptionState](SubscriptionState.NotSubscribed)
       var subscription: Subscription = null
-      // the error is stored, instead of erroring the channel, so that buffered elements are still received
+      // the error is stored, instead of erroring the channel, so that buffered elements can be received and discarded
       val publisherError = new AtomicReference[Option[Throwable]](None)
 
       var toDemand = 0
@@ -64,11 +63,19 @@ trait FlowCompanionReactiveOps:
               // the flow might have been cancelled before the subscription was set
               if previous == SubscriptionState.Cancelled then s.cancel() else s.request(capacity)
 
-            def onNext(t: T): Unit = channel.sendOrClosed(t) match
-              case _: ChannelClosed => onDiscard(t)
-              case _                => ()
+            def onNext(t: T): Unit =
+              // an interrupted send doesn't add the element to the channel; this only happens if the publisher ignores demand
+              try
+                channel.sendOrClosed(t) match
+                  case _: ChannelClosed => onDiscard(t)
+                  case _                => ()
+              catch
+                case e: InterruptedException =>
+                  onDiscard(t)
+                  throw e
 
             def onError(t: Throwable): Unit =
+              // set before closing the channel, so that it's visible when the consumer receives Done
               publisherError.set(Some(t))
               channel.doneOrClosed().discard
 
@@ -83,6 +90,13 @@ trait FlowCompanionReactiveOps:
               false
             case e: ChannelClosed.Error => throw e.toThrowable
             case t: T @unchecked        =>
+              // fail fast: buffered elements aren't emitted after a publisher error
+              publisherError.get() match
+                case Some(e) =>
+                  onDiscard(t)
+                  throw e
+                case None => ()
+
               emit(t)
 
               // if we have an element, onSubscribe must have already happened; we can read the subscription and cache it for later
@@ -117,17 +131,23 @@ private enum SubscriptionState:
   case Cancelled
 
 /** Passes all elements remaining in a done `channel` to `onDiscard`. Interruptions are deferred until the channel is drained, so that no
-  * element is lost.
+  * element is lost. If `onDiscard` throws, draining continues, and the first exception is rethrown at the end, with the others suppressed.
   */
 private def discardBuffered[T](channel: Channel[T], onDiscard: T => Unit): Unit =
   var interrupted = false
+  var discardError: Throwable = null
   var draining = true
   while draining do
     try
       channel.receiveOrClosed() match
         case _: ChannelClosed => draining = false
-        case t: T @unchecked  => onDiscard(t)
+        case t: T @unchecked  =>
+          try onDiscard(t)
+          catch
+            case e: Throwable =>
+              if discardError == null then discardError = e else discardError.addSuppressed(e)
     catch case _: InterruptedException => interrupted = true
   end while
   if interrupted then Thread.currentThread().interrupt()
+  if discardError != null then throw discardError
 end discardBuffered
