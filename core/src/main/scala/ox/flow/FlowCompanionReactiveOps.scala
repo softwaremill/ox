@@ -3,6 +3,7 @@ package ox.flow
 import ox.channels.BufferCapacity
 import ox.channels.Channel
 import ox.channels.ChannelClosed
+import ox.channels.ChannelClosedException
 import ox.channels.toInt
 import ox.discard
 import ox.forkUnsupervised
@@ -76,8 +77,9 @@ trait FlowCompanionReactiveOps:
                   throw e
 
             def onError(t: Throwable): Unit =
-              // set before closing the channel, so that it's visible when the consumer receives Done
-              publisherError.set(Some(t))
+              // set before closing the channel, so that it's visible when the consumer receives Done; wrapped, as when using
+              // channel.error, to keep the exception type
+              publisherError.set(Some(ChannelClosedException.Error(t)))
               channel.doneOrClosed().discard
 
             def onComplete(): Unit = channel.doneOrClosed().discard)

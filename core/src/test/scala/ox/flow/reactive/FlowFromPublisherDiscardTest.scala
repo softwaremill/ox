@@ -4,6 +4,7 @@ import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 import ox.*
 import ox.channels.BufferCapacity
+import ox.channels.ChannelClosedException
 import ox.flow.Flow
 
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -52,7 +53,7 @@ class FlowFromPublisherDiscardTest extends AnyFunSuite with Matchers:
       f.publisher.next(3)
       f.publisher.error(boom)
       gate.release(3)
-      result.join() shouldBe Failure(boom)
+      result.join() shouldBe Failure(ChannelClosedException.Error(boom))
     f.emittedList shouldBe List(1)
     f.discardedSorted shouldBe List(2, 3)
 
@@ -107,7 +108,6 @@ class FlowFromPublisherDiscardTest extends AnyFunSuite with Matchers:
     f.discardedSorted shouldBe List(3, 4, 5)
 
   test("should rethrow a publisher error when onDiscard throws"):
-    val boom = new RuntimeException("boom") // not shared: suppressed exceptions are added to it
     val discardBoom = new RuntimeException("discard boom")
     val f = Fixture(t => if t == 2 then throw discardBoom)
     val received = new Semaphore(0)
@@ -125,8 +125,9 @@ class FlowFromPublisherDiscardTest extends AnyFunSuite with Matchers:
       f.publisher.next(3)
       f.publisher.error(boom)
       gate.release()
-      result.join() shouldBe Failure(boom)
-    boom.getSuppressed.toList shouldBe List(discardBoom)
+      val error = result.join().failed.get
+      error shouldBe ChannelClosedException.Error(boom)
+      error.getSuppressed.toList shouldBe List(discardBoom)
     f.discardedSorted shouldBe List(2, 3)
 
   test("should cancel a second subscription"):
