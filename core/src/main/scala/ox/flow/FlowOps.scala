@@ -598,7 +598,8 @@ class FlowOps[+T]:
         repeatWhile:
           selectOrClosed(c1, c2) match
             case ChannelClosed.Done =>
-              if c1.isClosedForReceive then
+              // c1 might have failed after the select completed; then, the Done is from c2, and c1's error is propagated below
+              if c1.isClosedForReceiveDetail.contains(ChannelClosed.Done) then
                 if !propagateDoneLeft then FlowEmit.channelToEmit(c2, emit)
               else if !propagateDoneRight then FlowEmit.channelToEmit(c1, emit)
               false
