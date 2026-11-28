@@ -7,7 +7,9 @@ import ox.channels.BufferCapacity
 import ox.flow.Flow
 
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.Flow.Subscription
 import java.util.concurrent.Semaphore
+import java.util.concurrent.atomic.AtomicBoolean
 import scala.jdk.CollectionConverters.*
 import scala.util.Failure
 import scala.util.Try
@@ -93,6 +95,7 @@ class FlowFromPublisherDiscardTest extends AnyFunSuite with Matchers:
     f.publisher.cancelled.get() shouldBe true
 
   test("should discard all buffered elements when onDiscard throws"):
+    val boom = new RuntimeException("boom") // not shared: suppressed exceptions are added to it
     val discardBoom = new RuntimeException("discard boom")
     val f = Fixture(t => if t == 3 then throw discardBoom)
     supervised:
@@ -102,6 +105,44 @@ class FlowFromPublisherDiscardTest extends AnyFunSuite with Matchers:
       result.join() shouldBe Failure(boom)
     boom.getSuppressed.toList shouldBe List(discardBoom)
     f.discardedSorted shouldBe List(3, 4, 5)
+
+  test("should rethrow a publisher error when onDiscard throws"):
+    val boom = new RuntimeException("boom") // not shared: suppressed exceptions are added to it
+    val discardBoom = new RuntimeException("discard boom")
+    val f = Fixture(t => if t == 2 then throw discardBoom)
+    val received = new Semaphore(0)
+    val gate = new Semaphore(0)
+    supervised:
+      val result = forkUnsupervised:
+        Try:
+          f.flow.runForeach: _ =>
+            received.release()
+            gate.acquire()
+      f.publisher.subscribed.await()
+      f.publisher.next(1)
+      received.acquire()
+      f.publisher.next(2)
+      f.publisher.next(3)
+      f.publisher.error(boom)
+      gate.release()
+      result.join() shouldBe Failure(boom)
+    boom.getSuppressed.toList shouldBe List(discardBoom)
+    f.discardedSorted shouldBe List(2, 3)
+
+  test("should cancel a second subscription"):
+    val f = Fixture()
+    val secondCancelled = new AtomicBoolean(false)
+    supervised:
+      val result = fork(f.flow.runToList())
+      f.publisher.subscribed.await()
+      f.publisher.subscriber.onSubscribe(new Subscription:
+        override def request(n: Long): Unit = ()
+        override def cancel(): Unit = secondCancelled.set(true))
+      f.publisher.next(1)
+      f.publisher.complete()
+      result.join() shouldBe List(1)
+    secondCancelled.get() shouldBe true
+    f.publisher.cancelled.get() shouldBe false
 
   test("should discard an element whose send is interrupted"):
     given BufferCapacity = BufferCapacity(1)

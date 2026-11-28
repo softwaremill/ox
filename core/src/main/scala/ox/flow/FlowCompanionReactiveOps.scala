@@ -31,8 +31,9 @@ trait FlowCompanionReactiveOps:
     * publisher or the flow fails, is interrupted or stops early (e.g. due to `take`), including elements delivered by the publisher after
     * the subscription is cancelled. Use this to release resources held by the elements (e.g. pooled buffers).
     *
-    * `onDiscard` may be called from the publisher's threads. If it throws while discarding buffered elements, the remaining ones are still
-    * discarded, and the exception is added as suppressed to the one which ended the flow.
+    * `onDiscard` may be called concurrently, from the publisher's threads and from the thread running the flow, so it must be thread-safe.
+    * If it throws while the flow ends, the remaining elements are still discarded, and the exception is added as suppressed to the one
+    * which ended the flow.
     *
     * The publisher parameter should implement the JDK 9+ `Flow.Publisher` API. To create a flow from a publisher implementing
     * `com.reactivestreams.Publisher`, use the `flow-reactive-streams` module.
@@ -58,10 +59,10 @@ trait FlowCompanionReactiveOps:
           p.subscribe(new Subscriber[T]:
             def onSubscribe(s: Subscription): Unit =
               val previous = state.getAndUpdate:
-                case SubscriptionState.Cancelled => SubscriptionState.Cancelled
-                case _                           => SubscriptionState.Subscribed(s)
-              // the flow might have been cancelled before the subscription was set
-              if previous == SubscriptionState.Cancelled then s.cancel() else s.request(capacity)
+                case SubscriptionState.NotSubscribed => SubscriptionState.Subscribed(s)
+                case other                           => other
+              // the flow might have been cancelled before the subscription was set; a second subscription must be cancelled (rule 2.5)
+              if previous == SubscriptionState.NotSubscribed then s.request(capacity) else s.cancel()
 
             def onNext(t: T): Unit =
               // an interrupted send doesn't add the element to the channel; this only happens if the publisher ignores demand
@@ -93,7 +94,8 @@ trait FlowCompanionReactiveOps:
               // fail fast: buffered elements aren't emitted after a publisher error
               publisherError.get() match
                 case Some(e) =>
-                  onDiscard(t)
+                  try onDiscard(t)
+                  catch case de: Throwable => e.addSuppressed(de)
                   throw e
                 case None => ()
 

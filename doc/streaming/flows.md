@@ -219,7 +219,7 @@ Some elements might be received from the publisher, but never emitted downstream
 the consumer stops early (through an exception, interruption or `take`), or when they arrive after cancellation. To release such elements 
 (e.g. reference-counted buffers), pass an `onDiscard: T => Unit` callback as the second argument to 
 `Flow.fromPublisher` / `FlowReactiveStreams.fromPublisher`. It is called exactly once for each such element, possibly 
-from the publisher's thread.
+concurrently from the publisher's thread and the thread running the flow, so it must be thread-safe.
 
 To convert a `org.reactivestreams.Publisher` instance, you'll need the same dependency as above and call the
 `FlowReactiveStreams.fromPublisher` method.
